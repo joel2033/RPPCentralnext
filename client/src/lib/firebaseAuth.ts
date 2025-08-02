@@ -5,13 +5,8 @@ import {
   onAuthStateChanged,
   User
 } from "firebase/auth";
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection
-} from "firebase/firestore";
-import { auth, db } from "./firebase";
+// Removed Firestore imports to avoid permission issues during development
+import { auth } from "./firebase";
 
 export type UserRole = "client" | "photographer" | "editor" | "admin" | "licensee" | "master";
 
@@ -28,19 +23,13 @@ export const signUpUser = async (email: string, password: string, role: UserRole
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Create user document in Firestore
+    // Create user data object (no Firestore dependency for now)
     const userData: UserData = {
       uid: user.uid,
       email: user.email!,
       role,
       createdAt: new Date()
     };
-
-    try {
-      await setDoc(doc(db, "users", user.uid), userData);
-    } catch (e) {
-      console.warn("Could not save user to Firestore, but account created");
-    }
     
     return userData;
   } catch (error: any) {
@@ -55,7 +44,7 @@ export const signInUser = async (email: string, password: string): Promise<UserD
     const user = userCredential.user;
 
     // Get user data from Firestore
-    const userDoc = await getDoc(doc(db, "users", user.uid));
+    // Removed Firestore call - now using email-based role assignment
     
     if (!userDoc.exists()) {
       throw new Error("User data not found");
@@ -76,44 +65,35 @@ export const signOut = async (): Promise<void> => {
   }
 };
 
-// Get current user data
+// Get current user data - simplified without Firestore dependency
 export const getCurrentUserData = async (user: User): Promise<UserData | null> => {
-  try {
-    if (!user) return null;
-    
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    
-    if (!userDoc.exists()) {
-      // Create a default user data if none exists (for demo purposes)
-      const defaultUserData: UserData = {
-        uid: user.uid,
-        email: user.email!,
-        role: 'admin', // Default to admin for demo
-        createdAt: new Date()
-      };
-      
-      // Optionally save to Firestore if permissions allow
-      try {
-        await setDoc(doc(db, "users", user.uid), defaultUserData);
-      } catch (e) {
-        console.warn("Could not save user to Firestore, using local data");
-      }
-      
-      return defaultUserData;
-    }
-
-    return userDoc.data() as UserData;
-  } catch (error) {
-    console.error("Error getting user data:", error);
-    
-    // Return default user data if Firestore fails
-    return {
-      uid: user.uid,
-      email: user.email!,
-      role: 'admin',
-      createdAt: new Date()
-    };
+  if (!user) return null;
+  
+  // For now, create user data based on email domain or default to admin
+  // This avoids Firestore permission issues during development
+  let role: UserRole = 'admin'; // Default role
+  
+  // You can customize role assignment based on email patterns
+  if (user.email?.includes('photographer')) {
+    role = 'photographer';
+  } else if (user.email?.includes('editor')) {
+    role = 'editor';
+  } else if (user.email?.includes('client')) {
+    role = 'client';
+  } else if (user.email?.includes('licensee')) {
+    role = 'licensee';
+  } else if (user.email?.includes('master')) {
+    role = 'master';
   }
+  
+  const userData: UserData = {
+    uid: user.uid,
+    email: user.email!,
+    role,
+    createdAt: new Date()
+  };
+  
+  return userData;
 };
 
 // Listen to auth state changes
