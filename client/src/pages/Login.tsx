@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signInUser } from '@/lib/firebaseAuth';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,14 +13,6 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [, setLocation] = useLocation();
-  const { currentUser } = useAuth();
-
-  // Redirect if already logged in
-  React.useEffect(() => {
-    if (currentUser) {
-      setLocation('/dashboard');
-    }
-  }, [currentUser, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +79,17 @@ export default function Login() {
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
+            
+            <div className="text-center mt-4">
+              <Button 
+                type="button"
+                variant="link" 
+                onClick={() => setLocation('/signup')}
+                className="text-rpp-red-main"
+              >
+                Need to create an account? Sign up here
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

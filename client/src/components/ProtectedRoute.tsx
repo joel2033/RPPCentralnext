@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasRoutePermission } from '@/lib/firebaseAuth';
@@ -12,6 +12,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, route }) => {
   const { currentUser, userData, loading } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (!loading) {
+      if (!currentUser) {
+        setLocation('/login');
+        return;
+      }
+      
+      if (userData && !hasRoutePermission(route, userData.role)) {
+        setLocation('/dashboard');
+        return;
+      }
+    }
+  }, [loading, currentUser, userData, route, setLocation]);
+
   // Show loading spinner while checking auth
   if (loading) {
     return (
@@ -21,15 +35,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, route }) => {
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!currentUser || !userData) {
-    setLocation('/login');
+  // Don't render anything while redirecting
+  if (!currentUser) {
     return null;
   }
 
-  // Check route permissions
-  if (!hasRoutePermission(route, userData.role)) {
-    setLocation('/dashboard');
+  if (userData && !hasRoutePermission(route, userData.role)) {
     return null;
   }
 

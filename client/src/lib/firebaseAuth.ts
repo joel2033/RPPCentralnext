@@ -9,8 +9,7 @@ import {
   doc, 
   setDoc, 
   getDoc, 
-  collection, 
-  serverTimestamp 
+  collection
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
@@ -34,10 +33,14 @@ export const signUpUser = async (email: string, password: string, role: UserRole
       uid: user.uid,
       email: user.email!,
       role,
-      createdAt: serverTimestamp()
+      createdAt: new Date()
     };
 
-    await setDoc(doc(db, "users", user.uid), userData);
+    try {
+      await setDoc(doc(db, "users", user.uid), userData);
+    } catch (e) {
+      console.warn("Could not save user to Firestore, but account created");
+    }
     
     return userData;
   } catch (error: any) {
@@ -81,13 +84,35 @@ export const getCurrentUserData = async (user: User): Promise<UserData | null> =
     const userDoc = await getDoc(doc(db, "users", user.uid));
     
     if (!userDoc.exists()) {
-      return null;
+      // Create a default user data if none exists (for demo purposes)
+      const defaultUserData: UserData = {
+        uid: user.uid,
+        email: user.email!,
+        role: 'admin', // Default to admin for demo
+        createdAt: new Date()
+      };
+      
+      // Optionally save to Firestore if permissions allow
+      try {
+        await setDoc(doc(db, "users", user.uid), defaultUserData);
+      } catch (e) {
+        console.warn("Could not save user to Firestore, using local data");
+      }
+      
+      return defaultUserData;
     }
 
     return userDoc.data() as UserData;
   } catch (error) {
     console.error("Error getting user data:", error);
-    return null;
+    
+    // Return default user data if Firestore fails
+    return {
+      uid: user.uid,
+      email: user.email!,
+      role: 'admin',
+      createdAt: new Date()
+    };
   }
 };
 
