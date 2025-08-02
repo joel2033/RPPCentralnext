@@ -23,7 +23,31 @@ export const signUpUser = async (email: string, password: string, role: UserRole
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Create user data object (no Firestore dependency for now)
+    // Create user document in Firestore via backend API
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email!,
+          role
+        })
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to create Firestore document, using local data');
+      } else {
+        const result = await response.json();
+        console.log('User document created in Firestore:', result);
+      }
+    } catch (error) {
+      console.warn('Backend signup call failed, continuing with auth only:', error);
+    }
+
+    // Return user data
     const userData: UserData = {
       uid: user.uid,
       email: user.email!,
@@ -43,14 +67,13 @@ export const signInUser = async (email: string, password: string): Promise<UserD
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // Get user data from Firestore
-    // Removed Firestore call - now using email-based role assignment
-    
-    if (!userDoc.exists()) {
-      throw new Error("User data not found");
+    // Use the same email-based role assignment logic
+    const userData = await getCurrentUserData(user);
+    if (!userData) {
+      throw new Error("Could not create user data");
     }
-
-    return userDoc.data() as UserData;
+    
+    return userData;
   } catch (error: any) {
     throw new Error(error.message || "Failed to sign in");
   }

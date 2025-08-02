@@ -7,6 +7,8 @@ import {
   insertJobSchema,
   insertOrderSchema 
 } from "@shared/schema";
+import { createUserDocument, UserRole } from "./firebase-admin";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
@@ -165,6 +167,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Firebase Auth - User Signup endpoint
+  const signupSchema = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    role: z.enum(["client", "photographer", "editor", "admin", "licensee", "master"])
+  });
+
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { uid, email, role } = signupSchema.parse(req.body);
+      
+      // Create user document in Firestore
+      const docId = await createUserDocument(uid, email, role as UserRole);
+      
+      res.status(201).json({ 
+        success: true, 
+        docId, 
+        message: "User document created successfully in Firestore" 
+      });
+    } catch (error: any) {
+      console.error("Error creating user document:", error);
+      res.status(500).json({ 
+        error: "Failed to create user document", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Firebase Auth - Get User Data endpoint
+  app.get("/api/auth/user/:uid", async (req, res) => {
+    try {
+      const { uid } = req.params;
+      
+      // This would get user data from Firestore in a real implementation
+      // For now, we'll return a simple response
+      res.json({ 
+        message: "User data endpoint ready",
+        uid 
+      });
+    } catch (error: any) {
+      console.error("Error getting user data:", error);
+      res.status(500).json({ 
+        error: "Failed to get user data", 
+        details: error.message 
+      });
     }
   });
 
