@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(240, 10%, 3.9%);
+  --muted: hsl(240, 4.8%, 95.9%);
+  --muted-foreground: hsl(240, 3.8%, 46.1%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(240, 10%, 3.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(240, 10%, 3.9%);
+  --border: hsl(240, 5.9%, 90%);
+  --input: hsl(240, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(240, 4.8%, 95.9%);
+  --secondary-foreground: hsl(240, 5.9%, 10%);
+  --accent: hsl(240, 4.8%, 95.9%);
+  --accent-foreground: hsl(240, 5.9%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(240, 10%, 3.9%);
+  --radius: 0.5rem;
+
+  /* RPP Brand Colors */
+  --rpp-grey-dark: hsl(210, 18%, 22%);
+  --rpp-grey-medium: hsl(210, 12%, 37%);
+  --rpp-grey-light: hsl(210, 8%, 54%);
+  --rpp-grey-lighter: hsl(210, 6%, 69%);
+  --rpp-grey-border: hsl(210, 8%, 84%);
+  --rpp-grey-bg: hsl(210, 6%, 92%);
+  --rpp-grey-surface: hsl(210, 20%, 96%);
+  --rpp-grey-white: hsl(0, 0%, 100%);
+  
+  --rpp-red-dark: hsl(13, 70%, 44%);
+  --rpp-red-main: hsl(13, 88%, 56%);
+  --rpp-red-light: hsl(13, 88%, 66%);
+  --rpp-red-lighter: hsl(13, 88%, 75%);
+  
+  --support-yellow: hsl(45, 84%, 56%);
+  --support-green: hsl(84, 69%, 58%);
+  --support-blue: hsl(200, 80%, 60%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-rpp-grey-surface text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .bg-rpp-grey-dark { background-color: var(--rpp-grey-dark); }
+  .bg-rpp-grey-medium { background-color: var(--rpp-grey-medium); }
+  .bg-rpp-grey-light { background-color: var(--rpp-grey-light); }
+  .bg-rpp-grey-lighter { background-color: var(--rpp-grey-lighter); }
+  .bg-rpp-grey-border { background-color: var(--rpp-grey-border); }
+  .bg-rpp-grey-bg { background-color: var(--rpp-grey-bg); }
+  .bg-rpp-grey-surface { background-color: var(--rpp-grey-surface); }
+  .bg-rpp-grey-white { background-color: var(--rpp-grey-white); }
+  
+  .bg-rpp-red-dark { background-color: var(--rpp-red-dark); }
+  .bg-rpp-red-main { background-color: var(--rpp-red-main); }
+  .bg-rpp-red-light { background-color: var(--rpp-red-light); }
+  .bg-rpp-red-lighter { background-color: var(--rpp-red-lighter); }
+  
+  .bg-support-yellow { background-color: var(--support-yellow); }
+  .bg-support-green { background-color: var(--support-green); }
+  .bg-support-blue { background-color: var(--support-blue); }
+  
+  .text-rpp-grey-dark { color: var(--rpp-grey-dark); }
+  .text-rpp-grey-medium { color: var(--rpp-grey-medium); }
+  .text-rpp-grey-light { color: var(--rpp-grey-light); }
+  .text-rpp-grey-lighter { color: var(--rpp-grey-lighter); }
+  
+  .text-rpp-red-dark { color: var(--rpp-red-dark); }
+  .text-rpp-red-main { color: var(--rpp-red-main); }
+  .text-rpp-red-light { color: var(--rpp-red-light); }
+  
+  .border-rpp-grey-border { border-color: var(--rpp-grey-border); }
+  .border-rpp-red-main { border-color: var(--rpp-red-main); }
+  
+  .hover\:bg-rpp-grey-medium:hover { background-color: var(--rpp-grey-medium); }
+  .hover\:bg-rpp-red-dark:hover { background-color: var(--rpp-red-dark); }
+  .hover\:text-rpp-red-dark:hover { color: var(--rpp-red-dark); }
+  .hover\:text-rpp-grey-dark:hover { color: var(--rpp-grey-dark); }
+}
+
+.sidebar-transition { 
+  transition: transform 0.3s ease-in-out; 
+}
+
+.content-transition { 
+  transition: margin-left 0.3s ease-in-out; 
+}
+
+.collapsible-content { 
+  transition: max-height 0.3s ease-in-out, opacity 0.2s ease-in-out; 
+}
+
+.rotate-180 { 
+  transform: rotate(180deg); 
+}
+
+.modal-backdrop { 
+  backdrop-filter: blur(4px); 
+}
+
+.nav-item.active {
+  background-color: var(--rpp-red-main) !important;
+  color: white !important;
+  position: relative;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--support-blue);
+  border-radius: 0 2px 2px 0;
+}
