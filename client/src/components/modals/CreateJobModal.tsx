@@ -56,28 +56,47 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   });
 
   const handleSubmit = () => {
-    if (!jobData.address || !jobData.customerId) {
+    if (!jobData.address) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields.",
+        description: "Please fill in the property address.",
         variant: "destructive",
       });
       return;
     }
 
-    // Combine date and time for appointment
-    const appointmentDateTime = jobData.appointmentDate && jobData.appointmentTime 
-      ? new Date(`${jobData.appointmentDate}T${jobData.appointmentTime}`)
-      : null;
+    // Prepare submission data - only include fields that have values
+    const submissionData: any = {
+      address: jobData.address,
+    };
 
-    const dueDateValue = jobData.dueDate ? new Date(jobData.dueDate) : null;
+    // Only add optional fields if they have values
+    if (jobData.customerId) {
+      submissionData.customerId = jobData.customerId;
+    }
+    
+    if (jobData.appointmentDate && jobData.appointmentTime) {
+      submissionData.appointmentDate = new Date(`${jobData.appointmentDate}T${jobData.appointmentTime}`);
+    }
+    
+    if (jobData.dueDate) {
+      submissionData.dueDate = new Date(jobData.dueDate);
+    }
+    
+    if (jobData.totalValue) {
+      submissionData.totalValue = jobData.totalValue;
+    }
+    
+    if (jobData.notes) {
+      submissionData.notes = jobData.notes;
+    }
+    
+    if (jobData.status) {
+      submissionData.status = jobData.status;
+    }
 
-    createJobMutation.mutate({
-      ...jobData,
-      appointmentDate: appointmentDateTime,
-      dueDate: dueDateValue,
-      totalValue: jobData.totalValue || "0"
-    });
+    console.log("Submitting job data:", submissionData);
+    createJobMutation.mutate(submissionData);
   };
 
   const nextStep = () => {
