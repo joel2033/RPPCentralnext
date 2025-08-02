@@ -1,4 +1,9 @@
 import { 
+  users,
+  customers, 
+  products,
+  jobs,
+  orders,
   type User, 
   type InsertUser,
   type Customer,
@@ -10,7 +15,8 @@ import {
   type Order,
   type InsertOrder
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Users
