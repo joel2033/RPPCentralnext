@@ -8,6 +8,16 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+## 2025-08-02: Multi-Tenant Partner Structure Implementation
+- **Complete Multi-Tenant Architecture**: Implemented partnerId-based data isolation for true multi-tenancy
+- **Updated Role System**: Simplified to 3 roles - partner (owner), admin (team manager), photographer (field worker)
+- **Partner Signup Flow**: Public signups automatically create partner accounts with unique partnerId generation
+- **Team Management System**: Partners can invite admin/photographer team members via dedicated Team Members page
+- **Firebase Backend Integration**: Full Firestore integration with user documents and pending invite collections
+- **Invite Token System**: Secure team member onboarding with unique invite links and status tracking
+- **Route-Based Permissions**: Updated authorization system for new role structure with partner-only settings access
+- **Team Members UI**: Comprehensive interface for managing invites, viewing team status, and copying invite links
+
 ## 2025-08-02: Firebase Authentication Implementation
 - Implemented Firebase Authentication with Email/Password login
 - Added comprehensive role management system (client, photographer, editor, admin, licensee, master)

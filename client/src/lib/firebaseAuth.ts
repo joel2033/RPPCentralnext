@@ -89,21 +89,31 @@ export const signOut = async (): Promise<void> => {
   }
 };
 
-// Get current user data - simplified without Firestore dependency
+// Get current user data - fetch from Firestore via backend API
 export const getCurrentUserData = async (user: User): Promise<UserData | null> => {
   if (!user) return null;
   
-  // For now, create user data based on email domain or default to admin
-  // This avoids Firestore permission issues during development
-  let role: UserRole = 'admin'; // Default role
+  try {
+    // Try to get user data from Firestore via backend API
+    const response = await fetch(`/api/auth/user/${user.uid}`);
+    if (response.ok) {
+      const firestoreUserData = await response.json();
+      console.log('Loaded user data from Firestore:', firestoreUserData);
+      return firestoreUserData;
+    } else {
+      console.warn('Failed to fetch user data from Firestore, using fallback');
+    }
+  } catch (error) {
+    console.warn('Error fetching user data from backend:', error);
+  }
   
-  // You can customize role assignment based on email patterns
+  // Fallback: create user data based on email domain
+  let role: UserRole = 'partner'; // Default role for public signups
+  
   if (user.email?.includes('photographer')) {
     role = 'photographer';
   } else if (user.email?.includes('admin')) {
     role = 'admin';
-  } else {
-    role = 'partner'; // Default for public signups
   }
   
   const userData: UserData = {
