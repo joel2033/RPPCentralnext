@@ -3,14 +3,15 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 // Layout
 import Layout from "@/components/Layout";
 
 // Pages
 import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
 import Dashboard from "@/pages/Dashboard";
 import Jobs from "@/pages/Jobs";
 import Customers from "@/pages/Customers";
@@ -21,42 +22,101 @@ import Upload from "@/pages/Upload";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  const [user, loading] = useAuthState(auth);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-rpp-grey-surface flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 bg-rpp-red-main rounded-full flex items-center justify-center mx-auto mb-4">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <p className="text-rpp-grey-light">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/jobs" component={Jobs} />
-        <Route path="/customers" component={Customers} />
-        <Route path="/products" component={Products} />
-        <Route path="/orders" component={Orders} />
-        <Route path="/calendar" component={Calendar} />
-        <Route path="/upload" component={Upload} />
-        <Route path="/editor" component={Dashboard} />
-        <Route path="/reports/jobs" component={Dashboard} />
-        <Route path="/reports/revenue" component={Dashboard} />
-        <Route path="/reports/performance" component={Dashboard} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
+      
+      <Route path="/">
+        <ProtectedRoute route="/dashboard">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/dashboard">
+        <ProtectedRoute route="/dashboard">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/jobs">
+        <ProtectedRoute route="/jobs">
+          <Layout>
+            <Jobs />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/customers">
+        <ProtectedRoute route="/customers">
+          <Layout>
+            <Customers />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/products">
+        <ProtectedRoute route="/products">
+          <Layout>
+            <Products />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/orders">
+        <ProtectedRoute route="/orders">
+          <Layout>
+            <Orders />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/calendar">
+        <ProtectedRoute route="/calendar">
+          <Layout>
+            <Calendar />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/upload">
+        <ProtectedRoute route="/upload">
+          <Layout>
+            <Upload />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor-dashboard">
+        <ProtectedRoute route="/editor-dashboard">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/production-hub">
+        <ProtectedRoute route="/production-hub">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/reports">
+        <ProtectedRoute route="/reports">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
@@ -64,8 +124,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <AuthProvider>
+          <Router />
+          <Toaster />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -1,12 +1,42 @@
 import { useState } from "react";
-import { Menu, Bell, Search, ChevronDown } from "lucide-react";
+import { Menu, Bell, Search, ChevronDown, User, LogOut } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const { userData, logout } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setLocation('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'master': return 'bg-purple-100 text-purple-800';
+      case 'licensee': return 'bg-blue-100 text-blue-800';
+      case 'admin': return 'bg-red-100 text-red-800';
+      case 'editor': return 'bg-green-100 text-green-800';
+      case 'photographer': return 'bg-yellow-100 text-yellow-800';
+      case 'client': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getUserInitials = (email: string) => {
+    return email?.split('@')[0]?.slice(0, 2)?.toUpperCase() || 'U';
+  };
 
   return (
     <div className="fixed top-0 left-0 right-0 h-16 bg-white shadow-md z-30 lg:left-64">
@@ -43,32 +73,50 @@ export default function Header({ onMenuClick }: HeaderProps) {
           </button>
 
           {/* Profile Dropdown */}
-          <div className="relative">
-            <button 
-              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100"
-            >
-              <div className="w-8 h-8 bg-rpp-red-main rounded-full flex items-center justify-center text-white text-sm font-medium">
-                JA
-              </div>
-              <span className="hidden md:block text-sm font-medium text-rpp-grey-dark">Joel Adamson</span>
-              <ChevronDown className="w-4 h-4 text-rpp-grey-light" />
-            </button>
-            
-            {/* Dropdown Menu */}
-            {profileDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-rpp-grey-border">
-                <div className="py-2">
-                  <a href="#" className="block px-4 py-2 text-sm text-rpp-grey-dark hover:bg-gray-50">Profile</a>
-                  <a href="#" className="block px-4 py-2 text-sm text-rpp-grey-dark hover:bg-gray-50">Account Settings</a>
-                  <a href="#" className="block px-4 py-2 text-sm text-rpp-grey-dark hover:bg-gray-50">Business Settings</a>
-                  <a href="#" className="block px-4 py-2 text-sm text-rpp-grey-dark hover:bg-gray-50">Billing (Pay Editors)</a>
-                  <hr className="my-2" />
-                  <a href="#" className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-50">Sign Out</a>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100">
+                <div className="w-8 h-8 bg-rpp-red-main rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {userData ? getUserInitials(userData.email) : 'U'}
                 </div>
+                <div className="hidden md:block text-left">
+                  <div className="text-sm font-medium text-rpp-grey-dark">
+                    {userData?.email || 'User'}
+                  </div>
+                  <Badge 
+                    variant="secondary" 
+                    className={`text-xs mt-1 ${userData ? getRoleColor(userData.role) : 'bg-gray-100 text-gray-800'}`}
+                  >
+                    {userData?.role || 'Unknown'}
+                  </Badge>
+                </div>
+                <ChevronDown className="w-4 h-4 text-rpp-grey-light" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end">
+              <div className="px-3 py-2 border-b">
+                <p className="text-sm font-medium">{userData?.email}</p>
+                <p className="text-xs text-rpp-grey-light capitalize">{userData?.role} Account</p>
               </div>
-            )}
-          </div>
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                Business Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>
