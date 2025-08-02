@@ -57,6 +57,7 @@ const menuItems: MenuItem[] = [
       { title: "Product Management", icon: Box, path: "/products" },
     ],
   },
+  { title: "Team Members", icon: Users, path: "/team" },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {

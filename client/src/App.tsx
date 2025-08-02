@@ -19,6 +19,7 @@ import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
+import TeamMembers from "@/pages/TeamMembers";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -87,6 +88,14 @@ function Router() {
         <ProtectedRoute route="/upload">
           <Layout>
             <Upload />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/team">
+        <ProtectedRoute route="/settings">
+          <Layout>
+            <TeamMembers />
           </Layout>
         </ProtectedRoute>
       </Route>

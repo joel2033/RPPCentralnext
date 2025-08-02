@@ -8,17 +8,18 @@ import {
 // Removed Firestore imports to avoid permission issues during development
 import { auth } from "./firebase";
 
-export type UserRole = "client" | "photographer" | "editor" | "admin" | "licensee" | "master";
+export type UserRole = "partner" | "admin" | "photographer";
 
 export interface UserData {
   uid: string;
   email: string;
   role: UserRole;
+  partnerId: string;
   createdAt: any;
 }
 
-// Sign up a new user with email/password and assign role
-export const signUpUser = async (email: string, password: string, role: UserRole): Promise<UserData> => {
+// Sign up a new user (public signup always creates partner)
+export const signUpUser = async (email: string, password: string): Promise<UserData> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -32,8 +33,7 @@ export const signUpUser = async (email: string, password: string, role: UserRole
         },
         body: JSON.stringify({
           uid: user.uid,
-          email: user.email!,
-          role
+          email: user.email!
         })
       });
 
@@ -47,11 +47,12 @@ export const signUpUser = async (email: string, password: string, role: UserRole
       console.warn('Backend signup call failed, continuing with auth only:', error);
     }
 
-    // Return user data
+    // Return user data (always partner for public signup)
     const userData: UserData = {
       uid: user.uid,
       email: user.email!,
-      role,
+      role: "partner",
+      partnerId: "", // Will be filled by backend
       createdAt: new Date()
     };
     
@@ -99,20 +100,17 @@ export const getCurrentUserData = async (user: User): Promise<UserData | null> =
   // You can customize role assignment based on email patterns
   if (user.email?.includes('photographer')) {
     role = 'photographer';
-  } else if (user.email?.includes('editor')) {
-    role = 'editor';
-  } else if (user.email?.includes('client')) {
-    role = 'client';
-  } else if (user.email?.includes('licensee')) {
-    role = 'licensee';
-  } else if (user.email?.includes('master')) {
-    role = 'master';
+  } else if (user.email?.includes('admin')) {
+    role = 'admin';
+  } else {
+    role = 'partner'; // Default for public signups
   }
   
   const userData: UserData = {
     uid: user.uid,
     email: user.email!,
     role,
+    partnerId: "", // Will be populated from Firestore if needed
     createdAt: new Date()
   };
   
@@ -124,18 +122,16 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
 };
 
-// Route permissions by role
+// Route permissions by role - updated for multi-tenant structure
 export const routePermissions: Record<string, UserRole[]> = {
-  "/dashboard": ["client", "photographer", "editor", "admin", "licensee", "master"],
-  "/jobs": ["photographer", "editor", "admin", "licensee", "master"],
-  "/calendar": ["photographer", "editor", "admin", "licensee", "master"],
-  "/customers": ["photographer", "admin", "licensee", "master"],
-  "/products": ["admin", "licensee", "master"],
-  "/orders": ["photographer", "editor", "admin", "licensee", "master"],
-  "/upload": ["photographer", "editor", "admin", "licensee", "master"],
-  "/editor-dashboard": ["editor", "admin", "master"],
-  "/production-hub": ["photographer", "admin", "licensee", "master"],
-  "/reports": ["admin", "licensee", "master"]
+  "/dashboard": ["partner", "admin", "photographer"],
+  "/jobs": ["partner", "admin", "photographer"],
+  "/calendar": ["partner", "admin", "photographer"],
+  "/customers": ["partner", "admin"],
+  "/products": ["partner", "admin"],
+  "/orders": ["partner", "admin", "photographer"],
+  "/upload": ["partner", "admin", "photographer"],
+  "/settings": ["partner"] // Only partners can access team management
 };
 
 // Check if user has permission for route

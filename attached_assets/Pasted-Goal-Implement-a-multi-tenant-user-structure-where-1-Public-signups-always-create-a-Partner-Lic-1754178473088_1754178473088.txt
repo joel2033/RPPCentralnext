@@ -1,0 +1,64 @@
+Goal:
+Implement a multi-tenant user structure where:
+	1.	Public signups always create a Partner (Licensee) account.
+	2.	Partners can invite Admin or Photographer team members via the Team Members page in Settings.
+	3.	All users and data are associated with a partnerId for proper isolation.
+
+
+
+Requirements:
+	1.	Backend (Python Flask)
+	•	Extend /api/auth/signup endpoint to:
+	•	Default all public signups to role = "partner".
+	•	Auto-generate a unique partnerId (UUID or NanoID).
+	•	Create a Firestore users document like:
+
+{
+  "uid": "<firebase UID>",
+  "email": "<email>",
+  "role": "partner",
+  "partnerId": "<unique_partner_id>",
+  "createdAt": "<timestamp>"
+}
+
+
+	•	Add /api/team/invite endpoint for partners to invite team members:
+	•	Request: { name, email, role } (role is either admin or photographer).
+	•	Validate current user is a partner.
+	•	Create a pendingInvite document in Firestore:
+
+{
+  "email": "<team_member_email>",
+  "role": "<role>",
+  "partnerId": "<current_partner_id>",
+  "invitedBy": "<partner_uid>",
+  "status": "pending",
+  "createdAt": "<timestamp>"
+}
+
+
+	•	Send an email invite with a unique signup link containing the invite token.
+
+	2.	Team Member Signup Flow
+	•	When a team member clicks the invite link and signs up:
+	•	Their Firebase Auth account is created.
+	•	Backend verifies the invite token → fetch partnerId and role → creates Firestore users doc with that data.
+	•	Updates pendingInvite.status to "accepted".
+	3.	Firestore Security & Structure
+	•	All future collections (clients, jobs, orders, assets) must include partnerId.
+	•	Only users with the same partnerId can access their tenant’s data.
+	•	Roles for now: "partner", "admin", "photographer".
+	4.	Frontend
+	•	Update /signup to not request role selection → it always creates a partner.
+	•	Create a Team Members page in Settings where partners can:
+	•	View invited and active team members.
+	•	Invite Admin or Photographer roles.
+
+
+
+Acceptance Criteria:
+	•	Public signup → creates a Partner user with partnerId.
+	•	Partner can invite Admin/Photographer via the Team Members page.
+	•	Team member signups inherit partnerId and assigned role.
+	•	Firestore contains users and pendingInvite collections with correct structure.
+	•	Security rules ensure isolation by partnerId.

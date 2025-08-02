@@ -4,28 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { signUpUser, UserRole } from '@/lib/firebaseAuth';
+import { signUpUser } from '@/lib/firebaseAuth';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('client');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [, setLocation] = useLocation();
-
-  const roles: { value: UserRole; label: string }[] = [
-    { value: 'client', label: 'Client' },
-    { value: 'photographer', label: 'Photographer' },
-    { value: 'editor', label: 'Editor' },
-    { value: 'admin', label: 'Admin (VA/Admin)' },
-    { value: 'licensee', label: 'Licensee Owner' },
-    { value: 'master', label: 'Master Franchisor' }
-  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,13 +34,13 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      await signUpUser(email, password, role);
-      setSuccess('User created successfully! Redirecting to login...');
+      await signUpUser(email, password);
+      setSuccess('Partner account created successfully! Redirecting to dashboard...');
       setTimeout(() => {
-        setLocation('/login');
+        setLocation('/dashboard');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to create user');
+      setError(err.message || 'Failed to create partner account');
     } finally {
       setLoading(false);
     }
@@ -62,9 +51,9 @@ export default function Signup() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-rpp-grey-dark">
-            Create New User
+            Sign Up for RPP Platform
           </CardTitle>
-          <p className="text-rpp-grey-light">Admin use only - Create user account</p>
+          <p className="text-rpp-grey-light">Create your partner account to get started</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -119,22 +108,6 @@ export default function Signup() {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="role">User Role</Label>
-              <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select user role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((roleOption) => (
-                    <SelectItem key={roleOption.value} value={roleOption.value}>
-                      {roleOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
             <div className="flex space-x-3">
               <Button 
                 type="button"
@@ -150,7 +123,7 @@ export default function Signup() {
                 className="flex-1 bg-rpp-red-main hover:bg-rpp-red-dark text-white"
                 disabled={loading}
               >
-                {loading ? 'Creating...' : 'Create User'}
+                {loading ? 'Creating...' : 'Create Partner Account'}
               </Button>
             </div>
           </form>

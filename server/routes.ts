@@ -7,7 +7,15 @@ import {
   insertJobSchema,
   insertOrderSchema 
 } from "@shared/schema";
-import { createUserDocument, UserRole } from "./firebase-admin";
+import { 
+  createUserDocument, 
+  createPendingInvite, 
+  getPendingInvite, 
+  updateInviteStatus,
+  getUserDocument,
+  adminDb,
+  UserRole 
+} from "./firebase-admin";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -170,29 +178,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Firebase Auth - User Signup endpoint
-  const signupSchema = z.object({
+  // Firebase Auth - Public Signup endpoint (always creates partner)
+  const publicSignupSchema = z.object({
     uid: z.string(),
-    email: z.string().email(),
-    role: z.enum(["client", "photographer", "editor", "admin", "licensee", "master"])
+    email: z.string().email()
   });
 
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { uid, email, role } = signupSchema.parse(req.body);
+      const { uid, email } = publicSignupSchema.parse(req.body);
       
-      // Create user document in Firestore
-      const docId = await createUserDocument(uid, email, role as UserRole);
+      // Public signups always create partner accounts
+      const docId = await createUserDocument(uid, email, "partner");
       
       res.status(201).json({ 
         success: true, 
         docId, 
-        message: "User document created successfully in Firestore" 
+        role: "partner",
+        message: "Partner account created successfully in Firestore" 
       });
     } catch (error: any) {
-      console.error("Error creating user document:", error);
+      console.error("Error creating partner account:", error);
       res.status(500).json({ 
-        error: "Failed to create user document", 
+        error: "Failed to create partner account", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Firebase Auth - Team Member Signup with invite token
+  const teamSignupSchema = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    inviteToken: z.string()
+  });
+
+  app.post("/api/auth/team-signup", async (req, res) => {
+    try {
+      const { uid, email, inviteToken } = teamSignupSchema.parse(req.body);
+      
+      // Get pending invite
+      const invite = await getPendingInvite(inviteToken);
+      if (!invite) {
+        return res.status(400).json({ error: "Invalid or expired invite token" });
+      }
+      
+      if (invite.email !== email) {
+        return res.status(400).json({ error: "Email doesn't match invite" });
+      }
+      
+      // Create user document with invite details
+      const docId = await createUserDocument(uid, email, invite.role, invite.partnerId);
+      
+      // Update invite status
+      await updateInviteStatus(inviteToken, "accepted");
+      
+      res.status(201).json({ 
+        success: true, 
+        docId,
+        role: invite.role,
+        partnerId: invite.partnerId,
+        message: "Team member account created successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error creating team member account:", error);
+      res.status(500).json({ 
+        error: "Failed to create team member account", 
         details: error.message 
       });
     }
@@ -203,16 +254,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { uid } = req.params;
       
-      // This would get user data from Firestore in a real implementation
-      // For now, we'll return a simple response
-      res.json({ 
-        message: "User data endpoint ready",
-        uid 
-      });
+      const userData = await getUserDocument(uid);
+      if (!userData) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      res.json(userData);
     } catch (error: any) {
       console.error("Error getting user data:", error);
       res.status(500).json({ 
         error: "Failed to get user data", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Team Management - Invite team member
+  const inviteSchema = z.object({
+    name: z.string(),
+    email: z.string().email(),
+    role: z.enum(["admin", "photographer"])
+  });
+
+  app.post("/api/team/invite", async (req, res) => {
+    try {
+      const { name, email, role } = inviteSchema.parse(req.body);
+      
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      // For now, we'll extract uid from a simple bearer token
+      // In production, you'd verify the Firebase ID token
+      const uid = authHeader.replace('Bearer ', '');
+      
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can invite team members" });
+      }
+      
+      // Create pending invite
+      const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId, uid);
+      
+      // In a real implementation, you'd send an email here
+      const inviteLink = `${req.protocol}://${req.get('host')}/signup?invite=${inviteToken}`;
+      
+      res.status(201).json({ 
+        success: true, 
+        inviteToken,
+        inviteLink,
+        message: `Team member invite created for ${email}` 
+      });
+    } catch (error: any) {
+      console.error("Error creating team invite:", error);
+      res.status(500).json({ 
+        error: "Failed to create team invite", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get pending invites for a partner
+  app.get("/api/team/invites/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      
+      // Get pending invites for this partner
+      const invitesSnapshot = await adminDb.collection('pendingInvites')
+        .where('partnerId', '==', partnerId)
+        .get();
+      
+      const invites = invitesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      res.json(invites);
+    } catch (error: any) {
+      console.error("Error getting team invites:", error);
+      res.status(500).json({ 
+        error: "Failed to get team invites", 
         details: error.message 
       });
     }

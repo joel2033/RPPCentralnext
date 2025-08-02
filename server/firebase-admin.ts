@@ -35,24 +35,50 @@ const app = initializeFirebaseAdmin();
 // Export Firestore instance
 export const adminDb = getFirestore(app);
 
-// User role type
-export type UserRole = "client" | "photographer" | "editor" | "admin" | "licensee" | "master";
+// User role type - updated for multi-tenant structure
+export type UserRole = "partner" | "admin" | "photographer";
 
-// User data interface
+// User data interface with partnerId for multi-tenancy
 export interface UserData {
   uid: string;
   email: string;
   role: UserRole;
+  partnerId: string;
   createdAt: any;
 }
 
-// Create user document in Firestore
-export const createUserDocument = async (uid: string, email: string, role: UserRole): Promise<string> => {
+// Pending invite interface
+export interface PendingInvite {
+  email: string;
+  role: UserRole;
+  partnerId: string;
+  invitedBy: string;
+  status: "pending" | "accepted" | "expired";
+  createdAt: any;
+  inviteToken: string;
+}
+
+// Generate unique partner ID
+export const generatePartnerId = (): string => {
+  return 'partner_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+};
+
+// Generate unique invite token
+export const generateInviteToken = (): string => {
+  return 'inv_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
+};
+
+// Create user document in Firestore with partnerId
+export const createUserDocument = async (uid: string, email: string, role: UserRole, partnerId?: string): Promise<string> => {
   try {
+    // Generate partnerId for new partners, use provided one for team members
+    const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : '');
+    
     const userData: UserData = {
       uid,
       email,
       role,
+      partnerId: userPartnerId,
       createdAt: new Date()
     };
 
@@ -60,7 +86,7 @@ export const createUserDocument = async (uid: string, email: string, role: UserR
     const userRef = adminDb.collection('users').doc(uid);
     await userRef.set(userData);
     
-    console.log(`User document created for ${email} with role ${role}`);
+    console.log(`User document created for ${email} with role ${role} and partnerId ${userPartnerId}`);
     return uid;
   } catch (error) {
     console.error('Error creating user document:', error);
@@ -68,7 +94,34 @@ export const createUserDocument = async (uid: string, email: string, role: UserR
   }
 };
 
-// Get user document from Firestore
+// Create pending invite in Firestore
+export const createPendingInvite = async (email: string, role: UserRole, partnerId: string, invitedBy: string): Promise<string> => {
+  try {
+    const inviteToken = generateInviteToken();
+    
+    const inviteData: PendingInvite = {
+      email,
+      role,
+      partnerId,
+      invitedBy,
+      status: "pending",
+      createdAt: new Date(),
+      inviteToken
+    };
+
+    // Add document to pendingInvites collection
+    const inviteRef = adminDb.collection('pendingInvites').doc();
+    await inviteRef.set(inviteData);
+    
+    console.log(`Pending invite created for ${email} with role ${role} by ${invitedBy}`);
+    return inviteToken;
+  } catch (error) {
+    console.error('Error creating pending invite:', error);
+    throw error;
+  }
+};
+
+// Get user document by uid
 export const getUserDocument = async (uid: string): Promise<UserData | null> => {
   try {
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -80,6 +133,43 @@ export const getUserDocument = async (uid: string): Promise<UserData | null> => 
     return userDoc.data() as UserData;
   } catch (error) {
     console.error('Error getting user document:', error);
+    throw error;
+  }
+};
+
+// Get pending invite by token
+export const getPendingInvite = async (token: string): Promise<PendingInvite | null> => {
+  try {
+    const invitesSnapshot = await adminDb.collection('pendingInvites')
+      .where('inviteToken', '==', token)
+      .where('status', '==', 'pending')
+      .get();
+    
+    if (invitesSnapshot.empty) {
+      return null;
+    }
+    
+    return invitesSnapshot.docs[0].data() as PendingInvite;
+  } catch (error) {
+    console.error('Error getting pending invite:', error);
+    throw error;
+  }
+};
+
+// Update invite status
+export const updateInviteStatus = async (token: string, status: string): Promise<void> => {
+  try {
+    const invitesSnapshot = await adminDb.collection('pendingInvites')
+      .where('inviteToken', '==', token)
+      .get();
+    
+    if (!invitesSnapshot.empty) {
+      const inviteDoc = invitesSnapshot.docs[0];
+      await inviteDoc.ref.update({ status });
+      console.log(`Invite status updated to ${status} for token ${token}`);
+    }
+  } catch (error) {
+    console.error('Error updating invite status:', error);
     throw error;
   }
 };
