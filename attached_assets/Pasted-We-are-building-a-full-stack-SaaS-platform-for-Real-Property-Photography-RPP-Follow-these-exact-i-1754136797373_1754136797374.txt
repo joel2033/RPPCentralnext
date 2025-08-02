@@ -1,0 +1,149 @@
+We are building a full-stack SaaS platform for Real Property Photography (RPP).
+Follow these exact instructions to create the starter project in Replit.
+
+
+
+1. Tech Stack
+	•	Frontend: React + TypeScript + Vite + TailwindCSS + React Router
+	•	Backend: Python Flask in /server
+	•	Database & Storage: Firebase (Firestore + Storage)
+	•	Authentication: Firebase Auth (Email/Password)
+
+File Structure:
+
+/client   -> React + TypeScript + Tailwind frontend
+/server   -> Python Flask backend
+
+
+
+
+2. Layout Requirements
+
+A. Sidebar Navigation (Fixed & Responsive)
+	•	Fixed on the left on desktop, collapsible drawer on mobile.
+	•	Must exactly follow this structure:
+
+Dashboard
+Customers
+Calendar
+Jobs
+Editor Dashboard
+Production Hub (collapsible)
+   - Upload to Editor
+   - Order Status
+Reports (collapsible)
+   - Job Reports
+   - Revenue Overview
+   - Performance
+Products (collapsible)
+   - Product Management
+Sign Out (bottom)
+
+	•	Icons: lucide-react (Home, Users, Calendar, Camera, Folder, Upload, Clock, BarChart, FileText, DollarSign, TrendingUp, Package, LogOut)
+	•	Active Item: #F05A2A (RPP Red)
+	•	Sidebar Background: #2F373F
+	•	Hover Background: #595F65
+
+Responsive Behavior:
+	•	On mobile: Sidebar collapses into a hamburger menu at top-left in the fixed header.
+	•	Smooth slide-in animation.
+
+
+
+B. Fixed Top Header
+	•	Always visible, 64px tall.
+	•	Elements (Left → Right):
+	1.	Hamburger menu (mobile only)
+	2.	Page Title (dynamic)
+	3.	Spacer (flex grow)
+	4.	Notification Bell Icon
+	5.	Profile Button (circle avatar or initials)
+	•	Profile Dropdown Menu:
+	•	Profile
+	•	Account Settings
+	•	Business Settings
+	•	Billing (Pay Editors)
+	•	Sign Out
+	•	Top Header Style:
+	•	Background: #FFFFFF
+	•	Text: #2F373F
+	•	Shadow: Tailwind shadow-md
+
+
+
+C. Page Content Area
+	•	Scrollable content right of sidebar and below top header.
+	•	Default page: Dashboard with placeholder card components.
+
+
+
+3. UI Color Palette (Tailwind Theme)
+
+Extend Tailwind theme with these RPP official colors:
+
+colors: {
+  rppGrey: {
+    dark: '#2F373F',
+    medium: '#595F65',
+    light: '#82878C',
+    lighter: '#ACAFB2',
+    border: '#D5D7D9',
+    bg: '#EAEbeb',
+    surface: '#F4F5F5',
+    white: '#FFFFFF',
+  },
+  rppRed: {
+    dark: '#C04821',
+    main: '#F05A2A',
+    light: '#F37B55',
+    lighter: '#F69C7F',
+  },
+  support: {
+    yellow: '#F0BE2A',
+    green: '#90DC45',
+    blue: '#4BB4EB',
+  }
+}
+
+
+
+
+4. Backend Setup (Python Flask)
+	•	Initialize Flask app in /server with:
+
+from flask import Flask, jsonify
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route("/jobs")
+def get_jobs():
+    return jsonify([{"id": 1, "name": "Sample Job"}])
+
+@app.route("/customers")
+def get_customers():
+    return jsonify([{"id": 1, "name": "Sample Customer"}])
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
+
+
+5. Firebase Integration
+	•	Create /client/src/firebase.ts for Firebase setup.
+	•	Use environment variables for keys (.env).
+	•	Prepare firebaseUpload.ts for file uploads to Storage.
+
+
+
+6. Deliverables
+	•	Fully working starter project with:
+	•	Sidebar & top header per spec
+	•	Responsive sidebar with hamburger menu
+	•	Collapsible menus with animations
+	•	Tailwind theme using RPP brand colors
+	•	Flask backend with sample endpoints
+	•	Firebase initialized for authentication & storage
+
