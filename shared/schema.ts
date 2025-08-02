@@ -90,9 +90,15 @@ export const insertProductSchema = createInsertSchema(products).omit({
   createdAt: true,
 });
 
-export const insertJobSchema = createInsertSchema(jobs).omit({
-  id: true,
-  createdAt: true,
+export const insertJobSchema = z.object({
+  customerId: z.string().optional(),
+  address: z.string(),
+  status: z.string().optional(),
+  dueDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+  appointmentDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+  totalValue: z.string().optional(),
+  propertyImage: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({
