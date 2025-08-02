@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Camera, DollarSign, ShoppingCart, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Camera, DollarSign, ShoppingCart, Check, MapPin, Calendar, User, Circle, MoreHorizontal } from "lucide-react";
 
 export default function Dashboard() {
   const { data: stats } = useQuery({
@@ -10,6 +12,43 @@ export default function Dashboard() {
   const { data: jobs = [] } = useQuery({
     queryKey: ["/api/jobs"],
   });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["/api/customers"],
+  });
+
+  const getCustomerName = (customerId: string) => {
+    const customer = customers.find((c: any) => c.id === customerId);
+    return customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer';
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'No date set';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'scheduled':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  // Get upcoming jobs sorted by appointment date
+  const upcomingJobs = jobs
+    .filter((job: any) => job.appointmentDate || job.createdAt)
+    .sort((a: any, b: any) => new Date(a.appointmentDate || a.createdAt).getTime() - new Date(b.appointmentDate || b.createdAt).getTime())
+    .slice(0, 4);
 
   return (
     <div className="p-6">
@@ -77,39 +116,52 @@ export default function Dashboard() {
                     <button className="px-3 py-1 bg-rpp-grey-dark text-white rounded-lg text-sm">Today</button>
                     <button className="px-3 py-1 bg-rpp-grey-bg text-rpp-grey-dark rounded-lg text-sm">Tomorrow</button>
                   </div>
-                  <span className="text-sm text-rpp-grey-light">{jobs.length || 0}</span>
+                  <span className="text-sm text-rpp-grey-light">{upcomingJobs.length}</span>
                 </div>
               </div>
 
               {/* Appointments List */}
               <div className="space-y-4">
-                {jobs.slice(0, 4).map((job: any) => (
-                  <div key={job.id} className="flex items-center justify-between p-4 border border-rpp-grey-border rounded-lg">
+                {upcomingJobs.length > 0 ? upcomingJobs.map((job: any) => (
+                  <div key={job.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors">
                     <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-support-green rounded-full flex items-center justify-center text-white font-medium">
-                        {job.address?.[0]?.toUpperCase() || 'A'}
-                      </div>
-                      <div>
-                        <p className="font-medium text-rpp-grey-dark">{job.address}</p>
-                        <p className="text-sm text-rpp-grey-light">
-                          {new Date(job.appointmentDate || job.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        job.status === 'completed' 
-                          ? 'bg-green-100 text-green-800'
-                          : job.status === 'in_progress'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                      {/* Status Circle */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
+                        job.status === 'completed' ? 'bg-green-500' :
+                        job.status === 'in_progress' ? 'bg-blue-500' : 'bg-yellow-500'
                       }`}>
-                        {job.status.replace('_', ' ')}
-                      </span>
+                        {job.address?.[0]?.toUpperCase() || 'J'}
+                      </div>
+                      
+                      {/* Job Info */}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <p className="font-medium text-rpp-grey-dark">{job.address}</p>
+                          <Badge variant="outline" className={`${getStatusColor(job.status || 'scheduled')} text-xs`}>
+                            {job.status || 'Scheduled'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-rpp-grey-light">
+                          <span className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>{formatDate(job.appointmentDate)}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <User className="w-3 h-3" />
+                            <span>{getCustomerName(job.customerId)}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    
+                    {/* Action Menu */}
+                    <Button variant="ghost" size="sm" className="text-rpp-grey-light hover:text-rpp-grey-dark">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
                   </div>
-                )) || (
+                )) : (
                   <div className="text-center py-8">
+                    <div className="text-4xl mb-4">📅</div>
                     <p className="text-rpp-grey-light">No upcoming appointments</p>
                   </div>
                 )}
