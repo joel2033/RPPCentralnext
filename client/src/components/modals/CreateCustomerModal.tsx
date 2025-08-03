@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Camera, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Upload, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -20,11 +20,18 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
     phone: "",
     company: "",
     category: "",
-    profileImage: ""
+    notes: ""
   });
 
-  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [expandedSections, setExpandedSections] = useState({
+    customerDetails: true,
+    billingPreferences: false,
+    teamMembers: false,
+    customerNotes: false
+  });
+
   const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -49,34 +56,32 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
         title: "Customer Created",
-        description: "Customer has been created successfully.",
+        description: "Customer has been added successfully.",
       });
       onClose();
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to create customer. Please try again.",
+        description: error.message || "Failed to create customer. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => 
-      prev.includes(section)
-        ? prev.filter(s => s !== section)
-        : [...prev, section]
-    );
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
         toast({
           title: "File too large",
           description: "Please select an image smaller than 2MB.",
@@ -84,19 +89,26 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
         });
         return;
       }
+      
       setProfileImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const removeImage = () => {
     setProfileImage(null);
+    setImagePreview(null);
   };
 
   const handleSubmit = () => {
     if (!customerData.firstName || !customerData.lastName || !customerData.email) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields.",
+        description: "Please fill in all required fields (first name, last name, and email).",
         variant: "destructive",
       });
       return;
@@ -113,14 +125,15 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
       return;
     }
 
-    // Add partnerId to customer data for multi-tenancy
     const customerPayload = {
-      ...customerData,
-      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha", // Fallback for testing
-      // Only include non-empty values
-      phone: customerData.phone || undefined,
-      company: customerData.company || undefined,
-      category: customerData.category || undefined,
+      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha",
+      firstName: customerData.firstName,
+      lastName: customerData.lastName,
+      email: customerData.email,
+      phone: customerData.phone || null,
+      company: customerData.company || null,
+      category: customerData.category || null,
+      profileImage: imagePreview || null // In a real app, you'd upload to Firebase Storage first
     };
 
     createCustomerMutation.mutate(customerPayload);
@@ -142,229 +155,253 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
+        <div className="p-6 space-y-6">
           {/* Customer Details Section */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-rpp-grey-dark">Customer Details</h3>
-              <ChevronUp className="w-5 h-5 text-rpp-grey-light" />
-            </div>
-
-            {/* Customer Profile */}
-            <div className="mb-6">
-              <h4 className="font-medium text-rpp-grey-dark mb-2">Customer Profile</h4>
-              <p className="text-sm text-rpp-grey-light mb-4">Upload a profile picture for this customer.</p>
-
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="w-20 h-20 bg-rpp-grey-surface border-2 border-dashed border-rpp-grey-border rounded-lg flex items-center justify-center overflow-hidden">
-                  {profileImage ? (
-                    <img 
-                      src={URL.createObjectURL(profileImage)} 
-                      alt="Profile preview" 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Camera className="w-6 h-6 text-rpp-grey-light" />
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="profile-upload"
-                  />
-                  <label htmlFor="profile-upload">
-                    <Button variant="outline" className="border-rpp-grey-border" asChild>
-                      <span className="cursor-pointer">Upload image</span>
-                    </Button>
-                  </label>
-                  <p className="text-xs text-rpp-grey-light mt-1">Max file size is 2MB</p>
-                </div>
-              </div>
-              {profileImage && (
-                <button 
-                  onClick={removeImage}
-                  className="text-sm text-rpp-red-main hover:text-rpp-red-dark"
-                >
-                  Remove image
-                </button>
+          <div className="border border-rpp-grey-border rounded-lg">
+            <button
+              onClick={() => toggleSection('customerDetails')}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <h3 className="text-lg font-medium text-rpp-grey-dark">Customer Details</h3>
+              {expandedSections.customerDetails ? (
+                <ChevronUp className="w-5 h-5 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-rpp-grey-light" />
               )}
-            </div>
+            </button>
+            
+            {expandedSections.customerDetails && (
+              <div className="px-4 pb-4 space-y-4">
+                {/* Customer Profile */}
+                <div>
+                  <h4 className="text-sm font-medium text-rpp-grey-dark mb-3">Customer Profile</h4>
+                  <p className="text-sm text-rpp-grey-light mb-4">Upload a profile picture for this customer.</p>
+                  
+                  <div className="flex items-center space-x-4">
+                    <div className="w-20 h-20 border-2 border-dashed border-rpp-grey-border rounded-lg flex items-center justify-center bg-rpp-grey-surface relative overflow-hidden">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-rpp-grey-light" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => document.getElementById('profile-upload')?.click()}
+                          className="border-rpp-grey-border"
+                        >
+                          Upload image
+                        </Button>
+                        {imagePreview && (
+                          <Button
+                            variant="ghost"
+                            onClick={removeImage}
+                            className="text-rpp-red-main hover:text-rpp-red-dark"
+                          >
+                            Remove image
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-rpp-grey-light mt-1">Max file size is 2MB</p>
+                    </div>
+                    <input
+                      id="profile-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
 
-            {/* Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  First name (required)
-                </label>
-                <Input
-                  type="text"
-                  placeholder="First name"
-                  value={customerData.firstName}
-                  onChange={(e) => setCustomerData(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="border-rpp-grey-border focus:ring-rpp-red-main"
-                />
+                {/* Name Fields */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                      First name (required)
+                    </label>
+                    <Input
+                      placeholder="First name"
+                      value={customerData.firstName}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, firstName: e.target.value }))}
+                      className="border-rpp-grey-border"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                      Last name (required)
+                    </label>
+                    <Input
+                      placeholder="Last name"
+                      value={customerData.lastName}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, lastName: e.target.value }))}
+                      className="border-rpp-grey-border"
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                    Email (required)
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={customerData.email}
+                    onChange={(e) => setCustomerData(prev => ({ ...prev, email: e.target.value }))}
+                    className="border-rpp-grey-border"
+                  />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">Phone</label>
+                  <div className="flex">
+                    <Select defaultValue="+61">
+                      <SelectTrigger className="w-24 border-rpp-grey-border rounded-r-none">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="+61">+61</SelectItem>
+                        <SelectItem value="+1">+1</SelectItem>
+                        <SelectItem value="+44">+44</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="Area code and phone number"
+                      value={customerData.phone}
+                      onChange={(e) => setCustomerData(prev => ({ ...prev, phone: e.target.value }))}
+                      className="flex-1 border-rpp-grey-border rounded-l-none border-l-0"
+                    />
+                  </div>
+                </div>
+
+                {/* Company */}
+                <div>
+                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                    Company / Organisation (optional)
+                  </label>
+                  <Input
+                    placeholder="Company / Organisation"
+                    value={customerData.company}
+                    onChange={(e) => setCustomerData(prev => ({ ...prev, company: e.target.value }))}
+                    className="border-rpp-grey-border"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                    Category (optional)
+                  </label>
+                  <Select value={customerData.category} onValueChange={(value) => setCustomerData(prev => ({ ...prev, category: value }))}>
+                    <SelectTrigger className="border-rpp-grey-border">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="residential">Residential</SelectItem>
+                      <SelectItem value="commercial">Commercial</SelectItem>
+                      <SelectItem value="real_estate">Real Estate Agent</SelectItem>
+                      <SelectItem value="property_manager">Property Manager</SelectItem>
+                      <SelectItem value="architect">Architect</SelectItem>
+                      <SelectItem value="interior_designer">Interior Designer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Last name (required)
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Last name"
-                  value={customerData.lastName}
-                  onChange={(e) => setCustomerData(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="border-rpp-grey-border focus:ring-rpp-red-main"
-                />
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Email (required)
-              </label>
-              <Input
-                type="email"
-                placeholder="Email"
-                value={customerData.email}
-                onChange={(e) => setCustomerData(prev => ({ ...prev, email: e.target.value }))}
-                className="border-rpp-grey-border focus:ring-rpp-red-main"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Phone
-              </label>
-              <div className="flex">
-                <select className="px-3 py-2 border border-rpp-grey-border border-r-0 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-rpp-red-main bg-white">
-                  <option>+61</option>
-                  <option>+1</option>
-                  <option>+44</option>
-                </select>
-                <Input
-                  type="tel"
-                  placeholder="Area code and phone number"
-                  value={customerData.phone}
-                  onChange={(e) => setCustomerData(prev => ({ ...prev, phone: e.target.value }))}
-                  className="flex-1 border-rpp-grey-border rounded-l-none focus:ring-rpp-red-main"
-                />
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Company / Organisation (optional)
-              </label>
-              <Input
-                type="text"
-                placeholder="Company / Organisation"
-                value={customerData.company}
-                onChange={(e) => setCustomerData(prev => ({ ...prev, company: e.target.value }))}
-                className="border-rpp-grey-border focus:ring-rpp-red-main"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Category (optional)
-              </label>
-              <Select value={customerData.category} onValueChange={(value) => setCustomerData(prev => ({ ...prev, category: value }))}>
-                <SelectTrigger className="border-rpp-grey-border">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="real_estate_agent">Real Estate Agent</SelectItem>
-                  <SelectItem value="property_manager">Property Manager</SelectItem>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="photographer">Photographer</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            )}
           </div>
 
-          {/* Collapsible Sections */}
-          <div className="space-y-4">
-            {/* Billing Preferences */}
-            <div className="border border-rpp-grey-border rounded-lg">
-              <button 
-                onClick={() => toggleSection('billing')}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-rpp-grey-surface transition-colors"
-              >
-                <span className="font-medium text-rpp-grey-dark">Billing Preferences</span>
-                <ChevronDown className={`w-4 h-4 text-rpp-grey-light transition-transform ${
-                  expandedSections.includes('billing') ? 'rotate-180' : ''
-                }`} />
-              </button>
-              {expandedSections.includes('billing') && (
-                <div className="p-4 border-t border-rpp-grey-border">
-                  <p className="text-sm text-rpp-grey-light">Billing preferences settings would go here.</p>
-                </div>
+          {/* Billing Preferences Section */}
+          <div className="border border-rpp-grey-border rounded-lg">
+            <button
+              onClick={() => toggleSection('billingPreferences')}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <h3 className="text-lg font-medium text-rpp-grey-dark">Billing Preferences</h3>
+              {expandedSections.billingPreferences ? (
+                <ChevronUp className="w-5 h-5 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-rpp-grey-light" />
               )}
-            </div>
+            </button>
+            
+            {expandedSections.billingPreferences && (
+              <div className="px-4 pb-4">
+                <p className="text-sm text-rpp-grey-light">Billing preferences will be available in a future update.</p>
+              </div>
+            )}
+          </div>
 
-            {/* Team Members */}
-            <div className="border border-rpp-grey-border rounded-lg">
-              <button 
-                onClick={() => toggleSection('team')}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-rpp-grey-surface transition-colors"
-              >
-                <span className="font-medium text-rpp-grey-dark">Team Members (Optional)</span>
-                <ChevronDown className={`w-4 h-4 text-rpp-grey-light transition-transform ${
-                  expandedSections.includes('team') ? 'rotate-180' : ''
-                }`} />
-              </button>
-              {expandedSections.includes('team') && (
-                <div className="p-4 border-t border-rpp-grey-border">
-                  <p className="text-sm text-rpp-grey-light">Team member management settings would go here.</p>
-                </div>
+          {/* Team Members Section */}
+          <div className="border border-rpp-grey-border rounded-lg">
+            <button
+              onClick={() => toggleSection('teamMembers')}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <h3 className="text-lg font-medium text-rpp-grey-dark">Team Members (Optional)</h3>
+              {expandedSections.teamMembers ? (
+                <ChevronUp className="w-5 h-5 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-rpp-grey-light" />
               )}
-            </div>
+            </button>
+            
+            {expandedSections.teamMembers && (
+              <div className="px-4 pb-4">
+                <p className="text-sm text-rpp-grey-light">Team member management will be available in a future update.</p>
+              </div>
+            )}
+          </div>
 
-            {/* Customer Notes */}
-            <div className="border border-rpp-grey-border rounded-lg">
-              <button 
-                onClick={() => toggleSection('notes')}
-                className="w-full flex items-center justify-between p-4 text-left hover:bg-rpp-grey-surface transition-colors"
-              >
-                <span className="font-medium text-rpp-grey-dark">Customer Notes (Optional)</span>
-                <ChevronDown className={`w-4 h-4 text-rpp-grey-light transition-transform ${
-                  expandedSections.includes('notes') ? 'rotate-180' : ''
-                }`} />
-              </button>
-              {expandedSections.includes('notes') && (
-                <div className="p-4 border-t border-rpp-grey-border">
-                  <Textarea
-                    placeholder="Add any additional notes about this customer..."
-                    className="border-rpp-grey-border focus:ring-rpp-red-main"
-                    rows={3}
-                  />
-                </div>
+          {/* Customer Notes Section */}
+          <div className="border border-rpp-grey-border rounded-lg">
+            <button
+              onClick={() => toggleSection('customerNotes')}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <h3 className="text-lg font-medium text-rpp-grey-dark">Customer Notes (Optional)</h3>
+              {expandedSections.customerNotes ? (
+                <ChevronUp className="w-5 h-5 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-rpp-grey-light" />
               )}
-            </div>
+            </button>
+            
+            {expandedSections.customerNotes && (
+              <div className="px-4 pb-4">
+                <Textarea
+                  placeholder="Add any notes about this customer..."
+                  value={customerData.notes}
+                  onChange={(e) => setCustomerData(prev => ({ ...prev, notes: e.target.value }))}
+                  className="border-rpp-grey-border min-h-24"
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-rpp-grey-border">
-          <Button 
-            variant="ghost" 
-            onClick={onClose}
-            className="text-rpp-red-main hover:text-rpp-red-dark"
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSubmit}
-            disabled={createCustomerMutation.isPending}
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-          >
-            {createCustomerMutation.isPending ? "Creating..." : "Continue"}
-          </Button>
+        <div className="border-t border-rpp-grey-border p-6">
+          <div className="flex justify-end space-x-3">
+            <Button 
+              variant="outline" 
+              onClick={onClose}
+              className="text-rpp-red-main border-rpp-red-main hover:bg-rpp-red-main hover:text-white"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSubmit}
+              disabled={createCustomerMutation.isPending}
+              className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white"
+            >
+              {createCustomerMutation.isPending ? "Creating..." : "Continue"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
