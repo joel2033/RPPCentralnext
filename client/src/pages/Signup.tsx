@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signUpUser } from '@/lib/firebaseAuth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -14,7 +16,30 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteInfo, setInviteInfo] = useState<any>(null);
   const [, setLocation] = useLocation();
+
+  // Check for invite token in URL on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('invite');
+    if (token) {
+      setInviteToken(token);
+      // Fetch invite details for display
+      fetchInviteInfo(token);
+    }
+  }, []);
+
+  const fetchInviteInfo = async (token: string) => {
+    try {
+      // You could create an endpoint to get invite info for display
+      // For now, we'll just set a flag that this is an invite signup
+      setInviteInfo({ isInvite: true });
+    } catch (error) {
+      console.error('Error fetching invite info:', error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,13 +59,41 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      await signUpUser(email, password);
-      setSuccess('Partner account created successfully! Redirecting to dashboard...');
+      if (inviteToken) {
+        // Team member signup via invite
+        // 1. Create Firebase Auth user
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // 2. Complete invite signup via backend
+        const response = await fetch('/api/auth/complete-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            token: inviteToken
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to complete invite signup');
+        }
+
+        const result = await response.json();
+        setSuccess(`Team member account created with role: ${result.role}! Redirecting to dashboard...`);
+      } else {
+        // Regular partner signup
+        await signUpUser(email, password);
+        setSuccess('Partner account created successfully! Redirecting to dashboard...');
+      }
+      
       setTimeout(() => {
         setLocation('/dashboard');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to create partner account');
+      setError(err.message || 'Failed to create account');
     } finally {
       setLoading(false);
     }
@@ -51,9 +104,14 @@ export default function Signup() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-rpp-grey-dark">
-            Sign Up for RPP Platform
+            {inviteToken ? 'Join Team' : 'Sign Up for RPP Platform'}
           </CardTitle>
-          <p className="text-rpp-grey-light">Create your partner account to get started</p>
+          <p className="text-rpp-grey-light">
+            {inviteToken 
+              ? 'You\'ve been invited to join a team! Create your account below.' 
+              : 'Create your partner account to get started'
+            }
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,0 +1,60 @@
+Goal:
+Ensure that team members signing up via invite links correctly inherit the role and partnerId from the invite instead of defaulting to "partner".
+
+
+
+Backend Fixes
+	1.	Adjust /api/auth/complete-invite
+	•	When a new user completes signup via an invite:
+	1.	Validate the invite token
+	2.	Fetch invite from pendingInvites
+	3.	Use invite.role and invite.partnerId when creating the Firestore users document
+	4.	Mark invite as "accepted"
+Example Logic (Python Flask):
+
+@app.route('/api/auth/complete-invite', methods=['POST'])
+def complete_invite():
+    data = request.json
+    invite_token = data.get('token')
+    email = data.get('email')
+    uid = data.get('uid')  # Firebase Auth UID
+
+    # 1. Validate invite
+    invite_doc = db.collection('pendingInvites').document(invite_token).get()
+    if not invite_doc.exists or invite_doc.to_dict().get('status') != 'pending':
+        return jsonify({'error': 'Invalid or expired invite'}), 400
+
+    invite_data = invite_doc.to_dict()
+
+    # 2. Create user with invite role and partnerId
+    db.collection('users').document(uid).set({
+        'uid': uid,
+        'email': email,
+        'role': invite_data['role'],
+        'partnerId': invite_data['partnerId'],
+        'createdAt': firestore.SERVER_TIMESTAMP
+    })
+
+    # 3. Update invite status
+    db.collection('pendingInvites').document(invite_token).update({
+        'status': 'accepted',
+        'acceptedAt': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'message': 'Team member account created', 'role': invite_data['role']})
+
+
+
+
+
+Frontend Fix
+	•	During invite signup, make sure the token is sent to /api/auth/complete-invite after Firebase Auth user creation.
+	•	Do not call the normal /api/auth/signup (which defaults to partner).
+
+
+
+Acceptance Criteria
+	•Team members signing up via invite get correct role (Admin or Photographer).
+	• Firestore users collection stores the correct role and partnerId.
+	•pendingInvites are updated to accepted after signup.
+	•Partners continue to default to "partner" only on public /signup.

@@ -249,6 +249,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Firebase Auth - Complete Invite Signup (team members use this)
+  const completeInviteSchema = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    token: z.string()
+  });
+
+  app.post("/api/auth/complete-invite", async (req, res) => {
+    try {
+      const { uid, email, token } = completeInviteSchema.parse(req.body);
+      
+      // 1. Validate invite token
+      const invite = await getPendingInvite(token);
+      if (!invite) {
+        return res.status(400).json({ error: "Invalid or expired invite token" });
+      }
+      
+      if (invite.email !== email) {
+        return res.status(400).json({ error: "Email doesn't match invite" });
+      }
+      
+      // 2. Create user document with invite role and partnerId
+      const docId = await createUserDocument(uid, email, invite.role, invite.partnerId);
+      
+      // 3. Update invite status to accepted
+      await updateInviteStatus(token, "accepted");
+      
+      console.log(`Team member ${email} completed invite signup with role ${invite.role} for partnerId ${invite.partnerId}`);
+      
+      res.status(201).json({ 
+        success: true,
+        message: "Team member account created",
+        role: invite.role,
+        partnerId: invite.partnerId
+      });
+    } catch (error: any) {
+      console.error("Error completing invite signup:", error);
+      res.status(500).json({ 
+        error: "Failed to complete invite signup", 
+        details: error.message 
+      });
+    }
+  });
+
   // Firebase Auth - Get User Data endpoint
   app.get("/api/auth/user/:uid", async (req, res) => {
     try {
