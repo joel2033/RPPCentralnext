@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Camera, ChevronDown, ChevronUp } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateCustomerModalProps {
   onClose: () => void;
@@ -28,10 +28,24 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { userData } = useAuth();
 
   const createCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("POST", "/api/customers", data);
+      const response = await fetch("/api/customers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create customer");
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
@@ -99,7 +113,17 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
       return;
     }
 
-    createCustomerMutation.mutate(customerData);
+    // Add partnerId to customer data for multi-tenancy
+    const customerPayload = {
+      ...customerData,
+      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha", // Fallback for testing
+      // Only include non-empty values
+      phone: customerData.phone || undefined,
+      company: customerData.company || undefined,
+      category: customerData.category || undefined,
+    };
+
+    createCustomerMutation.mutate(customerPayload);
   };
 
   return (
