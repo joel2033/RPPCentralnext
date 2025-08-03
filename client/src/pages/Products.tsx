@@ -85,7 +85,7 @@ export default function Products() {
               </tr>
             </thead>
             <tbody>
-              {products?.map((product: any) => (
+              {(products || []).map((product: any) => (
                 <tr key={product.id} className="border-b border-rpp-grey-border hover:bg-gray-50">
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-3">
@@ -102,7 +102,11 @@ export default function Products() {
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 px-6 text-sm capitalize">{product.type}</td>
+                  <td className="py-4 px-6">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Product
+                    </span>
+                  </td>
                   <td className="py-4 px-6 text-sm">{product.category || '-'}</td>
                   <td className="py-4 px-6 text-sm">From ${product.price}</td>
                   <td className="py-4 px-6 text-sm">

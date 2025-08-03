@@ -474,6 +474,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Products endpoints
+  app.get("/api/products", async (req, res) => {
+    try {
+      const products = await storage.getProducts();
+      res.json(products);
+    } catch (error: any) {
+      console.error("Error getting products:", error);
+      res.status(500).json({ 
+        error: "Failed to get products", 
+        details: error.message 
+      });
+    }
+  });
+
+  app.post("/api/products", async (req, res) => {
+    try {
+      console.log("Product request body:", req.body);
+      const productData = insertProductSchema.parse(req.body);
+      console.log("Validated product data:", productData);
+      const product = await storage.createProduct(productData);
+      res.status(201).json(product);
+    } catch (error: any) {
+      console.error("Error creating product:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          error: "Invalid product data", 
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Failed to create product", 
+          details: error.message 
+        });
+      }
+    }
+  });
   
   const httpServer = createServer(app);
   return httpServer;

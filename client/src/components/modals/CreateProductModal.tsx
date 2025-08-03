@@ -99,10 +99,20 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       return;
     }
 
+    // Add partnerId to product data for multi-tenancy
     const finalData = {
-      ...productData,
-      price: noCharge ? "0" : productData.price,
-      variants: productData.hasVariations ? productData.variants : 0
+      partnerId: "partner_192l9bh1xmduwueha", // Use actual partnerId from auth context
+      title: productData.title,
+      type: productData.type,
+      description: productData.description || null,
+      price: noCharge ? "0.00" : productData.price,
+      category: productData.category || null,
+      taxRate: productData.taxRate || null,
+      hasVariations: productData.hasVariations || null,
+      variants: productData.hasVariations ? productData.variants : null,
+      isActive: productData.isActive,
+      isLive: productData.isLive,
+      image: null // Handle image upload later
     };
 
     createProductMutation.mutate(finalData);
