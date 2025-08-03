@@ -9,13 +9,15 @@ export const users = pgTable("users", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   company: text("company"),
-  role: text("role").default("user"),
+  role: text("role").default("partner"), // "partner", "admin", "photographer"
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   profileImage: text("profile_image"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   email: text("email").notNull(),
@@ -31,6 +33,7 @@ export const customers = pgTable("customers", {
 
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   title: text("title").notNull(),
   description: text("description"),
   type: text("type").notNull(), // "product", "package", "addon"
@@ -47,9 +50,11 @@ export const products = pgTable("products", {
 
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   customerId: varchar("customer_id").references(() => customers.id),
   address: text("address").notNull(),
   status: text("status").default("scheduled"), // "scheduled", "in_progress", "completed", "cancelled"
+  assignedTo: varchar("assigned_to").references(() => users.id), // Photographer assigned
   dueDate: timestamp("due_date"),
   appointmentDate: timestamp("appointment_date"),
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
@@ -60,11 +65,12 @@ export const jobs = pgTable("jobs", {
 
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   orderNumber: text("order_number").notNull().unique(),
   jobId: varchar("job_id").references(() => jobs.id),
   customerId: varchar("customer_id").references(() => customers.id),
   status: text("status").default("pending"), // "pending", "shared", "in_review", "completed", "cancelled"
-  assignedTo: text("assigned_to"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
   estimatedTotal: decimal("estimated_total", { precision: 10, scale: 2 }).default("0"),
   dateAccepted: timestamp("date_accepted"),
@@ -91,9 +97,11 @@ export const insertProductSchema = createInsertSchema(products).omit({
 });
 
 export const insertJobSchema = z.object({
+  partnerId: z.string(),
   customerId: z.string().optional(),
   address: z.string(),
   status: z.string().optional(),
+  assignedTo: z.string().optional(),
   dueDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   appointmentDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   totalValue: z.string().optional(),

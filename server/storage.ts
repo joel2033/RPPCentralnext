@@ -20,25 +20,25 @@ export interface IStorage {
 
   // Customers
   getCustomer(id: string): Promise<Customer | undefined>;
-  getCustomers(): Promise<Customer[]>;
+  getCustomers(partnerId?: string): Promise<Customer[]>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: string, customer: Partial<Customer>): Promise<Customer | undefined>;
 
   // Products
   getProduct(id: string): Promise<Product | undefined>;
-  getProducts(): Promise<Product[]>;
+  getProducts(partnerId?: string): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, product: Partial<Product>): Promise<Product | undefined>;
 
   // Jobs
   getJob(id: string): Promise<Job | undefined>;
-  getJobs(): Promise<Job[]>;
+  getJobs(partnerId?: string): Promise<Job[]>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: string, job: Partial<Job>): Promise<Job | undefined>;
 
   // Orders
   getOrder(id: string): Promise<Order | undefined>;
-  getOrders(): Promise<Order[]>;
+  getOrders(partnerId?: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
 }
@@ -86,8 +86,9 @@ export class MemStorage implements IStorage {
     return this.customers.get(id);
   }
 
-  async getCustomers(): Promise<Customer[]> {
-    return Array.from(this.customers.values());
+  async getCustomers(partnerId?: string): Promise<Customer[]> {
+    const allCustomers = Array.from(this.customers.values());
+    return partnerId ? allCustomers.filter(customer => customer.partnerId === partnerId) : allCustomers;
   }
 
   async createCustomer(insertCustomer: InsertCustomer): Promise<Customer> {
@@ -122,8 +123,9 @@ export class MemStorage implements IStorage {
     return this.products.get(id);
   }
 
-  async getProducts(): Promise<Product[]> {
-    return Array.from(this.products.values());
+  async getProducts(partnerId?: string): Promise<Product[]> {
+    const allProducts = Array.from(this.products.values());
+    return partnerId ? allProducts.filter(product => product.partnerId === partnerId) : allProducts;
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
@@ -159,8 +161,9 @@ export class MemStorage implements IStorage {
     return this.jobs.get(id);
   }
 
-  async getJobs(): Promise<Job[]> {
-    return Array.from(this.jobs.values());
+  async getJobs(partnerId?: string): Promise<Job[]> {
+    const allJobs = Array.from(this.jobs.values());
+    return partnerId ? allJobs.filter(job => job.partnerId === partnerId) : allJobs;
   }
 
   async createJob(insertJob: InsertJob): Promise<Job> {
@@ -170,6 +173,7 @@ export class MemStorage implements IStorage {
       totalValue: insertJob.totalValue || null,
       status: insertJob.status || null,
       customerId: insertJob.customerId || null,
+      assignedTo: null,
       dueDate: insertJob.dueDate || null,
       appointmentDate: insertJob.appointmentDate || null,
       propertyImage: insertJob.propertyImage || null,
@@ -195,8 +199,9 @@ export class MemStorage implements IStorage {
     return this.orders.get(id);
   }
 
-  async getOrders(): Promise<Order[]> {
-    return Array.from(this.orders.values());
+  async getOrders(partnerId?: string): Promise<Order[]> {
+    const allOrders = Array.from(this.orders.values());
+    return partnerId ? allOrders.filter(order => order.partnerId === partnerId) : allOrders;
   }
 
   async createOrder(insertOrder: InsertOrder): Promise<Order> {

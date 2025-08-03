@@ -418,6 +418,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Jobs endpoints
+  app.get("/api/jobs", async (req, res) => {
+    try {
+      // Get all jobs (with optional partner filtering)
+      const jobs = await storage.getJobs();
+      res.json(jobs);
+    } catch (error: any) {
+      console.error("Error getting jobs:", error);
+      res.status(500).json({ 
+        error: "Failed to get jobs", 
+        details: error.message 
+      });
+    }
+  });
+
+  app.post("/api/jobs", async (req, res) => {
+    try {
+      const jobData = insertJobSchema.parse(req.body);
+      const job = await storage.createJob(jobData);
+      res.status(201).json(job);
+    } catch (error: any) {
+      console.error("Error creating job:", error);
+      res.status(500).json({ 
+        error: "Failed to create job", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Customers endpoints
+  app.get("/api/customers", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      res.json(customers);
+    } catch (error: any) {
+      console.error("Error getting customers:", error);
+      res.status(500).json({ 
+        error: "Failed to get customers", 
+        details: error.message 
+      });
+    }
+  });
+
+  app.post("/api/customers", async (req, res) => {
+    try {
+      const customerData = insertCustomerSchema.parse(req.body);
+      const customer = await storage.createCustomer(customerData);
+      res.status(201).json(customer);
+    } catch (error: any) {
+      console.error("Error creating customer:", error);
+      res.status(500).json({ 
+        error: "Failed to create customer", 
+        details: error.message 
+      });
+    }
+  });
+  
   const httpServer = createServer(app);
   return httpServer;
 }

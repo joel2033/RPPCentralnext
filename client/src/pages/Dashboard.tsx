@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Camera, DollarSign, ShoppingCart, Check, MapPin, Calendar, User, Circle, MoreHorizontal } from "lucide-react";
 
 export default function Dashboard() {
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<{jobs: number, sales: string, orders: number}>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: jobs = [] } = useQuery({
+  const { data: jobs = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [] } = useQuery({
+  const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 

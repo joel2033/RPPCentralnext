@@ -1,368 +1,257 @@
 import { useState } from "react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, MapPin, Calendar, Clock, User, DollarSign } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { CalendarIcon, MapPin, User, X } from "lucide-react";
 
 interface CreateJobModalProps {
   onClose: () => void;
 }
 
 export default function CreateJobModal({ onClose }: CreateJobModalProps) {
-  const [step, setStep] = useState(1);
-  const [jobData, setJobData] = useState({
-    address: "",
-    customerId: "",
-    appointmentDate: "",
-    appointmentTime: "",
-    dueDate: "",
-    totalValue: "",
-    notes: "",
-    status: "scheduled"
-  });
+  const [address, setAddress] = useState("");
+  const [customerId, setCustomerId] = useState("");
+  const [appointmentDate, setAppointmentDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState("scheduled");
+  const [totalValue, setTotalValue] = useState("");
 
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { userData } = useAuth();
 
-  const { data: customers = [] } = useQuery({
+  // Get customers for the dropdown
+  const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 
   const createJobMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest("POST", "/api/jobs", data);
+    mutationFn: async (jobData: any) => {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(jobData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create job");
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Job created successfully!",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({
-        title: "Job Created",
-        description: "Your job has been created successfully.",
-      });
       onClose();
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to create job. Please try again.",
+        description: error.message || "Failed to create job",
         variant: "destructive",
       });
     },
   });
 
-  const handleSubmit = () => {
-    if (!jobData.address) {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!address.trim()) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in the property address.",
+        title: "Error",
+        description: "Address is required",
         variant: "destructive",
       });
       return;
     }
 
-    // Prepare submission data - only include fields that have values
-    const submissionData: any = {
-      address: jobData.address,
+    const jobData = {
+      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha", // Fallback for testing
+      address: address.trim(),
+      customerId: customerId || undefined,
+      appointmentDate: appointmentDate || undefined,
+      dueDate: dueDate || undefined,
+      notes: notes.trim() || undefined,
+      status,
+      totalValue: totalValue || undefined,
     };
 
-    // Only add optional fields if they have values
-    if (jobData.customerId) {
-      submissionData.customerId = jobData.customerId;
-    }
-    
-    if (jobData.appointmentDate && jobData.appointmentTime) {
-      submissionData.appointmentDate = new Date(`${jobData.appointmentDate}T${jobData.appointmentTime}`);
-    }
-    
-    if (jobData.dueDate) {
-      submissionData.dueDate = new Date(jobData.dueDate);
-    }
-    
-    if (jobData.totalValue) {
-      submissionData.totalValue = jobData.totalValue;
-    }
-    
-    if (jobData.notes) {
-      submissionData.notes = jobData.notes;
-    }
-    
-    if (jobData.status) {
-      submissionData.status = jobData.status;
-    }
-
-    console.log("Submitting job data:", submissionData);
-    createJobMutation.mutate(submissionData);
-  };
-
-  const nextStep = () => {
-    if (step < 3) setStep(step + 1);
-  };
-
-  const prevStep = () => {
-    if (step > 1) setStep(step - 1);
+    createJobMutation.mutate(jobData);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border">
-          <div>
-            <h2 className="text-xl font-semibold text-rpp-grey-dark">New Job</h2>
-            <p className="text-sm text-rpp-grey-light mt-1">
-              Create a job for any customer, specifying a location, optional appointment(s), and order details.
-            </p>
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-xl font-semibold">New Job</DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5 text-rpp-grey-light" />
-          </button>
-        </div>
+          <p className="text-sm text-rpp-grey-light">
+            Create a job for any customer, specifying a location, optional appointment(s), and order details.
+          </p>
+        </DialogHeader>
 
-        {/* Step Indicator */}
-        <div className="px-6 py-4 border-b border-rpp-grey-border">
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 ${step >= 1 ? 'text-rpp-red-main' : 'text-rpp-grey-light'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${
-                step >= 1 ? 'bg-rpp-red-main text-white' : 'bg-rpp-grey-border text-rpp-grey-light'
-              }`}>
-                1
-              </div>
-              <span className="text-sm font-medium">Job Information</span>
-            </div>
-            <div className="flex-1 h-px bg-rpp-grey-border"></div>
-            <div className={`flex items-center space-x-2 ${step >= 2 ? 'text-rpp-red-main' : 'text-rpp-grey-light'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${
-                step >= 2 ? 'bg-rpp-red-main text-white' : 'bg-rpp-grey-border text-rpp-grey-light'
-              }`}>
-                2
-              </div>
-              <span className="text-sm font-medium">Appointment Details</span>
-            </div>
-            <div className="flex-1 h-px bg-rpp-grey-border"></div>
-            <div className={`flex items-center space-x-2 ${step >= 3 ? 'text-rpp-red-main' : 'text-rpp-grey-light'}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${
-                step >= 3 ? 'bg-rpp-red-main text-white' : 'bg-rpp-grey-border text-rpp-grey-light'
-              }`}>
-                3
-              </div>
-              <span className="text-sm font-medium">Order Summary</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6">
-          {step === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-rpp-grey-dark mb-4 flex items-center">
-                  <User className="w-4 h-4 mr-2" />
-                  Customer
-                </h3>
-                <Select value={jobData.customerId} onValueChange={(value) => setJobData(prev => ({ ...prev, customerId: value }))}>
-                  <SelectTrigger className="border-rpp-grey-border">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Job Information Section */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-rpp-grey-dark">Job Information</h3>
+            
+            {/* Customer Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer</Label>
+              <div className="flex space-x-2">
+                <Select value={customerId} onValueChange={setCustomerId}>
+                  <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Select a customer" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">No customer</SelectItem>
                     {customers.map((customer: any) => (
                       <SelectItem key={customer.id} value={customer.id}>
-                        {customer.firstName} {customer.lastName} - {customer.company || 'No company'}
+                        {customer.firstName} {customer.lastName}
+                        {customer.company && ` (${customer.company})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" className="mt-2 text-sm border-rpp-grey-border">
-                  Create New Customer
+                <Button type="button" variant="outline" size="sm">
+                  Create
                 </Button>
               </div>
+            </div>
 
-              <div>
-                <h3 className="font-medium text-rpp-grey-dark mb-4 flex items-center">
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Location
-                </h3>
+            {/* Location */}
+            <div className="space-y-2">
+              <Label htmlFor="address">Location *</Label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
                 <Input
-                  placeholder="Start typing to find a location"
-                  value={jobData.address}
-                  onChange={(e) => setJobData(prev => ({ ...prev, address: e.target.value }))}
-                  className="border-rpp-grey-border"
+                  id="address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Start typing to find a location..."
+                  className="pl-10"
+                  required
                 />
-                <p className="text-xs text-rpp-grey-light mt-1">
-                  Address went wrong? Enter manually
-                </p>
-                
-                {/* Mock Map Area */}
-                <div className="mt-4 h-48 bg-gradient-to-br from-green-100 to-blue-100 rounded-lg flex items-center justify-center border border-rpp-grey-border">
-                  <div className="text-center text-rpp-grey-light">
-                    <MapPin className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-sm">Map will appear here</p>
-                    <p className="text-xs">Interactive location selection</p>
-                  </div>
-                </div>
               </div>
+              <p className="text-xs text-rpp-grey-light">
+                Address must include Enter manually.
+              </p>
             </div>
-          )}
 
-          {step === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-rpp-grey-dark mb-4 flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Schedule Appointment
-                </h3>
-                <p className="text-sm text-rpp-grey-light mb-4">
-                  Schedule one or multiple service visit appointments for this job.
-                </p>
-
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                      Select a day
-                    </label>
-                    <Input
-                      type="date"
-                      value={jobData.appointmentDate}
-                      onChange={(e) => setJobData(prev => ({ ...prev, appointmentDate: e.target.value }))}
-                      className="border-rpp-grey-border"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                      Set a start time
-                    </label>
-                    <Input
-                      type="time"
-                      value={jobData.appointmentTime}
-                      onChange={(e) => setJobData(prev => ({ ...prev, appointmentTime: e.target.value }))}
-                      className="border-rpp-grey-border"
-                    />
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Due Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={jobData.dueDate}
-                    onChange={(e) => setJobData(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="border-rpp-grey-border"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Write appointment notes
-                  </label>
-                  <Textarea
-                    placeholder="Visible to you and your team only"
-                    value={jobData.notes}
-                    onChange={(e) => setJobData(prev => ({ ...prev, notes: e.target.value }))}
-                    className="border-rpp-grey-border min-h-[100px]"
-                  />
-                </div>
-              </div>
+            {/* Status */}
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-medium text-rpp-grey-dark mb-4 flex items-center">
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Order Summary
-                </h3>
-                
-                <Card className="border-rpp-grey-border">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-rpp-grey-light">Customer:</span>
-                        <span className="text-sm text-rpp-grey-dark">
-                          {customers.find((c: any) => c.id === jobData.customerId)?.firstName || 'N/A'} {customers.find((c: any) => c.id === jobData.customerId)?.lastName || ''}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-rpp-grey-light">Location:</span>
-                        <span className="text-sm text-rpp-grey-dark">{jobData.address || 'N/A'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-rpp-grey-light">Appointment:</span>
-                        <span className="text-sm text-rpp-grey-dark">
-                          {jobData.appointmentDate && jobData.appointmentTime 
-                            ? `${jobData.appointmentDate} at ${jobData.appointmentTime}`
-                            : 'Not scheduled'
-                          }
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-rpp-grey-light">Due Date:</span>
-                        <span className="text-sm text-rpp-grey-dark">{jobData.dueDate || 'Not set'}</span>
-                      </div>
-                      <hr className="border-rpp-grey-border" />
-                      <div>
-                        <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                          Total Value (optional)
-                        </label>
-                        <Input
-                          type="number"
-                          placeholder="0.00"
-                          value={jobData.totalValue}
-                          onChange={(e) => setJobData(prev => ({ ...prev, totalValue: e.target.value }))}
-                          className="border-rpp-grey-border"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex items-center space-x-2">
-                  <input type="checkbox" id="sendEmail" className="rounded border-rpp-grey-border" />
-                  <label htmlFor="sendEmail" className="text-sm text-rpp-grey-dark">
-                    Send customer confirmation email
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-rpp-grey-border">
-          <div className="flex space-x-2">
-            {step > 1 && (
-              <Button variant="outline" onClick={prevStep} className="border-rpp-grey-border">
-                Back
-              </Button>
-            )}
           </div>
-          
-          <div className="flex space-x-2">
-            <Button variant="ghost" onClick={onClose} className="text-rpp-red-main hover:text-rpp-red-dark">
+
+          {/* Appointment Details Section */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-rpp-grey-dark">Appointment Details</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="appointmentDate">Appointment Date</Label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                  <Input
+                    id="appointmentDate"
+                    type="datetime-local"
+                    value={appointmentDate}
+                    onChange={(e) => setAppointmentDate(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dueDate">Due Date</Label>
+                <div className="relative">
+                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                  <Input
+                    id="dueDate"
+                    type="datetime-local"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="totalValue">Estimated Total Value</Label>
+              <Input
+                id="totalValue"
+                type="number"
+                step="0.01"
+                value={totalValue}
+                onChange={(e) => setTotalValue(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any additional notes for this job..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            {step < 3 ? (
-              <Button onClick={nextStep} className="bg-rpp-red-main hover:bg-rpp-red-dark text-white">
-                Continue
-              </Button>
-            ) : (
-              <Button 
-                onClick={handleSubmit} 
-                disabled={createJobMutation.isPending}
-                className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-              >
-                {createJobMutation.isPending ? "Creating..." : "Create Job"}
-              </Button>
-            )}
+            <Button
+              type="submit"
+              disabled={createJobMutation.isPending}
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+            >
+              {createJobMutation.isPending ? "Creating..." : "Create Job"}
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

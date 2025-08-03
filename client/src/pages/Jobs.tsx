@@ -12,11 +12,11 @@ export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   
-  const { data: jobs = [], isLoading } = useQuery({
+  const { data: jobs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [] } = useQuery({
+  const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 
