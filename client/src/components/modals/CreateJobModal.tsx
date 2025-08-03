@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,7 +83,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     const jobData = {
       partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha", // Fallback for testing
       address: address.trim(),
-      customerId: customerId || undefined,
+      customerId: customerId && customerId !== "none" ? customerId : undefined,
       appointmentDate: appointmentDate || undefined,
       dueDate: dueDate || undefined,
       notes: notes.trim() || undefined,
@@ -109,9 +109,9 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <p className="text-sm text-rpp-grey-light">
+          <DialogDescription className="text-sm text-rpp-grey-light">
             Create a job for any customer, specifying a location, optional appointment(s), and order details.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -128,7 +128,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                     <SelectValue placeholder="Select a customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No customer</SelectItem>
+                    <SelectItem value="none">No customer</SelectItem>
                     {customers.map((customer: any) => (
                       <SelectItem key={customer.id} value={customer.id}>
                         {customer.firstName} {customer.lastName}
