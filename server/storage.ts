@@ -11,6 +11,8 @@ import {
   type InsertOrder
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { writeFileSync, readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 export interface IStorage {
   // Users
@@ -49,6 +51,7 @@ export class MemStorage implements IStorage {
   private products: Map<string, Product>;
   private jobs: Map<string, Job>;
   private orders: Map<string, Order>;
+  private dataFile = join(process.cwd(), 'storage-data.json');
 
   constructor() {
     this.users = new Map();
@@ -56,6 +59,78 @@ export class MemStorage implements IStorage {
     this.products = new Map();
     this.jobs = new Map();
     this.orders = new Map();
+    this.loadFromFile();
+  }
+
+  private loadFromFile() {
+    try {
+      if (existsSync(this.dataFile)) {
+        const data = JSON.parse(readFileSync(this.dataFile, 'utf8'));
+        
+        // Restore users
+        if (data.users) {
+          Object.entries(data.users).forEach(([id, user]: [string, any]) => {
+            this.users.set(id, { ...user, createdAt: new Date(user.createdAt) });
+          });
+        }
+        
+        // Restore customers
+        if (data.customers) {
+          Object.entries(data.customers).forEach(([id, customer]: [string, any]) => {
+            this.customers.set(id, { ...customer, createdAt: new Date(customer.createdAt) });
+          });
+        }
+        
+        // Restore products
+        if (data.products) {
+          Object.entries(data.products).forEach(([id, product]: [string, any]) => {
+            this.products.set(id, { ...product, createdAt: new Date(product.createdAt) });
+          });
+        }
+        
+        // Restore jobs
+        if (data.jobs) {
+          Object.entries(data.jobs).forEach(([id, job]: [string, any]) => {
+            this.jobs.set(id, { 
+              ...job, 
+              createdAt: new Date(job.createdAt),
+              appointmentDate: job.appointmentDate ? new Date(job.appointmentDate) : null,
+              dueDate: job.dueDate ? new Date(job.dueDate) : null
+            });
+          });
+        }
+        
+        // Restore orders
+        if (data.orders) {
+          Object.entries(data.orders).forEach(([id, order]: [string, any]) => {
+            this.orders.set(id, { 
+              ...order, 
+              createdAt: new Date(order.createdAt),
+              dateAccepted: order.dateAccepted ? new Date(order.dateAccepted) : null
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders`);
+      }
+    } catch (error) {
+      console.error('Failed to load storage data:', error);
+    }
+  }
+
+  private saveToFile() {
+    try {
+      const data = {
+        users: Object.fromEntries(this.users.entries()),
+        customers: Object.fromEntries(this.customers.entries()),
+        products: Object.fromEntries(this.products.entries()),
+        jobs: Object.fromEntries(this.jobs.entries()),
+        orders: Object.fromEntries(this.orders.entries())
+      };
+      writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('Failed to save storage data:', error);
+    }
   }
 
   // Users
@@ -78,6 +153,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     this.users.set(id, user);
+    this.saveToFile();
     return user;
   }
 
@@ -106,6 +182,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     this.customers.set(id, customer);
+    this.saveToFile();
     return customer;
   }
 
@@ -115,6 +192,7 @@ export class MemStorage implements IStorage {
     
     const updated = { ...customer, ...updates };
     this.customers.set(id, updated);
+    this.saveToFile();
     return updated;
   }
 
@@ -144,6 +222,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     this.products.set(id, product);
+    this.saveToFile();
     return product;
   }
 
@@ -153,6 +232,7 @@ export class MemStorage implements IStorage {
     
     const updated = { ...product, ...updates };
     this.products.set(id, updated);
+    this.saveToFile();
     return updated;
   }
 
@@ -182,6 +262,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     this.jobs.set(id, job);
+    this.saveToFile();
     return job;
   }
 
@@ -191,6 +272,7 @@ export class MemStorage implements IStorage {
     
     const updated = { ...job, ...updates };
     this.jobs.set(id, updated);
+    this.saveToFile();
     return updated;
   }
 
@@ -219,6 +301,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date()
     };
     this.orders.set(id, order);
+    this.saveToFile();
     return order;
   }
 
@@ -228,6 +311,7 @@ export class MemStorage implements IStorage {
     
     const updated = { ...order, ...updates };
     this.orders.set(id, updated);
+    this.saveToFile();
     return updated;
   }
 }

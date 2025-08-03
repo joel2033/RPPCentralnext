@@ -1,0 +1,84 @@
+{
+  "users": {},
+  "customers": {
+    "b6d52535-4427-418a-ad32-419c8742bb5a": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "Emma",
+      "lastName": "Wilson",
+      "email": "emma.wilson@example.com",
+      "phone": "+61 498 765 432",
+      "company": "Wilson Photography Co",
+      "category": "residential",
+      "profileImage": null,
+      "id": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "totalValue": "0",
+      "averageJobValue": "0",
+      "jobsCompleted": 0,
+      "createdAt": "2025-08-03T14:00:11.285Z"
+    },
+    "f740b8db-5699-43e4-9672-33ef7485b547": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "James",
+      "lastName": "Anderson",
+      "email": "james.anderson@example.com",
+      "phone": "+61 412 345 678",
+      "company": "Anderson Real Estate",
+      "category": "real_estate",
+      "profileImage": null,
+      "id": "f740b8db-5699-43e4-9672-33ef7485b547",
+      "totalValue": "0",
+      "averageJobValue": "0",
+      "jobsCompleted": 0,
+      "createdAt": "2025-08-03T14:00:50.887Z"
+    }
+  },
+  "products": {
+    "f5973e49-3911-426a-aac8-21636cf42502": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "title": "Interior Photography Package",
+      "description": "Professional interior photography for real estate listings",
+      "type": "Photography Service",
+      "price": "295.00",
+      "image": null,
+      "category": null,
+      "taxRate": null,
+      "hasVariations": null,
+      "variants": null,
+      "isActive": null,
+      "isLive": null,
+      "id": "f5973e49-3911-426a-aac8-21636cf42502",
+      "createdAt": "2025-08-03T14:00:24.783Z"
+    }
+  },
+  "jobs": {
+    "4a04b9b0-3692-4682-baaa-9a1d5eacd9db": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "16 Collins Street, Plumpton NSW 6018 2761",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "appointmentDate": "2025-08-06T14:00:00.000Z",
+      "dueDate": "2025-08-08T17:00:00.000Z",
+      "totalValue": "380.00",
+      "status": "scheduled",
+      "notes": "Commercial property photography with aerial shots",
+      "assignedTo": null,
+      "propertyImage": null,
+      "id": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "createdAt": "2025-08-03T14:00:22.997Z"
+    }
+  },
+  "orders": {
+    "ed2c8a99-c85b-4c68-a30b-0e870364c84b": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderNumber": "ORD001",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "status": "pending",
+      "assignedTo": "photographer1",
+      "createdBy": "admin@rpp.com",
+      "estimatedTotal": "380.00",
+      "dateAccepted": null,
+      "id": "ed2c8a99-c85b-4c68-a30b-0e870364c84b",
+      "createdAt": "2025-08-03T14:00:36.749Z"
+    }
+  }
+}
