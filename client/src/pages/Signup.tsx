@@ -26,18 +26,24 @@ export default function Signup() {
     const token = urlParams.get('invite');
     if (token) {
       setInviteToken(token);
-      // Fetch invite details for display
       fetchInviteInfo(token);
     }
   }, []);
 
   const fetchInviteInfo = async (token: string) => {
     try {
-      // You could create an endpoint to get invite info for display
-      // For now, we'll just set a flag that this is an invite signup
-      setInviteInfo({ isInvite: true });
+      // Fetch invite details to pre-fill email and validate
+      const response = await fetch(`/api/team/invite-info/${token}`);
+      if (response.ok) {
+        const inviteData = await response.json();
+        setInviteInfo(inviteData);
+        setEmail(inviteData.email); // Pre-fill email field
+      } else {
+        setError('Invalid or expired invite link');
+      }
     } catch (error) {
       console.error('Error fetching invite info:', error);
+      setError('Failed to load invite information');
     }
   };
 
@@ -134,10 +140,15 @@ export default function Signup() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email address"
+                placeholder={inviteToken ? "Email from invite" : "Enter email address"}
                 required
-                disabled={loading}
+                disabled={loading || (inviteToken && inviteInfo)}
               />
+              {inviteToken && inviteInfo && (
+                <p className="text-sm text-rpp-grey-light">
+                  You're invited as: <span className="font-medium">{inviteInfo.role}</span>
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -181,7 +192,12 @@ export default function Signup() {
                 className="flex-1 bg-rpp-red-main hover:bg-rpp-red-dark text-white"
                 disabled={loading}
               >
-                {loading ? 'Creating...' : 'Create Partner Account'}
+                {loading 
+                  ? 'Creating...' 
+                  : inviteToken 
+                    ? 'Join Team' 
+                    : 'Create Partner Account'
+                }
               </Button>
             </div>
           </form>

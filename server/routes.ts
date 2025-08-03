@@ -360,6 +360,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get invite information for signup page (public endpoint)
+  app.get("/api/team/invite-info/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      const invite = await getPendingInvite(token);
+      if (!invite || invite.status !== 'pending') {
+        return res.status(404).json({ error: "Invalid or expired invite" });
+      }
+      
+      // Return only public info needed for signup page
+      res.json({
+        email: invite.email,
+        role: invite.role,
+        isValid: true
+      });
+    } catch (error: any) {
+      console.error("Error getting invite info:", error);
+      res.status(500).json({ 
+        error: "Failed to get invite info", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get pending invites for a partner
   app.get("/api/team/invites/:partnerId", async (req, res) => {
     try {
