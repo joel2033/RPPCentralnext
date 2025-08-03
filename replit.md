@@ -18,9 +18,11 @@ Preferred communication style: Simple, everyday language.
 - **Route-Based Permissions**: Updated authorization system for new role structure with partner-only settings access
 - **Team Members UI**: Comprehensive interface for managing invites, viewing team status, and copying invite links
 - **Complete Invite Flow**: Team members signing up via invite links correctly inherit role and partnerId from invites
-- **API Endpoints**: /api/auth/signup (partners), /api/auth/complete-invite (team members), /api/team/invite (create invites)
-- **Frontend Integration**: Updated signup page detects invite tokens and routes to correct backend endpoint
+- **API Endpoints**: /api/auth/signup (partners), /api/auth/complete-invite (team members), /api/team/invite (create invites), /api/team/invite-info (get invite details)
+- **Frontend Integration**: Updated signup page detects invite tokens, pre-fills email, shows role info, and routes to correct backend endpoint
 - **Data Validation**: All invite signups properly validate tokens, update invite status to "accepted", and create user documents with correct role/partnerId
+- **UI Enhancement**: Signup page shows "Join Team" vs "Create Partner Account" based on invite presence, displays invited role to user
+- **Complete Testing**: Verified end-to-end flow from invite creation → link sharing → team member signup with correct role inheritance
 
 ## 2025-08-02: Firebase Authentication Implementation
 - Implemented Firebase Authentication with Email/Password login
