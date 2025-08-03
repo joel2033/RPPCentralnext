@@ -13,6 +13,7 @@ import {
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { nanoid } from "nanoid";
 
 export interface IStorage {
   // Users
@@ -34,6 +35,7 @@ export interface IStorage {
 
   // Jobs
   getJob(id: string): Promise<Job | undefined>;
+  getJobByJobId(jobId: string): Promise<Job | undefined>;
   getJobs(partnerId?: string): Promise<Job[]>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: string, job: Partial<Job>): Promise<Job | undefined>;
@@ -241,6 +243,10 @@ export class MemStorage implements IStorage {
     return this.jobs.get(id);
   }
 
+  async getJobByJobId(jobId: string): Promise<Job | undefined> {
+    return Array.from(this.jobs.values()).find(job => job.jobId === jobId);
+  }
+
   async getJobs(partnerId?: string): Promise<Job[]> {
     const allJobs = Array.from(this.jobs.values());
     return partnerId ? allJobs.filter(job => job.partnerId === partnerId) : allJobs;
@@ -248,8 +254,10 @@ export class MemStorage implements IStorage {
 
   async createJob(insertJob: InsertJob): Promise<Job> {
     const id = randomUUID();
+    const jobId = insertJob.jobId || nanoid(); // Generate NanoID if not provided
     const job: Job = {
       ...insertJob,
+      jobId,
       totalValue: insertJob.totalValue || null,
       status: insertJob.status || null,
       customerId: insertJob.customerId || null,

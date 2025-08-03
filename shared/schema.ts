@@ -50,6 +50,7 @@ export const products = pgTable("products", {
 
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: text("job_id").notNull().unique(), // NanoID for backend tracking
   partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   customerId: varchar("customer_id").references(() => customers.id),
   address: text("address").notNull(),
@@ -98,6 +99,7 @@ export const insertProductSchema = createInsertSchema(products).omit({
 
 export const insertJobSchema = z.object({
   partnerId: z.string(),
+  jobId: z.string().optional(), // Will be auto-generated if not provided
   customerId: z.string().optional(),
   address: z.string(),
   status: z.string().optional(),

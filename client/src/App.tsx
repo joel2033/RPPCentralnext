@@ -14,6 +14,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import Dashboard from "@/pages/Dashboard";
 import Jobs from "@/pages/Jobs";
+import JobCard from "@/pages/JobCard";
 import Customers from "@/pages/Customers";
 import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
@@ -48,6 +49,14 @@ function Router() {
         <ProtectedRoute route="/jobs">
           <Layout>
             <Jobs />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/jobs/:jobId">
+        <ProtectedRoute route="/jobs">
+          <Layout>
+            <JobCard />
           </Layout>
         </ProtectedRoute>
       </Route>

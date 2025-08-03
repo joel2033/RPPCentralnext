@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ export default function Jobs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [, setLocation] = useLocation();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
@@ -121,7 +123,17 @@ export default function Jobs() {
       {/* Jobs List */}
       <div className="space-y-3">
         {filteredJobs.map((job: any) => (
-          <Card key={job.id} className="border-rpp-grey-border hover:shadow-md transition-shadow">
+          <Card 
+            key={job.id} 
+            className="border-rpp-grey-border hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => {
+              if (job.jobId) {
+                setLocation(`/jobs/${job.jobId}`);
+              } else {
+                console.warn('Job missing jobId:', job);
+              }
+            }}
+          >
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 {/* Left side - Job info */}

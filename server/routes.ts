@@ -419,6 +419,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Jobs endpoints
+  app.get("/api/jobs/card/:jobId", async (req, res) => {
+    try {
+      const job = await storage.getJobByJobId(req.params.jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Get customer information if customerId exists
+      let customer = null;
+      if (job.customerId) {
+        customer = await storage.getCustomer(job.customerId);
+      }
+      
+      // Return job with customer data
+      res.json({
+        ...job,
+        customer
+      });
+    } catch (error: any) {
+      console.error("Error fetching job card:", error);
+      res.status(500).json({ error: "Failed to fetch job card" });
+    }
+  });
+
   app.get("/api/jobs", async (req, res) => {
     try {
       // Get all jobs (with optional partner filtering)

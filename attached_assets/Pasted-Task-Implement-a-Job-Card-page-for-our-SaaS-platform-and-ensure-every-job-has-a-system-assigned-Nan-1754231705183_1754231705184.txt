@@ -1,0 +1,46 @@
+Task:
+Implement a Job Card page for our SaaS platform and ensure every job has a system-assigned NanoID (Job ID) for backend tracking.
+
+Current State:
+	•	We have a Jobs list page (/jobs) that shows job summaries.
+	•	Clicking a job should open a detailed Job Card page, but this page does not exist yet.
+	•	Jobs currently don’t have a unique backend Job ID.
+
+Requirements:
+
+1. Backend Job ID (NanoID) Generation
+	•	When a new job is created:
+	1.	Generate a NanoID (example: 7rejh287dfjh) using the nanoid library.
+	2.	Store it as jobId in the database.
+	3.	This jobId is never displayed to clients and is internal only for:
+	•	File uploads
+	•	Editor handovers
+	•	Activity tracking
+	•	Linking final content to the correct job
+	•	Confirm that each Job ID is unique and persistent (lifetime ID, does not reset).
+
+2. Job Card Page Layout
+	•	Create a new route: /jobs/:jobId
+	•	Clicking any job in the Jobs list should navigate to this page.
+	•	Layout sections (refer to our example Job Card screenshot):
+	1.	Map – Show the property location using current map integration.
+	2.	Manage Content Tabs – For Photos, Floor Plans, Videos, Virtual Tours, Other Files.
+	3.	Customer Section – Show customer name and linked company, with icon to open their profile.
+	4.	Appointments Section – Display all scheduled shoots for that job.
+	5.	Billing Summary – Show invoice draft, total, and payment status.
+	6.	Activity Log – Record job creation, uploads, deliveries, and status changes.
+
+3. Data Flow
+	•	Fetch job data from backend using the NanoID jobId.
+	•	Use placeholder or mock data if API endpoints aren’t ready.
+	•	Activity log should at minimum show “Job Created” with timestamp and jobId.
+
+4. Styling & UX
+	•	Follow the current SaaS theme: clean, white background, subtle shadows.
+	•	Ensure the page is responsive, optimized for desktop.
+	•	Include a top navigation to return to Jobs list.
+
+5. Future Steps (Next Prompt)
+	•	Enable uploads to Firebase from the Job Card page.
+	•	Generate preview thumbnails and a full gallery modal for uploaded files.
+	•	Record all uploads in the Activity log and link to jobId.

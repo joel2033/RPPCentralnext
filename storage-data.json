@@ -30,6 +30,21 @@
       "averageJobValue": "0",
       "jobsCompleted": 0,
       "createdAt": "2025-08-03T14:00:50.887Z"
+    },
+    "24733f65-7db4-4778-8228-9cbf6b87c469": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "Charlie",
+      "lastName": "Adamson",
+      "email": "Charlie@realty.com.au",
+      "phone": "0412 345 678",
+      "company": "charlie realty",
+      "category": "real_estate",
+      "profileImage": null,
+      "id": "24733f65-7db4-4778-8228-9cbf6b87c469",
+      "totalValue": "0",
+      "averageJobValue": "0",
+      "jobsCompleted": 0,
+      "createdAt": "2025-08-03T14:02:30.398Z"
     }
   },
   "products": {
@@ -64,6 +79,35 @@
       "propertyImage": null,
       "id": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
       "createdAt": "2025-08-03T14:00:22.997Z"
+    },
+    "f419b821-944b-46aa-bb52-094af317f499": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "22 panonia road, wyong",
+      "customerId": "24733f65-7db4-4778-8228-9cbf6b87c469",
+      "appointmentDate": "2025-08-20T14:00:00.000Z",
+      "status": "scheduled",
+      "totalValue": "380",
+      "assignedTo": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "notes": null,
+      "id": "f419b821-944b-46aa-bb52-094af317f499",
+      "createdAt": "2025-08-03T14:03:09.421Z"
+    },
+    "25a23639-0111-49b4-a60b-64d655364ca8": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "12 Maple Avenue, Springfield NSW 2150",
+      "customerId": "f740b8db-5699-43e4-9672-33ef7485b547",
+      "appointmentDate": "2025-08-08T10:00:00.000Z",
+      "dueDate": "2025-08-10T17:00:00.000Z",
+      "totalValue": "425.00",
+      "status": "scheduled",
+      "notes": "Interior and exterior photography for luxury property listing",
+      "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
+      "assignedTo": null,
+      "propertyImage": null,
+      "id": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "createdAt": "2025-08-03T14:39:31.140Z"
     }
   },
   "orders": {
