@@ -108,7 +108,6 @@ export default function JobCard() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Job Details</h1>
-            <p className="text-sm text-gray-500">Job ID: {jobData.jobId}</p>
           </div>
         </div>
         <Badge className={getStatusColor(jobData.status)}>
