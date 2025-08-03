@@ -223,8 +223,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
       
-      if (invite.email !== email) {
-        return res.status(400).json({ error: "Email doesn't match invite" });
+      if (invite.email.toLowerCase() !== email.toLowerCase()) {
+        return res.status(400).json({ 
+          error: "Email doesn't match invite", 
+          expected: invite.email,
+          received: email 
+        });
       }
       
       // Create user document with invite details
@@ -266,8 +270,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
       
-      if (invite.email !== email) {
-        return res.status(400).json({ error: "Email doesn't match invite" });
+      if (invite.email.toLowerCase() !== email.toLowerCase()) {
+        return res.status(400).json({ 
+          error: "Email doesn't match invite", 
+          expected: invite.email,
+          received: email 
+        });
       }
       
       // 2. Create user document with invite role and partnerId
