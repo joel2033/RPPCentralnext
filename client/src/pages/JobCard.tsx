@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, MapPin, User, Calendar, DollarSign, Activity, Upload, Image, FileText, Video, Eye, Building } from "lucide-react";
 import { format } from "date-fns";
+import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 
 interface JobCardData {
   id: string;
@@ -127,12 +128,9 @@ export default function JobCard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-100 h-64 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <MapPin className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-600">{jobData.address}</p>
-                  <p className="text-sm text-gray-500 mt-2">Map integration coming soon</p>
-                </div>
+              <div className="mb-4">
+                <p className="text-gray-600 font-medium mb-3">{jobData.address}</p>
+                <GoogleMapEmbed address={jobData.address} height="300px" />
               </div>
             </CardContent>
           </Card>

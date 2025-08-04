@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import { useAuth } from "@/contexts/AuthContext";
 import { CalendarIcon, MapPin, User, X } from "lucide-react";
 
@@ -160,6 +161,13 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
               <p className="text-xs text-rpp-grey-light">
                 Address must include Enter manually.
               </p>
+              
+              {/* Google Maps Preview */}
+              {address && address.trim() && (
+                <div className="mt-3">
+                  <GoogleMapEmbed address={address} height="200px" />
+                </div>
+              )}
             </div>
 
             {/* Status */}
