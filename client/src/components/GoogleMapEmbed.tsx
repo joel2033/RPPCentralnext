@@ -12,17 +12,24 @@ export default function GoogleMapEmbed({
   className = "" 
 }: GoogleMapEmbedProps) {
   // Get the Google Maps API key from environment variables
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   
-  if (!apiKey) {
+  // Debug logging
+  console.log('GoogleMapEmbed - API Key exists:', !!apiKey);
+  console.log('GoogleMapEmbed - API Key first 10 chars:', apiKey ? apiKey.substring(0, 10) + '...' : 'undefined');
+  console.log('GoogleMapEmbed - Address:', address);
+  
+  if (!apiKey || apiKey.trim() === '') {
+    console.error('GoogleMapEmbed - No API key found. Available env vars:', Object.keys(import.meta.env));
     return (
       <div 
-        className={`bg-gray-100 rounded-lg flex items-center justify-center ${className}`}
+        className={`bg-red-50 border border-red-200 rounded-lg flex items-center justify-center ${className}`}
         style={{ height, width }}
       >
         <div className="text-center p-4">
-          <p className="text-gray-600">Google Maps API key not configured</p>
-          <p className="text-sm text-gray-500 mt-1">Add VITE_GOOGLE_MAPS_KEY to environment</p>
+          <p className="text-red-700 font-medium">Google Maps API key not configured</p>
+          <p className="text-sm text-red-600 mt-1">VITE_GOOGLE_MAPS_API_KEY is missing or empty</p>
+          <p className="text-xs text-red-500 mt-1">Check Replit Secrets configuration</p>
         </div>
       </div>
     );
