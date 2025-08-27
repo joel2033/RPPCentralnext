@@ -14,13 +14,7 @@ export default function GoogleMapEmbed({
   // Get the Google Maps API key from environment variables
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   
-  // Debug logging
-  console.log('GoogleMapEmbed - API Key exists:', !!apiKey);
-  console.log('GoogleMapEmbed - API Key first 10 chars:', apiKey ? apiKey.substring(0, 10) + '...' : 'undefined');
-  console.log('GoogleMapEmbed - Address:', address);
-  
   if (!apiKey || apiKey.trim() === '') {
-    console.error('GoogleMapEmbed - No API key found. Available env vars:', Object.keys(import.meta.env));
     return (
       <div 
         className={`bg-red-50 border border-red-200 rounded-lg flex items-center justify-center ${className}`}
@@ -68,9 +62,6 @@ export default function GoogleMapEmbed({
         className="w-full"
         onError={(e) => {
           console.warn('Google Maps iframe failed to load:', e);
-        }}
-        onLoad={() => {
-          console.log('Google Maps loaded successfully for:', address);
         }}
       />
       
