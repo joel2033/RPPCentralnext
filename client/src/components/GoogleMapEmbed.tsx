@@ -59,7 +59,20 @@ export default function GoogleMapEmbed({
         referrerPolicy="no-referrer-when-downgrade"
         title={`Map showing ${address}`}
         className="w-full"
+        onError={(e) => {
+          console.warn('Google Maps iframe failed to load:', e);
+        }}
+        onLoad={() => {
+          console.log('Google Maps loaded successfully for:', address);
+        }}
       />
+      
+      {/* Fallback overlay in case map fails to load */}
+      <div className="absolute inset-0 bg-gray-100 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+        <div className="text-center text-xs text-gray-500 p-2">
+          <p>Click to open in Google Maps</p>
+        </div>
+      </div>
     </div>
   );
 }

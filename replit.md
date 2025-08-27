@@ -26,6 +26,9 @@ Preferred communication style: Simple, everyday language.
 - **Job Navigation**: Clickable job cards in Jobs list that navigate to detailed Job Card page using jobId route (/jobs/:jobId)
 - **API Enhancement**: New /api/jobs/card/:jobId endpoint returns job data with linked customer information
 - **Asset Management UI**: Content tabs for Photos, Floor Plans, Videos, Virtual Tours, and Other Files with upload placeholders
+- **Google Maps Integration**: Interactive maps showing property locations on Job Card pages using Google Maps Embed API
+- **Live Map Previews**: Real-time map updates in Create Job modal when addresses are entered
+- **Responsive Map Component**: Reusable GoogleMapEmbed component with error handling and proper iframe embedding
 
 ## 2025-08-02: Multi-Tenant Partner Structure Implementation - COMPLETED
 - **Complete Multi-Tenant Architecture**: Implemented partnerId-based data isolation for true multi-tenancy
