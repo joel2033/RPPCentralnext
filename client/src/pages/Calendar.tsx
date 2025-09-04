@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import CreateEventModal from "@/components/modals/CreateEventModal";
+import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal";
 
 interface User {
   id: string;
@@ -43,6 +44,8 @@ export default function Calendar() {
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const [eventTypes, setEventTypes] = useState<EventType[]>([
     { id: 'job', label: 'Job', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true },
@@ -92,17 +95,28 @@ export default function Calendar() {
     return (jobs as any[]).filter((job: any) => {
       const jobDate = new Date(job.appointmentDate || job.createdAt);
       return jobDate.toDateString() === targetDate.toDateString();
-    });
+    }).map((job: any) => ({
+      ...job,
+      id: job.jobId,
+      title: job.address,
+      type: 'job',
+      time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }) : '',
+      jobId: job.jobId
+    }));
   };
 
   const getEventsForDate = (targetDate: Date) => {
     // Mock events for demonstration - in real app this would come from API
     const mockEvents = [
-      { id: 'e1', title: 'EXTERNAL GOOGLE Ellie 5 Edna', type: 'external', time: '08:00-09:00', date: new Date(2025, 8, 5) },
-      { id: 'e2', title: 'EXTERNAL GOOGLE Reilly 101 Reid', type: 'external', time: '09:00-10:00', date: new Date(2025, 8, 5) },
-      { id: 'e3', title: 'EXTERNAL GOOGLE Ellie and another', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 12) },
-      { id: 'e4', title: 'EXTERNAL GOOGLE 105 Elam Place', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 19) },
-      { id: 'e5', title: 'EXTERNAL GOOGLE Glenview', type: 'external', time: '10:00-12:00', date: new Date(2025, 8, 26) },
+      { id: 'e1', title: 'EXTERNAL GOOGLE Ellie 5 Edna', type: 'external', time: '08:00-09:00', date: new Date(2025, 8, 5), address: '5 Edna Street' },
+      { id: 'e2', title: 'EXTERNAL GOOGLE Reilly 101 Reid', type: 'external', time: '09:00-10:00', date: new Date(2025, 8, 5), address: '101 Reid Avenue' },
+      { id: 'e3', title: 'EXTERNAL GOOGLE Ellie and another', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 12), address: '12 Ellie Place' },
+      { id: 'e4', title: 'EXTERNAL GOOGLE 105 Elam Place', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 19), address: '105 Elam Place' },
+      { id: 'e5', title: 'EXTERNAL GOOGLE Glenview', type: 'external', time: '10:00-12:00', date: new Date(2025, 8, 26), address: 'Glenview Terrace' },
     ];
     
     if (!targetDate || typeof targetDate.toDateString !== 'function') {
@@ -128,6 +142,18 @@ export default function Calendar() {
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const handleAppointmentClick = (appointment: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedAppointment(appointment);
+    setShowAppointmentModal(true);
+  };
+
+  const closeAppointmentModal = () => {
+    setSelectedAppointment(null);
+    setShowAppointmentModal(false);
   };
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -220,9 +246,10 @@ export default function Calendar() {
               return (
                 <div
                   key={event.id || `event-${index}`}
-                  className={`text-xs p-1 rounded text-left ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
+                  className={`text-xs p-1 rounded text-left cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
                   title={event.title || event.address}
                   data-testid={`event-${event.id || index}`}
+                  onClick={(e) => handleAppointmentClick(event, e)}
                 >
                   <div className="font-medium truncate">
                     {event.time && <span className="mr-1">{event.time}</span>}
@@ -293,9 +320,10 @@ export default function Calendar() {
                   return (
                     <div
                       key={event.id || `event-${eventIndex}`}
-                      className={`text-xs p-2 rounded text-left ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
+                      className={`text-xs p-2 rounded text-left cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
                       title={event.title || event.address}
                       data-testid={`week-event-${event.id || eventIndex}`}
+                      onClick={(e) => handleAppointmentClick(event, e)}
                     >
                       <div className="font-medium">
                         {event.time && <div className="text-xs opacity-75">{event.time}</div>}
@@ -335,9 +363,10 @@ export default function Calendar() {
               return (
                 <div
                   key={event.id || `event-${index}`}
-                  className={`text-sm p-2 rounded ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
+                  className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
                   title={event.title || event.address}
                   data-testid={`day-event-${event.id || index}`}
+                  onClick={(e) => handleAppointmentClick(event, e)}
                 >
                   <div className="font-medium">
                     {event.time && <span className="mr-2">{event.time}</span>}
@@ -548,6 +577,13 @@ export default function Calendar() {
       
       {showCreateEventModal && (
         <CreateEventModal onClose={() => setShowCreateEventModal(false)} />
+      )}
+      
+      {showAppointmentModal && selectedAppointment && (
+        <AppointmentDetailsModal
+          appointment={selectedAppointment}
+          onClose={closeAppointmentModal}
+        />
       )}
     </div>
   );
