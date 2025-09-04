@@ -78,6 +78,16 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [appointmentExpanded, setAppointmentExpanded] = useState(false);
   const [orderSummaryExpanded, setOrderSummaryExpanded] = useState(false);
 
+  // Multi-step navigation
+  const [currentStep, setCurrentStep] = useState<'job-info' | 'appointment' | 'order-summary'>('job-info');
+
+  // Validation states
+  const [validationErrors, setValidationErrors] = useState({
+    jobInfo: false,
+    appointment: false,
+    orderSummary: false
+  });
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData } = useAuth();
@@ -166,6 +176,60 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
+
+  // Filter users to only show photographers and partners
+  const availableOperators = users.filter(user => 
+    user.role === 'photographer' || user.role === 'partner'
+  );
+
+  // Validation functions
+  const validateJobInfo = () => {
+    const hasAddress = address.trim().length > 0;
+    return hasAddress;
+  };
+
+  const validateAppointment = () => {
+    if (skipAppointment) return true;
+    const hasOperator = assignedOperators.length > 0;
+    const hasProducts = selectedProducts.length > 0;
+    return hasOperator && hasProducts;
+  };
+
+  const validateOrderSummary = () => {
+    return selectedProducts.length > 0;
+  };
+
+  // Update validation errors when data changes
+  useEffect(() => {
+    setValidationErrors({
+      jobInfo: !validateJobInfo(),
+      appointment: !validateAppointment(),
+      orderSummary: !validateOrderSummary()
+    });
+  }, [address, assignedOperators, selectedProducts, skipAppointment]);
+
+  // Step navigation functions
+  const handleNext = () => {
+    if (currentStep === 'job-info' && validateJobInfo()) {
+      setCurrentStep('appointment');
+      setJobInfoExpanded(false);
+      setAppointmentExpanded(true);
+    } else if (currentStep === 'appointment' && validateAppointment()) {
+      setCurrentStep('order-summary');
+      setAppointmentExpanded(false);
+      setOrderSummaryExpanded(true);
+    }
+  };
+
+  const canProceedToNext = () => {
+    if (currentStep === 'job-info') return validateJobInfo();
+    if (currentStep === 'appointment') return validateAppointment();
+    return false;
+  };
+
+  const canSave = () => {
+    return validateJobInfo() && validateAppointment() && validateOrderSummary();
+  };
 
   const createJobMutation = useMutation({
     mutationFn: async (jobData: any) => {
@@ -306,8 +370,14 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Job Information Section */}
           <Collapsible open={jobInfoExpanded} onOpenChange={setJobInfoExpanded}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-job-info">
-              <span className="font-medium text-rpp-red-main">Job Information</span>
+            <CollapsibleTrigger 
+              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
+              data-testid="toggle-job-info"
+              onClick={() => setCurrentStep('job-info')}
+            >
+              <span className={`font-medium ${validationErrors.jobInfo ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
+                Job Information
+              </span>
               {jobInfoExpanded ? (
                 <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
               ) : (
@@ -410,15 +480,24 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
           {/* Appointment Details Section */}
           <Collapsible open={appointmentExpanded} onOpenChange={setAppointmentExpanded}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-appointment-details">
-              <span className="font-medium text-rpp-red-main">Appointment Details</span>
+            <CollapsibleTrigger 
+              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
+              data-testid="toggle-appointment-details"
+              onClick={() => setCurrentStep('appointment')}
+            >
+              <span className={`font-medium ${validationErrors.appointment ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
+                Appointment Details
+              </span>
               <div className="flex items-center space-x-2">
                 <Button
                   type="button"
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-xs"
-                  onClick={() => setSkipAppointment(!skipAppointment)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSkipAppointment(!skipAppointment);
+                  }}
                   data-testid="button-skip-appointment"
                 >
                   Skip Appointment
@@ -448,7 +527,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                         <SelectValue placeholder="Add yourself or other team members" />
                       </SelectTrigger>
                       <SelectContent>
-                        {users.filter(user => user.role !== 'partner').map((user) => (
+                        {availableOperators.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             {user.firstName} {user.lastName} ({user.role})
                           </SelectItem>
@@ -571,8 +650,14 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
           {/* Order Summary Section */}
           <Collapsible open={orderSummaryExpanded} onOpenChange={setOrderSummaryExpanded}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-order-summary">
-              <span className="font-medium text-rpp-grey-dark">Order Summary</span>
+            <CollapsibleTrigger 
+              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
+              data-testid="toggle-order-summary"
+              onClick={() => setCurrentStep('order-summary')}
+            >
+              <span className={`font-medium ${validationErrors.orderSummary ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
+                Order Summary
+              </span>
               {orderSummaryExpanded ? (
                 <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
               ) : (
@@ -660,14 +745,27 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
             <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel">
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={createJobMutation.isPending}
-              className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white"
-              data-testid="button-save"
-            >
-              {createJobMutation.isPending ? "Saving..." : "Save"}
-            </Button>
+            
+            {currentStep !== 'order-summary' ? (
+              <Button
+                type="button"
+                onClick={handleNext}
+                disabled={!canProceedToNext()}
+                className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="button-next"
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={createJobMutation.isPending || !canSave()}
+                className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                data-testid="button-save"
+              >
+                {createJobMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            )}
           </div>
         </form>
       </DialogContent>
