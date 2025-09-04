@@ -132,20 +132,10 @@ export default function CreateEventModal({ onClose }: CreateEventModalProps) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">Create Event</DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-sm text-rpp-grey-light">
+          <DialogTitle className="text-xl font-semibold">Create Event</DialogTitle>
+          <DialogDescription className="text-sm text-rpp-grey-light">
             Create an event to block time out of the calendar for other commitments.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

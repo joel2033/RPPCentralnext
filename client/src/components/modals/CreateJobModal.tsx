@@ -351,18 +351,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold">New Job</DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-              data-testid="button-close-modal"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle className="text-xl font-semibold">New Job</DialogTitle>
           <DialogDescription className="text-sm text-rpp-grey-light">
             Create a job for any customer, specifying a location, optional appointment(s), and order details.
           </DialogDescription>
