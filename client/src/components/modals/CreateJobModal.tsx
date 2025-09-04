@@ -209,7 +209,8 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   }, [address, assignedOperators, selectedProducts, skipAppointment]);
 
   // Step navigation functions
-  const handleNext = () => {
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent form submission
     if (currentStep === 'job-info' && validateJobInfo()) {
       setCurrentStep('appointment');
       setJobInfoExpanded(false);
