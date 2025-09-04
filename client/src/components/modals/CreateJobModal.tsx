@@ -6,32 +6,86 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import { useAuth } from "@/contexts/AuthContext";
-import { CalendarIcon, MapPin, User, X } from "lucide-react";
+import { 
+  CalendarIcon, 
+  MapPin, 
+  User, 
+  X, 
+  ChevronDown, 
+  ChevronUp, 
+  Clock,
+  AlertCircle,
+  Plus
+} from "lucide-react";
 
 interface CreateJobModalProps {
   onClose: () => void;
+}
+
+interface Product {
+  id: string;
+  title: string;
+  description: string;
+  price: string;
+  taxRate: string;
+  type: string;
+  category: string;
+}
+
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+}
+
+interface SelectedProduct {
+  id: string;
+  title: string;
+  price: number;
+  quantity: number;
+  taxRate: number;
 }
 
 export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [address, setAddress] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [appointmentDate, setAppointmentDate] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState("scheduled");
-  const [totalValue, setTotalValue] = useState("");
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [appointmentDuration, setAppointmentDuration] = useState("60");
+  const [assignedOperators, setAssignedOperators] = useState<string[]>([]);
+  const [appointmentNotes, setAppointmentNotes] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
+  const [skipAppointment, setSkipAppointment] = useState(false);
+
+  // Collapsible section states
+  const [jobInfoExpanded, setJobInfoExpanded] = useState(true);
+  const [appointmentExpanded, setAppointmentExpanded] = useState(false);
+  const [orderSummaryExpanded, setOrderSummaryExpanded] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData } = useAuth();
 
-  // Get customers for the dropdown
+  // Fetch data for dropdowns
   const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
   });
 
   const createJobMutation = useMutation({
@@ -69,27 +123,68 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     },
   });
 
+  const handleAddProduct = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      const existingProduct = selectedProducts.find(p => p.id === productId);
+      if (existingProduct) {
+        setSelectedProducts(prev => 
+          prev.map(p => p.id === productId ? { ...p, quantity: p.quantity + 1 } : p)
+        );
+      } else {
+        setSelectedProducts(prev => [...prev, {
+          id: product.id,
+          title: product.title,
+          price: parseFloat(product.price),
+          quantity: 1,
+          taxRate: parseFloat(product.taxRate)
+        }]);
+      }
+    }
+  };
+
+  const updateProductQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+    } else {
+      setSelectedProducts(prev => 
+        prev.map(p => p.id === productId ? { ...p, quantity } : p)
+      );
+    }
+  };
+
+  const calculateOrderTotal = () => {
+    return selectedProducts.reduce((total, product) => {
+      const subtotal = product.price * product.quantity;
+      const tax = subtotal * (product.taxRate / 100);
+      return total + subtotal + tax;
+    }, 0);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!address.trim()) {
       toast({
         title: "Error",
-        description: "Address is required",
+        description: "Location is required",
         variant: "destructive",
       });
       return;
     }
 
+    const appointmentDateTime = appointmentDate && appointmentTime 
+      ? `${appointmentDate}T${appointmentTime}:00`
+      : undefined;
+
     const jobData = {
-      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha", // Fallback for testing
+      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha",
       address: address.trim(),
       customerId: customerId && customerId !== "none" ? customerId : undefined,
-      appointmentDate: appointmentDate || undefined,
-      dueDate: dueDate || undefined,
-      notes: notes.trim() || undefined,
-      status,
-      totalValue: totalValue || undefined,
+      appointmentDate: appointmentDateTime,
+      assignedTo: assignedOperators.length > 0 ? assignedOperators[0] : undefined,
+      notes: appointmentNotes.trim() || undefined,
+      totalValue: calculateOrderTotal().toFixed(2),
     };
 
     createJobMutation.mutate(jobData);
@@ -106,6 +201,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
               size="sm"
               onClick={onClose}
               className="h-8 w-8 p-0"
+              data-testid="button-close-modal"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -115,147 +211,335 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Job Information Section */}
-          <div className="space-y-4">
-            <h3 className="font-medium text-rpp-grey-dark">Job Information</h3>
-            
-            {/* Customer Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="customer">Customer</Label>
-              <div className="flex space-x-2">
-                <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select a customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No customer</SelectItem>
-                    {customers.map((customer: any) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.firstName} {customer.lastName}
-                        {customer.company && ` (${customer.company})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="button" variant="outline" size="sm">
-                  Create
-                </Button>
-              </div>
-            </div>
-
-            {/* Location */}
-            <div className="space-y-2">
-              <Label htmlFor="address">Location *</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
-                <Input
-                  id="address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Start typing to find a location..."
-                  className="pl-10"
-                  required
-                />
-              </div>
-              <p className="text-xs text-rpp-grey-light">
-                Address must include Enter manually.
-              </p>
-              
-              {/* Google Maps Preview */}
-              {address && address.trim() && (
-                <div className="mt-3">
-                  <GoogleMapEmbed address={address} height="200px" />
-                </div>
+          <Collapsible open={jobInfoExpanded} onOpenChange={setJobInfoExpanded}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-job-info">
+              <span className="font-medium text-rpp-red-main">Job Information</span>
+              {jobInfoExpanded ? (
+                <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
               )}
-            </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 p-3">
+              {/* Customer Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="customer">Customer</Label>
+                <div className="flex space-x-2">
+                  <Select value={customerId} onValueChange={setCustomerId}>
+                    <SelectTrigger className="flex-1" data-testid="select-customer">
+                      <SelectValue placeholder="Select a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No customer</SelectItem>
+                      {customers.map((customer: any) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.firstName} {customer.lastName}
+                          {customer.company && ` (${customer.company})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="sm" data-testid="button-create-customer">
+                    Create
+                  </Button>
+                </div>
+              </div>
 
-            {/* Status */}
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              {/* Location */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="address">Location</Label>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs">
+                    Switch to Job Name
+                  </Button>
+                </div>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                  <Input
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Start typing to find a location..."
+                    className="pl-10"
+                    required
+                    data-testid="input-address"
+                  />
+                </div>
+                <p className="text-xs text-rpp-grey-light">
+                  Address won't show? <Button type="button" variant="link" className="h-auto p-0 text-xs">Enter manually</Button>
+                </p>
+                
+                {/* Google Maps Preview */}
+                {address && address.trim() && (
+                  <div className="mt-3">
+                    <GoogleMapEmbed address={address} height="200px" />
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* Appointment Details Section */}
-          <div className="space-y-4">
-            <h3 className="font-medium text-rpp-grey-dark">Appointment Details</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Collapsible open={appointmentExpanded} onOpenChange={setAppointmentExpanded}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-appointment-details">
+              <span className="font-medium text-rpp-red-main">Appointment Details</span>
+              <div className="flex items-center space-x-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => setSkipAppointment(!skipAppointment)}
+                  data-testid="button-skip-appointment"
+                >
+                  Skip Appointment
+                </Button>
+                {appointmentExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
+                )}
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 p-3">
+              {!skipAppointment && (
+                <>
+                  <p className="text-sm text-rpp-grey-light">
+                    Schedule one or multiple service visit appointments for this job.
+                  </p>
+
+                  {/* Assign Operators */}
+                  <div className="space-y-2">
+                    <Label>Assign operator(s)</Label>
+                    <Select 
+                      value={assignedOperators[0] || ""} 
+                      onValueChange={(value) => setAssignedOperators(value ? [value] : [])}
+                    >
+                      <SelectTrigger data-testid="select-operators">
+                        <SelectValue placeholder="Add yourself or other team members" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.filter(user => user.role !== 'partner').map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.firstName} {user.lastName} ({user.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {assignedOperators.length === 0 && (
+                      <div className="flex items-center space-x-2 text-sm text-rpp-red-main">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>You must add at least one operator</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Date and Time */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Timezone</Label>
+                      <Select defaultValue="utc+10">
+                        <SelectTrigger data-testid="select-timezone">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="utc+10">(UTC+10:00) Canberra...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Select a day</Label>
+                      <Input
+                        type="date"
+                        value={appointmentDate}
+                        onChange={(e) => setAppointmentDate(e.target.value)}
+                        data-testid="input-appointment-date"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Set a start time</Label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                        <Input
+                          type="time"
+                          value={appointmentTime}
+                          onChange={(e) => setAppointmentTime(e.target.value)}
+                          className="pl-10"
+                          data-testid="input-appointment-time"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Add duration</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="number"
+                          value={appointmentDuration}
+                          onChange={(e) => setAppointmentDuration(e.target.value)}
+                          className="w-20"
+                          data-testid="input-duration"
+                        />
+                        <span className="text-sm text-rpp-grey-light">Minutes</span>
+                      </div>
+                      <Button type="button" variant="link" className="h-auto p-0 text-xs">
+                        Manually set duration
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Products Section */}
               <div className="space-y-2">
-                <Label htmlFor="appointmentDate">Appointment Date</Label>
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
-                  <Input
-                    id="appointmentDate"
-                    type="datetime-local"
-                    value={appointmentDate}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
-                    className="pl-10"
-                  />
+                <Label>Products</Label>
+                <div className="flex space-x-2">
+                  <Select onValueChange={handleAddProduct}>
+                    <SelectTrigger className="flex-1" data-testid="select-products">
+                      <SelectValue placeholder="Select product/s" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.title} - ${product.price}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="sm" data-testid="button-create-product">
+                    Create
+                  </Button>
                 </div>
+                {selectedProducts.length === 0 && (
+                  <div className="flex items-center space-x-2 text-sm text-rpp-red-main">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>You must add at least one product</span>
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
-                  <Input
-                    id="dueDate"
-                    type="datetime-local"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="pl-10"
+              {/* Appointment Notes */}
+              {!skipAppointment && (
+                <div className="space-y-2">
+                  <Label htmlFor="appointmentNotes">Write appointment notes</Label>
+                  <p className="text-xs text-rpp-grey-light">
+                    Notes may be visible to customers if they are included as attendees on Google or Outlook Calendar events
+                  </p>
+                  <Textarea
+                    id="appointmentNotes"
+                    value={appointmentNotes}
+                    onChange={(e) => setAppointmentNotes(e.target.value)}
+                    placeholder="Add notes for this appointment..."
+                    rows={3}
+                    data-testid="textarea-notes"
                   />
                 </div>
-              </div>
-            </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
 
-            <div className="space-y-2">
-              <Label htmlFor="totalValue">Estimated Total Value</Label>
-              <Input
-                id="totalValue"
-                type="number"
-                step="0.01"
-                value={totalValue}
-                onChange={(e) => setTotalValue(e.target.value)}
-                placeholder="0.00"
-              />
-            </div>
+          {/* Order Summary Section */}
+          <Collapsible open={orderSummaryExpanded} onOpenChange={setOrderSummaryExpanded}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" data-testid="toggle-order-summary">
+              <span className="font-medium text-rpp-grey-dark">Order Summary</span>
+              {orderSummaryExpanded ? (
+                <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 p-3">
+              <p className="text-sm text-rpp-grey-light">
+                Add any extra products to this order. This could be products that do not require an appointment to be provided i.e. digital.
+              </p>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional notes for this job..."
-                rows={3}
-              />
-            </div>
+              {/* Selected Products List */}
+              {selectedProducts.length > 0 && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-5 gap-2 text-sm font-medium text-rpp-grey-dark border-b pb-2">
+                    <span>Item</span>
+                    <span className="text-center">Qty</span>
+                    <span className="text-center">Price</span>
+                    <span className="text-center">Tax</span>
+                    <span className="text-right">Amount</span>
+                  </div>
+                  
+                  {selectedProducts.map((product) => {
+                    const subtotal = product.price * product.quantity;
+                    const tax = subtotal * (product.taxRate / 100);
+                    const total = subtotal + tax;
+                    
+                    return (
+                      <div key={product.id} className="grid grid-cols-5 gap-2 text-sm items-center" data-testid={`product-row-${product.id}`}>
+                        <span className="text-rpp-grey-dark">{product.title}</span>
+                        <div className="flex items-center justify-center space-x-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => updateProductQuantity(product.id, product.quantity - 1)}
+                            data-testid={`button-decrease-${product.id}`}
+                          >
+                            -
+                          </Button>
+                          <span className="w-8 text-center">{product.quantity}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => updateProductQuantity(product.id, product.quantity + 1)}
+                            data-testid={`button-increase-${product.id}`}
+                          >
+                            +
+                          </Button>
+                        </div>
+                        <span className="text-center">${product.price.toFixed(2)}</span>
+                        <span className="text-center">${tax.toFixed(2)}</span>
+                        <span className="text-right font-medium">${total.toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                  
+                  <div className="border-t pt-2 flex justify-between items-center font-semibold">
+                    <span>Total</span>
+                    <span data-testid="text-order-total">AUD ${calculateOrderTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Send Confirmation Email */}
+          <div className="flex items-center space-x-2 pt-4">
+            <Checkbox
+              id="sendConfirmationEmail"
+              checked={sendConfirmationEmail}
+              onCheckedChange={(checked) => setSendConfirmationEmail(checked === true)}
+              data-testid="checkbox-confirmation-email"
+            />
+            <Label htmlFor="sendConfirmationEmail" className="text-sm">
+              Send customer confirmation email
+            </Label>
           </div>
 
           {/* Action Buttons */}
           <div className="flex justify-end space-x-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel">
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={createJobMutation.isPending}
-              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+              className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white"
+              data-testid="button-save"
             >
-              {createJobMutation.isPending ? "Creating..." : "Create Job"}
+              {createJobMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
         </form>

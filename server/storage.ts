@@ -19,6 +19,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(partnerId?: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
 
   // Customers
@@ -329,6 +330,11 @@ export class MemStorage implements IStorage {
   async getCustomerJobs(customerId: string): Promise<Job[]> {
     const allJobs = Array.from(this.jobs.values());
     return allJobs.filter(job => job.customerId === customerId);
+  }
+
+  async getUsers(partnerId?: string): Promise<User[]> {
+    const allUsers = Array.from(this.users.values());
+    return partnerId ? allUsers.filter(user => user.partnerId === partnerId) : allUsers;
   }
 }
 

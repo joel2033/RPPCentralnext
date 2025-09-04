@@ -69,6 +69,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Users
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   // Products
   app.get("/api/products", async (req, res) => {
     try {
