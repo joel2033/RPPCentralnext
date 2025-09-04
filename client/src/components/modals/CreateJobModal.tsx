@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,13 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
   const [skipAppointment, setSkipAppointment] = useState(false);
 
+  // Address autocomplete states
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
+  const autocompleteService = useRef<any>(null);
+  const placesService = useRef<any>(null);
+
   // Collapsible section states
   const [jobInfoExpanded, setJobInfoExpanded] = useState(true);
   const [appointmentExpanded, setAppointmentExpanded] = useState(false);
@@ -74,6 +81,78 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData } = useAuth();
+
+  // Initialize Google Places API
+  useEffect(() => {
+    const initGooglePlaces = () => {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        autocompleteService.current = new window.google.maps.places.AutocompleteService();
+        placesService.current = new window.google.maps.places.PlacesService(
+          document.createElement('div')
+        );
+      }
+    };
+
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return;
+
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps && window.google.maps.places) {
+      initGooglePlaces();
+    } else {
+      // Load Google Maps API if not already loaded
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = initGooglePlaces;
+      document.head.appendChild(script);
+
+      return () => {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      };
+    }
+  }, []);
+
+  // Handle address input change and fetch suggestions
+  const handleAddressChange = (value: string) => {
+    setAddress(value);
+    
+    if (!value.trim() || !autocompleteService.current) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsLoadingPlaces(true);
+    
+    const request = {
+      input: value,
+      componentRestrictions: { country: 'au' }, // Restrict to Australia
+      types: ['address']
+    };
+
+    autocompleteService.current.getPlacePredictions(request, (predictions: any[], status: any) => {
+      setIsLoadingPlaces(false);
+      
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+        setAddressSuggestions(predictions.slice(0, 5)); // Limit to 5 suggestions
+        setShowSuggestions(true);
+      } else {
+        setAddressSuggestions([]);
+        setShowSuggestions(false);
+      }
+    });
+  };
+
+  // Handle address selection from suggestions
+  const handleAddressSelect = (prediction: any) => {
+    setAddress(prediction.description);
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+  };
 
   // Fetch data for dropdowns
   const { data: customers = [] } = useQuery<any[]>({
@@ -190,6 +269,19 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     createJobMutation.mutate(jobData);
   };
 
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('[data-testid="input-address"]') && !target.closest('.address-suggestions')) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -256,16 +348,51 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                   </Button>
                 </div>
                 <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light z-10" />
                   <Input
                     id="address"
                     value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                    onFocus={() => address.trim() && addressSuggestions.length > 0 && setShowSuggestions(true)}
                     placeholder="Start typing to find a location..."
                     className="pl-10"
                     required
                     data-testid="input-address"
+                    autoComplete="off"
                   />
+                  
+                  {/* Address Suggestions Dropdown */}
+                  {showSuggestions && (addressSuggestions.length > 0 || isLoadingPlaces) && (
+                    <div className="address-suggestions absolute top-full left-0 right-0 bg-white border border-rpp-grey-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                      {isLoadingPlaces ? (
+                        <div className="p-3 text-sm text-rpp-grey-light">
+                          Searching addresses...
+                        </div>
+                      ) : (
+                        addressSuggestions.map((prediction) => (
+                          <button
+                            key={prediction.place_id}
+                            type="button"
+                            className="w-full text-left p-3 hover:bg-rpp-grey-bg border-b border-rpp-grey-border last:border-b-0 transition-colors"
+                            onClick={() => handleAddressSelect(prediction)}
+                            data-testid={`address-suggestion-${prediction.place_id}`}
+                          >
+                            <div className="flex items-start space-x-2">
+                              <MapPin className="w-4 h-4 text-rpp-grey-light mt-0.5 flex-shrink-0" />
+                              <div>
+                                <div className="text-sm font-medium text-rpp-grey-dark">
+                                  {prediction.structured_formatting.main_text}
+                                </div>
+                                <div className="text-xs text-rpp-grey-light">
+                                  {prediction.structured_formatting.secondary_text}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-rpp-grey-light">
                   Address won't show? <Button type="button" variant="link" className="h-auto p-0 text-xs">Enter manually</Button>
