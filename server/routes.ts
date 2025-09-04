@@ -51,6 +51,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/customers/:id/profile", async (req, res) => {
+    try {
+      const customer = await storage.getCustomer(req.params.id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      
+      const jobs = await storage.getCustomerJobs(req.params.id);
+      
+      res.json({
+        customer,
+        jobs
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch customer profile" });
+    }
+  });
+
   // Products
   app.get("/api/products", async (req, res) => {
     try {

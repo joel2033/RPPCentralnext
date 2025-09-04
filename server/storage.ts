@@ -45,6 +45,9 @@ export interface IStorage {
   getOrders(partnerId?: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
+  
+  // Customer Profile
+  getCustomerJobs(customerId: string): Promise<Job[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -321,6 +324,11 @@ export class MemStorage implements IStorage {
     this.orders.set(id, updated);
     this.saveToFile();
     return updated;
+  }
+
+  async getCustomerJobs(customerId: string): Promise<Job[]> {
+    const allJobs = Array.from(this.jobs.values());
+    return allJobs.filter(job => job.customerId === customerId);
   }
 }
 

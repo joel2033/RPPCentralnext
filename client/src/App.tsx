@@ -16,6 +16,7 @@ import Dashboard from "@/pages/Dashboard";
 import Jobs from "@/pages/Jobs";
 import JobCard from "@/pages/JobCard";
 import Customers from "@/pages/Customers";
+import CustomerProfile from "@/pages/CustomerProfile";
 import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
@@ -65,6 +66,14 @@ function Router() {
         <ProtectedRoute route="/customers">
           <Layout>
             <Customers />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/customers/:id">
+        <ProtectedRoute route="/customers">
+          <Layout>
+            <CustomerProfile />
           </Layout>
         </ProtectedRoute>
       </Route>

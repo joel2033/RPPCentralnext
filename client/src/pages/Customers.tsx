@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,62 +108,71 @@ export default function Customers() {
       {/* Customer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCustomers.map((customer: any) => (
-          <Card key={customer.id} className="border-rpp-grey-border">
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-4 mb-4">
-                <div className={`w-12 h-12 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-medium`}>
-                  {getInitials(customer.firstName, customer.lastName)}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-rpp-grey-dark">
-                    {customer.firstName} {customer.lastName}
-                  </h3>
-                  <p className="text-sm text-rpp-grey-light">{customer.company || 'No company'}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center text-sm text-rpp-grey-light">
-                  <Mail className="w-4 h-4 mr-2" />
-                  <span className="truncate">{customer.email}</span>
-                </div>
-                {customer.phone && (
-                  <div className="flex items-center text-sm text-rpp-grey-light">
-                    <Phone className="w-4 h-4 mr-2" />
-                    <span>{customer.phone}</span>
+          <Link key={customer.id} href={`/customers/${customer.id}`}>
+            <Card className="border-rpp-grey-border hover:shadow-md transition-shadow cursor-pointer" data-testid={`customer-card-${customer.id}`}>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className={`w-12 h-12 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-medium`}>
+                    {getInitials(customer.firstName, customer.lastName)}
                   </div>
-                )}
-              </div>
+                  <div>
+                    <h3 className="font-semibold text-rpp-grey-dark" data-testid={`text-customer-name-${customer.id}`}>
+                      {customer.firstName} {customer.lastName}
+                    </h3>
+                    <p className="text-sm text-rpp-grey-light" data-testid={`text-customer-company-${customer.id}`}>
+                      {customer.company || 'No company'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center text-sm text-rpp-grey-light">
+                    <Mail className="w-4 h-4 mr-2" />
+                    <span className="truncate" data-testid={`text-customer-email-${customer.id}`}>
+                      {customer.email}
+                    </span>
+                  </div>
+                  {customer.phone && (
+                    <div className="flex items-center text-sm text-rpp-grey-light">
+                      <Phone className="w-4 h-4 mr-2" />
+                      <span data-testid={`text-customer-phone-${customer.id}`}>
+                        {customer.phone}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-lg font-semibold text-rpp-grey-dark">
-                    ${customer.totalValue || '0.00'}
-                  </p>
-                  <p className="text-xs text-rpp-grey-light">Total Value</p>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-total-value-${customer.id}`}>
+                      ${customer.totalValue || '0.00'}
+                    </p>
+                    <p className="text-xs text-rpp-grey-light">Total Value</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-avg-value-${customer.id}`}>
+                      ${customer.averageJobValue || '0.00'}
+                    </p>
+                    <p className="text-xs text-rpp-grey-light">Average Job Value</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-jobs-completed-${customer.id}`}>
+                      {customer.jobsCompleted || 0}
+                    </p>
+                    <p className="text-xs text-rpp-grey-light">Jobs Completed</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-lg font-semibold text-rpp-grey-dark">
-                    ${customer.averageJobValue || '0.00'}
-                  </p>
-                  <p className="text-xs text-rpp-grey-light">Average Job Value</p>
-                </div>
-                <div>
-                  <p className="text-lg font-semibold text-rpp-grey-dark">
-                    {customer.jobsCompleted || 0}
-                  </p>
-                  <p className="text-xs text-rpp-grey-light">Jobs Completed</p>
-                </div>
-              </div>
 
-              <Button 
-                variant="outline" 
-                className="w-full border-rpp-grey-border hover:bg-rpp-grey-surface"
-              >
-                View Profile
-              </Button>
-            </CardContent>
-          </Card>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-rpp-grey-border hover:bg-rpp-grey-surface"
+                  data-testid={`button-view-profile-${customer.id}`}
+                >
+                  View Profile
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
