@@ -123,6 +123,21 @@
       "notes": null,
       "id": "4c60ac49-84d7-4d93-a924-64eca108a5a4",
       "createdAt": "2025-08-03T14:42:18.281Z"
+    },
+    "92a46673-cfe7-4f49-be44-bf254fe95134": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "26 drovers way, wadalba",
+      "customerId": "f740b8db-5699-43e4-9672-33ef7485b547",
+      "totalValue": "0.00",
+      "jobId": "OvghgL0MZna5VDxKycwFq",
+      "status": null,
+      "assignedTo": null,
+      "dueDate": null,
+      "appointmentDate": null,
+      "propertyImage": null,
+      "notes": null,
+      "id": "92a46673-cfe7-4f49-be44-bf254fe95134",
+      "createdAt": "2025-09-04T12:59:34.220Z"
     }
   },
   "orders": {
