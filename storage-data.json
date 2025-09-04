@@ -140,6 +140,35 @@
       "createdAt": "2025-09-04T12:59:34.220Z"
     }
   },
+  "users": {
+    "user_photographer_1": {
+      "id": "user_photographer_1",
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "John",
+      "lastName": "Smith",
+      "email": "john.photographer@example.com",
+      "role": "photographer",
+      "createdAt": "2025-01-01T10:00:00.000Z"
+    },
+    "user_photographer_2": {
+      "id": "user_photographer_2",
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "Sarah",
+      "lastName": "Johnson",
+      "email": "sarah.photographer@example.com",
+      "role": "photographer",
+      "createdAt": "2025-01-01T10:00:00.000Z"
+    },
+    "user_partner_1": {
+      "id": "user_partner_1",
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "Mike",
+      "lastName": "Wilson",
+      "email": "mike.partner@example.com",
+      "role": "partner",
+      "createdAt": "2025-01-01T10:00:00.000Z"
+    }
+  },
   "orders": {
     "ed2c8a99-c85b-4c68-a30b-0e870364c84b": {
       "partnerId": "partner_192l9bh1xmduwueha",
