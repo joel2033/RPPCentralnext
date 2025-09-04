@@ -56,7 +56,7 @@ export default function Calendar() {
     { id: 'other', label: 'Other', color: 'text-gray-600', bgColor: 'bg-gray-100', checked: true },
     { id: 'external', label: 'External Google', color: 'text-indigo-600', bgColor: 'bg-indigo-100', checked: true }
   ]);
-  
+
   const { data: jobs = [] } = useQuery({
     queryKey: ["/api/jobs"],
   });
@@ -118,11 +118,11 @@ export default function Calendar() {
       { id: 'e4', title: 'EXTERNAL GOOGLE 105 Elam Place', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 19), address: '105 Elam Place' },
       { id: 'e5', title: 'EXTERNAL GOOGLE Glenview', type: 'external', time: '10:00-12:00', date: new Date(2025, 8, 26), address: 'Glenview Terrace' },
     ];
-    
+
     if (!targetDate || typeof targetDate.toDateString !== 'function') {
       return [];
     }
-    
+
     return mockEvents.filter(event => 
       event.date.toDateString() === targetDate.toDateString()
     );
@@ -171,7 +171,7 @@ export default function Calendar() {
     const day = startOfWeek.getDay();
     const diff = startOfWeek.getDate() - day;
     startOfWeek.setDate(diff);
-    
+
     const weekDates = [];
     for (let i = 0; i < 7; i++) {
       const weekDate = new Date(startOfWeek);
@@ -186,7 +186,7 @@ export default function Calendar() {
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
-    
+
     if (viewMode === 'month') {
       return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
     } else if (viewMode === 'week') {
@@ -196,7 +196,7 @@ export default function Calendar() {
       const startDay = weekDates[0].getDate();
       const endDay = weekDates[6].getDate();
       const year = weekDates[0].getFullYear();
-      
+
       if (startMonth === endMonth) {
         return `${startMonth} ${startDay} - ${endDay}, ${year}`;
       } else {
@@ -213,12 +213,12 @@ export default function Calendar() {
 
   const renderMonthView = () => {
     const days = [];
-    
+
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth; i++) {
       days.push(<div key={`empty-${i}`} className="p-2 min-h-[120px] border-r border-b border-rpp-grey-border bg-gray-50"></div>);
     }
-    
+
     // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
@@ -226,7 +226,7 @@ export default function Calendar() {
       const dayEvents = getEventsForDate(targetDate);
       const isToday = new Date().toDateString() === targetDate.toDateString();
       const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
-      
+
       days.push(
         <div
           key={day}
@@ -242,7 +242,7 @@ export default function Calendar() {
             {allEvents.slice(0, 3).map((event: any, index: number) => {
               const eventType = eventTypes.find(type => type.id === event.type);
               if (!eventType?.checked) return null;
-              
+
               return (
                 <div
                   key={event.id || `event-${index}`}
@@ -268,7 +268,7 @@ export default function Calendar() {
         </div>
       );
     }
-    
+
     return (
       <div className="grid grid-cols-7">
         {dayNames.map((dayName) => (
@@ -286,7 +286,7 @@ export default function Calendar() {
 
   const renderWeekView = () => {
     const weekDates = getWeekDates(currentDate);
-    
+
     return (
       <div className="grid grid-cols-7">
         {dayNames.map((dayName, index) => (
@@ -303,7 +303,7 @@ export default function Calendar() {
           const dayEvents = getEventsForDate(date);
           const isToday = new Date().toDateString() === date.toDateString();
           const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
-          
+
           return (
             <div
               key={index}
@@ -316,7 +316,7 @@ export default function Calendar() {
                 {allEvents.map((event: any, eventIndex: number) => {
                   const eventType = eventTypes.find(type => type.id === event.type);
                   if (!eventType?.checked) return null;
-                  
+
                   return (
                     <div
                       key={event.id || `event-${eventIndex}`}
@@ -345,13 +345,13 @@ export default function Calendar() {
     const dayEvents = getEventsForDate(currentDate);
     const isToday = new Date().toDateString() === currentDate.toDateString();
     const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
-    
+
     // Create hourly time slots
     const timeSlots = [];
     for (let hour = 0; hour < 24; hour++) {
       const timeString = `${hour.toString().padStart(2, '0')}:00`;
       const hourEvents = allEvents.filter(event => event.time?.startsWith(hour.toString().padStart(2, '0')));
-      
+
       timeSlots.push(
         <div key={hour} className="border-b border-gray-200 p-2 min-h-[60px] flex" data-testid={`day-hour-${hour}`}>
           <div className="w-16 text-sm text-gray-500 pr-4">{timeString}</div>
@@ -359,7 +359,7 @@ export default function Calendar() {
             {hourEvents.map((event: any, index: number) => {
               const eventType = eventTypes.find(type => type.id === event.type);
               if (!eventType?.checked) return null;
-              
+
               return (
                 <div
                   key={event.id || `event-${index}`}
@@ -379,7 +379,7 @@ export default function Calendar() {
         </div>
       );
     }
-    
+
     return (
       <div className="bg-white">
         <div className={`p-4 border-b border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
@@ -405,7 +405,7 @@ export default function Calendar() {
               Today
             </Button>
           </div>
-          
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" data-testid="create-button">
@@ -445,7 +445,7 @@ export default function Calendar() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Team</h3>
-            <Button variant="link" size="sm" className="text-xs text-blue-600 h-auto p-0">
+            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0">
               Clear
             </Button>
           </div>
@@ -475,7 +475,7 @@ export default function Calendar() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-700">Event Type</h3>
-            <Button variant="link" size="sm" className="text-xs text-blue-600 h-auto p-0">
+            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0">
               Clear
             </Button>
           </div>
@@ -532,7 +532,7 @@ export default function Calendar() {
                   Day
                 </Button>
               </div>
-              
+
               {/* Navigation */}
               <div className="flex items-center space-x-2">
                 <Button variant="outline" size="sm" data-testid="nav-prev" onClick={() => navigate('prev')}>
@@ -574,11 +574,11 @@ export default function Calendar() {
       {showCreateJobModal && (
         <CreateJobModal onClose={() => setShowCreateJobModal(false)} />
       )}
-      
+
       {showCreateEventModal && (
         <CreateEventModal onClose={() => setShowCreateEventModal(false)} />
       )}
-      
+
       {showAppointmentModal && selectedAppointment && (
         <AppointmentDetailsModal
           appointment={selectedAppointment}
