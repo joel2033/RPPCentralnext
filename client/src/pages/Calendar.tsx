@@ -2,10 +2,15 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown, Plus } from "lucide-react";
+import CreateJobModal from "@/components/modals/CreateJobModal";
+import CreateEventModal from "@/components/modals/CreateEventModal";
 
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   
   const { data: jobs = [] } = useQuery({
     queryKey: ["/api/jobs"],
@@ -96,10 +101,23 @@ export default function Calendar() {
           <Button variant="outline" className="border-rpp-grey-border">
             Today
           </Button>
-          <Button className="bg-rpp-red-main hover:bg-rpp-red-dark text-white">
-            <CalendarIcon className="w-4 h-4 mr-2" />
-            New Appointment
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-rpp-red-main hover:bg-rpp-red-dark text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                New
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowCreateJobModal(true)}>
+                New Job
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowCreateEventModal(true)}>
+                Add Event
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -158,6 +176,15 @@ export default function Calendar() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modals */}
+      {showCreateJobModal && (
+        <CreateJobModal onClose={() => setShowCreateJobModal(false)} />
+      )}
+      
+      {showCreateEventModal && (
+        <CreateEventModal onClose={() => setShowCreateEventModal(false)} />
+      )}
     </div>
   );
 }
