@@ -98,18 +98,7 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
       <Dialog open onOpenChange={onClose}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-lg font-semibold">Appointment Details</DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="h-8 w-8 p-0"
-                data-testid="button-close-details"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <DialogTitle className="text-lg font-semibold">Appointment Details</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
