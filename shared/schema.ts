@@ -70,7 +70,7 @@ export const orders = pgTable("orders", {
   orderNumber: text("order_number").notNull().unique(),
   jobId: varchar("job_id").references(() => jobs.id),
   customerId: varchar("customer_id").references(() => customers.id),
-  status: text("status").default("pending"), // "pending", "shared", "in_review", "completed", "cancelled"
+  status: text("status").default("pending"), // "pending", "processing", "in_revision", "completed", "cancelled"
   assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
   estimatedTotal: decimal("estimated_total", { precision: 10, scale: 2 }).default("0"),

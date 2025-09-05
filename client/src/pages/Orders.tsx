@@ -18,8 +18,8 @@ export default function Orders() {
 
   const tabs = [
     { id: "pending", label: "Pending", count: (orders || []).filter((o: any) => o.status === "pending").length },
-    { id: "shared", label: "Shared", count: (orders || []).filter((o: any) => o.status === "shared").length },
-    { id: "in_review", label: "In Review", count: (orders || []).filter((o: any) => o.status === "in_review").length },
+    { id: "processing", label: "Processing", count: (orders || []).filter((o: any) => o.status === "processing").length },
+    { id: "in_revision", label: "In Revision", count: (orders || []).filter((o: any) => o.status === "in_revision").length },
     { id: "completed", label: "Completed", count: (orders || []).filter((o: any) => o.status === "completed").length },
     { id: "cancelled", label: "Cancelled", count: (orders || []).filter((o: any) => o.status === "cancelled").length },
   ];
