@@ -220,10 +220,14 @@ export default function Upload() {
                 <p className="text-xs text-rpp-grey-light mb-2">How many quantity do you demand?</p>
                 <Input
                   type="number"
+                  min="0"
                   placeholder="Enter total number of final images"
                   value={orderDetails.quantity}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, quantity: e.target.value }))}
-                  className="border-rpp-grey-border"
+                  onChange={(e) => {
+                    const value = Math.max(0, parseInt(e.target.value) || 0);
+                    setOrderDetails(prev => ({ ...prev, quantity: value.toString() }));
+                  }}
+                  className="border-rpp-grey-border w-32"
                   data-testid="input-quantity"
                 />
               </div>
