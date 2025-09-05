@@ -206,142 +206,187 @@ export default function Upload() {
                   </SelectContent>
                 </Select>
                 {orderDetails.service && (
-                  <div className="mt-2 p-2 bg-blue-50 rounded border">
-                    <span className="text-xs text-blue-600">SERVICE 1</span>
-                    <div className="font-medium text-sm">{orderDetails.service}</div>
+                  <div className="mt-4 p-6 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="text-center mb-6">
+                      <span className="text-xs text-blue-600 uppercase tracking-wider">SERVICE 1</span>
+                      <div className="font-medium text-lg text-gray-900 mt-1">{orderDetails.service}</div>
+                    </div>
+
+                    {/* Quantity Section */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Quantity
+                      </label>
+                      <div className="flex items-center space-x-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const currentQty = parseInt(orderDetails.quantity) || 0;
+                            const newQty = Math.max(0, currentQty - 1);
+                            setOrderDetails(prev => ({ ...prev, quantity: newQty.toString() }));
+                          }}
+                          className="w-8 h-8 p-0 border-gray-300"
+                          data-testid="button-decrease-quantity"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={orderDetails.quantity}
+                          onChange={(e) => {
+                            const value = Math.max(0, parseInt(e.target.value) || 0);
+                            setOrderDetails(prev => ({ ...prev, quantity: value.toString() }));
+                          }}
+                          className="w-16 text-center border-gray-300"
+                          data-testid="input-quantity"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const currentQty = parseInt(orderDetails.quantity) || 0;
+                            setOrderDetails(prev => ({ ...prev, quantity: (currentQty + 1).toString() }));
+                          }}
+                          className="w-8 h-8 p-0 border-gray-300"
+                          data-testid="button-increase-quantity"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm text-gray-500 ml-2">final files expected to be delivered.</span>
+                      </div>
+                    </div>
+
+                    {/* Instructions Section */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Instructions
+                      </label>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Offer detailed guidance as needed to help your supplier deliver the expected results for this service.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          placeholder="File Name"
+                          value={orderDetails.fileName}
+                          onChange={(e) => setOrderDetails(prev => ({ ...prev, fileName: e.target.value }))}
+                          className="border-gray-300"
+                          data-testid="input-file-name"
+                        />
+                        <Textarea
+                          placeholder="Detail your instruction"
+                          value={orderDetails.instructions[0] || ""}
+                          onChange={(e) => updateInstruction(0, e.target.value)}
+                          className="border-gray-300 min-h-[100px] resize-none"
+                          data-testid="textarea-instruction-0"
+                        />
+                      </div>
+                      {orderDetails.instructions.length > 1 && (
+                        <div className="mt-3 space-y-2">
+                          {orderDetails.instructions.slice(1).map((instruction, index) => (
+                            <div key={index + 1} className="flex space-x-2">
+                              <Textarea
+                                placeholder={`Additional instruction ${index + 2}...`}
+                                value={instruction}
+                                onChange={(e) => updateInstruction(index + 1, e.target.value)}
+                                className="border-gray-300 min-h-[80px] flex-1 resize-none"
+                                data-testid={`textarea-instruction-${index + 1}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeInstruction(index + 1)}
+                                className="self-start mt-2 text-red-500 hover:text-red-700"
+                                data-testid={`button-remove-instruction-${index + 1}`}
+                              >
+                                <Minus className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addInstruction}
+                        className="mt-3 w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
+                        data-testid="button-add-instruction"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Another Instruction
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Quantity */}
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Quantity
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">How many quantity do you demand?</p>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="Enter total number of final images"
-                  value={orderDetails.quantity}
-                  onChange={(e) => {
-                    const value = Math.max(0, parseInt(e.target.value) || 0);
-                    setOrderDetails(prev => ({ ...prev, quantity: value.toString() }));
-                  }}
-                  className="border-rpp-grey-border w-32"
-                  data-testid="input-quantity"
-                />
-              </div>
-
-              {/* File Name */}
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  File Name
-                </label>
-                <Input
-                  placeholder="Enter file name or identifier"
-                  value={orderDetails.fileName}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, fileName: e.target.value }))}
-                  className="border-rpp-grey-border"
-                  data-testid="input-file-name"
-                />
-              </div>
-
-              {/* Multiple Instructions */}
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Instructions
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Use detailed specificity are required to help your supplier deliver the expected results for this service.</p>
-                <div className="space-y-2">
-                  {orderDetails.instructions.map((instruction, index) => (
-                    <div key={index} className="flex space-x-2">
-                      <Textarea
-                        placeholder={`Instruction ${index + 1}...`}
-                        value={instruction}
-                        onChange={(e) => updateInstruction(index, e.target.value)}
-                        className="border-rpp-grey-border min-h-[80px] flex-1"
-                        data-testid={`textarea-instruction-${index}`}
-                      />
-                      {orderDetails.instructions.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeInstruction(index)}
-                          className="self-start mt-2"
-                          data-testid={`button-remove-instruction-${index}`}
+              {/* Export Types - only show when service is selected */}
+              {orderDetails.service && (
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Export Types
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Specify output requirements for your order, such as watermarks, folder sizes, and other preferences
+                  </p>
+                  <div className="space-y-3">
+                    {orderDetails.exportTypes.map((exportType, index) => (
+                      <div key={index} className="grid grid-cols-2 gap-4">
+                        <Select
+                          value={exportType}
+                          onValueChange={(value) => updateExportType(index, value)}
                         >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addInstruction}
-                    className="w-full border-dashed"
-                    data-testid="button-add-instruction"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Another Instruction
-                  </Button>
+                          <SelectTrigger className="border-gray-300" data-testid={`select-export-type-${index}`}>
+                            <SelectValue placeholder="Choose Export Type..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="high-res">High Resolution</SelectItem>
+                            <SelectItem value="web-res">Web Resolution</SelectItem>
+                            <SelectItem value="print-ready">Print Ready</SelectItem>
+                            <SelectItem value="social-media">Social Media Optimized</SelectItem>
+                            <SelectItem value="raw-files">RAW Files</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            placeholder="Provide description"
+                            className="border-gray-300 flex-1"
+                            data-testid={`input-export-description-${index}`}
+                          />
+                          {orderDetails.exportTypes.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeExportType(index)}
+                              className="text-red-500 hover:text-red-700"
+                              data-testid={`button-remove-export-type-${index}`}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addExportType}
+                      className="w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
+                      data-testid="button-add-export-type"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Export Type
+                    </Button>
+                  </div>
                 </div>
-              </div>
-
-              {/* Export Types */}
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Export Types
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Specify output requirements for your editor, such as watermarks, folder sizes, and other preferences</p>
-                <div className="space-y-2">
-                  {orderDetails.exportTypes.map((exportType, index) => (
-                    <div key={index} className="flex space-x-2">
-                      <Select
-                        value={exportType}
-                        onValueChange={(value) => updateExportType(index, value)}
-                      >
-                        <SelectTrigger className="border-rpp-grey-border flex-1" data-testid={`select-export-type-${index}`}>
-                          <SelectValue placeholder="Choose Export Type..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="high-res">High Resolution</SelectItem>
-                          <SelectItem value="web-res">Web Resolution</SelectItem>
-                          <SelectItem value="print-ready">Print Ready</SelectItem>
-                          <SelectItem value="social-media">Social Media Optimized</SelectItem>
-                          <SelectItem value="raw-files">RAW Files</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {orderDetails.exportTypes.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeExportType(index)}
-                          className="self-center"
-                          data-testid={`button-remove-export-type-${index}`}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addExportType}
-                    className="w-full border-dashed"
-                    data-testid="button-add-export-type"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Export Type
-                  </Button>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
