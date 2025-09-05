@@ -231,11 +231,11 @@ export default function Calendar() {
         <div
           key={day}
           className={`p-2 min-h-[120px] border-r border-b border-rpp-grey-border bg-white hover:bg-gray-50 ${
-            isToday ? 'bg-blue-50' : ''
+            isToday ? 'bg-rpp-red-lighter' : ''
           }`}
           data-testid={`calendar-day-${day}`}
         >
-          <div className={`text-sm font-medium mb-2 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+          <div className={`text-sm font-medium mb-2 ${isToday ? 'text-rpp-red-dark' : 'text-gray-700'}`}>
             {day}
           </div>
           <div className="space-y-1">
@@ -308,7 +308,7 @@ export default function Calendar() {
             <div
               key={index}
               className={`p-2 min-h-[200px] border-r border-b border-rpp-grey-border bg-white hover:bg-gray-50 ${
-                isToday ? 'bg-blue-50' : ''
+                isToday ? 'bg-rpp-red-lighter' : ''
               }`}
               data-testid={`week-day-${index}`}
             >
@@ -382,8 +382,8 @@ export default function Calendar() {
 
     return (
       <div className="bg-white">
-        <div className={`p-4 border-b border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
-          <div className={`text-lg font-semibold ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+        <div className={`p-4 border-b border-gray-200 ${isToday ? 'bg-rpp-red-lighter' : 'bg-gray-50'}`}>
+          <div className={`text-lg font-semibold ${isToday ? 'text-rpp-red-dark' : 'text-gray-900'}`}>
             {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function Calendar() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" data-testid="create-button">
+              <Button className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white" data-testid="create-button">
                 <Plus className="w-4 h-4 mr-2" />
                 Create
                 <ChevronDown className="w-4 h-4 ml-auto" />
@@ -436,7 +436,7 @@ export default function Calendar() {
           <div className="text-xs text-gray-500 mb-2">
             (UTC+10:00) Canberra, Melbourne, Sydney
           </div>
-          <div className="text-xs text-blue-600 mb-2">All day EXTERNAL GOOGLE Ella</div>
+          <div className="text-xs text-rpp-red-main mb-2">All day EXTERNAL GOOGLE Ella</div>
         </div>
 
         <Separator className="my-4" />
@@ -505,28 +505,28 @@ export default function Calendar() {
               {/* View Toggle Buttons */}
               <div className="flex items-center space-x-1 border border-gray-300 rounded-lg p-1">
                 <Button
-                  variant={viewMode === 'month' ? 'default' : 'ghost'}
+                  variant={viewMode === 'month' ? 'ghost' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('month')}
-                  className="text-xs px-3 py-1"
+                  className={`text-xs px-3 py-1 ${viewMode === 'month' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
                   data-testid="view-month"
                 >
                   Month
                 </Button>
                 <Button
-                  variant={viewMode === 'week' ? 'default' : 'ghost'}
+                  variant={viewMode === 'week' ? 'ghost' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('week')}
-                  className="text-xs px-3 py-1"
+                  className={`text-xs px-3 py-1 ${viewMode === 'week' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
                   data-testid="view-week"
                 >
                   Week
                 </Button>
                 <Button
-                  variant={viewMode === 'day' ? 'default' : 'ghost'}
+                  variant={viewMode === 'day' ? 'ghost' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('day')}
-                  className="text-xs px-3 py-1"
+                  className={`text-xs px-3 py-1 ${viewMode === 'day' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
                   data-testid="view-day"
                 >
                   Day
