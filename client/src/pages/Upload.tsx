@@ -14,6 +14,7 @@ export default function Upload() {
     supplier: "",
     service: "",
     quantity: "",
+    fileName: "",
     instructions: [""],
     exportTypes: [""],
   });
@@ -229,6 +230,20 @@ export default function Upload() {
                   }}
                   className="border-rpp-grey-border w-32"
                   data-testid="input-quantity"
+                />
+              </div>
+
+              {/* File Name */}
+              <div>
+                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                  File Name
+                </label>
+                <Input
+                  placeholder="Enter file name or identifier"
+                  value={orderDetails.fileName}
+                  onChange={(e) => setOrderDetails(prev => ({ ...prev, fileName: e.target.value }))}
+                  className="border-rpp-grey-border"
+                  data-testid="input-file-name"
                 />
               </div>
 
