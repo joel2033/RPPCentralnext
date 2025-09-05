@@ -1,20 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload as UploadIcon, FileImage, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
 export default function Upload() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [orderDetails, setOrderDetails] = useState({
-    title: "",
+    jobId: "",
     supplier: "",
     service: "",
     quantity: "",
-    instructions: "",
-    exportSpecs: ""
+    instructions: [""],
+    exportTypes: [""],
   });
+  const [availableServices, setAvailableServices] = useState<string[]>([]);
+  const [selectedEditor, setSelectedEditor] = useState("");
+
+  // Get jobs for dropdown
+  const { data: jobs = [] } = useQuery<any[]>({
+    queryKey: ["/api/jobs"],
+  });
+
+  // Get users (editors/suppliers) for dropdown
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ["/api/users"],
+  });
+
+  // Get editors/suppliers (users with editor role)
+  const editors = users.filter(user => user.role === 'editor' || user.role === 'admin');
+
+  // Mock services for now - in real app this would come from selected editor's profile
+  useEffect(() => {
+    if (selectedEditor) {
+      // Mock services based on editor selection
+      setAvailableServices([
+        "Digital Edits - (Sky To Dusk)",
+        "Image Enhancement - Basic",
+        "Virtual Staging",
+        "Photo Retouching",
+        "HDR Processing",
+        "Virtual Tour Creation"
+      ]);
+    } else {
+      setAvailableServices([]);
+    }
+  }, [selectedEditor]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -37,6 +71,52 @@ export default function Upload() {
     e.preventDefault();
   };
 
+  const addInstruction = () => {
+    setOrderDetails(prev => ({
+      ...prev,
+      instructions: [...prev.instructions, ""]
+    }));
+  };
+
+  const removeInstruction = (index: number) => {
+    if (orderDetails.instructions.length > 1) {
+      setOrderDetails(prev => ({
+        ...prev,
+        instructions: prev.instructions.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const updateInstruction = (index: number, value: string) => {
+    setOrderDetails(prev => ({
+      ...prev,
+      instructions: prev.instructions.map((inst, i) => i === index ? value : inst)
+    }));
+  };
+
+  const addExportType = () => {
+    setOrderDetails(prev => ({
+      ...prev,
+      exportTypes: [...prev.exportTypes, ""]
+    }));
+  };
+
+  const removeExportType = (index: number) => {
+    if (orderDetails.exportTypes.length > 1) {
+      setOrderDetails(prev => ({
+        ...prev,
+        exportTypes: prev.exportTypes.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const updateExportType = (index: number, value: string) => {
+    setOrderDetails(prev => ({
+      ...prev,
+      exportTypes: prev.exportTypes.map((type, i) => i === index ? value : type)
+    }));
+  };
+
   return (
     <div className="p-6">
       <div className="mb-8">
@@ -53,81 +133,195 @@ export default function Upload() {
               <CardTitle className="text-rpp-grey-dark">New Order Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Job Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Name
+                  Job
                 </label>
-                <Input
-                  placeholder="Enter the name for your respective experience"
-                  value={orderDetails.title}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, title: e.target.value }))}
-                  className="border-rpp-grey-border"
-                />
+                <p className="text-xs text-rpp-grey-light mb-2">Choose a job for your respective order statement</p>
+                <Select 
+                  value={orderDetails.jobId} 
+                  onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
+                >
+                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
+                    <SelectValue placeholder="Select a job..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job: any) => (
+                      <SelectItem key={job.jobId} value={job.jobId}>
+                        {job.address || `Job ${job.jobId}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
+              {/* Supplier/Editor Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
                   Supplier
                 </label>
-                <Input
-                  placeholder="Choose from the list dependant on the order type: Learn more about assigning suppliers here"
-                  value={orderDetails.supplier}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, supplier: e.target.value }))}
-                  className="border-rpp-grey-border"
-                />
+                <p className="text-xs text-rpp-grey-light mb-2">Select the supplier who are responsible for this order. Learn more about assigning suppliers here</p>
+                <Select 
+                  value={selectedEditor} 
+                  onValueChange={(value) => {
+                    setSelectedEditor(value);
+                    setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
+                  }}
+                >
+                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-supplier">
+                    <SelectValue placeholder="Select a supplier..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editors.map((editor: any) => (
+                      <SelectItem key={editor.id} value={editor.id}>
+                        {editor.firstName} {editor.lastName} ({editor.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
+              {/* Services Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Service
+                  Services
                 </label>
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder="Choose the service (or application) for this order"
-                    value={orderDetails.service}
-                    onChange={(e) => setOrderDetails(prev => ({ ...prev, service: e.target.value }))}
-                    className="border-rpp-grey-border flex-1"
-                  />
-                  <Button variant="outline" className="border-rpp-grey-border">
-                    Image Enhancement - Basic
-                  </Button>
-                </div>
+                <p className="text-xs text-rpp-grey-light mb-2">Choose the services that the suppliers and perform for this order</p>
+                <Select 
+                  value={orderDetails.service} 
+                  onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
+                  disabled={!selectedEditor}
+                >
+                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
+                    <SelectValue placeholder={selectedEditor ? "Select a service..." : "Select a supplier first..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableServices.map((service) => (
+                      <SelectItem key={service} value={service}>
+                        {service}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {orderDetails.service && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded border">
+                    <span className="text-xs text-blue-600">SERVICE 1</span>
+                    <div className="font-medium text-sm">{orderDetails.service}</div>
+                  </div>
+                )}
               </div>
 
+              {/* Quantity */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
                   Quantity
                 </label>
+                <p className="text-xs text-rpp-grey-light mb-2">How many quantity do you demand?</p>
                 <Input
-                  placeholder="The total quantity as relevant to your edit suppliers choice above (eg: charges per each, photo, hour, etc)"
+                  type="number"
+                  placeholder="Enter total number of final images"
                   value={orderDetails.quantity}
                   onChange={(e) => setOrderDetails(prev => ({ ...prev, quantity: e.target.value }))}
                   className="border-rpp-grey-border"
+                  data-testid="input-quantity"
                 />
               </div>
 
+              {/* Multiple Instructions */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
                   Instructions
                 </label>
-                <Textarea
-                  placeholder="Use detailed specificity to convey to your supplier about the expected results for this service."
-                  value={orderDetails.instructions}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, instructions: e.target.value }))}
-                  className="border-rpp-grey-border min-h-[100px]"
-                />
+                <p className="text-xs text-rpp-grey-light mb-2">Use detailed specificity are required to help your supplier deliver the expected results for this service.</p>
+                <div className="space-y-2">
+                  {orderDetails.instructions.map((instruction, index) => (
+                    <div key={index} className="flex space-x-2">
+                      <Textarea
+                        placeholder={`Instruction ${index + 1}...`}
+                        value={instruction}
+                        onChange={(e) => updateInstruction(index, e.target.value)}
+                        className="border-rpp-grey-border min-h-[80px] flex-1"
+                        data-testid={`textarea-instruction-${index}`}
+                      />
+                      {orderDetails.instructions.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeInstruction(index)}
+                          className="self-start mt-2"
+                          data-testid={`button-remove-instruction-${index}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addInstruction}
+                    className="w-full border-dashed"
+                    data-testid="button-add-instruction"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Another Instruction
+                  </Button>
+                </div>
               </div>
 
+              {/* Export Types */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Export Specs
+                  Export Types
                 </label>
-                <Textarea
-                  placeholder="Specify output requirements for your editor, such as: size, resolution, format, and any other requirements"
-                  value={orderDetails.exportSpecs}
-                  onChange={(e) => setOrderDetails(prev => ({ ...prev, exportSpecs: e.target.value }))}
-                  className="border-rpp-grey-border min-h-[100px]"
-                />
+                <p className="text-xs text-rpp-grey-light mb-2">Specify output requirements for your editor, such as watermarks, folder sizes, and other preferences</p>
+                <div className="space-y-2">
+                  {orderDetails.exportTypes.map((exportType, index) => (
+                    <div key={index} className="flex space-x-2">
+                      <Select
+                        value={exportType}
+                        onValueChange={(value) => updateExportType(index, value)}
+                      >
+                        <SelectTrigger className="border-rpp-grey-border flex-1" data-testid={`select-export-type-${index}`}>
+                          <SelectValue placeholder="Choose Export Type..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high-res">High Resolution</SelectItem>
+                          <SelectItem value="web-res">Web Resolution</SelectItem>
+                          <SelectItem value="print-ready">Print Ready</SelectItem>
+                          <SelectItem value="social-media">Social Media Optimized</SelectItem>
+                          <SelectItem value="raw-files">RAW Files</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {orderDetails.exportTypes.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeExportType(index)}
+                          className="self-center"
+                          data-testid={`button-remove-export-type-${index}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addExportType}
+                    className="w-full border-dashed"
+                    data-testid="button-add-export-type"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Export Type
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -209,24 +403,50 @@ export default function Upload() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                {orderDetails.jobId && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-rpp-grey-light">Job:</span>
+                    <span className="text-rpp-grey-dark">{jobs.find(j => j.jobId === orderDetails.jobId)?.address || orderDetails.jobId}</span>
+                  </div>
+                )}
+                {selectedEditor && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-rpp-grey-light">Supplier:</span>
+                    <span className="text-rpp-grey-dark">
+                      {(() => {
+                        const editor = users.find(u => u.id === selectedEditor);
+                        return editor ? `${editor.firstName} ${editor.lastName}` : selectedEditor;
+                      })()}
+                    </span>
+                  </div>
+                )}
+                {orderDetails.service && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-rpp-grey-light">Service:</span>
+                    <span className="text-rpp-grey-dark">{orderDetails.service}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Service:</span>
-                  <span className="text-rpp-grey-dark">Image Enhancement - Basic</span>
+                  <span className="text-rpp-grey-light">Digital Edits - (Sky To Dusk):</span>
+                  <span className="text-rpp-grey-dark">$4.50</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-rpp-grey-light">Quantity:</span>
-                  <span className="text-rpp-grey-dark">{selectedFiles.length} files</span>
+                  <span className="text-rpp-grey-dark">{orderDetails.quantity || '0'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Rate:</span>
-                  <span className="text-rpp-grey-dark">$2.50 per image</span>
+                  <span className="text-rpp-grey-light">Service fee (5):</span>
+                  <span className="text-rpp-grey-dark">$0.25</span>
                 </div>
                 <hr className="border-rpp-grey-border" />
                 <div className="flex justify-between font-medium">
-                  <span className="text-rpp-grey-dark">Total (estimated):</span>
+                  <span className="text-rpp-grey-dark">Total (estimated cost):</span>
                   <span className="text-rpp-grey-dark">
-                    ${(selectedFiles.length * 2.5).toFixed(2)}
+                    ${((parseFloat(orderDetails.quantity) || 0) * 4.50 + 0.25).toFixed(2)}
                   </span>
+                </div>
+                <div className="text-xs text-rpp-grey-light">
+                  User policy: Charges are that may not be added to your current billing period.
                 </div>
               </div>
 
