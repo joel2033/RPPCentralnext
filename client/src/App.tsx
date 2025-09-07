@@ -22,7 +22,11 @@ import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
 import TeamMembers from "@/pages/TeamMembers";
+import EditorDashboard from "@/pages/EditorDashboard";
 import NotFound from "@/pages/not-found";
+
+// Editor Layout
+import EditorLayout from "@/components/EditorLayout";
 
 function Router() {
   return (
@@ -118,11 +122,19 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/editor-dashboard">
-        <ProtectedRoute route="/editor-dashboard">
-          <Layout>
-            <Dashboard />
-          </Layout>
+      <Route path="/editor">
+        <ProtectedRoute route="/editor">
+          <EditorLayout>
+            <EditorDashboard />
+          </EditorLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor/dashboard">
+        <ProtectedRoute route="/editor/dashboard">
+          <EditorLayout>
+            <EditorDashboard />
+          </EditorLayout>
         </ProtectedRoute>
       </Route>
       
