@@ -11,7 +11,7 @@ import {
   Camera,
   Users
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { signOut } from "@/lib/firebaseAuth";
 
 interface EditorSidebarProps {
@@ -36,7 +36,7 @@ const menuItems: MenuItem[] = [
 
 export default function EditorSidebar({ isOpen, onClose }: EditorSidebarProps) {
   const [location] = useLocation();
-  const { userData } = useAuth();
+  const { userData } = useEditorAuth();
 
   const handleSignOut = async () => {
     try {

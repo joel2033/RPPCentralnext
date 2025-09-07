@@ -22,21 +22,28 @@ import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
 import TeamMembers from "@/pages/TeamMembers";
-import EditorDashboard from "@/pages/EditorDashboard";
-import EditorJobs from "@/pages/EditorJobs";
-import EditorDownloads from "@/pages/EditorDownloads";
-import EditorUploads from "@/pages/EditorUploads";
-import EditorSettings from "@/pages/EditorSettings";
 import NotFound from "@/pages/not-found";
 
-// Editor Layout
-import EditorLayout from "@/components/EditorLayout";
+// Editor App
+import EditorApp from "@/components/EditorApp";
 
 function Router() {
   return (
     <Switch>
+      {/* Partner Authentication */}
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
+      
+      {/* Editor App - Completely Separate */}
+      <Route path="/editor-login">
+        <EditorApp />
+      </Route>
+      <Route path="/editor-signup">
+        <EditorApp />
+      </Route>
+      <Route path="/editor/*">
+        <EditorApp />
+      </Route>
       
       <Route path="/">
         <ProtectedRoute route="/dashboard">
@@ -126,53 +133,6 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/editor">
-        <ProtectedRoute route="/editor">
-          <EditorLayout>
-            <EditorDashboard />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/editor/dashboard">
-        <ProtectedRoute route="/editor/dashboard">
-          <EditorLayout>
-            <EditorDashboard />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/editor/jobs">
-        <ProtectedRoute route="/editor/jobs">
-          <EditorLayout>
-            <EditorJobs />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/editor/downloads">
-        <ProtectedRoute route="/editor/downloads">
-          <EditorLayout>
-            <EditorDownloads />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/editor/uploads">
-        <ProtectedRoute route="/editor/uploads">
-          <EditorLayout>
-            <EditorUploads />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/editor/settings">
-        <ProtectedRoute route="/editor/settings">
-          <EditorLayout>
-            <EditorSettings />
-          </EditorLayout>
-        </ProtectedRoute>
-      </Route>
       
       <Route path="/production-hub">
         <ProtectedRoute route="/production-hub">

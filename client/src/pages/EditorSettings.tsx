@@ -6,11 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { User, MapPin, Phone, Mail, Camera, DollarSign, Clock, Settings } from "lucide-react";
 
 export default function EditorSettings() {
-  const { userData } = useAuth();
+  const { userData } = useEditorAuth();
   
   // Editor profile settings
   const [profileData, setProfileData] = useState({

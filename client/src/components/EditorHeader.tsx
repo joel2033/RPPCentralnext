@@ -1,14 +1,14 @@
 import { Menu, Bell, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEditorAuth } from "@/contexts/EditorAuthContext";
 
 interface EditorHeaderProps {
   onMenuClick: () => void;
 }
 
 export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
-  const { userData } = useAuth();
+  const { userData } = useEditorAuth();
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-30 lg:left-64">
