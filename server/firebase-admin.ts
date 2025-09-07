@@ -35,16 +35,17 @@ const app = initializeFirebaseAdmin();
 // Export Firestore instance
 export const adminDb = getFirestore(app);
 
-// User role type - updated for multi-tenant structure
-export type UserRole = "partner" | "admin" | "photographer";
+// User role type - updated for multi-tenant structure + editor
+export type UserRole = "partner" | "admin" | "photographer" | "editor";
 
-// User data interface with partnerId for multi-tenancy
+// User data interface with partnerId for multi-tenancy (editors don't need partnerId)
 export interface UserData {
   uid: string;
   email: string;
   role: UserRole;
-  partnerId: string;
+  partnerId?: string; // Optional for editors
   createdAt: any;
+  status?: "pending" | "approved" | "rejected"; // For editor approval workflow
 }
 
 // Pending invite interface
@@ -71,16 +72,25 @@ export const generateInviteToken = (): string => {
 // Create user document in Firestore with partnerId
 export const createUserDocument = async (uid: string, email: string, role: UserRole, partnerId?: string): Promise<string> => {
   try {
-    // Generate partnerId for new partners, use provided one for team members
-    const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : '');
+    // Generate partnerId for new partners, use provided one for team members, none for editors
+    const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : undefined);
     
     const userData: UserData = {
       uid,
       email,
       role,
-      partnerId: userPartnerId,
       createdAt: new Date()
     };
+
+    // Add partnerId only if it exists (not for editors)
+    if (userPartnerId) {
+      userData.partnerId = userPartnerId;
+    }
+
+    // Add pending status for editors
+    if (role === 'editor') {
+      userData.status = 'pending';
+    }
 
     // Add document to users collection
     const userRef = adminDb.collection('users').doc(uid);

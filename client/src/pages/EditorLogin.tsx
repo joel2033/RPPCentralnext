@@ -41,6 +41,17 @@ export default function EditorLogin() {
         return;
       }
 
+      // Check if editor account is approved
+      if (userData.status === 'pending') {
+        toast({
+          title: "Account Under Review",
+          description: "Your editor account is being reviewed. You'll receive an email when approved.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       toast({
         title: "Welcome back!",
         description: "Successfully signed in to your editor dashboard.",

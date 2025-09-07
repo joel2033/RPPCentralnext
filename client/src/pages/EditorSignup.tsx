@@ -60,15 +60,26 @@ export default function EditorSignup() {
       // Create the user account
       const userData = await signUpUser(formData.email, formData.password);
       
-      // TODO: Save additional editor profile data to backend
-      console.log('Editor profile data:', {
-        uid: userData.uid,
-        businessName: formData.businessName,
-        specialties: formData.specialties,
-        experience: formData.experience,
-        portfolio: formData.portfolio,
-        role: 'editor'
+      // Save editor profile data via backend API
+      const response = await fetch('/api/auth/editor-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          uid: userData.uid,
+          email: formData.email,
+          businessName: formData.businessName,
+          specialties: formData.specialties,
+          experience: formData.experience,
+          portfolio: formData.portfolio
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create editor profile');
+      }
 
       toast({
         title: "Account created successfully!",

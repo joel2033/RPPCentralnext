@@ -329,6 +329,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Firebase Auth - Editor Signup endpoint (completely separate from partners)
+  const editorSignupSchema = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    businessName: z.string(),
+    specialties: z.string(),
+    experience: z.string(),
+    portfolio: z.string().optional()
+  });
+
+  app.post("/api/auth/editor-signup", async (req, res) => {
+    try {
+      const { uid, email, businessName, specialties, experience, portfolio } = editorSignupSchema.parse(req.body);
+      
+      // Create editor account (no partnerId needed)
+      const docId = await createUserDocument(uid, email, "editor");
+      
+      // Add additional editor profile data
+      await adminDb.collection('editors').doc(uid).set({
+        uid,
+        businessName,
+        specialties,
+        experience,
+        portfolio: portfolio || '',
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      res.status(201).json({ 
+        success: true, 
+        docId, 
+        role: "editor",
+        message: "Editor account created successfully. Your application is under review." 
+      });
+    } catch (error: any) {
+      console.error("Error creating editor account:", error);
+      res.status(500).json({ 
+        error: "Failed to create editor account", 
+        details: error.message 
+      });
+    }
+  });
+
   // Firebase Auth - Get User Data endpoint
   app.get("/api/auth/user/:uid", async (req, res) => {
     try {
