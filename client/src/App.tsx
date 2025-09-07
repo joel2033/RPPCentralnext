@@ -26,6 +26,7 @@ import EditorDashboard from "@/pages/EditorDashboard";
 import EditorJobs from "@/pages/EditorJobs";
 import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
+import EditorSettings from "@/pages/EditorSettings";
 import NotFound from "@/pages/not-found";
 
 // Editor Layout
@@ -161,6 +162,14 @@ function Router() {
         <ProtectedRoute route="/editor/uploads">
           <EditorLayout>
             <EditorUploads />
+          </EditorLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor/settings">
+        <ProtectedRoute route="/editor/settings">
+          <EditorLayout>
+            <EditorSettings />
           </EditorLayout>
         </ProtectedRoute>
       </Route>
