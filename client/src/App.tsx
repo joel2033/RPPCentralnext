@@ -23,6 +23,9 @@ import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
 import TeamMembers from "@/pages/TeamMembers";
 import EditorDashboard from "@/pages/EditorDashboard";
+import EditorJobs from "@/pages/EditorJobs";
+import EditorDownloads from "@/pages/EditorDownloads";
+import EditorUploads from "@/pages/EditorUploads";
 import NotFound from "@/pages/not-found";
 
 // Editor Layout
@@ -134,6 +137,30 @@ function Router() {
         <ProtectedRoute route="/editor/dashboard">
           <EditorLayout>
             <EditorDashboard />
+          </EditorLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor/jobs">
+        <ProtectedRoute route="/editor/jobs">
+          <EditorLayout>
+            <EditorJobs />
+          </EditorLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor/downloads">
+        <ProtectedRoute route="/editor/downloads">
+          <EditorLayout>
+            <EditorDownloads />
+          </EditorLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/editor/uploads">
+        <ProtectedRoute route="/editor/uploads">
+          <EditorLayout>
+            <EditorUploads />
           </EditorLayout>
         </ProtectedRoute>
       </Route>

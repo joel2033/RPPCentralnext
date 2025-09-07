@@ -1,6 +1,6 @@
 import { useState } from "react";
-import EditorSidebar from "./EditorSidebar";
-import EditorHeader from "./EditorHeader";
+import EditorSidebar from "@/components/EditorSidebar";
+import EditorHeader from "@/components/EditorHeader";
 
 interface EditorLayoutProps {
   children: React.ReactNode;

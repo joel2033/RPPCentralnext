@@ -114,6 +114,8 @@ export const getCurrentUserData = async (user: User): Promise<UserData | null> =
     role = 'photographer';
   } else if (user.email?.includes('admin')) {
     role = 'admin';
+  } else if (user.email?.includes('editor')) {
+    role = 'editor';
   }
   
   const userData: UserData = {
