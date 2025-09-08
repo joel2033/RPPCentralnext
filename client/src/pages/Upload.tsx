@@ -32,22 +32,24 @@ export default function Upload() {
     retry: false
   });
 
-  // Mock services for now - in real app this would come from selected editor's profile
+  // Fetch real services from selected editor
+  const { data: editorServices = [], isLoading: isLoadingServices } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedEditor, "services"],
+    enabled: !!selectedEditor,
+    retry: false
+  });
+
   useEffect(() => {
-    if (selectedEditor) {
-      // Mock services based on editor selection
-      setAvailableServices([
-        "Digital Edits - (Sky To Dusk)",
-        "Image Enhancement - Basic",
-        "Virtual Staging",
-        "Photo Retouching",
-        "HDR Processing",
-        "Virtual Tour Creation"
-      ]);
+    if (editorServices && editorServices.length > 0) {
+      // Convert editor services to simple service names for the dropdown
+      const serviceNames = editorServices
+        .filter(service => service.isActive)
+        .map(service => service.name);
+      setAvailableServices(serviceNames);
     } else {
       setAvailableServices([]);
     }
-  }, [selectedEditor]);
+  }, [editorServices]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -200,10 +202,18 @@ export default function Upload() {
                 <Select 
                   value={orderDetails.service} 
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
-                  disabled={!selectedEditor}
+                  disabled={!selectedEditor || isLoadingServices}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
-                    <SelectValue placeholder={selectedEditor ? "Select a service..." : "Select a supplier first..."} />
+                    <SelectValue placeholder={
+                      !selectedEditor 
+                        ? "Select a supplier first..."
+                        : isLoadingServices 
+                        ? "Loading services..."
+                        : availableServices.length === 0
+                        ? "No services available"
+                        : "Select a service..."
+                    } />
                   </SelectTrigger>
                   <SelectContent>
                     {availableServices.map((service) => (
