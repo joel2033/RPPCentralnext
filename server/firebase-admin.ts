@@ -337,12 +337,20 @@ export const getPartnerPartnerships = async (partnerId: string): Promise<Partner
 // Get partnerships for an editor
 export const getEditorPartnerships = async (editorId: string): Promise<Partnership[]> => {
   try {
+    console.log('Querying partnerships for editorId:', editorId);
     const partnershipsSnapshot = await adminDb.collection('partnerships')
       .where('editorId', '==', editorId)
       .where('isActive', '==', true)
       .get();
     
-    return partnershipsSnapshot.docs.map(doc => doc.data() as Partnership);
+    console.log('Editor partnership query results:', partnershipsSnapshot.size, 'documents');
+    const partnerships = partnershipsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('Editor partnership document:', data);
+      return data as Partnership;
+    });
+    
+    return partnerships;
   } catch (error) {
     console.error('Error getting editor partnerships:', error);
     throw error;

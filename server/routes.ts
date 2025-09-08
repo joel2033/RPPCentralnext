@@ -838,7 +838,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only editors can view their partnerships" });
       }
       
+      console.log('Editor UID for partnership query:', currentUser.uid);
       const partnerships = await getEditorPartnerships(currentUser.uid);
+      console.log('Editor partnerships found:', partnerships.length);
       res.json(partnerships);
     } catch (error: any) {
       console.error("Error getting editor partnerships:", error);
