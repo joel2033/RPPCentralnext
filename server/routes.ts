@@ -1008,6 +1008,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get service categories for a specific editor (for upload process)
+  app.get("/api/editor/:editorId/service-categories", async (req, res) => {
+    try {
+      const { editorId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
+        return res.status(403).json({ error: "Only partners and photographers can view editor service categories" });
+      }
+      
+      const categories = await storage.getServiceCategories(editorId);
+      res.json(categories);
+    } catch (error: any) {
+      console.error("Error getting editor service categories:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor service categories", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get all services for an editor
   app.get("/api/editor/services", async (req, res) => {
     try {
