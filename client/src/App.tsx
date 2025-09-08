@@ -22,6 +22,7 @@ import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
 import InviteEditor from "@/pages/InviteEditor";
+import Partnerships from "@/pages/Partnerships";
 import TeamMembers from "@/pages/TeamMembers";
 import NotFound from "@/pages/not-found";
 
@@ -182,6 +183,14 @@ function Router() {
         <ProtectedRoute route="/invite-editor">
           <Layout>
             <InviteEditor />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/partnerships">
+        <ProtectedRoute route="/partnerships">
+          <Layout>
+            <Partnerships />
           </Layout>
         </ProtectedRoute>
       </Route>

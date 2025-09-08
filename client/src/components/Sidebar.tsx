@@ -13,7 +13,8 @@ import {
   Upload,
   ClipboardList,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Handshake
 } from "lucide-react";
 
 interface SidebarProps {
@@ -39,6 +40,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: "Upload to Editor", icon: Upload, path: "/upload" },
       { title: "Invite Editor", icon: Users, path: "/invite-editor" },
+      { title: "Partnerships", icon: Handshake, path: "/partnerships" },
       { title: "Order Status", icon: ClipboardList, path: "/orders" },
     ],
   },
