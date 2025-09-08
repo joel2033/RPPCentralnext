@@ -23,44 +23,40 @@ interface EditorJob {
 
 export default function EditorDashboard() {
   // Mock data for now - will be replaced with real API calls
-  const { data: editorJobs = [], isLoading } = useQuery({
-    queryKey: ['/api/editor/jobs'],
-    queryFn: async () => {
-      // This will be replaced with actual API call
-      const mockJobs: EditorJob[] = [
-        {
-          id: '1',
-          jobId: 'job_001',
-          customerName: 'John Smith',
-          address: '123 Main St, City, State',
-          service: 'Digital Edits - (Day To Dusk)',
-          quantity: 25,
-          status: 'pending',
-          uploadDate: '2025-01-07',
-          dueDate: '2025-01-10',
-          files: [
-            { name: 'IMG_001.RAW', type: 'raw', size: 25000000 },
-            { name: 'IMG_002.RAW', type: 'raw', size: 24500000 }
-          ]
-        },
-        {
-          id: '2',
-          jobId: 'job_002',
-          customerName: 'Sarah Johnson',
-          address: '456 Oak Ave, Town, State',
-          service: 'High Resolution Photos',
-          quantity: 15,
-          status: 'in_progress',
-          uploadDate: '2025-01-06',
-          dueDate: '2025-01-09',
-          files: [
-            { name: 'IMG_003.JPG', type: 'jpeg', size: 15000000 }
-          ]
-        }
-      ];
-      return mockJobs;
+  const mockJobs: EditorJob[] = [
+    {
+      id: '1',
+      jobId: 'job_001',
+      customerName: 'John Smith',
+      address: '123 Main St, City, State',
+      service: 'Digital Edits - (Day To Dusk)',
+      quantity: 25,
+      status: 'pending',
+      uploadDate: '2025-01-07',
+      dueDate: '2025-01-10',
+      files: [
+        { name: 'IMG_001.RAW', type: 'raw', size: 25000000 },
+        { name: 'IMG_002.RAW', type: 'raw', size: 24500000 }
+      ]
+    },
+    {
+      id: '2',
+      jobId: 'job_002',
+      customerName: 'Sarah Johnson',
+      address: '456 Oak Ave, Town, State',
+      service: 'High Resolution Photos',
+      quantity: 15,
+      status: 'in_progress',
+      uploadDate: '2025-01-06',
+      dueDate: '2025-01-09',
+      files: [
+        { name: 'IMG_003.JPG', type: 'jpeg', size: 15000000 }
+      ]
     }
-  });
+  ];
+  
+  const editorJobs = mockJobs;
+  const isLoading = false;
 
   const pendingJobs = editorJobs.filter(job => job.status === 'pending');
   const inProgressJobs = editorJobs.filter(job => job.status === 'in_progress');
