@@ -6,9 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
-import { useQuery } from "@tanstack/react-query";
-import { User, MapPin, Phone, Mail, Camera, DollarSign, Clock, Settings, Handshake, Calendar, Users, Building2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { User, MapPin, Phone, Mail, Camera, DollarSign, Clock, Settings, Handshake, Calendar, Users, Building2, Plus, Edit2, Trash2, Package } from "lucide-react";
 
 interface Partnership {
   editorId: string;
@@ -21,13 +25,72 @@ interface Partnership {
   isActive: boolean;
 }
 
+interface ServiceCategory {
+  id: string;
+  editorId: string;
+  name: string;
+  description?: string;
+  displayOrder?: number;
+  isActive?: boolean;
+  createdAt: Date;
+}
+
+interface EditorService {
+  id: string;
+  editorId: string;
+  categoryId?: string;
+  name: string;
+  description?: string;
+  basePrice: string;
+  pricePer?: string;
+  estimatedTurnaround?: string;
+  isActive?: boolean;
+  displayOrder?: number;
+  createdAt: Date;
+}
+
 export default function EditorSettings() {
   const { userData } = useEditorAuth();
+  const { toast } = useToast();
 
   // Fetch editor's partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
     queryKey: ['/api/editor/partnerships'],
     retry: false
+  });
+
+  // Fetch service categories
+  const { data: serviceCategories = [], isLoading: categoriesLoading } = useQuery<ServiceCategory[]>({
+    queryKey: ['/api/editor/service-categories'],
+    retry: false
+  });
+
+  // Fetch editor services
+  const { data: editorServices = [], isLoading: servicesLoading } = useQuery<EditorService[]>({
+    queryKey: ['/api/editor/services'],
+    retry: false
+  });
+
+  // Dialog states
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
+  const [editingService, setEditingService] = useState<EditorService | null>(null);
+
+  // Form states
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: ''
+  });
+
+  const [serviceForm, setServiceForm] = useState({
+    name: '',
+    description: '',
+    basePrice: '',
+    pricePer: 'image',
+    estimatedTurnaround: '',
+    categoryId: '',
+    isActive: true
   });
 
   // Date formatting helper
@@ -69,13 +132,97 @@ export default function EditorSettings() {
     }
   });
 
-  // Service pricing
-  const [servicePricing, setServicePricing] = useState([
-    { service: "Basic Photo Editing", price: 2.50, unit: "per photo", turnaround: 24 },
-    { service: "HDR Processing", price: 4.00, unit: "per photo", turnaround: 48 },
-    { service: "Day to Dusk", price: 8.00, unit: "per photo", turnaround: 72 },
-    { service: "Virtual Staging", price: 25.00, unit: "per room", turnaround: 96 }
-  ]);
+  // Mutations for service categories
+  const createCategoryMutation = useMutation({
+    mutationFn: (categoryData: any) => apiRequest('/api/editor/service-categories', {
+      method: 'POST',
+      body: JSON.stringify(categoryData)
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
+      setCategoryDialogOpen(false);
+      resetCategoryForm();
+      toast({ title: "Success", description: "Category created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create category", variant: "destructive" });
+    }
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/service-categories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
+      setCategoryDialogOpen(false);
+      resetCategoryForm();
+      toast({ title: "Success", description: "Category updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update category", variant: "destructive" });
+    }
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/editor/service-categories/${id}`, {
+      method: 'DELETE'
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
+      toast({ title: "Success", description: "Category deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete category", variant: "destructive" });
+    }
+  });
+
+  // Mutations for services
+  const createServiceMutation = useMutation({
+    mutationFn: (serviceData: any) => apiRequest('/api/editor/services', {
+      method: 'POST',
+      body: JSON.stringify(serviceData)
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
+      setServiceDialogOpen(false);
+      resetServiceForm();
+      toast({ title: "Success", description: "Service created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create service", variant: "destructive" });
+    }
+  });
+
+  const updateServiceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/services/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
+      setServiceDialogOpen(false);
+      resetServiceForm();
+      toast({ title: "Success", description: "Service updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update service", variant: "destructive" });
+    }
+  });
+
+  const deleteServiceMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/editor/services/${id}`, {
+      method: 'DELETE'
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
+      toast({ title: "Success", description: "Service deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete service", variant: "destructive" });
+    }
+  });
 
   const handleProfileUpdate = (field: string, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
@@ -102,9 +249,97 @@ export default function EditorSettings() {
     // This would make an API call to save business settings
   };
 
-  const handleSavePricing = () => {
-    console.log('Saving pricing:', servicePricing);
-    // This would make an API call to save pricing
+  // Helper functions
+  const resetCategoryForm = () => {
+    setCategoryForm({ name: '', description: '' });
+    setEditingCategory(null);
+  };
+
+  const resetServiceForm = () => {
+    setServiceForm({
+      name: '',
+      description: '',
+      basePrice: '',
+      pricePer: 'image',
+      estimatedTurnaround: '',
+      categoryId: '',
+      isActive: true
+    });
+    setEditingService(null);
+  };
+
+  const handleCreateCategory = () => {
+    setEditingCategory(null);
+    resetCategoryForm();
+    setCategoryDialogOpen(true);
+  };
+
+  const handleEditCategory = (category: ServiceCategory) => {
+    setEditingCategory(category);
+    setCategoryForm({
+      name: category.name,
+      description: category.description || ''
+    });
+    setCategoryDialogOpen(true);
+  };
+
+  const handleCreateService = () => {
+    setEditingService(null);
+    resetServiceForm();
+    setServiceDialogOpen(true);
+  };
+
+  const handleEditService = (service: EditorService) => {
+    setEditingService(service);
+    setServiceForm({
+      name: service.name,
+      description: service.description || '',
+      basePrice: service.basePrice,
+      pricePer: service.pricePer || 'image',
+      estimatedTurnaround: service.estimatedTurnaround || '',
+      categoryId: service.categoryId || '',
+      isActive: service.isActive !== false
+    });
+    setServiceDialogOpen(true);
+  };
+
+  const handleSaveCategory = () => {
+    if (editingCategory) {
+      updateCategoryMutation.mutate({
+        id: editingCategory.id,
+        data: categoryForm
+      });
+    } else {
+      createCategoryMutation.mutate(categoryForm);
+    }
+  };
+
+  const handleSaveService = () => {
+    const serviceData = {
+      ...serviceForm,
+      basePrice: parseFloat(serviceForm.basePrice).toString()
+    };
+    
+    if (editingService) {
+      updateServiceMutation.mutate({
+        id: editingService.id,
+        data: serviceData
+      });
+    } else {
+      createServiceMutation.mutate(serviceData);
+    }
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (confirm('Are you sure you want to delete this category? This will also remove all services in this category.')) {
+      deleteCategoryMutation.mutate(id);
+    }
+  };
+
+  const handleDeleteService = (id: string) => {
+    if (confirm('Are you sure you want to delete this service?')) {
+      deleteServiceMutation.mutate(id);
+    }
   };
 
   return (
@@ -329,62 +564,162 @@ export default function EditorSettings() {
             </CardContent>
           </Card>
 
-          {/* Service Pricing */}
+          {/* Service Categories */}
           <Card>
             <CardHeader>
-              <div className="flex items-center space-x-2">
-                <DollarSign className="w-5 h-5 text-blue-600" />
-                <CardTitle>Service Pricing</CardTitle>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Package className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Service Categories</CardTitle>
+                </div>
+                <Button onClick={handleCreateCategory} size="sm" data-testid="button-create-category">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Category
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {servicePricing.map((service, index) => (
-                  <div key={index} className="grid grid-cols-3 gap-4 p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <Label>Service Name</Label>
-                      <p className="font-medium text-gray-900">{service.service}</p>
-                    </div>
-                    <div>
-                      <Label>Price ({service.unit})</Label>
-                      <div className="flex items-center">
-                        <span className="text-sm text-gray-500 mr-1">$</span>
-                        <Input
-                          type="number"
-                          step="0.25"
-                          min="0"
-                          value={service.price}
-                          onChange={(e) => {
-                            const newPricing = [...servicePricing];
-                            newPricing[index].price = parseFloat(e.target.value);
-                            setServicePricing(newPricing);
-                          }}
-                          className="w-20"
-                          data-testid={`input-price-${index}`}
-                        />
+              {categoriesLoading ? (
+                <div className="animate-pulse space-y-4">
+                  <div className="h-16 bg-gray-200 rounded"></div>
+                  <div className="h-16 bg-gray-200 rounded"></div>
+                </div>
+              ) : serviceCategories.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Categories</h3>
+                  <p className="text-gray-600 mb-4">
+                    Create categories to organize your services for partners.
+                  </p>
+                  <Button onClick={handleCreateCategory} data-testid="button-create-first-category">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Your First Category
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {serviceCategories.map((category) => (
+                    <div key={category.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-gray-900" data-testid={`text-category-name-${category.id}`}>
+                          {category.name}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditCategory(category)}
+                            data-testid={`button-edit-category-${category.id}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteCategory(category.id)}
+                            data-testid={`button-delete-category-${category.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
+                      {category.description && (
+                        <p className="text-sm text-gray-600">{category.description}</p>
+                      )}
                     </div>
-                    <div>
-                      <Label>Turnaround (hours)</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={service.turnaround}
-                        onChange={(e) => {
-                          const newPricing = [...servicePricing];
-                          newPricing[index].turnaround = parseInt(e.target.value);
-                          setServicePricing(newPricing);
-                        }}
-                        className="w-20"
-                        data-testid={`input-turnaround-${index}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-                <Button onClick={handleSavePricing} data-testid="button-save-pricing">
-                  Save Pricing
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Services Management */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <DollarSign className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Services & Pricing</CardTitle>
+                </div>
+                <Button onClick={handleCreateService} size="sm" data-testid="button-create-service">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Service
                 </Button>
               </div>
+            </CardHeader>
+            <CardContent>
+              {servicesLoading ? (
+                <div className="animate-pulse space-y-4">
+                  <div className="h-20 bg-gray-200 rounded"></div>
+                  <div className="h-20 bg-gray-200 rounded"></div>
+                </div>
+              ) : editorServices.length === 0 ? (
+                <div className="text-center py-8">
+                  <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Services</h3>
+                  <p className="text-gray-600 mb-4">
+                    Add services that partners can select when uploading projects to you.
+                  </p>
+                  <Button onClick={handleCreateService} data-testid="button-create-first-service">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Your First Service
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {editorServices.map((service) => {
+                    const category = serviceCategories.find(cat => cat.id === service.categoryId);
+                    return (
+                      <div key={service.id} className="grid grid-cols-4 gap-4 p-4 border border-gray-200 rounded-lg">
+                        <div>
+                          <Label>Service Name</Label>
+                          <p className="font-medium text-gray-900" data-testid={`text-service-name-${service.id}`}>
+                            {service.name}
+                          </p>
+                          {category && (
+                            <Badge variant="outline" className="text-xs mt-1">
+                              {category.name}
+                            </Badge>
+                          )}
+                        </div>
+                        <div>
+                          <Label>Price (${service.pricePer || 'image'})</Label>
+                          <p className="font-medium text-gray-900" data-testid={`text-service-price-${service.id}`}>
+                            ${parseFloat(service.basePrice).toFixed(2)}
+                          </p>
+                        </div>
+                        <div>
+                          <Label>Turnaround</Label>
+                          <p className="text-gray-700" data-testid={`text-service-turnaround-${service.id}`}>
+                            {service.estimatedTurnaround || 'Not specified'}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge variant={service.isActive !== false ? 'default' : 'secondary'}>
+                            {service.isActive !== false ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditService(service)}
+                            data-testid={`button-edit-service-${service.id}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteService(service.id)}
+                            data-testid={`button-delete-service-${service.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -522,18 +857,205 @@ export default function EditorSettings() {
               <div className="pt-4 border-t border-gray-200">
                 <h4 className="font-medium text-gray-900 mb-2">Active Services</h4>
                 <div className="space-y-2">
-                  {servicePricing.map((service, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">{service.service}</span>
-                      <Badge variant="outline">${service.price}</Badge>
+                  {editorServices.filter(service => service.isActive !== false).slice(0, 5).map((service) => (
+                    <div key={service.id} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{service.name}</span>
+                      <Badge variant="outline">${parseFloat(service.basePrice).toFixed(2)}</Badge>
                     </div>
                   ))}
+                  {editorServices.filter(service => service.isActive !== false).length > 5 && (
+                    <p className="text-xs text-gray-500 text-center">
+                      +{editorServices.filter(service => service.isActive !== false).length - 5} more services
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Service Category Dialog */}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? 'Edit Category' : 'Create Category'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingCategory ? 'Update category details' : 'Create a new category to organize your services'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="categoryName">Category Name</Label>
+              <Input
+                id="categoryName"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., Photo Editing, Virtual Staging"
+                data-testid="input-category-name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="categoryDescription">Description (Optional)</Label>
+              <Textarea
+                id="categoryDescription"
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe this category..."
+                rows={3}
+                data-testid="input-category-description"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setCategoryDialogOpen(false)}
+                data-testid="button-cancel-category"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveCategory}
+                disabled={!categoryForm.name.trim() || createCategoryMutation.isPending || updateCategoryMutation.isPending}
+                data-testid="button-save-category"
+              >
+                {editingCategory ? 'Update' : 'Create'} Category
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Service Dialog */}
+      <Dialog open={serviceDialogOpen} onOpenChange={setServiceDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingService ? 'Edit Service' : 'Create Service'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingService ? 'Update service details and pricing' : 'Create a new service that partners can select'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="serviceName">Service Name</Label>
+                <Input
+                  id="serviceName"
+                  value={serviceForm.name}
+                  onChange={(e) => setServiceForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g., Basic Photo Editing"
+                  data-testid="input-service-name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="serviceCategory">Category (Optional)</Label>
+                <Select
+                  value={serviceForm.categoryId}
+                  onValueChange={(value) => setServiceForm(prev => ({ ...prev, categoryId: value }))}
+                >
+                  <SelectTrigger data-testid="select-service-category">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No Category</SelectItem>
+                    {serviceCategories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="serviceDescription">Description (Optional)</Label>
+              <Textarea
+                id="serviceDescription"
+                value={serviceForm.description}
+                onChange={(e) => setServiceForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe what this service includes..."
+                rows={3}
+                data-testid="input-service-description"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="servicePrice">Base Price ($)</Label>
+                <Input
+                  id="servicePrice"
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  value={serviceForm.basePrice}
+                  onChange={(e) => setServiceForm(prev => ({ ...prev, basePrice: e.target.value }))}
+                  placeholder="0.00"
+                  data-testid="input-service-price"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pricePer">Price Per</Label>
+                <Select
+                  value={serviceForm.pricePer}
+                  onValueChange={(value) => setServiceForm(prev => ({ ...prev, pricePer: value }))}
+                >
+                  <SelectTrigger data-testid="select-price-per">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Per Image</SelectItem>
+                    <SelectItem value="property">Per Property</SelectItem>
+                    <SelectItem value="hour">Per Hour</SelectItem>
+                    <SelectItem value="fixed">Fixed Price</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="turnaround">Est. Turnaround</Label>
+                <Input
+                  id="turnaround"
+                  value={serviceForm.estimatedTurnaround}
+                  onChange={(e) => setServiceForm(prev => ({ ...prev, estimatedTurnaround: e.target.value }))}
+                  placeholder="e.g., 24 hours, 2-3 days"
+                  data-testid="input-service-turnaround"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="serviceActive"
+                checked={serviceForm.isActive}
+                onCheckedChange={(checked) => setServiceForm(prev => ({ ...prev, isActive: checked }))}
+                data-testid="switch-service-active"
+              />
+              <Label htmlFor="serviceActive">Service is active and available to partners</Label>
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setServiceDialogOpen(false)}
+                data-testid="button-cancel-service"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveService}
+                disabled={!serviceForm.name.trim() || !serviceForm.basePrice || createServiceMutation.isPending || updateServiceMutation.isPending}
+                data-testid="button-save-service"
+              >
+                {editingService ? 'Update' : 'Create'} Service
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
