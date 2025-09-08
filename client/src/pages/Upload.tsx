@@ -15,6 +15,7 @@ export default function Upload() {
     service: "",
     quantity: "",
     fileName: "",
+    fileNames: {} as Record<number, string>,
     instructions: [""],
     exportTypes: [""],
   });
@@ -51,7 +52,7 @@ export default function Upload() {
       // Group services by category
       const activeServices = editorServices.filter(service => service.isActive);
       const grouped: {[key: string]: any[]} = {};
-      
+
       // Group services by categoryId
       activeServices.forEach(service => {
         const categoryId = service.categoryId || 'uncategorized';
@@ -60,7 +61,7 @@ export default function Upload() {
         }
         grouped[categoryId].push(service);
       });
-      
+
       setGroupedServices(grouped);
     } else {
       setGroupedServices({});
@@ -91,15 +92,29 @@ export default function Upload() {
   const addInstruction = () => {
     setOrderDetails(prev => ({
       ...prev,
-      instructions: [...prev.instructions, ""]
+      instructions: [...prev.instructions, ""],
+      fileNames: { ...prev.fileNames, [prev.instructions.length]: "" }
     }));
   };
 
   const removeInstruction = (index: number) => {
     if (orderDetails.instructions.length > 1) {
+      const newInstructions = prev.instructions.filter((_, i) => i !== index);
+      const newFileNames = { ...prev.fileNames };
+      delete newFileNames[index];
+      // Re-index fileNames keys
+      Object.keys(newFileNames).forEach(key => {
+        const currentKey = parseInt(key);
+        if (currentKey > index) {
+          newFileNames[currentKey - 1] = newFileNames[currentKey];
+          delete newFileNames[currentKey];
+        }
+      });
+
       setOrderDetails(prev => ({
         ...prev,
-        instructions: prev.instructions.filter((_, i) => i !== index)
+        instructions: newInstructions,
+        fileNames: newFileNames
       }));
     }
   };
@@ -108,6 +123,13 @@ export default function Upload() {
     setOrderDetails(prev => ({
       ...prev,
       instructions: prev.instructions.map((inst, i) => i === index ? value : inst)
+    }));
+  };
+
+  const updateFileName = (index: number, value: string) => {
+    setOrderDetails(prev => ({
+      ...prev,
+      fileNames: { ...prev.fileNames, [index]: value }
     }));
   };
 
@@ -156,8 +178,8 @@ export default function Upload() {
                   Job
                 </label>
                 <p className="text-xs text-rpp-grey-light mb-2">Choose a job for your respective order statement</p>
-                <Select 
-                  value={orderDetails.jobId} 
+                <Select
+                  value={orderDetails.jobId}
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
@@ -172,15 +194,15 @@ export default function Upload() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Supplier/Editor Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
                   Supplier
                 </label>
                 <p className="text-xs text-rpp-grey-light mb-2">Select the supplier who are responsible for this order. Learn more about assigning suppliers here</p>
-                <Select 
-                  value={selectedEditor} 
+                <Select
+                  value={selectedEditor}
                   onValueChange={(value) => {
                     setSelectedEditor(value);
                     setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
@@ -215,16 +237,16 @@ export default function Upload() {
                   Services
                 </label>
                 <p className="text-xs text-rpp-grey-light mb-2">Choose the services that the suppliers and perform for this order</p>
-                <Select 
-                  value={orderDetails.service} 
+                <Select
+                  value={orderDetails.service}
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
                   disabled={!selectedEditor || isLoadingServices || isLoadingCategories}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
                     <SelectValue placeholder={
-                      !selectedEditor 
+                      !selectedEditor
                         ? "Select a supplier first..."
-                        : (isLoadingServices || isLoadingCategories) 
+                        : (isLoadingServices || isLoadingCategories)
                         ? "Loading services..."
                         : Object.keys(groupedServices).length === 0
                         ? "No services available"
@@ -240,7 +262,7 @@ export default function Upload() {
                       Object.entries(groupedServices).map(([categoryId, services], categoryIndex) => {
                         const category = serviceCategories.find(cat => cat.id === categoryId);
                         const categoryName = category ? category.name : 'Uncategorized';
-                        
+
                         return (
                           <SelectGroup key={categoryId}>
                             {categoryIndex > 0 && <SelectSeparator key={`sep-${categoryId}`} />}
@@ -331,10 +353,10 @@ export default function Upload() {
                       <div className="grid grid-cols-2 gap-4">
                         <Input
                           placeholder="File Name"
-                          value={orderDetails.fileName}
-                          onChange={(e) => setOrderDetails(prev => ({ ...prev, fileName: e.target.value }))}
+                          value={orderDetails.fileNames[0] || ""}
+                          onChange={(e) => updateFileName(0, e.target.value)}
                           className="border-gray-300"
-                          data-testid="input-file-name"
+                          data-testid="input-file-name-0"
                         />
                         <Textarea
                           placeholder="Detail your instruction"
@@ -348,6 +370,13 @@ export default function Upload() {
                         <div className="mt-3 space-y-2">
                           {orderDetails.instructions.slice(1).map((instruction, index) => (
                             <div key={index + 1} className="flex space-x-2">
+                              <Input
+                                placeholder="File Name"
+                                value={orderDetails.fileNames[index + 1] || ""}
+                                onChange={(e) => updateFileName(index + 1, e.target.value)}
+                                className="border-gray-300 w-1/3"
+                                data-testid={`input-file-name-${index + 1}`}
+                              />
                               <Textarea
                                 placeholder={`Additional instruction ${index + 2}...`}
                                 value={instruction}
@@ -449,162 +478,162 @@ export default function Upload() {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* File Upload */}
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">Upload Files</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                className="border-2 border-dashed border-rpp-grey-border rounded-lg p-8 text-center hover:border-rpp-red-main transition-colors"
-              >
-                <UploadIcon className="w-12 h-12 text-rpp-grey-light mx-auto mb-4" />
-                <p className="text-rpp-grey-dark font-medium mb-2">
-                  Drag and drop your files here, or click to browse
-                </p>
-                <p className="text-sm text-rpp-grey-light mb-4">
-                  Supported formats: JPG, PNG, RAW, TIFF (Max 100MB per file)
-                </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label htmlFor="file-upload">
-                  <Button variant="outline" className="border-rpp-grey-border">
-                    Choose Files
-                  </Button>
-                </label>
-              </div>
+        {/* File Upload */}
+        <Card className="border-rpp-grey-border">
+          <CardHeader>
+            <CardTitle className="text-rpp-grey-dark">Upload Files</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              className="border-2 border-dashed border-rpp-grey-border rounded-lg p-8 text-center hover:border-rpp-red-main transition-colors"
+            >
+              <UploadIcon className="w-12 h-12 text-rpp-grey-light mx-auto mb-4" />
+              <p className="text-rpp-grey-dark font-medium mb-2">
+                Drag and drop your files here, or click to browse
+              </p>
+              <p className="text-sm text-rpp-grey-light mb-4">
+                Supported formats: JPG, PNG, RAW, TIFF (Max 100MB per file)
+              </p>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-upload"
+              />
+              <label htmlFor="file-upload">
+                <Button variant="outline" className="border-rpp-grey-border">
+                  Choose Files
+                </Button>
+              </label>
+            </div>
 
-              {/* Selected Files */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="font-medium text-rpp-grey-dark mb-3">
-                    Selected Files ({selectedFiles.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 border border-rpp-grey-border rounded-lg"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <FileImage className="w-5 h-5 text-rpp-grey-light" />
-                          <div>
-                            <p className="text-sm font-medium text-rpp-grey-dark">{file.name}</p>
-                            <p className="text-xs text-rpp-grey-light">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
+            {/* Selected Files */}
+            {selectedFiles.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-medium text-rpp-grey-dark mb-3">
+                  Selected Files ({selectedFiles.length})
+                </h4>
+                <div className="space-y-2">
+                  {selectedFiles.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 border border-rpp-grey-border rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <FileImage className="w-5 h-5 text-rpp-grey-light" />
+                        <div>
+                          <p className="text-sm font-medium text-rpp-grey-dark">{file.name}</p>
+                          <p className="text-xs text-rpp-grey-light">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
                         </div>
-                        <button
-                          onClick={() => removeFile(index)}
-                          className="text-rpp-grey-light hover:text-red-500"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        onClick={() => removeFile(index)}
+                        className="text-rpp-grey-light hover:text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Order Summary Sidebar */}
+      <div className="lg:col-span-1">
+        <Card className="border-rpp-grey-border sticky top-24">
+          <CardHeader>
+            <CardTitle className="text-rpp-grey-dark">Order Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              {orderDetails.jobId && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-rpp-grey-light">Job:</span>
+                  <span className="text-rpp-grey-dark">{jobs.find(j => j.jobId === orderDetails.jobId)?.address || orderDetails.jobId}</span>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Order Summary Sidebar */}
-        <div>
-          <Card className="border-rpp-grey-border sticky top-24">
-            <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                {orderDetails.jobId && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-rpp-grey-light">Job:</span>
-                    <span className="text-rpp-grey-dark">{jobs.find(j => j.jobId === orderDetails.jobId)?.address || orderDetails.jobId}</span>
-                  </div>
-                )}
-                {selectedEditor && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-rpp-grey-light">Supplier:</span>
-                    <span className="text-rpp-grey-dark">
-                      {(() => {
-                        const supplier = suppliers.find(s => s.id === selectedEditor);
-                        return supplier ? supplier.studioName : selectedEditor;
-                      })()}
-                    </span>
-                  </div>
-                )}
-                {orderDetails.service && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-rpp-grey-light">Service:</span>
-                    <span className="text-rpp-grey-dark">{orderDetails.service}</span>
-                  </div>
-                )}
+              {selectedEditor && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Digital Edits - (Sky To Dusk):</span>
-                  <span className="text-rpp-grey-dark">$4.50</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Quantity:</span>
-                  <span className="text-rpp-grey-dark">{orderDetails.quantity || '0'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Service fee (5):</span>
-                  <span className="text-rpp-grey-dark">$0.25</span>
-                </div>
-                <hr className="border-rpp-grey-border" />
-                <div className="flex justify-between font-medium">
-                  <span className="text-rpp-grey-dark">Total (estimated cost):</span>
+                  <span className="text-rpp-grey-light">Supplier:</span>
                   <span className="text-rpp-grey-dark">
-                    ${((parseFloat(orderDetails.quantity) || 0) * 4.50 + 0.25).toFixed(2)}
+                    {(() => {
+                      const supplier = suppliers.find(s => s.id === selectedEditor);
+                      return supplier ? supplier.studioName : selectedEditor;
+                    })()}
                   </span>
                 </div>
-                <div className="text-xs text-rpp-grey-light">
-                  User policy: Charges are that may not be added to your current billing period.
+              )}
+              {orderDetails.service && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-rpp-grey-light">Service:</span>
+                  <span className="text-rpp-grey-dark">{orderDetails.service}</span>
                 </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-rpp-grey-light">Digital Edits - (Sky To Dusk):</span>
+                <span className="text-rpp-grey-dark">$4.50</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-rpp-grey-light">Quantity:</span>
+                <span className="text-rpp-grey-dark">{orderDetails.quantity || '0'}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-rpp-grey-light">Service fee (5):</span>
+                <span className="text-rpp-grey-dark">$0.25</span>
+              </div>
+              <hr className="border-rpp-grey-border" />
+              <div className="flex justify-between font-medium">
+                <span className="text-rpp-grey-dark">Total (estimated cost):</span>
+                <span className="text-rpp-grey-dark">
+                  ${((parseFloat(orderDetails.quantity) || 0) * 4.50 + 0.25).toFixed(2)}
+                </span>
+              </div>
+              <div className="text-xs text-rpp-grey-light">
+                User policy: Charges are that may not be added to your current billing period.
+              </div>
+            </div>
 
-              <div className="pt-4 space-y-3">
-                <Button
-                  className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-                  disabled={selectedFiles.length === 0}
-                >
-                  Submit Order
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full border-rpp-grey-border text-rpp-grey-dark"
-                >
-                  Save as Draft
-                </Button>
-              </div>
+            <div className="pt-4 space-y-3">
+              <Button
+                className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                disabled={selectedFiles.length === 0}
+              >
+                Submit Order
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full border-rpp-grey-border text-rpp-grey-dark"
+              >
+                Save as Draft
+              </Button>
+            </div>
 
-              <div className="pt-4 text-xs text-rpp-grey-light">
-                <p>
-                  By submitting this order, you agree to our{" "}
-                  <a href="#" className="text-rpp-red-main hover:underline">
-                    terms of service
-                  </a>{" "}
-                  and{" "}
-                  <a href="#" className="text-rpp-red-main hover:underline">
-                    editing guidelines
-                  </a>
-                  .
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="pt-4 text-xs text-rpp-grey-light">
+              <p>
+                By submitting this order, you agree to our{" "}
+                <a href="#" className="text-rpp-red-main hover:underline">
+                  terms of service
+                </a>{" "}
+                and{" "}
+                <a href="#" className="text-rpp-red-main hover:underline">
+                  editing guidelines
+                </a>
+                .
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
