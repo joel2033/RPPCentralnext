@@ -89,7 +89,7 @@ export default function EditorSettings() {
     basePrice: '',
     pricePer: 'image',
     estimatedTurnaround: '',
-    categoryId: '',
+    categoryId: 'none',
     isActive: true
   });
 
@@ -262,7 +262,7 @@ export default function EditorSettings() {
       basePrice: '',
       pricePer: 'image',
       estimatedTurnaround: '',
-      categoryId: '',
+      categoryId: 'none',
       isActive: true
     });
     setEditingService(null);
@@ -297,7 +297,7 @@ export default function EditorSettings() {
       basePrice: service.basePrice,
       pricePer: service.pricePer || 'image',
       estimatedTurnaround: service.estimatedTurnaround || '',
-      categoryId: service.categoryId || '',
+      categoryId: service.categoryId || 'none',
       isActive: service.isActive !== false
     });
     setServiceDialogOpen(true);
@@ -317,7 +317,8 @@ export default function EditorSettings() {
   const handleSaveService = () => {
     const serviceData = {
       ...serviceForm,
-      basePrice: parseFloat(serviceForm.basePrice).toString()
+      basePrice: parseFloat(serviceForm.basePrice).toString(),
+      categoryId: serviceForm.categoryId === 'none' ? '' : serviceForm.categoryId
     };
     
     if (editingService) {
@@ -961,7 +962,7 @@ export default function EditorSettings() {
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Category</SelectItem>
+                    <SelectItem value="none">No Category</SelectItem>
                     {serviceCategories.map(category => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
