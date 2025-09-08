@@ -26,13 +26,11 @@ export default function Upload() {
     queryKey: ["/api/jobs"],
   });
 
-  // Get users (editors/suppliers) for dropdown
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ["/api/users"],
+  // Get partnered editors (suppliers) for dropdown
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({
+    queryKey: ["/api/partnerships/suppliers"],
+    retry: false
   });
-
-  // Get editors/suppliers (users with editor role)
-  const editors = users.filter(user => user.role === 'editor' || user.role === 'admin');
 
   // Mock services for now - in real app this would come from selected editor's profile
   useEffect(() => {
@@ -174,11 +172,21 @@ export default function Upload() {
                     <SelectValue placeholder="Select a supplier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {editors.map((editor: any) => (
-                      <SelectItem key={editor.id} value={editor.id}>
-                        {editor.firstName} {editor.lastName} ({editor.role})
+                    {isLoadingSuppliers ? (
+                      <SelectItem value="loading" disabled>
+                        Loading editors...
                       </SelectItem>
-                    ))}
+                    ) : suppliers.length === 0 ? (
+                      <SelectItem value="no-editors" disabled>
+                        No partner editors available
+                      </SelectItem>
+                    ) : (
+                      suppliers.map((supplier: any) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.studioName} ({supplier.email})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -478,8 +486,8 @@ export default function Upload() {
                     <span className="text-rpp-grey-light">Supplier:</span>
                     <span className="text-rpp-grey-dark">
                       {(() => {
-                        const editor = users.find(u => u.id === selectedEditor);
-                        return editor ? `${editor.firstName} ${editor.lastName}` : selectedEditor;
+                        const supplier = suppliers.find(s => s.id === selectedEditor);
+                        return supplier ? supplier.studioName : selectedEditor;
                       })()}
                     </span>
                   </div>

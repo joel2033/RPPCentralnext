@@ -21,6 +21,7 @@ import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
+import InviteEditor from "@/pages/InviteEditor";
 import TeamMembers from "@/pages/TeamMembers";
 import NotFound from "@/pages/not-found";
 
@@ -32,6 +33,7 @@ import EditorJobs from "@/pages/EditorJobs";
 import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
+import EditorInvitations from "@/pages/EditorInvitations";
 import EditorProtectedRoute from "@/components/EditorProtectedRoute";
 import EditorLayout from "@/components/EditorLayout";
 import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
@@ -78,6 +80,13 @@ function Router() {
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorUploads />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/invitations">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorInvitations />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
@@ -165,6 +174,14 @@ function Router() {
         <ProtectedRoute route="/upload">
           <Layout>
             <Upload />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/invite-editor">
+        <ProtectedRoute route="/invite-editor">
+          <Layout>
+            <InviteEditor />
           </Layout>
         </ProtectedRoute>
       </Route>
