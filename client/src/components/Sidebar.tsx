@@ -32,7 +32,6 @@ const menuItems: MenuItem[] = [
   { title: "Customers", icon: Users, path: "/customers" },
   { title: "Calendar", icon: Calendar, path: "/calendar" },
   { title: "Jobs", icon: Camera, path: "/jobs" },
-  { title: "Editor Dashboard", icon: Edit, path: "/editor" },
   {
     title: "Production Hub",
     icon: Folder,
