@@ -666,7 +666,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authorization header required" });
       }
       
-      const uid = authHeader.replace('Bearer ', '');
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can invite editors" });
@@ -714,7 +717,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authorization header required" });
       }
       
-      const uid = authHeader.replace('Bearer ', '');
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can accept partnership invites" });
@@ -766,7 +772,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authorization header required" });
       }
       
-      const uid = authHeader.replace('Bearer ', '');
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their pending invites" });
@@ -792,7 +801,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authorization header required" });
       }
       
-      const uid = authHeader.replace('Bearer ', '');
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can view their suppliers" });
