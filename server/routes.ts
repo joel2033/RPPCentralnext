@@ -824,14 +824,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get editor's partnerships 
   app.get("/api/editor/partnerships", async (req, res) => {
     try {
-      console.log('=== EDITOR PARTNERSHIPS API CALLED ===');
       // Get current user (should be editor)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
-        console.log('No auth header found');
         return res.status(401).json({ error: "Authorization header required" });
       }
-      console.log('Auth header found');
       
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -841,9 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only editors can view their partnerships" });
       }
       
-      console.log('Editor UID for partnership query:', currentUser.uid);
       const partnerships = await getEditorPartnerships(currentUser.uid);
-      console.log('Editor partnerships found:', partnerships.length);
       res.json(partnerships);
     } catch (error: any) {
       console.error("Error getting editor partnerships:", error);
