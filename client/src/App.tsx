@@ -24,8 +24,17 @@ import Upload from "@/pages/Upload";
 import TeamMembers from "@/pages/TeamMembers";
 import NotFound from "@/pages/not-found";
 
-// Editor App
-import EditorApp from "@/components/EditorApp";
+// Editor Components
+import EditorLogin from "@/pages/EditorLogin";
+import EditorSignup from "@/pages/EditorSignup";
+import EditorDashboard from "@/pages/EditorDashboard";
+import EditorJobs from "@/pages/EditorJobs";
+import EditorDownloads from "@/pages/EditorDownloads";
+import EditorUploads from "@/pages/EditorUploads";
+import EditorSettings from "@/pages/EditorSettings";
+import EditorProtectedRoute from "@/components/EditorProtectedRoute";
+import EditorLayout from "@/components/EditorLayout";
+import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
 
 function Router() {
   return (
@@ -35,14 +44,49 @@ function Router() {
       <Route path="/signup" component={Signup} />
       
       {/* Editor App - Completely Separate */}
-      <Route path="/editor-login">
-        <EditorApp />
+      <Route path="/editor-login" component={EditorLogin} />
+      <Route path="/editor-signup" component={EditorSignup} />
+      <Route path="/editor">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorDashboard />
+          </EditorLayout>
+        </EditorProtectedRoute>
       </Route>
-      <Route path="/editor-signup">
-        <EditorApp />
+      <Route path="/editor/dashboard">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorDashboard />
+          </EditorLayout>
+        </EditorProtectedRoute>
       </Route>
-      <Route path="/editor/*">
-        <EditorApp />
+      <Route path="/editor/jobs">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorJobs />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/downloads">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorDownloads />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/uploads">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorUploads />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/settings">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorSettings />
+          </EditorLayout>
+        </EditorProtectedRoute>
       </Route>
       
       <Route path="/">
@@ -160,8 +204,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Router />
-          <Toaster />
+          <EditorAuthProvider>
+            <Router />
+            <Toaster />
+          </EditorAuthProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
