@@ -322,20 +322,12 @@ export const createPartnership = async (
 // Get partnerships for a partner
 export const getPartnerPartnerships = async (partnerId: string): Promise<Partnership[]> => {
   try {
-    console.log('Querying partnerships collection for partnerId:', partnerId);
     const partnershipsSnapshot = await adminDb.collection('partnerships')
       .where('partnerId', '==', partnerId)
       .where('isActive', '==', true)
       .get();
     
-    console.log('Raw partnership query results:', partnershipsSnapshot.size, 'documents');
-    const partnerships = partnershipsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      console.log('Partnership document:', data);
-      return data as Partnership;
-    });
-    
-    return partnerships;
+    return partnershipsSnapshot.docs.map(doc => doc.data() as Partnership);
   } catch (error) {
     console.error('Error getting partner partnerships:', error);
     throw error;

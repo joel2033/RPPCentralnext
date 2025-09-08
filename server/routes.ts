@@ -810,9 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only partners can view their partnerships" });
       }
       
-      console.log('Searching for partnerships with partnerId:', currentUser.partnerId);
       const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
-      console.log('Found partnerships:', partnerships.length);
       res.json(partnerships);
     } catch (error: any) {
       console.error("Error getting partner partnerships:", error);
