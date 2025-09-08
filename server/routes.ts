@@ -793,6 +793,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get partner's partnerships (for partnerships display)
+  app.get("/api/partnerships", async (req, res) => {
+    try {
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can view their partnerships" });
+      }
+      
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      res.json(partnerships);
+    } catch (error: any) {
+      console.error("Error getting partner partnerships:", error);
+      res.status(500).json({ 
+        error: "Failed to get partnerships", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get partner's partnerships (for suppliers dropdown)
   app.get("/api/partnerships/suppliers", async (req, res) => {
     try {

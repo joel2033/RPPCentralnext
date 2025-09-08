@@ -21,7 +21,7 @@ export default function Partnerships() {
 
   // Fetch active partnerships
   const { data: partnerships = [], isLoading } = useQuery<Partnership[]>({
-    queryKey: ['/api/partnerships/suppliers'],
+    queryKey: ['/api/partnerships'],
     retry: false
   });
 

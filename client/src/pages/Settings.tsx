@@ -84,7 +84,7 @@ export default function Settings() {
 
   // Fetch active partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
-    queryKey: ['/api/partnerships/suppliers'],
+    queryKey: ['/api/partnerships'],
     retry: false
   });
 
@@ -106,7 +106,7 @@ export default function Settings() {
       });
       
       // Invalidate partnerships cache
-      queryClient.invalidateQueries({ queryKey: ['/api/partnerships/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/partnerships'] });
     },
     onError: (error: any) => {
       toast({
