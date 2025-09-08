@@ -20,8 +20,8 @@ function EditorRouter() {
       <Route path="/editor-login" component={EditorLogin} />
       <Route path="/editor-signup" component={EditorSignup} />
       
-      {/* Protected Editor Routes */}
-      <Route path="/editor">
+      {/* Protected Editor Routes - Using relative paths for nested routing */}
+      <Route path="/">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorDashboard />
@@ -29,7 +29,7 @@ function EditorRouter() {
         </EditorProtectedRoute>
       </Route>
       
-      <Route path="/editor/dashboard">
+      <Route path="/dashboard">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorDashboard />
@@ -37,7 +37,7 @@ function EditorRouter() {
         </EditorProtectedRoute>
       </Route>
       
-      <Route path="/editor/jobs">
+      <Route path="/jobs">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorJobs />
@@ -45,7 +45,7 @@ function EditorRouter() {
         </EditorProtectedRoute>
       </Route>
       
-      <Route path="/editor/downloads">
+      <Route path="/downloads">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorDownloads />
@@ -53,7 +53,7 @@ function EditorRouter() {
         </EditorProtectedRoute>
       </Route>
       
-      <Route path="/editor/uploads">
+      <Route path="/uploads">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorUploads />
@@ -61,7 +61,7 @@ function EditorRouter() {
         </EditorProtectedRoute>
       </Route>
       
-      <Route path="/editor/settings">
+      <Route path="/settings">
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorSettings />
