@@ -134,10 +134,7 @@ export default function EditorSettings() {
 
   // Mutations for service categories
   const createCategoryMutation = useMutation({
-    mutationFn: (categoryData: any) => apiRequest('/api/editor/service-categories', {
-      method: 'POST',
-      body: JSON.stringify(categoryData)
-    }),
+    mutationFn: (categoryData: any) => apiRequest('/api/editor/service-categories', 'POST', categoryData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
       setCategoryDialogOpen(false);
@@ -150,10 +147,7 @@ export default function EditorSettings() {
   });
 
   const updateCategoryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/service-categories/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data)
-    }),
+    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/service-categories/${id}`, 'PATCH', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
       setCategoryDialogOpen(false);
@@ -166,9 +160,7 @@ export default function EditorSettings() {
   });
 
   const deleteCategoryMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/editor/service-categories/${id}`, {
-      method: 'DELETE'
-    }),
+    mutationFn: (id: string) => apiRequest(`/api/editor/service-categories/${id}`, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/service-categories'] });
       toast({ title: "Success", description: "Category deleted successfully" });
@@ -180,10 +172,7 @@ export default function EditorSettings() {
 
   // Mutations for services
   const createServiceMutation = useMutation({
-    mutationFn: (serviceData: any) => apiRequest('/api/editor/services', {
-      method: 'POST',
-      body: JSON.stringify(serviceData)
-    }),
+    mutationFn: (serviceData: any) => apiRequest('/api/editor/services', 'POST', serviceData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
       setServiceDialogOpen(false);
@@ -196,10 +185,7 @@ export default function EditorSettings() {
   });
 
   const updateServiceMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/services/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data)
-    }),
+    mutationFn: ({ id, data }: { id: string, data: any }) => apiRequest(`/api/editor/services/${id}`, 'PATCH', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
       setServiceDialogOpen(false);
@@ -212,9 +198,7 @@ export default function EditorSettings() {
   });
 
   const deleteServiceMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/editor/services/${id}`, {
-      method: 'DELETE'
-    }),
+    mutationFn: (id: string) => apiRequest(`/api/editor/services/${id}`, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/editor/services'] });
       toast({ title: "Success", description: "Service deleted successfully" });
