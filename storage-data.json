@@ -212,5 +212,40 @@
       "id": "ed2c8a99-c85b-4c68-a30b-0e870364c84b",
       "createdAt": "2025-08-03T14:00:36.749Z"
     }
+  },
+  "serviceCategories": {
+    "b80b2440-185c-4f1b-abd1-46a7e097fa10": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "name": "Image enhancing",
+      "description": null,
+      "displayOrder": null,
+      "isActive": null,
+      "id": "b80b2440-185c-4f1b-abd1-46a7e097fa10",
+      "createdAt": "2025-09-08T13:11:08.102Z"
+    },
+    "385193b7-8ab1-4ae3-9371-fe70f4d75c3b": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "name": "Floor plans",
+      "description": null,
+      "displayOrder": null,
+      "isActive": null,
+      "id": "385193b7-8ab1-4ae3-9371-fe70f4d75c3b",
+      "createdAt": "2025-09-08T13:11:55.087Z"
+    }
+  },
+  "editorServices": {
+    "79241da3-be00-4b07-a358-03730484c782": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "categoryId": "b80b2440-185c-4f1b-abd1-46a7e097fa10",
+      "name": "Day Edits",
+      "description": null,
+      "basePrice": "0.91",
+      "pricePer": "image",
+      "estimatedTurnaround": "8-12",
+      "isActive": true,
+      "displayOrder": null,
+      "id": "79241da3-be00-4b07-a358-03730484c782",
+      "createdAt": "2025-09-08T13:11:38.265Z"
+    }
   }
 }
