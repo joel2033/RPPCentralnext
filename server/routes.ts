@@ -824,11 +824,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get editor's partnerships 
   app.get("/api/editor/partnerships", async (req, res) => {
     try {
+      console.log('=== EDITOR PARTNERSHIPS API CALLED ===');
       // Get current user (should be editor)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
+        console.log('No auth header found');
         return res.status(401).json({ error: "Authorization header required" });
       }
+      console.log('Auth header found');
       
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
