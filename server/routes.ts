@@ -821,6 +821,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get editor's partnerships 
+  app.get("/api/editor/partnerships", async (req, res) => {
+    try {
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their partnerships" });
+      }
+      
+      const partnerships = await getEditorPartnerships(currentUser.uid);
+      res.json(partnerships);
+    } catch (error: any) {
+      console.error("Error getting editor partnerships:", error);
+      res.status(500).json({ 
+        error: "Failed to get partnerships", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get partner's partnerships (for suppliers dropdown)
   app.get("/api/partnerships/suppliers", async (req, res) => {
     try {

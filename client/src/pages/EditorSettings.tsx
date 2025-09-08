@@ -7,10 +7,39 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
-import { User, MapPin, Phone, Mail, Camera, DollarSign, Clock, Settings } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { User, MapPin, Phone, Mail, Camera, DollarSign, Clock, Settings, Handshake, Calendar, Users, Building2 } from "lucide-react";
+
+interface Partnership {
+  editorId: string;
+  editorEmail: string;
+  editorStudioName: string;
+  partnerId: string;
+  partnerName: string;
+  partnerEmail: string;
+  acceptedAt: any;
+  isActive: boolean;
+}
 
 export default function EditorSettings() {
   const { userData } = useEditorAuth();
+
+  // Fetch editor's partnerships
+  const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
+    queryKey: ['/api/editor/partnerships'],
+    retry: false
+  });
+
+  // Date formatting helper
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "Unknown";
+    const date = timestamp._seconds ? new Date(timestamp._seconds * 1000) : new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric'
+    });
+  };
   
   // Editor profile settings
   const [profileData, setProfileData] = useState({
@@ -356,6 +385,102 @@ export default function EditorSettings() {
                   Save Pricing
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Active Partnerships */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <Handshake className="w-5 h-5 text-blue-600" />
+                <CardTitle>Active Partnerships</CardTitle>
+              </div>
+              <p className="text-sm text-gray-600">
+                View your partnerships with real estate photographers
+              </p>
+            </CardHeader>
+            <CardContent>
+              {partnershipsLoading ? (
+                <div className="animate-pulse space-y-4">
+                  <div className="h-20 bg-gray-200 rounded"></div>
+                  <div className="h-20 bg-gray-200 rounded"></div>
+                </div>
+              ) : partnerships.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Partnerships</h3>
+                  <p className="text-gray-600">
+                    You haven't accepted any partnership invitations yet. Check your invitations tab to see pending requests.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-600">
+                      {partnerships.length} active partnership{partnerships.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {partnerships.map((partnership, index) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <Building2 className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-medium text-gray-900" data-testid={`text-partner-name-${index}`}>
+                                {partnership.partnerName}
+                              </h3>
+                              <p className="text-sm text-gray-600" data-testid={`text-partner-email-${index}`}>
+                                {partnership.partnerEmail}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant="default"
+                            className="bg-green-100 text-green-800 hover:bg-green-100"
+                            data-testid={`badge-partnership-status-${index}`}
+                          >
+                            Active
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center text-gray-600">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            <span>Partnered {formatDate(partnership.acceptedAt)}</span>
+                          </div>
+                          <div className="flex items-center text-gray-600">
+                            <Handshake className="w-4 h-4 mr-2" />
+                            <span>Available for job assignments</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1"
+                            data-testid={`button-contact-partner-${index}`}
+                          >
+                            <Mail className="w-4 h-4 mr-1" />
+                            Contact
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            data-testid={`button-view-partnership-details-${index}`}
+                          >
+                            View Details
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
