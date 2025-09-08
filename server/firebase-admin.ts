@@ -352,12 +352,16 @@ export const getEditorPartnerships = async (editorId: string): Promise<Partnersh
 // Get pending partnership invites for an editor
 export const getEditorPendingInvites = async (editorEmail: string): Promise<PartnershipInvite[]> => {
   try {
+    // Get all pending invites and filter case-insensitively
     const invitesSnapshot = await adminDb.collection('partnershipInvites')
-      .where('editorEmail', '==', editorEmail)
       .where('status', '==', 'pending')
       .get();
     
-    return invitesSnapshot.docs.map(doc => doc.data() as PartnershipInvite);
+    const invites = invitesSnapshot.docs
+      .map(doc => doc.data() as PartnershipInvite)
+      .filter(invite => invite.editorEmail.toLowerCase() === editorEmail.toLowerCase());
+    
+    return invites;
   } catch (error) {
     console.error('Error getting editor pending invites:', error);
     throw error;

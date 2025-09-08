@@ -733,7 +733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
       
-      if (invite.editorEmail.toLowerCase() !== currentUser.email.toLowerCase()) {
+      if (invite.editorEmail.toLowerCase() !== currentUser.email?.toLowerCase()) {
         return res.status(400).json({ error: "This invite is not for your email address" });
       }
       
