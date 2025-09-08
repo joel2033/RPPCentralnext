@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
 export default function Upload() {
@@ -18,7 +18,7 @@ export default function Upload() {
     instructions: [""],
     exportTypes: [""],
   });
-  const [availableServices, setAvailableServices] = useState<string[]>([]);
+  const [groupedServices, setGroupedServices] = useState<{[key: string]: any[]}>({});
   const [selectedEditor, setSelectedEditor] = useState("");
 
   // Get jobs for dropdown
@@ -39,17 +39,33 @@ export default function Upload() {
     retry: false
   });
 
+  // Fetch service categories from selected editor
+  const { data: serviceCategories = [], isLoading: isLoadingCategories } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedEditor, "service-categories"],
+    enabled: !!selectedEditor,
+    retry: false
+  });
+
   useEffect(() => {
     if (editorServices && editorServices.length > 0) {
-      // Convert editor services to simple service names for the dropdown
-      const serviceNames = editorServices
-        .filter(service => service.isActive)
-        .map(service => service.name);
-      setAvailableServices(serviceNames);
+      // Group services by category
+      const activeServices = editorServices.filter(service => service.isActive);
+      const grouped: {[key: string]: any[]} = {};
+      
+      // Group services by categoryId
+      activeServices.forEach(service => {
+        const categoryId = service.categoryId || 'uncategorized';
+        if (!grouped[categoryId]) {
+          grouped[categoryId] = [];
+        }
+        grouped[categoryId].push(service);
+      });
+      
+      setGroupedServices(grouped);
     } else {
-      setAvailableServices([]);
+      setGroupedServices({});
     }
-  }, [editorServices]);
+  }, [editorServices, serviceCategories]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -202,25 +218,51 @@ export default function Upload() {
                 <Select 
                   value={orderDetails.service} 
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
-                  disabled={!selectedEditor || isLoadingServices}
+                  disabled={!selectedEditor || isLoadingServices || isLoadingCategories}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
                     <SelectValue placeholder={
                       !selectedEditor 
                         ? "Select a supplier first..."
-                        : isLoadingServices 
+                        : (isLoadingServices || isLoadingCategories) 
                         ? "Loading services..."
-                        : availableServices.length === 0
+                        : Object.keys(groupedServices).length === 0
                         ? "No services available"
                         : "Select a service..."
                     } />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableServices.map((service) => (
-                      <SelectItem key={service} value={service}>
-                        {service}
+                    {Object.keys(groupedServices).length === 0 ? (
+                      <SelectItem value="no-services" disabled>
+                        No services available
                       </SelectItem>
-                    ))}
+                    ) : (
+                      Object.entries(groupedServices).map(([categoryId, services], categoryIndex) => {
+                        const category = serviceCategories.find(cat => cat.id === categoryId);
+                        const categoryName = category ? category.name : 'Uncategorized';
+                        
+                        return (
+                          <div key={categoryId}>
+                            {categoryIndex > 0 && <SelectSeparator />}
+                            <SelectLabel className="font-medium text-gray-900">
+                              {categoryName}
+                            </SelectLabel>
+                            {services.map((service) => (
+                              <SelectItem key={service.id} value={service.name}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{service.name}</span>
+                                  {service.basePrice && (
+                                    <span className="text-xs text-gray-500">
+                                      ${parseFloat(service.basePrice).toFixed(2)} per {service.pricePer || 'image'}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
                 {orderDetails.service && (

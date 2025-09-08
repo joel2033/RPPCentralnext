@@ -231,6 +231,15 @@
       "isActive": null,
       "id": "385193b7-8ab1-4ae3-9371-fe70f4d75c3b",
       "createdAt": "2025-09-08T13:11:55.087Z"
+    },
+    "02672b45-29b1-4c14-857e-5131863d609f": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "name": "Video",
+      "description": null,
+      "displayOrder": null,
+      "isActive": null,
+      "id": "02672b45-29b1-4c14-857e-5131863d609f",
+      "createdAt": "2025-09-08T13:12:42.287Z"
     }
   },
   "editorServices": {
@@ -246,6 +255,32 @@
       "displayOrder": null,
       "id": "79241da3-be00-4b07-a358-03730484c782",
       "createdAt": "2025-09-08T13:11:38.265Z"
+    },
+    "ed608059-8444-46c7-b878-d7c83deb49f4": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "categoryId": "385193b7-8ab1-4ae3-9371-fe70f4d75c3b",
+      "name": "under 350sqm",
+      "description": null,
+      "basePrice": "7.2",
+      "pricePer": "fixed",
+      "estimatedTurnaround": "8 hours",
+      "isActive": true,
+      "displayOrder": null,
+      "id": "ed608059-8444-46c7-b878-d7c83deb49f4",
+      "createdAt": "2025-09-08T13:12:35.509Z"
+    },
+    "02524467-7a55-47c3-8c6e-68b08b7d1853": {
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "categoryId": "02672b45-29b1-4c14-857e-5131863d609f",
+      "name": "45 Second Reel",
+      "description": null,
+      "basePrice": "63",
+      "pricePer": "fixed",
+      "estimatedTurnaround": "24 Hours",
+      "isActive": true,
+      "displayOrder": null,
+      "id": "02524467-7a55-47c3-8c6e-68b08b7d1853",
+      "createdAt": "2025-09-08T13:13:08.447Z"
     }
   }
 }
