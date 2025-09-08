@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   Building2, 
   User, 
@@ -22,11 +25,29 @@ import {
   Upload,
   Save,
   Edit,
-  Trash2
+  Trash2,
+  Users,
+  UserPlus,
+  Send,
+  Mail,
+  Handshake
 } from "lucide-react";
+
+interface Partnership {
+  editorId: string;
+  editorEmail: string;
+  editorStudioName: string;
+  partnerId: string;
+  partnerName: string;
+  partnerEmail: string;
+  acceptedAt: any;
+  isActive: boolean;
+}
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business-profile");
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [businessHours, setBusinessHours] = useState({
     monday: { enabled: true, start: "09:00", end: "17:00" },
     tuesday: { enabled: true, start: "09:00", end: "17:00" },
@@ -54,6 +75,77 @@ export default function Settings() {
     phone: "(555) 123-4567",
     bio: "Professional real estate photographer with over 10 years of experience capturing stunning property images."
   });
+
+  // Editor invitation form data
+  const [editorFormData, setEditorFormData] = useState({
+    editorEmail: "",
+    editorStudioName: ""
+  });
+
+  // Fetch active partnerships
+  const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
+    queryKey: ['/api/partnerships/suppliers'],
+    retry: false
+  });
+
+  // Editor invitation mutation
+  const inviteMutation = useMutation({
+    mutationFn: async (data: { editorEmail: string; editorStudioName: string }) => {
+      return apiRequest("/api/partnerships/invite", "POST", data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Invitation Sent!",
+        description: "The editor will receive an invitation to partner with you.",
+      });
+      
+      // Clear form
+      setEditorFormData({
+        editorEmail: "",
+        editorStudioName: ""
+      });
+      
+      // Invalidate partnerships cache
+      queryClient.invalidateQueries({ queryKey: ['/api/partnerships/suppliers'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Send Invitation",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleEditorInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editorFormData.editorEmail.trim() || !editorFormData.editorStudioName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in both email and studio name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    inviteMutation.mutate(editorFormData);
+  };
+
+  const handleEditorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditorFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return "Unknown";
+    const date = timestamp._seconds ? new Date(timestamp._seconds * 1000) : new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric'
+    });
+  };
 
   const dayNames = {
     monday: "Monday",
@@ -91,7 +183,7 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8 lg:grid-cols-8">
+        <TabsList className="grid w-full grid-cols-10 lg:grid-cols-10">
           <TabsTrigger value="business-profile" className="flex flex-col items-center gap-1 p-3">
             <Building2 className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Business</span>
@@ -123,6 +215,14 @@ export default function Settings() {
           <TabsTrigger value="availability" className="flex flex-col items-center gap-1 p-3">
             <SettingsIcon className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Availability</span>
+          </TabsTrigger>
+          <TabsTrigger value="invite-editors" className="flex flex-col items-center gap-1 p-3">
+            <UserPlus className="w-4 h-4" />
+            <span className="text-xs hidden sm:block">Invite</span>
+          </TabsTrigger>
+          <TabsTrigger value="partnerships" className="flex flex-col items-center gap-1 p-3">
+            <Handshake className="w-4 h-4" />
+            <span className="text-xs hidden sm:block">Partners</span>
           </TabsTrigger>
         </TabsList>
 
@@ -934,6 +1034,243 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Invite Editors Tab */}
+        <TabsContent value="invite-editors" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5" />
+                Invite Editor to Partner
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Send partnership invitations to professional photo editors
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleEditorInviteSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="editorEmail">Editor Email Address</Label>
+                    <Input
+                      id="editorEmail"
+                      name="editorEmail"
+                      type="email"
+                      value={editorFormData.editorEmail}
+                      onChange={handleEditorInputChange}
+                      placeholder="editor@example.com"
+                      required
+                      data-testid="input-editor-email"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Enter the email address of the editor you want to invite
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="editorStudioName">Editor Studio Name</Label>
+                    <Input
+                      id="editorStudioName"
+                      name="editorStudioName"
+                      value={editorFormData.editorStudioName}
+                      onChange={handleEditorInputChange}
+                      placeholder="Studio Name or Individual Editor"
+                      required
+                      data-testid="input-editor-studio-name"
+                    />
+                    <p className="text-xs text-gray-500">
+                      The name of the editor's studio or business
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 mb-2">Partnership Benefits</h4>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Direct job assignments through your workflow</li>
+                    <li>• Streamlined file upload and delivery process</li>
+                    <li>• Integrated communication and project tracking</li>
+                    <li>• Professional partnership management tools</li>
+                  </ul>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={inviteMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="button-send-editor-invite"
+                  >
+                    {inviteMutation.isPending ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Partnership Invitation
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-medium mb-4">How Partnership Invitations Work</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Send className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <h4 className="font-medium mb-2">Send Invitation</h4>
+                    <p className="text-sm text-gray-600">
+                      Editor receives an email invitation to partner with your studio
+                    </p>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Mail className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h4 className="font-medium mb-2">Editor Accepts</h4>
+                    <p className="text-sm text-gray-600">
+                      Editor reviews and accepts the partnership invitation
+                    </p>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Handshake className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <h4 className="font-medium mb-2">Start Collaborating</h4>
+                    <p className="text-sm text-gray-600">
+                      Editor appears in your suppliers list for job assignments
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Partnerships Tab */}
+        <TabsContent value="partnerships" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Handshake className="w-5 h-5" />
+                Active Editor Partnerships
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Manage your partnerships with professional photo editors
+              </p>
+            </CardHeader>
+            <CardContent>
+              {partnershipsLoading ? (
+                <div className="animate-pulse space-y-4">
+                  <div className="h-24 bg-gray-200 rounded"></div>
+                  <div className="h-24 bg-gray-200 rounded"></div>
+                  <div className="h-24 bg-gray-200 rounded"></div>
+                </div>
+              ) : partnerships.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-900 mb-2">No Active Partnerships</h3>
+                  <p className="text-gray-600 mb-6">
+                    Start building your network of professional photo editors by sending partnership invitations.
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab("invite-editors")}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="button-goto-invite-editors"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Invite Your First Editor
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-600">
+                      {partnerships.length} active partnership{partnerships.length !== 1 ? 's' : ''}
+                    </p>
+                    <Button
+                      onClick={() => setActiveTab("invite-editors")}
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-invite-more-editors"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Invite More Editors
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {partnerships.map((partnership, index) => (
+                      <Card key={index} className="border-l-4 border-l-green-500">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-medium text-gray-900" data-testid={`text-partnership-name-${index}`}>
+                                  {partnership.editorStudioName}
+                                </h3>
+                                <p className="text-sm text-gray-600" data-testid={`text-partnership-email-${index}`}>
+                                  {partnership.editorEmail}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge 
+                              variant="default"
+                              className="bg-green-100 text-green-800 hover:bg-green-100"
+                              data-testid={`badge-partnership-status-${index}`}
+                            >
+                              Active
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center text-gray-600">
+                              <Calendar className="w-4 h-4 mr-2" />
+                              <span>Partnered {formatDate(partnership.acceptedAt)}</span>
+                            </div>
+                            <div className="flex items-center text-gray-600">
+                              <Handshake className="w-4 h-4 mr-2" />
+                              <span>Available for job assignments</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="flex-1"
+                              data-testid={`button-contact-partner-${index}`}
+                            >
+                              <Mail className="w-4 h-4 mr-1" />
+                              Contact
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              data-testid={`button-view-partnership-${index}`}
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
