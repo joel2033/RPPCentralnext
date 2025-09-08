@@ -5,7 +5,9 @@ import {
   insertCustomerSchema, 
   insertProductSchema,
   insertJobSchema,
-  insertOrderSchema 
+  insertOrderSchema,
+  insertServiceCategorySchema,
+  insertEditorServiceSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -884,6 +886,266 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error getting partner suppliers:", error);
       res.status(500).json({ 
         error: "Failed to get suppliers", 
+        details: error.message 
+      });
+    }
+  });
+
+  // ===== EDITOR SERVICE MANAGEMENT ENDPOINTS =====
+
+  // Get all service categories for an editor
+  app.get("/api/editor/service-categories", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their service categories" });
+      }
+      
+      const categories = await storage.getServiceCategories(uid);
+      res.json(categories);
+    } catch (error: any) {
+      console.error("Error getting service categories:", error);
+      res.status(500).json({ 
+        error: "Failed to get service categories", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create a new service category
+  app.post("/api/editor/service-categories", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can create service categories" });
+      }
+      
+      const categoryData = insertServiceCategorySchema.parse({
+        ...req.body,
+        editorId: uid
+      });
+      
+      const category = await storage.createServiceCategory(categoryData);
+      res.status(201).json(category);
+    } catch (error: any) {
+      console.error("Error creating service category:", error);
+      res.status(500).json({ 
+        error: "Failed to create service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update a service category
+  app.patch("/api/editor/service-categories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update their service categories" });
+      }
+      
+      const category = await storage.updateServiceCategory(id, req.body, uid);
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error updating service category:", error);
+      res.status(500).json({ 
+        error: "Failed to update service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Delete a service category
+  app.delete("/api/editor/service-categories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can delete their service categories" });
+      }
+      
+      await storage.deleteServiceCategory(id, uid);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting service category:", error);
+      res.status(500).json({ 
+        error: "Failed to delete service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get all services for an editor
+  app.get("/api/editor/services", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their services" });
+      }
+      
+      const services = await storage.getEditorServices(uid);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Error getting editor services:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor services", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get services for a specific editor (for upload process)
+  app.get("/api/editor/:editorId/services", async (req, res) => {
+    try {
+      const { editorId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
+        return res.status(403).json({ error: "Only partners and photographers can view editor services" });
+      }
+      
+      const services = await storage.getEditorServices(editorId);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Error getting editor services:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor services", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create a new service
+  app.post("/api/editor/services", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can create services" });
+      }
+      
+      const serviceData = insertEditorServiceSchema.parse({
+        ...req.body,
+        editorId: uid
+      });
+      
+      const service = await storage.createEditorService(serviceData);
+      res.status(201).json(service);
+    } catch (error: any) {
+      console.error("Error creating editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to create editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update a service
+  app.patch("/api/editor/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update their services" });
+      }
+      
+      const service = await storage.updateEditorService(id, req.body, uid);
+      res.json(service);
+    } catch (error: any) {
+      console.error("Error updating editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to update editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Delete a service
+  app.delete("/api/editor/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can delete their services" });
+      }
+      
+      await storage.deleteEditorService(id, uid);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to delete editor service", 
         details: error.message 
       });
     }
