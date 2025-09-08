@@ -23,7 +23,7 @@ export default function EditorInvitations() {
   const queryClient = useQueryClient();
 
   // Fetch pending invitations
-  const { data: pendingInvites = [], isLoading } = useQuery({
+  const { data: pendingInvites = [], isLoading } = useQuery<PartnershipInvite[]>({
     queryKey: ['/api/partnerships/pending'],
     retry: false
   });
@@ -31,9 +31,7 @@ export default function EditorInvitations() {
   // Accept invitation mutation
   const acceptMutation = useMutation({
     mutationFn: async (token: string) => {
-      return apiRequest(`/api/partnerships/accept/${token}`, {
-        method: "POST"
-      });
+      return apiRequest(`/api/partnerships/accept/${token}`, "POST");
     },
     onSuccess: () => {
       toast({
@@ -57,9 +55,7 @@ export default function EditorInvitations() {
   // Decline invitation mutation  
   const declineMutation = useMutation({
     mutationFn: async (token: string) => {
-      return apiRequest(`/api/partnerships/decline/${token}`, {
-        method: "POST"
-      });
+      return apiRequest(`/api/partnerships/decline/${token}`, "POST");
     },
     onSuccess: () => {
       toast({

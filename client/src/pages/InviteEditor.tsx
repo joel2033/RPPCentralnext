@@ -21,10 +21,7 @@ export default function InviteEditor() {
 
   const inviteMutation = useMutation({
     mutationFn: async (data: { editorEmail: string; editorStudioName: string }) => {
-      return apiRequest("/api/partnerships/invite", {
-        method: "POST",
-        body: JSON.stringify(data)
-      });
+      return apiRequest("/api/partnerships/invite", "POST", data);
     },
     onSuccess: () => {
       toast({
