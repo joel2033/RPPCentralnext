@@ -19,6 +19,9 @@ export async function apiRequest(
   if (auth.currentUser) {
     const token = await auth.currentUser.getIdToken();
     headers.Authorization = `Bearer ${token}`;
+    console.log('API Request - User authenticated, token length:', token.length);
+  } else {
+    console.log('API Request - No authenticated user found');
   }
   
   // Add content type for requests with data
@@ -49,6 +52,9 @@ export const getQueryFn: <T>(options: {
     if (auth.currentUser) {
       const token = await auth.currentUser.getIdToken();
       headers.Authorization = `Bearer ${token}`;
+      console.log('Query - User authenticated, token length:', token.length);
+    } else {
+      console.log('Query - No authenticated user found');
     }
 
     const res = await fetch(queryKey.join("/") as string, {

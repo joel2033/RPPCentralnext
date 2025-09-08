@@ -21,6 +21,7 @@ import {
   getEditorPartnerships,
   getEditorPendingInvites,
   adminDb,
+  adminAuth,
   UserRole 
 } from "./firebase-admin";
 import { z } from "zod";
@@ -668,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
-      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
@@ -719,7 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
-      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'editor') {
@@ -774,7 +775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
-      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'editor') {
@@ -803,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
-      const decodedToken = await adminDb.app().auth().verifyIdToken(idToken);
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
