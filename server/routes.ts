@@ -13,6 +13,13 @@ import {
   getPendingInvite, 
   updateInviteStatus,
   getUserDocument,
+  createPartnershipInvite,
+  getPartnershipInvite,
+  updatePartnershipInviteStatus,
+  createPartnership,
+  getPartnerPartnerships,
+  getEditorPartnerships,
+  getEditorPendingInvites,
   adminDb,
   UserRole 
 } from "./firebase-admin";
@@ -641,6 +648,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Partnership Management Routes
+
+  // Partner invites editor to partnership
+  const partnershipInviteSchema = z.object({
+    editorEmail: z.string().email(),
+    editorStudioName: z.string()
+  });
+
+  app.post("/api/partnerships/invite", async (req, res) => {
+    try {
+      const { editorEmail, editorStudioName } = partnershipInviteSchema.parse(req.body);
+      
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const uid = authHeader.replace('Bearer ', '');
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can invite editors" });
+      }
+      
+      // Check if partnership already exists
+      const existingPartnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      const partnershipExists = existingPartnerships.some(p => p.editorEmail === editorEmail);
+      
+      if (partnershipExists) {
+        return res.status(400).json({ error: "Partnership already exists with this editor" });
+      }
+      
+      // Create partnership invite
+      const inviteToken = await createPartnershipInvite(
+        editorEmail,
+        editorStudioName,
+        currentUser.partnerId!,
+        `${currentUser.email}`, // Using email as partner name for now
+        currentUser.email
+      );
+      
+      res.status(201).json({ 
+        success: true, 
+        inviteToken,
+        message: `Partnership invite sent to ${editorEmail}` 
+      });
+    } catch (error: any) {
+      console.error("Error creating partnership invite:", error);
+      res.status(500).json({ 
+        error: "Failed to create partnership invite", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Editor accepts partnership invite
+  app.post("/api/partnerships/accept/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const uid = authHeader.replace('Bearer ', '');
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can accept partnership invites" });
+      }
+      
+      // Get and validate invite
+      const invite = await getPartnershipInvite(token);
+      if (!invite) {
+        return res.status(400).json({ error: "Invalid or expired invite token" });
+      }
+      
+      if (invite.editorEmail.toLowerCase() !== currentUser.email.toLowerCase()) {
+        return res.status(400).json({ error: "This invite is not for your email address" });
+      }
+      
+      // Create active partnership
+      const partnershipId = await createPartnership(
+        currentUser.uid,
+        currentUser.email,
+        invite.editorStudioName,
+        invite.partnerId,
+        invite.partnerName,
+        invite.partnerEmail
+      );
+      
+      // Update invite status
+      await updatePartnershipInviteStatus(token, "accepted");
+      
+      res.status(201).json({ 
+        success: true,
+        partnershipId,
+        message: "Partnership accepted successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error accepting partnership:", error);
+      res.status(500).json({ 
+        error: "Failed to accept partnership", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get editor's pending partnership invites
+  app.get("/api/partnerships/pending", async (req, res) => {
+    try {
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const uid = authHeader.replace('Bearer ', '');
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their pending invites" });
+      }
+      
+      const pendingInvites = await getEditorPendingInvites(currentUser.email);
+      res.json(pendingInvites);
+    } catch (error: any) {
+      console.error("Error getting pending invites:", error);
+      res.status(500).json({ 
+        error: "Failed to get pending invites", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get partner's partnerships (for suppliers dropdown)
+  app.get("/api/partnerships/suppliers", async (req, res) => {
+    try {
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const uid = authHeader.replace('Bearer ', '');
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can view their suppliers" });
+      }
+      
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      
+      // Format for suppliers dropdown
+      const suppliers = partnerships.map(partnership => ({
+        id: partnership.editorId,
+        firstName: partnership.editorStudioName.split(' ')[0] || partnership.editorStudioName,
+        lastName: partnership.editorStudioName.split(' ').slice(1).join(' ') || '',
+        email: partnership.editorEmail,
+        role: 'editor',
+        studioName: partnership.editorStudioName
+      }));
+      
+      res.json(suppliers);
+    } catch (error: any) {
+      console.error("Error getting partner suppliers:", error);
+      res.status(500).json({ 
+        error: "Failed to get suppliers", 
+        details: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

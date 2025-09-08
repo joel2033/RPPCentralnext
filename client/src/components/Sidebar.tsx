@@ -38,6 +38,7 @@ const menuItems: MenuItem[] = [
     icon: Folder,
     children: [
       { title: "Upload to Editor", icon: Upload, path: "/upload" },
+      { title: "Invite Editor", icon: Users, path: "/invite-editor" },
       { title: "Order Status", icon: ClipboardList, path: "/orders" },
     ],
   },

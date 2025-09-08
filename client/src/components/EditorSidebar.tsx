@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   Camera,
-  Users
+  Users,
+  Mail
 } from "lucide-react";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { signOut } from "@/lib/firebaseAuth";
@@ -27,6 +28,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard", icon: Home, path: "/editor" },
+  { title: "Invitations", icon: Mail, path: "/editor/invitations" },
   { title: "Job Queue", icon: FileImage, path: "/editor/jobs" },
   { title: "Downloads", icon: Download, path: "/editor/downloads" },
   { title: "Upload Completed", icon: Upload, path: "/editor/uploads" },
