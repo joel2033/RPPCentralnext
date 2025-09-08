@@ -21,84 +21,14 @@ import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
-import InviteEditor from "@/pages/InviteEditor";
-import Partnerships from "@/pages/Partnerships";
 import TeamMembers from "@/pages/TeamMembers";
-import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
-
-// Editor Components
-import EditorLogin from "@/pages/EditorLogin";
-import EditorSignup from "@/pages/EditorSignup";
-import EditorDashboard from "@/pages/EditorDashboard";
-import EditorJobs from "@/pages/EditorJobs";
-import EditorDownloads from "@/pages/EditorDownloads";
-import EditorUploads from "@/pages/EditorUploads";
-import EditorSettings from "@/pages/EditorSettings";
-import EditorInvitations from "@/pages/EditorInvitations";
-import EditorProtectedRoute from "@/components/EditorProtectedRoute";
-import EditorLayout from "@/components/EditorLayout";
-import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
 
 function Router() {
   return (
     <Switch>
-      {/* Partner Authentication */}
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
-      
-      {/* Editor App - Completely Separate */}
-      <Route path="/editor-login" component={EditorLogin} />
-      <Route path="/editor-signup" component={EditorSignup} />
-      <Route path="/editor">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorDashboard />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/dashboard">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorDashboard />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/jobs">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorJobs />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/downloads">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorDownloads />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/uploads">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorUploads />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/invitations">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorInvitations />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/settings">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorSettings />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
       
       <Route path="/">
         <ProtectedRoute route="/dashboard">
@@ -180,22 +110,6 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/invite-editor">
-        <ProtectedRoute route="/invite-editor">
-          <Layout>
-            <InviteEditor />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
-      
-      <Route path="/partnerships">
-        <ProtectedRoute route="/partnerships">
-          <Layout>
-            <Partnerships />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
-      
       <Route path="/team">
         <ProtectedRoute route="/settings">
           <Layout>
@@ -204,10 +118,10 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/settings">
-        <ProtectedRoute route="/settings">
+      <Route path="/editor-dashboard">
+        <ProtectedRoute route="/editor-dashboard">
           <Layout>
-            <Settings />
+            <Dashboard />
           </Layout>
         </ProtectedRoute>
       </Route>
@@ -238,10 +152,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <EditorAuthProvider>
-            <Router />
-            <Toaster />
-          </EditorAuthProvider>
+          <Router />
+          <Toaster />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

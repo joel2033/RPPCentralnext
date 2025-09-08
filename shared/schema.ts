@@ -78,32 +78,6 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Editor service categories
-export const serviceCategories = pgTable("service_categories", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  editorId: text("editor_id").notNull(), // Firebase UID of editor
-  name: text("name").notNull(),
-  description: text("description"),
-  displayOrder: integer("display_order").default(0),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Editor services
-export const editorServices = pgTable("editor_services", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  editorId: text("editor_id").notNull(), // Firebase UID of editor
-  categoryId: varchar("category_id").references(() => serviceCategories.id),
-  name: text("name").notNull(),
-  description: text("description"),
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  pricePer: text("price_per").default("image"), // "image", "property", "hour", "fixed"
-  estimatedTurnaround: text("estimated_turnaround"), // e.g., "24 hours", "2-3 days"
-  isActive: boolean("is_active").default(true),
-  displayOrder: integer("display_order").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -142,16 +116,6 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   createdAt: true,
 });
 
-export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertEditorServiceSchema = createInsertSchema(editorServices).omit({
-  id: true,
-  createdAt: true,
-});
-
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -167,9 +131,3 @@ export type InsertJob = z.infer<typeof insertJobSchema>;
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
-
-export type ServiceCategory = typeof serviceCategories.$inferSelect;
-export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
-
-export type EditorService = typeof editorServices.$inferSelect;
-export type InsertEditorService = z.infer<typeof insertEditorServiceSchema>;

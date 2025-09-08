@@ -8,11 +8,7 @@ import {
   type Job,
   type InsertJob,
   type Order,
-  type InsertOrder,
-  type ServiceCategory,
-  type InsertServiceCategory,
-  type EditorService,
-  type InsertEditorService
+  type InsertOrder
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -53,18 +49,6 @@ export interface IStorage {
   
   // Customer Profile
   getCustomerJobs(customerId: string): Promise<Job[]>;
-  
-  // Service Categories
-  getServiceCategories(editorId: string): Promise<ServiceCategory[]>;
-  createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
-  updateServiceCategory(id: string, updates: Partial<ServiceCategory>, editorId: string): Promise<ServiceCategory | undefined>;
-  deleteServiceCategory(id: string, editorId: string): Promise<void>;
-  
-  // Editor Services
-  getEditorServices(editorId: string): Promise<EditorService[]>;
-  createEditorService(service: InsertEditorService): Promise<EditorService>;
-  updateEditorService(id: string, updates: Partial<EditorService>, editorId: string): Promise<EditorService | undefined>;
-  deleteEditorService(id: string, editorId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -73,8 +57,6 @@ export class MemStorage implements IStorage {
   private products: Map<string, Product>;
   private jobs: Map<string, Job>;
   private orders: Map<string, Order>;
-  private serviceCategories: Map<string, ServiceCategory>;
-  private editorServices: Map<string, EditorService>;
   private dataFile = join(process.cwd(), 'storage-data.json');
 
   constructor() {
@@ -83,8 +65,6 @@ export class MemStorage implements IStorage {
     this.products = new Map();
     this.jobs = new Map();
     this.orders = new Map();
-    this.serviceCategories = new Map();
-    this.editorServices = new Map();
     this.loadFromFile();
   }
 
@@ -137,21 +117,7 @@ export class MemStorage implements IStorage {
           });
         }
         
-        // Restore service categories
-        if (data.serviceCategories) {
-          Object.entries(data.serviceCategories).forEach(([id, category]: [string, any]) => {
-            this.serviceCategories.set(id, { ...category, createdAt: new Date(category.createdAt) });
-          });
-        }
-        
-        // Restore editor services
-        if (data.editorServices) {
-          Object.entries(data.editorServices).forEach(([id, service]: [string, any]) => {
-            this.editorServices.set(id, { ...service, createdAt: new Date(service.createdAt) });
-          });
-        }
-        
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services`);
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -165,9 +131,7 @@ export class MemStorage implements IStorage {
         customers: Object.fromEntries(this.customers.entries()),
         products: Object.fromEntries(this.products.entries()),
         jobs: Object.fromEntries(this.jobs.entries()),
-        orders: Object.fromEntries(this.orders.entries()),
-        serviceCategories: Object.fromEntries(this.serviceCategories.entries()),
-        editorServices: Object.fromEntries(this.editorServices.entries())
+        orders: Object.fromEntries(this.orders.entries())
       };
       writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
     } catch (error) {
@@ -371,87 +335,6 @@ export class MemStorage implements IStorage {
   async getUsers(partnerId?: string): Promise<User[]> {
     const allUsers = Array.from(this.users.values());
     return partnerId ? allUsers.filter(user => user.partnerId === partnerId) : allUsers;
-  }
-
-  // Service Categories
-  async getServiceCategories(editorId: string): Promise<ServiceCategory[]> {
-    const allCategories = Array.from(this.serviceCategories.values());
-    return allCategories.filter(category => category.editorId === editorId);
-  }
-
-  async createServiceCategory(insertCategory: InsertServiceCategory): Promise<ServiceCategory> {
-    const id = randomUUID();
-    const category: ServiceCategory = {
-      ...insertCategory,
-      description: insertCategory.description || null,
-      displayOrder: insertCategory.displayOrder || null,
-      isActive: insertCategory.isActive || null,
-      id,
-      createdAt: new Date()
-    };
-    this.serviceCategories.set(id, category);
-    this.saveToFile();
-    return category;
-  }
-
-  async updateServiceCategory(id: string, updates: Partial<ServiceCategory>, editorId: string): Promise<ServiceCategory | undefined> {
-    const category = this.serviceCategories.get(id);
-    if (!category || category.editorId !== editorId) return undefined;
-    
-    const updated = { ...category, ...updates };
-    this.serviceCategories.set(id, updated);
-    this.saveToFile();
-    return updated;
-  }
-
-  async deleteServiceCategory(id: string, editorId: string): Promise<void> {
-    const category = this.serviceCategories.get(id);
-    if (!category || category.editorId !== editorId) return;
-    
-    this.serviceCategories.delete(id);
-    this.saveToFile();
-  }
-
-  // Editor Services
-  async getEditorServices(editorId: string): Promise<EditorService[]> {
-    const allServices = Array.from(this.editorServices.values());
-    return allServices.filter(service => service.editorId === editorId);
-  }
-
-  async createEditorService(insertService: InsertEditorService): Promise<EditorService> {
-    const id = randomUUID();
-    const service: EditorService = {
-      ...insertService,
-      categoryId: insertService.categoryId || null,
-      description: insertService.description || null,
-      pricePer: insertService.pricePer || null,
-      estimatedTurnaround: insertService.estimatedTurnaround || null,
-      isActive: insertService.isActive || null,
-      displayOrder: insertService.displayOrder || null,
-      id,
-      createdAt: new Date()
-    };
-    this.editorServices.set(id, service);
-    this.saveToFile();
-    return service;
-  }
-
-  async updateEditorService(id: string, updates: Partial<EditorService>, editorId: string): Promise<EditorService | undefined> {
-    const service = this.editorServices.get(id);
-    if (!service || service.editorId !== editorId) return undefined;
-    
-    const updated = { ...service, ...updates };
-    this.editorServices.set(id, updated);
-    this.saveToFile();
-    return updated;
-  }
-
-  async deleteEditorService(id: string, editorId: string): Promise<void> {
-    const service = this.editorServices.get(id);
-    if (!service || service.editorId !== editorId) return;
-    
-    this.editorServices.delete(id);
-    this.saveToFile();
   }
 }
 

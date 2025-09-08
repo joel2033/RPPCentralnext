@@ -1,6 +1,5 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin SDK
 const initializeFirebaseAdmin = () => {
@@ -33,21 +32,19 @@ const initializeFirebaseAdmin = () => {
 // Initialize the app
 const app = initializeFirebaseAdmin();
 
-// Export Firestore and Auth instances
+// Export Firestore instance
 export const adminDb = getFirestore(app);
-export const adminAuth = getAuth(app);
 
-// User role type - updated for multi-tenant structure + editor
-export type UserRole = "partner" | "admin" | "photographer" | "editor";
+// User role type - updated for multi-tenant structure
+export type UserRole = "partner" | "admin" | "photographer";
 
-// User data interface with partnerId for multi-tenancy (editors don't need partnerId)
+// User data interface with partnerId for multi-tenancy
 export interface UserData {
   uid: string;
   email: string;
   role: UserRole;
-  partnerId?: string; // Optional for editors
+  partnerId: string;
   createdAt: any;
-  status?: "pending" | "approved" | "rejected"; // For editor approval workflow
 }
 
 // Pending invite interface
@@ -61,30 +58,6 @@ export interface PendingInvite {
   inviteToken: string;
 }
 
-// Partnership invite interface (for partner-editor relationships)
-export interface PartnershipInvite {
-  editorEmail: string;
-  editorStudioName: string;
-  partnerId: string;
-  partnerName: string;
-  partnerEmail: string;
-  status: "pending" | "accepted" | "declined" | "expired";
-  createdAt: any;
-  inviteToken: string;
-}
-
-// Active partnership interface
-export interface Partnership {
-  editorId: string;
-  editorEmail: string;
-  editorStudioName: string;
-  partnerId: string;
-  partnerName: string;
-  partnerEmail: string;
-  acceptedAt: any;
-  isActive: boolean;
-}
-
 // Generate unique partner ID
 export const generatePartnerId = (): string => {
   return 'partner_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
@@ -95,33 +68,19 @@ export const generateInviteToken = (): string => {
   return 'inv_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
 };
 
-// Generate unique partnership invite token
-export const generatePartnershipToken = (): string => {
-  return 'part_' + Math.random().toString(36).substr(2, 16) + Date.now().toString(36);
-};
-
 // Create user document in Firestore with partnerId
 export const createUserDocument = async (uid: string, email: string, role: UserRole, partnerId?: string): Promise<string> => {
   try {
-    // Generate partnerId for new partners, use provided one for team members, none for editors
-    const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : undefined);
+    // Generate partnerId for new partners, use provided one for team members
+    const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : '');
     
     const userData: UserData = {
       uid,
       email,
       role,
+      partnerId: userPartnerId,
       createdAt: new Date()
     };
-
-    // Add partnerId only if it exists (not for editors)
-    if (userPartnerId) {
-      userData.partnerId = userPartnerId;
-    }
-
-    // Add pending status for editors
-    if (role === 'editor') {
-      userData.status = 'pending';
-    }
 
     // Add document to users collection
     const userRef = adminDb.collection('users').doc(uid);
@@ -211,159 +170,6 @@ export const updateInviteStatus = async (token: string, status: string): Promise
     }
   } catch (error) {
     console.error('Error updating invite status:', error);
-    throw error;
-  }
-};
-
-// Create partnership invite
-export const createPartnershipInvite = async (
-  editorEmail: string, 
-  editorStudioName: string,
-  partnerId: string,
-  partnerName: string,
-  partnerEmail: string
-): Promise<string> => {
-  try {
-    const inviteToken = generatePartnershipToken();
-    
-    const inviteData: PartnershipInvite = {
-      editorEmail,
-      editorStudioName,
-      partnerId,
-      partnerName,
-      partnerEmail,
-      status: "pending",
-      createdAt: new Date(),
-      inviteToken
-    };
-
-    // Add document to partnershipInvites collection
-    const inviteRef = adminDb.collection('partnershipInvites').doc();
-    await inviteRef.set(inviteData);
-    
-    console.log(`Partnership invite created for ${editorEmail} by partner ${partnerEmail}`);
-    return inviteToken;
-  } catch (error) {
-    console.error('Error creating partnership invite:', error);
-    throw error;
-  }
-};
-
-// Get partnership invite by token
-export const getPartnershipInvite = async (token: string): Promise<PartnershipInvite | null> => {
-  try {
-    const invitesSnapshot = await adminDb.collection('partnershipInvites')
-      .where('inviteToken', '==', token)
-      .where('status', '==', 'pending')
-      .get();
-    
-    if (invitesSnapshot.empty) {
-      return null;
-    }
-    
-    return invitesSnapshot.docs[0].data() as PartnershipInvite;
-  } catch (error) {
-    console.error('Error getting partnership invite:', error);
-    throw error;
-  }
-};
-
-// Update partnership invite status
-export const updatePartnershipInviteStatus = async (token: string, status: string): Promise<void> => {
-  try {
-    const invitesSnapshot = await adminDb.collection('partnershipInvites')
-      .where('inviteToken', '==', token)
-      .get();
-    
-    if (!invitesSnapshot.empty) {
-      const inviteDoc = invitesSnapshot.docs[0];
-      await inviteDoc.ref.update({ status });
-      console.log(`Partnership invite status updated to ${status} for token ${token}`);
-    }
-  } catch (error) {
-    console.error('Error updating partnership invite status:', error);
-    throw error;
-  }
-};
-
-// Create active partnership
-export const createPartnership = async (
-  editorId: string,
-  editorEmail: string,
-  editorStudioName: string,
-  partnerId: string,
-  partnerName: string,
-  partnerEmail: string
-): Promise<string> => {
-  try {
-    const partnershipData: Partnership = {
-      editorId,
-      editorEmail,
-      editorStudioName,
-      partnerId,
-      partnerName,
-      partnerEmail,
-      acceptedAt: new Date(),
-      isActive: true
-    };
-
-    // Add document to partnerships collection
-    const partnershipRef = adminDb.collection('partnerships').doc();
-    await partnershipRef.set(partnershipData);
-    
-    console.log(`Partnership created between ${editorEmail} and ${partnerEmail}`);
-    return partnershipRef.id;
-  } catch (error) {
-    console.error('Error creating partnership:', error);
-    throw error;
-  }
-};
-
-// Get partnerships for a partner
-export const getPartnerPartnerships = async (partnerId: string): Promise<Partnership[]> => {
-  try {
-    const partnershipsSnapshot = await adminDb.collection('partnerships')
-      .where('partnerId', '==', partnerId)
-      .where('isActive', '==', true)
-      .get();
-    
-    return partnershipsSnapshot.docs.map(doc => doc.data() as Partnership);
-  } catch (error) {
-    console.error('Error getting partner partnerships:', error);
-    throw error;
-  }
-};
-
-// Get partnerships for an editor
-export const getEditorPartnerships = async (editorId: string): Promise<Partnership[]> => {
-  try {
-    const partnershipsSnapshot = await adminDb.collection('partnerships')
-      .where('editorId', '==', editorId)
-      .where('isActive', '==', true)
-      .get();
-    
-    return partnershipsSnapshot.docs.map(doc => doc.data() as Partnership);
-  } catch (error) {
-    console.error('Error getting editor partnerships:', error);
-    throw error;
-  }
-};
-
-// Get pending partnership invites for an editor
-export const getEditorPendingInvites = async (editorEmail: string): Promise<PartnershipInvite[]> => {
-  try {
-    // Get all pending invites and filter case-insensitively
-    const invitesSnapshot = await adminDb.collection('partnershipInvites')
-      .where('status', '==', 'pending')
-      .get();
-    
-    const invites = invitesSnapshot.docs
-      .map(doc => doc.data() as PartnershipInvite)
-      .filter(invite => invite.editorEmail.toLowerCase() === editorEmail.toLowerCase());
-    
-    return invites;
-  } catch (error) {
-    console.error('Error getting editor pending invites:', error);
     throw error;
   }
 };
