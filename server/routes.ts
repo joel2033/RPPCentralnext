@@ -428,7 +428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create pending invite
-      const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId, uid);
+      const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId!, uid);
       
       // In a real implementation, you'd send an email here
       const inviteLink = `${req.protocol}://${req.get('host')}/signup?invite=${inviteToken}`;
