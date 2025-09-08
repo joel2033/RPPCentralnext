@@ -24,6 +24,7 @@ import Upload from "@/pages/Upload";
 import InviteEditor from "@/pages/InviteEditor";
 import Partnerships from "@/pages/Partnerships";
 import TeamMembers from "@/pages/TeamMembers";
+import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 // Editor Components
@@ -203,6 +204,13 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/settings">
+        <ProtectedRoute route="/settings">
+          <Layout>
+            <Settings />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
       
       <Route path="/production-hub">
         <ProtectedRoute route="/production-hub">

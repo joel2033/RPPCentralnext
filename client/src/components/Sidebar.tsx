@@ -14,7 +14,8 @@ import {
   ClipboardList,
   LogOut,
   ChevronDown,
-  Handshake
+  Handshake,
+  Settings
 } from "lucide-react";
 
 interface SidebarProps {
@@ -61,6 +62,7 @@ const menuItems: MenuItem[] = [
     ],
   },
   { title: "Team Members", icon: Users, path: "/team" },
+  { title: "Settings", icon: Settings, path: "/settings" },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
