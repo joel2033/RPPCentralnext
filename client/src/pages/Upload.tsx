@@ -12,10 +12,10 @@ interface SelectedService {
   id: string;
   service: any;
   quantity: number;
-  instructions: {
+  instructions: Array<{
     fileName: string;
     detail: string;
-  };
+  }>;
   exportTypes: Array<{
     type: string;
     description: string;
@@ -143,10 +143,10 @@ export default function Upload() {
       id: `service_${Date.now()}`,
       service,
       quantity: 1,
-      instructions: {
+      instructions: [{
         fileName: "",
         detail: ""
-      },
+      }],
       exportTypes: [{
         type: "",
         description: ""
@@ -168,10 +168,35 @@ export default function Upload() {
     ));
   };
 
-  const updateServiceInstructions = (serviceId: string, field: 'fileName' | 'detail', value: string) => {
+  const updateServiceInstructions = (serviceId: string, instructionIndex: number, field: 'fileName' | 'detail', value: string) => {
     setSelectedServices(prev => prev.map(s => 
       s.id === serviceId 
-        ? { ...s, instructions: { ...s.instructions, [field]: value } }
+        ? { 
+            ...s, 
+            instructions: s.instructions.map((instruction, index) => 
+              index === instructionIndex 
+                ? { ...instruction, [field]: value }
+                : instruction
+            )
+          }
+        : s
+    ));
+  };
+
+  // Add new instruction pair to service
+  const addServiceInstruction = (serviceId: string) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, instructions: [...s.instructions, { fileName: "", detail: "" }] }
+        : s
+    ));
+  };
+
+  // Remove instruction pair from service
+  const removeServiceInstruction = (serviceId: string, instructionIndex: number) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId && s.instructions.length > 1
+        ? { ...s, instructions: s.instructions.filter((_, index) => index !== instructionIndex) }
         : s
     ));
   };
@@ -437,21 +462,50 @@ export default function Upload() {
                     <p className="text-xs text-gray-500 mb-3">
                       Offer detailed guidance as needed to help your supplier deliver the expected results for this service.
                     </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        placeholder="File Name"
-                        value={selectedService.instructions.fileName}
-                        onChange={(e) => updateServiceInstructions(selectedService.id, 'fileName', e.target.value)}
-                        className="border-gray-300"
-                        data-testid={`input-file-name-${selectedService.id}`}
-                      />
-                      <Textarea
-                        placeholder="Detail your instruction"
-                        value={selectedService.instructions.detail}
-                        onChange={(e) => updateServiceInstructions(selectedService.id, 'detail', e.target.value)}
-                        className="border-gray-300 min-h-[100px] resize-none"
-                        data-testid={`textarea-instruction-${selectedService.id}`}
-                      />
+                    <div className="space-y-3">
+                      {selectedService.instructions.map((instruction, index) => (
+                        <div key={index} className="flex items-start space-x-2">
+                          <div className="grid grid-cols-2 gap-4 flex-1">
+                            <Input
+                              placeholder="File Name"
+                              value={instruction.fileName}
+                              onChange={(e) => updateServiceInstructions(selectedService.id, index, 'fileName', e.target.value)}
+                              className="border-gray-300 h-9"
+                              data-testid={`input-file-name-${selectedService.id}-${index}`}
+                            />
+                            <Textarea
+                              placeholder="Detail your instruction"
+                              value={instruction.detail}
+                              onChange={(e) => updateServiceInstructions(selectedService.id, index, 'detail', e.target.value)}
+                              className="border-gray-300 h-9 resize-none text-sm py-2"
+                              data-testid={`textarea-instruction-${selectedService.id}-${index}`}
+                            />
+                          </div>
+                          {selectedService.instructions.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeServiceInstruction(selectedService.id, index)}
+                              className="text-red-500 hover:text-red-700 mt-0 h-9 w-9 p-0"
+                              data-testid={`button-remove-instruction-${selectedService.id}-${index}`}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addServiceInstruction(selectedService.id)}
+                        className="w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
+                        data-testid={`button-add-instruction-${selectedService.id}`}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Another Instruction
+                      </Button>
                     </div>
                   </div>
 
