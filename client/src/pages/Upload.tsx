@@ -47,22 +47,14 @@ export default function Upload() {
   });
 
   useEffect(() => {
-    console.log('Effect triggered - services:', editorServices?.length, 'categories:', serviceCategories?.length);
-    
     if (editorServices && editorServices.length > 0) {
-      console.log('Processing services:', editorServices);
-      console.log('Available categories:', serviceCategories);
-      
       // Group services by category
-      const activeServices = editorServices.filter(service => service.isActive);
-      console.log('Active services:', activeServices);
-      
+      const activeServices = editorServices.filter(service => service.isActive !== false);
       const grouped: {[key: string]: any[]} = {};
       
       // Group services by categoryId
       activeServices.forEach(service => {
         const categoryId = service.categoryId || 'uncategorized';
-        console.log('Service:', service.name, 'categoryId:', categoryId);
         
         if (!grouped[categoryId]) {
           grouped[categoryId] = [];
@@ -70,10 +62,8 @@ export default function Upload() {
         grouped[categoryId].push(service);
       });
       
-      console.log('Final grouped services:', grouped);
       setGroupedServices(grouped);
     } else {
-      console.log('No services to process');
       setGroupedServices({});
     }
   }, [editorServices, serviceCategories]);
