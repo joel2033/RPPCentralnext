@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin SDK
 const initializeFirebaseAdmin = () => {
@@ -34,6 +35,9 @@ const app = initializeFirebaseAdmin();
 
 // Export Firestore instance
 export const adminDb = getFirestore(app);
+
+// Export Auth instance
+export const adminAuth = getAuth(app);
 
 // User role type - updated for multi-tenant structure
 export type UserRole = "partner" | "admin" | "photographer";

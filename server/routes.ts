@@ -14,6 +14,7 @@ import {
   updateInviteStatus,
   getUserDocument,
   adminDb,
+  adminAuth,
   UserRole 
 } from "./firebase-admin";
 import { z } from "zod";
@@ -594,6 +595,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: error.message 
         });
       }
+    }
+  });
+
+  // ===== PARTNERSHIPS ENDPOINTS =====
+
+  // Get available suppliers (editors) for partnerships
+  app.get("/api/partnerships/suppliers", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can view suppliers" });
+      }
+      
+      // Get all users with editor role who could be suppliers
+      const allUsers = await storage.getUsers();
+      const suppliers = allUsers
+        .filter(user => user.role === 'editor')
+        .map(editor => ({
+          id: editor.id,
+          firstName: editor.firstName || 'Editor',
+          lastName: editor.lastName || '',
+          email: editor.email,
+          role: editor.role,
+          studioName: `${editor.firstName || 'Editor'} ${editor.lastName || ''}`.trim() || editor.email.split('@')[0]
+        }));
+      
+      res.json(suppliers);
+    } catch (error: any) {
+      console.error("Error getting partner suppliers:", error);
+      res.status(500).json({ 
+        error: "Failed to get suppliers", 
+        details: error.message 
+      });
     }
   });
   
