@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
+import { FileUploadModal } from "@/components/FileUploadModal";
 
 interface SelectedService {
   id: string;
@@ -30,6 +31,8 @@ export default function Upload() {
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [groupedServices, setGroupedServices] = useState<{[key: string]: any[]}>({});
   const [selectedEditor, setSelectedEditor] = useState("");
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [currentUploadService, setCurrentUploadService] = useState<SelectedService | null>(null);
 
   // Get jobs for dropdown
   const { data: jobs = [] } = useQuery<any[]>({
@@ -109,6 +112,29 @@ export default function Upload() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+  };
+
+  // Handle file uploads for specific service
+  const handleServiceFileUpload = (serviceId: string, files: File[]) => {
+    setSelectedServices(prev => 
+      prev.map(service => 
+        service.id === serviceId 
+          ? { ...service, files: [...service.files, ...files] }
+          : service
+      )
+    );
+  };
+
+  // Open upload modal for specific service
+  const openUploadModal = (service: SelectedService) => {
+    setCurrentUploadService(service);
+    setUploadModalOpen(true);
+  };
+
+  // Close upload modal
+  const closeUploadModal = () => {
+    setUploadModalOpen(false);
+    setCurrentUploadService(null);
   };
 
   // Service management functions
@@ -294,13 +320,13 @@ export default function Upload() {
                         const categoryName = category ? category.name : 'Uncategorized';
                         
                         return (
-                          <SelectGroup key={categoryId}>
-                            {categoryIndex > 0 && <SelectSeparator />}
-                            <SelectLabel className="font-medium text-gray-900">
+                          <SelectGroup key={`${categoryId}-${categoryIndex}`}>
+                            {categoryIndex > 0 && <SelectSeparator key={`separator-${categoryIndex}`} />}
+                            <SelectLabel key={`label-${categoryId}`} className="font-medium text-gray-900">
                               {categoryName}
                             </SelectLabel>
-                            {services.map((service) => (
-                              <SelectItem key={service.id} value={service.name}>
+                            {services.map((service, serviceIndex) => (
+                              <SelectItem key={`${service.id}-${serviceIndex}`} value={service.name}>
                                 <div className="flex flex-col">
                                   <span className="font-medium">{service.name}</span>
                                   {service.basePrice && (
@@ -341,18 +367,20 @@ export default function Upload() {
 
               {/* Individual Service Sections */}
               {selectedServices.map((selectedService, serviceIndex) => (
-                <div key={selectedService.id} className="mt-6">
+                <Card key={selectedService.id} className="mt-6 border-rpp-grey-border">
+                  <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xs text-blue-600 uppercase tracking-wider">SERVICE {serviceIndex + 1}</span>
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => openUploadModal(selectedService)}
                         className="border-gray-300"
                         data-testid={`button-upload-${selectedService.id}`}
                       >
                         <UploadIcon className="w-4 h-4 mr-2" />
-                        Upload
+                        Upload {selectedService.files.length > 0 && `(${selectedService.files.length})`}
                       </Button>
                       <Button
                         variant="outline"
@@ -489,7 +517,8 @@ export default function Upload() {
                       </Button>
                     </div>
                   </div>
-                </div>
+                  </CardContent>
+                </Card>
               ))}
 
               {/* END OF SERVICES */}
@@ -501,44 +530,6 @@ export default function Upload() {
             </CardContent>
           </Card>
 
-          {/* File Upload */}
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">Upload Files</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div
-                onDragOver={handleDragOver}
-                className="border-2 border-dashed border-rpp-grey-border rounded-lg p-8 text-center hover:border-rpp-red-main transition-colors"
-              >
-                <UploadIcon className="w-12 h-12 text-rpp-grey-light mx-auto mb-4" />
-                <p className="text-rpp-grey-dark font-medium mb-2">
-                  Drag and drop your files here, or click to browse
-                </p>
-                <p className="text-sm text-rpp-grey-light mb-4">
-                  Supported formats: JPG, PNG, RAW, TIFF (Max 100MB per file)
-                </p>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={() => {}}
-                  className="hidden"
-                  id="file-upload"
-                  disabled
-                />
-                <label htmlFor="file-upload">
-                  <Button variant="outline" className="border-rpp-grey-border">
-                    Choose Files
-                  </Button>
-                </label>
-              </div>
-
-              <p className="text-sm text-rpp-grey-light mt-4 text-center">
-                File uploads are handled individually for each service above.
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Order Summary Sidebar */}
@@ -621,6 +612,17 @@ export default function Upload() {
           </Card>
         </div>
       </div>
+
+      {/* File Upload Modal */}
+      {currentUploadService && (
+        <FileUploadModal
+          isOpen={uploadModalOpen}
+          onClose={closeUploadModal}
+          serviceName={currentUploadService.service.name}
+          serviceId={currentUploadService.id}
+          onFilesUpload={handleServiceFileUpload}
+        />
+      )}
     </div>
   );
 }
