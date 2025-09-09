@@ -48,13 +48,19 @@ export default function Upload() {
 
   useEffect(() => {
     if (editorServices && editorServices.length > 0) {
+      console.log('🔍 DEBUG: Services received:', editorServices);
+      console.log('🔍 DEBUG: Categories received:', serviceCategories);
+      
       // Group services by category
       const activeServices = editorServices.filter(service => service.isActive !== false);
+      console.log('🔍 DEBUG: Active services:', activeServices);
+      
       const grouped: {[key: string]: any[]} = {};
       
       // Group services by categoryId
       activeServices.forEach(service => {
         const categoryId = service.categoryId || 'uncategorized';
+        console.log(`🔍 DEBUG: Service "${service.name}" has categoryId: "${service.categoryId}" (using: "${categoryId}")`);
         
         if (!grouped[categoryId]) {
           grouped[categoryId] = [];
@@ -62,6 +68,7 @@ export default function Upload() {
         grouped[categoryId].push(service);
       });
       
+      console.log('🔍 DEBUG: Final grouped services:', grouped);
       setGroupedServices(grouped);
     } else {
       setGroupedServices({});
