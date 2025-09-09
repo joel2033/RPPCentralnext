@@ -259,10 +259,17 @@ export default function Upload() {
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
                   Services
                 </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Choose the services that the suppliers and perform for this order</p>
+                <p className="text-xs text-rpp-grey-light mb-2">Choose the services that the supplier will perform for this order.</p>
                 <Select 
-                  value={orderDetails.service} 
-                  onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
+                  value=""
+                  onValueChange={(value) => {
+                    // Find the selected service object
+                    const allServices = Object.values(groupedServices).flat();
+                    const selectedService = allServices.find(service => service.name === value);
+                    if (selectedService) {
+                      addService(selectedService);
+                    }
+                  }}
                   disabled={!selectedEditor || isLoadingServices || isLoadingCategories}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
@@ -273,7 +280,7 @@ export default function Upload() {
                         ? "Loading services..."
                         : Object.keys(groupedServices).length === 0
                         ? "No services available"
-                        : "Select a service..."
+                        : "Select services..."
                     } />
                   </SelectTrigger>
                   <SelectContent>
@@ -310,186 +317,185 @@ export default function Upload() {
                     )}
                   </SelectContent>
                 </Select>
-                {orderDetails.service && (
-                  <div className="mt-4 p-6 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="text-center mb-6">
-                      <span className="text-xs text-blue-600 uppercase tracking-wider">SERVICE 1</span>
-                      <div className="font-medium text-lg text-gray-900 mt-1">{orderDetails.service}</div>
-                    </div>
 
-                    {/* Quantity Section */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Quantity
-                      </label>
-                      <div className="flex items-center space-x-4">
+                {/* Selected Services Display */}
+                {selectedServices.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {selectedServices.map((selectedService) => (
+                      <div key={selectedService.id} className="flex items-center bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">
+                        <span className="mr-2">{selectedService.service.name} - [{selectedService.service.pricePer === 'image' ? 'Day' : selectedService.service.pricePer}]</span>
+                        <span className="mr-2">${parseFloat(selectedService.service.basePrice).toFixed(2)}</span>
                         <Button
-                          type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            const currentQty = parseInt(orderDetails.quantity) || 0;
-                            const newQty = Math.max(0, currentQty - 1);
-                            setOrderDetails(prev => ({ ...prev, quantity: newQty.toString() }));
-                          }}
-                          className="w-8 h-8 p-0 border-gray-300"
-                          data-testid="button-decrease-quantity"
+                          onClick={() => removeService(selectedService.id)}
+                          className="h-4 w-4 p-0 hover:bg-red-200"
                         >
-                          <Minus className="w-4 h-4" />
+                          <X className="h-3 w-3" />
                         </Button>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={orderDetails.quantity}
-                          onChange={(e) => {
-                            const value = Math.max(0, parseInt(e.target.value) || 0);
-                            setOrderDetails(prev => ({ ...prev, quantity: value.toString() }));
-                          }}
-                          className="w-16 text-center border-gray-300"
-                          data-testid="input-quantity"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const currentQty = parseInt(orderDetails.quantity) || 0;
-                            setOrderDetails(prev => ({ ...prev, quantity: (currentQty + 1).toString() }));
-                          }}
-                          className="w-8 h-8 p-0 border-gray-300"
-                          data-testid="button-increase-quantity"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                        <span className="text-sm text-gray-500 ml-2">final files expected to be delivered.</span>
                       </div>
-                    </div>
-
-                    {/* Instructions Section */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Instructions
-                      </label>
-                      <p className="text-xs text-gray-500 mb-3">
-                        Offer detailed guidance as needed to help your supplier deliver the expected results for this service.
-                      </p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Input
-                          placeholder="File Name"
-                          value={orderDetails.fileName}
-                          onChange={(e) => setOrderDetails(prev => ({ ...prev, fileName: e.target.value }))}
-                          className="border-gray-300"
-                          data-testid="input-file-name"
-                        />
-                        <Textarea
-                          placeholder="Detail your instruction"
-                          value={orderDetails.instructions[0] || ""}
-                          onChange={(e) => updateInstruction(0, e.target.value)}
-                          className="border-gray-300 min-h-[100px] resize-none"
-                          data-testid="textarea-instruction-0"
-                        />
-                      </div>
-                      {orderDetails.instructions.length > 1 && (
-                        <div className="mt-3 space-y-2">
-                          {orderDetails.instructions.slice(1).map((instruction, index) => (
-                            <div key={index + 1} className="flex space-x-2">
-                              <Textarea
-                                placeholder={`Additional instruction ${index + 2}...`}
-                                value={instruction}
-                                onChange={(e) => updateInstruction(index + 1, e.target.value)}
-                                className="border-gray-300 min-h-[80px] flex-1 resize-none"
-                                data-testid={`textarea-instruction-${index + 1}`}
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeInstruction(index + 1)}
-                                className="self-start mt-2 text-red-500 hover:text-red-700"
-                                data-testid={`button-remove-instruction-${index + 1}`}
-                              >
-                                <Minus className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addInstruction}
-                        className="mt-3 w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
-                        data-testid="button-add-instruction"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Another Instruction
-                      </Button>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* Export Types - only show when service is selected */}
-              {orderDetails.service && (
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Export Types
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Specify output requirements for your order, such as watermarks, folder sizes, and other preferences
-                  </p>
-                  <div className="space-y-3">
-                    {orderDetails.exportTypes.map((exportType, index) => (
-                      <div key={index} className="grid grid-cols-2 gap-4">
-                        <Select
-                          value={exportType}
-                          onValueChange={(value) => updateExportType(index, value)}
-                        >
-                          <SelectTrigger className="border-gray-300" data-testid={`select-export-type-${index}`}>
-                            <SelectValue placeholder="Choose Export Type..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="high-res">High Resolution</SelectItem>
-                            <SelectItem value="web-res">Web Resolution</SelectItem>
-                            <SelectItem value="print-ready">Print Ready</SelectItem>
-                            <SelectItem value="social-media">Social Media Optimized</SelectItem>
-                            <SelectItem value="raw-files">RAW Files</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="flex items-center space-x-2">
-                          <Input
-                            placeholder="Provide description"
-                            className="border-gray-300 flex-1"
-                            data-testid={`input-export-description-${index}`}
-                          />
-                          {orderDetails.exportTypes.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeExportType(index)}
-                              className="text-red-500 hover:text-red-700"
-                              data-testid={`button-remove-export-type-${index}`}
-                            >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addExportType}
-                      className="w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
-                      data-testid="button-add-export-type"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Export Type
-                    </Button>
+              {/* Individual Service Sections */}
+              {selectedServices.map((selectedService, serviceIndex) => (
+                <div key={selectedService.id} className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs text-blue-600 uppercase tracking-wider">SERVICE {serviceIndex + 1}</span>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-300"
+                        data-testid={`button-upload-${selectedService.id}`}
+                      >
+                        <UploadIcon className="w-4 h-4 mr-2" />
+                        Upload
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeService(selectedService.id)}
+                        className="text-red-500 hover:text-red-700"
+                        data-testid={`button-delete-service-${selectedService.id}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+                  
+                  <div className="text-center mb-6">
+                    <div className="font-medium text-lg text-gray-900">{selectedService.service.name} - [{selectedService.service.pricePer === 'image' ? 'Day' : selectedService.service.pricePer}]</div>
+                  </div>
+
+                  {/* Quantity Section */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Quantity
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateServiceQuantity(selectedService.id, -1)}
+                        className="w-8 h-8 p-0 border-gray-300"
+                        data-testid={`button-decrease-quantity-${selectedService.id}`}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm font-medium w-8 text-center">{selectedService.quantity}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateServiceQuantity(selectedService.id, 1)}
+                        className="w-8 h-8 p-0 border-gray-300"
+                        data-testid={`button-increase-quantity-${selectedService.id}`}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm text-gray-500 ml-2">total files expected to be delivered.</span>
+                    </div>
+                  </div>
+
+                  {/* Instructions Section */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Instructions
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Offer detailed guidance as needed to help your supplier deliver the expected results for this service.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        placeholder="File Name"
+                        value={selectedService.instructions.fileName}
+                        onChange={(e) => updateServiceInstructions(selectedService.id, 'fileName', e.target.value)}
+                        className="border-gray-300"
+                        data-testid={`input-file-name-${selectedService.id}`}
+                      />
+                      <Textarea
+                        placeholder="Detail your instruction"
+                        value={selectedService.instructions.detail}
+                        onChange={(e) => updateServiceInstructions(selectedService.id, 'detail', e.target.value)}
+                        className="border-gray-300 min-h-[100px] resize-none"
+                        data-testid={`textarea-instruction-${selectedService.id}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Export Types Section */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Export Types
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Specify output requirements for your order, such as watermarks, folder sizes, and other preferences
+                    </p>
+                    <div className="space-y-3">
+                      {selectedService.exportTypes.map((exportType, index) => (
+                        <div key={index} className="grid grid-cols-2 gap-4">
+                          <Select
+                            value={exportType.type}
+                            onValueChange={(value) => updateExportType(selectedService.id, index, 'type', value)}
+                          >
+                            <SelectTrigger className="border-gray-300" data-testid={`select-export-type-${selectedService.id}-${index}`}>
+                              <SelectValue placeholder="Choose Export Type..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high-res">High Resolution</SelectItem>
+                              <SelectItem value="web-res">Web Resolution</SelectItem>
+                              <SelectItem value="print-ready">Print Ready</SelectItem>
+                              <SelectItem value="social-media">Social Media Optimized</SelectItem>
+                              <SelectItem value="raw-files">RAW Files</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              placeholder="Provide description"
+                              value={exportType.description}
+                              onChange={(e) => updateExportType(selectedService.id, index, 'description', e.target.value)}
+                              className="border-gray-300 flex-1"
+                              data-testid={`input-export-description-${selectedService.id}-${index}`}
+                            />
+                            {selectedService.exportTypes.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeExportType(selectedService.id, index)}
+                                className="text-red-500 hover:text-red-700"
+                                data-testid={`button-remove-export-type-${selectedService.id}-${index}`}
+                              >
+                                <Minus className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addExportType(selectedService.id)}
+                        className="w-full border-dashed border-gray-300 text-gray-600 hover:text-gray-800"
+                        data-testid={`button-add-export-type-${selectedService.id}`}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Export Type
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* END OF SERVICES */}
+              {selectedServices.length > 0 && (
+                <div className="mt-8 text-center">
+                  <span className="text-sm text-gray-500 uppercase tracking-wider">END OF SERVICES</span>
                 </div>
               )}
             </CardContent>
@@ -502,7 +508,6 @@ export default function Upload() {
             </CardHeader>
             <CardContent>
               <div
-                onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 className="border-2 border-dashed border-rpp-grey-border rounded-lg p-8 text-center hover:border-rpp-red-main transition-colors"
               >
@@ -517,9 +522,10 @@ export default function Upload() {
                   type="file"
                   multiple
                   accept="image/*"
-                  onChange={handleFileSelect}
+                  onChange={() => {}}
                   className="hidden"
                   id="file-upload"
+                  disabled
                 />
                 <label htmlFor="file-upload">
                   <Button variant="outline" className="border-rpp-grey-border">
@@ -528,38 +534,9 @@ export default function Upload() {
                 </label>
               </div>
 
-              {/* Selected Files */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="font-medium text-rpp-grey-dark mb-3">
-                    Selected Files ({selectedFiles.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 border border-rpp-grey-border rounded-lg"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <FileImage className="w-5 h-5 text-rpp-grey-light" />
-                          <div>
-                            <p className="text-sm font-medium text-rpp-grey-dark">{file.name}</p>
-                            <p className="text-xs text-rpp-grey-light">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => removeFile(index)}
-                          className="text-rpp-grey-light hover:text-red-500"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <p className="text-sm text-rpp-grey-light mt-4 text-center">
+                File uploads are handled individually for each service above.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -589,29 +566,22 @@ export default function Upload() {
                     </span>
                   </div>
                 )}
-                {orderDetails.service && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-rpp-grey-light">Service:</span>
-                    <span className="text-rpp-grey-dark">{orderDetails.service}</span>
+                {selectedServices.map((service, index) => (
+                  <div key={service.id} className="flex justify-between text-sm">
+                    <span className="text-rpp-grey-light">{service.service.name} (Qty: {service.quantity}):</span>
+                    <span className="text-rpp-grey-dark">${(parseFloat(service.service.basePrice) * service.quantity).toFixed(2)}</span>
                   </div>
-                )}
+                ))}
                 <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Digital Edits - (Sky To Dusk):</span>
-                  <span className="text-rpp-grey-dark">$4.50</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Quantity:</span>
-                  <span className="text-rpp-grey-dark">{orderDetails.quantity || '0'}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-rpp-grey-light">Service fee (5):</span>
+                  <span className="text-rpp-grey-light">Service fee:</span>
                   <span className="text-rpp-grey-dark">$0.25</span>
                 </div>
                 <hr className="border-rpp-grey-border" />
                 <div className="flex justify-between font-medium">
                   <span className="text-rpp-grey-dark">Total (estimated cost):</span>
                   <span className="text-rpp-grey-dark">
-                    ${((parseFloat(orderDetails.quantity) || 0) * 4.50 + 0.25).toFixed(2)}
+                    ${(selectedServices.reduce((total, service) => 
+                      total + (parseFloat(service.service.basePrice) * service.quantity), 0) + 0.25).toFixed(2)}
                   </span>
                 </div>
                 <div className="text-xs text-rpp-grey-light">
@@ -622,7 +592,7 @@ export default function Upload() {
               <div className="pt-4 space-y-3">
                 <Button
                   className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-                  disabled={selectedFiles.length === 0}
+                  disabled={selectedServices.length === 0}
                 >
                   Submit Order
                 </Button>
