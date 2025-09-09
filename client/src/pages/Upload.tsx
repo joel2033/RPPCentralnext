@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
 export default function Upload() {
@@ -18,7 +18,7 @@ export default function Upload() {
     instructions: [""],
     exportTypes: [""],
   });
-  const [availableServices, setAvailableServices] = useState<string[]>([]);
+  const [groupedServices, setGroupedServices] = useState<{[key: string]: any[]}>({});
   const [selectedEditor, setSelectedEditor] = useState("");
 
   // Get jobs for dropdown
@@ -26,30 +26,46 @@ export default function Upload() {
     queryKey: ["/api/jobs"],
   });
 
-  // Get users (editors/suppliers) for dropdown
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ["/api/users"],
+  // Get partnered editors (suppliers) for dropdown
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({
+    queryKey: ["/api/partnerships/suppliers"],
+    retry: false
   });
 
-  // Get editors/suppliers (users with editor role)
-  const editors = users.filter(user => user.role === 'editor' || user.role === 'admin');
+  // Fetch real services from selected editor
+  const { data: editorServices = [], isLoading: isLoadingServices } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedEditor, "services"],
+    enabled: !!selectedEditor,
+    retry: false
+  });
 
-  // Mock services for now - in real app this would come from selected editor's profile
+  // Fetch service categories from selected editor
+  const { data: serviceCategories = [], isLoading: isLoadingCategories } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedEditor, "service-categories"],
+    enabled: !!selectedEditor,
+    retry: false
+  });
+
   useEffect(() => {
-    if (selectedEditor) {
-      // Mock services based on editor selection
-      setAvailableServices([
-        "Digital Edits - (Sky To Dusk)",
-        "Image Enhancement - Basic",
-        "Virtual Staging",
-        "Photo Retouching",
-        "HDR Processing",
-        "Virtual Tour Creation"
-      ]);
+    if (editorServices && editorServices.length > 0) {
+      // Group services by category
+      const activeServices = editorServices.filter(service => service.isActive);
+      const grouped: {[key: string]: any[]} = {};
+      
+      // Group services by categoryId
+      activeServices.forEach(service => {
+        const categoryId = service.categoryId || 'uncategorized';
+        if (!grouped[categoryId]) {
+          grouped[categoryId] = [];
+        }
+        grouped[categoryId].push(service);
+      });
+      
+      setGroupedServices(grouped);
     } else {
-      setAvailableServices([]);
+      setGroupedServices({});
     }
-  }, [selectedEditor]);
+  }, [editorServices, serviceCategories]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -180,11 +196,21 @@ export default function Upload() {
                     <SelectValue placeholder="Select a supplier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {suppliers.map((supplier: any) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.studioName} ({supplier.email})
+                    {isLoadingSuppliers ? (
+                      <SelectItem value="loading" disabled>
+                        Loading suppliers...
                       </SelectItem>
-                    ))}
+                    ) : suppliers.length === 0 ? (
+                      <SelectItem value="no-suppliers" disabled>
+                        No partner suppliers available
+                      </SelectItem>
+                    ) : (
+                      suppliers.map((supplier: any) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.studioName} ({supplier.email})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -198,17 +224,51 @@ export default function Upload() {
                 <Select 
                   value={orderDetails.service} 
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, service: value }))}
-                  disabled={!selectedEditor}
+                  disabled={!selectedEditor || isLoadingServices || isLoadingCategories}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
-                    <SelectValue placeholder={selectedEditor ? "Select a service..." : "Select a supplier first..."} />
+                    <SelectValue placeholder={
+                      !selectedEditor 
+                        ? "Select a supplier first..."
+                        : (isLoadingServices || isLoadingCategories) 
+                        ? "Loading services..."
+                        : Object.keys(groupedServices).length === 0
+                        ? "No services available"
+                        : "Select a service..."
+                    } />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableServices.map((service) => (
-                      <SelectItem key={service} value={service}>
-                        {service}
+                    {Object.keys(groupedServices).length === 0 ? (
+                      <SelectItem value="no-services" disabled>
+                        No services available
                       </SelectItem>
-                    ))}
+                    ) : (
+                      Object.entries(groupedServices).map(([categoryId, services], categoryIndex) => {
+                        const category = serviceCategories.find(cat => cat.id === categoryId);
+                        const categoryName = category ? category.name : 'Uncategorized';
+                        
+                        return (
+                          <SelectGroup key={categoryId}>
+                            {categoryIndex > 0 && <SelectSeparator key={`sep-${categoryId}`} />}
+                            <SelectLabel className="font-medium text-gray-900">
+                              {categoryName}
+                            </SelectLabel>
+                            {services.map((service) => (
+                              <SelectItem key={service.id} value={service.name}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{service.name}</span>
+                                  {service.basePrice && (
+                                    <span className="text-xs text-gray-500">
+                                      ${parseFloat(service.basePrice).toFixed(2)} per {service.pricePer || 'image'}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
                 {orderDetails.service && (
@@ -484,8 +544,8 @@ export default function Upload() {
                     <span className="text-rpp-grey-light">Supplier:</span>
                     <span className="text-rpp-grey-dark">
                       {(() => {
-                        const editor = users.find(u => u.id === selectedEditor);
-                        return editor ? `${editor.firstName} ${editor.lastName}` : selectedEditor;
+                        const supplier = suppliers.find((s: any) => s.id === selectedEditor);
+                        return supplier ? supplier.studioName : selectedEditor;
                       })()}
                     </span>
                   </div>
