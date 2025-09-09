@@ -145,14 +145,20 @@ export default function Upload() {
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
-                    <SelectValue placeholder="Select a job..." />
+                    <SelectValue placeholder="Select one job..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobs.map((job: any) => (
-                      <SelectItem key={job.jobId} value={job.jobId}>
-                        {job.address || `Job ${job.jobId}`}
+                    {jobs.length === 0 ? (
+                      <SelectItem value="no-jobs" disabled>
+                        No jobs available
                       </SelectItem>
-                    ))}
+                    ) : (
+                      jobs.map((job: any) => (
+                        <SelectItem key={job.jobId} value={job.jobId}>
+                          {job.address} - {new Date(job.scheduledDate).toLocaleDateString()}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -174,9 +180,9 @@ export default function Upload() {
                     <SelectValue placeholder="Select a supplier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {editors.map((editor: any) => (
-                      <SelectItem key={editor.id} value={editor.id}>
-                        {editor.firstName} {editor.lastName} ({editor.role})
+                    {suppliers.map((supplier: any) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.studioName} ({supplier.email})
                       </SelectItem>
                     ))}
                   </SelectContent>
