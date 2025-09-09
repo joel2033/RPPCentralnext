@@ -7,17 +7,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
+interface SelectedService {
+  id: string;
+  service: any;
+  quantity: number;
+  instructions: {
+    fileName: string;
+    detail: string;
+  };
+  exportTypes: Array<{
+    type: string;
+    description: string;
+  }>;
+  files: File[];
+}
+
 export default function Upload() {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [orderDetails, setOrderDetails] = useState({
     jobId: "",
     supplier: "",
-    service: "",
-    quantity: "",
-    fileName: "",
-    instructions: [""],
-    exportTypes: [""],
   });
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [groupedServices, setGroupedServices] = useState<{[key: string]: any[]}>({});
   const [selectedEditor, setSelectedEditor] = useState("");
 
@@ -68,71 +78,105 @@ export default function Upload() {
     }
   }, [editorServices, serviceCategories]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (serviceId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...newFiles]);
+      setSelectedServices(prev => prev.map(s => 
+        s.id === serviceId 
+          ? { ...s, files: [...s.files, ...newFiles] }
+          : s
+      ));
     }
   };
 
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  const removeFile = (serviceId: string, fileIndex: number) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, files: s.files.filter((_, i) => i !== fileIndex) }
+        : s
+    ));
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (serviceId: string, e: React.DragEvent) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
-    setSelectedFiles(prev => [...prev, ...files]);
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, files: [...s.files, ...files] }
+        : s
+    ));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const addInstruction = () => {
-    setOrderDetails(prev => ({
-      ...prev,
-      instructions: [...prev.instructions, ""]
-    }));
+  // Service management functions
+  const addService = (service: any) => {
+    const newService: SelectedService = {
+      id: `service_${Date.now()}`,
+      service,
+      quantity: 1,
+      instructions: {
+        fileName: "",
+        detail: ""
+      },
+      exportTypes: [{
+        type: "",
+        description: ""
+      }],
+      files: []
+    };
+    setSelectedServices(prev => [...prev, newService]);
   };
 
-  const removeInstruction = (index: number) => {
-    if (orderDetails.instructions.length > 1) {
-      setOrderDetails(prev => ({
-        ...prev,
-        instructions: prev.instructions.filter((_, i) => i !== index)
-      }));
-    }
+  const removeService = (serviceId: string) => {
+    setSelectedServices(prev => prev.filter(s => s.id !== serviceId));
   };
 
-  const updateInstruction = (index: number, value: string) => {
-    setOrderDetails(prev => ({
-      ...prev,
-      instructions: prev.instructions.map((inst, i) => i === index ? value : inst)
-    }));
+  const updateServiceQuantity = (serviceId: string, delta: number) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, quantity: Math.max(1, s.quantity + delta) }
+        : s
+    ));
   };
 
-  const addExportType = () => {
-    setOrderDetails(prev => ({
-      ...prev,
-      exportTypes: [...prev.exportTypes, ""]
-    }));
+  const updateServiceInstructions = (serviceId: string, field: 'fileName' | 'detail', value: string) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, instructions: { ...s.instructions, [field]: value } }
+        : s
+    ));
   };
 
-  const removeExportType = (index: number) => {
-    if (orderDetails.exportTypes.length > 1) {
-      setOrderDetails(prev => ({
-        ...prev,
-        exportTypes: prev.exportTypes.filter((_, i) => i !== index)
-      }));
-    }
+  const addExportType = (serviceId: string) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { ...s, exportTypes: [...s.exportTypes, { type: "", description: "" }] }
+        : s
+    ));
   };
 
-  const updateExportType = (index: number, value: string) => {
-    setOrderDetails(prev => ({
-      ...prev,
-      exportTypes: prev.exportTypes.map((type, i) => i === index ? value : type)
-    }));
+  const removeExportType = (serviceId: string, index: number) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId && s.exportTypes.length > 1
+        ? { ...s, exportTypes: s.exportTypes.filter((_, i) => i !== index) }
+        : s
+    ));
+  };
+
+  const updateExportType = (serviceId: string, index: number, field: 'type' | 'description', value: string) => {
+    setSelectedServices(prev => prev.map(s => 
+      s.id === serviceId 
+        ? { 
+            ...s, 
+            exportTypes: s.exportTypes.map((et, i) => 
+              i === index ? { ...et, [field]: value } : et
+            )
+          }
+        : s
+    ));
   };
 
   return (
