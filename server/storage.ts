@@ -50,6 +50,18 @@ export interface IStorage {
   getOrders(partnerId?: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
+
+  // Service Categories
+  getServiceCategories(editorId: string): Promise<ServiceCategory[]>;
+  createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
+  updateServiceCategory(id: string, updates: Partial<ServiceCategory>, editorId: string): Promise<ServiceCategory | undefined>;
+  deleteServiceCategory(id: string, editorId: string): Promise<void>;
+
+  // Editor Services
+  getEditorServices(editorId: string): Promise<EditorService[]>;
+  createEditorService(service: InsertEditorService): Promise<EditorService>;
+  updateEditorService(id: string, updates: Partial<EditorService>, editorId: string): Promise<EditorService | undefined>;
+  deleteEditorService(id: string, editorId: string): Promise<void>;
   
   // Customer Profile
   getCustomerJobs(customerId: string): Promise<Job[]>;

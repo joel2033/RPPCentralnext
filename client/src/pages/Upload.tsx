@@ -239,10 +239,7 @@ export default function Upload() {
                       </SelectItem>
                     ) : (
                       Object.entries(groupedServices).map(([categoryId, services], categoryIndex) => {
-                        console.log('🔍 Matching categoryId:', categoryId);
-                        console.log('🔍 Available categories:', serviceCategories);
                         const category = serviceCategories?.find(cat => cat.id === categoryId);
-                        console.log('🔍 Found category:', category);
                         const categoryName = category ? category.name : 'Uncategorized';
                         
                         return (
