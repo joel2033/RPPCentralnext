@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
 export default function Upload() {
@@ -242,7 +242,7 @@ export default function Upload() {
                         const categoryName = category ? category.name : 'Uncategorized';
                         
                         return (
-                          <div key={categoryId}>
+                          <SelectGroup key={categoryId}>
                             {categoryIndex > 0 && <SelectSeparator />}
                             <SelectLabel className="font-medium text-gray-900">
                               {categoryName}
@@ -259,7 +259,7 @@ export default function Upload() {
                                 </div>
                               </SelectItem>
                             ))}
-                          </div>
+                          </SelectGroup>
                         );
                       })
                     )}
