@@ -47,25 +47,26 @@ export default function Upload() {
   });
 
   useEffect(() => {
-    if (editorServices && editorServices.length > 0) {
-      console.log('Editor Services received:', JSON.stringify(editorServices, null, 2));
-      console.log('Service Categories received:', JSON.stringify(serviceCategories, null, 2));
-      
+    if (editorServices && editorServices.length > 0 && serviceCategories) {
       // Group services by category
       const activeServices = editorServices.filter(service => service.isActive);
       const grouped: {[key: string]: any[]} = {};
       
       // Group services by categoryId
       activeServices.forEach(service => {
-        console.log('Processing service:', service.name, 'categoryId:', service.categoryId, 'type:', typeof service.categoryId);
-        const categoryId = service.categoryId || 'uncategorized';
-        if (!grouped[categoryId]) {
-          grouped[categoryId] = [];
+        // Handle both null and string categoryId values
+        const categoryId = service.categoryId && service.categoryId !== 'null' ? service.categoryId.toString() : 'uncategorized';
+        
+        // Verify the category exists in our categories list
+        const categoryExists = serviceCategories.find(cat => cat.id === categoryId);
+        const finalCategoryId = categoryExists ? categoryId : 'uncategorized';
+        
+        if (!grouped[finalCategoryId]) {
+          grouped[finalCategoryId] = [];
         }
-        grouped[categoryId].push(service);
+        grouped[finalCategoryId].push(service);
       });
       
-      console.log('Grouped services:', grouped);
       setGroupedServices(grouped);
     } else {
       setGroupedServices({});
