@@ -8,7 +8,7 @@ import {
 // Removed Firestore imports to avoid permission issues during development
 import { auth } from "./firebase";
 
-export type UserRole = "partner" | "admin" | "photographer";
+export type UserRole = "partner" | "admin" | "photographer" | "editor";
 
 export interface UserData {
   uid: string;
@@ -114,6 +114,8 @@ export const getCurrentUserData = async (user: User): Promise<UserData | null> =
     role = 'photographer';
   } else if (user.email?.includes('admin')) {
     role = 'admin';
+  } else if (user.email?.includes('editor')) {
+    role = 'editor';
   }
   
   const userData: UserData = {
@@ -141,7 +143,15 @@ export const routePermissions: Record<string, UserRole[]> = {
   "/products": ["partner", "admin"],
   "/orders": ["partner", "admin", "photographer"],
   "/upload": ["partner", "admin", "photographer"],
-  "/settings": ["partner"] // Only partners can access team management
+  "/settings": ["partner"], // Only partners can access team management
+  // Editor-specific routes
+  "/editor": ["editor"],
+  "/editor/dashboard": ["editor"],
+  "/editor/jobs": ["editor"],
+  "/editor/downloads": ["editor"],
+  "/editor/uploads": ["editor"],
+  "/editor/products": ["editor"],
+  "/editor/settings": ["editor"]
 };
 
 // Check if user has permission for route

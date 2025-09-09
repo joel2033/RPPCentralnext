@@ -5,7 +5,9 @@ import {
   insertCustomerSchema, 
   insertProductSchema,
   insertJobSchema,
-  insertOrderSchema 
+  insertOrderSchema,
+  insertServiceCategorySchema,
+  insertEditorServiceSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -13,6 +15,13 @@ import {
   getPendingInvite, 
   updateInviteStatus,
   getUserDocument,
+  createPartnershipInvite,
+  getPartnershipInvite,
+  updatePartnershipInviteStatus,
+  createPartnership,
+  getPartnerPartnerships,
+  getEditorPartnerships,
+  getEditorPendingInvites,
   adminDb,
   adminAuth,
   UserRole 
@@ -330,6 +339,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Firebase Auth - Editor Signup endpoint (completely separate from partners)
+  const editorSignupSchema = z.object({
+    uid: z.string(),
+    email: z.string().email(),
+    businessName: z.string(),
+    specialties: z.string(),
+    experience: z.string(),
+    portfolio: z.string().optional()
+  });
+
+  app.post("/api/auth/editor-signup", async (req, res) => {
+    try {
+      const { uid, email, businessName, specialties, experience, portfolio } = editorSignupSchema.parse(req.body);
+      
+      // Create editor account (no partnerId needed)
+      const docId = await createUserDocument(uid, email, "editor");
+      
+      // Add additional editor profile data
+      await adminDb.collection('editors').doc(uid).set({
+        uid,
+        businessName,
+        specialties,
+        experience,
+        portfolio: portfolio || '',
+        status: 'pending',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      res.status(201).json({ 
+        success: true, 
+        docId, 
+        role: "editor",
+        message: "Editor account created successfully. Your application is under review." 
+      });
+    } catch (error: any) {
+      console.error("Error creating editor account:", error);
+      res.status(500).json({ 
+        error: "Failed to create editor account", 
+        details: error.message 
+      });
+    }
+  });
+
   // Firebase Auth - Get User Data endpoint
   app.get("/api/auth/user/:uid", async (req, res) => {
     try {
@@ -377,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create pending invite
-      const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId, uid);
+      const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId!, uid);
       
       // In a real implementation, you'd send an email here
       const inviteLink = `${req.protocol}://${req.get('host')}/signup?invite=${inviteToken}`;
@@ -597,12 +650,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
+  
+  // Partnership Management Routes
 
-  // ===== PARTNERSHIPS ENDPOINTS =====
+  // Partner invites editor to partnership
+  const partnershipInviteSchema = z.object({
+    editorEmail: z.string().email(),
+    editorStudioName: z.string()
+  });
 
-  // Get available suppliers (editors) for partnerships
-  app.get("/api/partnerships/suppliers", async (req, res) => {
+  app.post("/api/partnerships/invite", async (req, res) => {
     try {
+      const { editorEmail, editorStudioName } = partnershipInviteSchema.parse(req.body);
+      
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can invite editors" });
+      }
+      
+      // Check if partnership already exists
+      const existingPartnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      const partnershipExists = existingPartnerships.some(p => p.editorEmail === editorEmail);
+      
+      if (partnershipExists) {
+        return res.status(400).json({ error: "Partnership already exists with this editor" });
+      }
+      
+      // Create partnership invite
+      const inviteToken = await createPartnershipInvite(
+        editorEmail,
+        editorStudioName,
+        currentUser.partnerId!,
+        `${currentUser.email}`, // Using email as partner name for now
+        currentUser.email
+      );
+      
+      res.status(201).json({ 
+        success: true, 
+        inviteToken,
+        message: `Partnership invite sent to ${editorEmail}` 
+      });
+    } catch (error: any) {
+      console.error("Error creating partnership invite:", error);
+      res.status(500).json({ 
+        error: "Failed to create partnership invite", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Editor accepts partnership invite
+  app.post("/api/partnerships/accept/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can accept partnership invites" });
+      }
+      
+      // Get and validate invite
+      const invite = await getPartnershipInvite(token);
+      if (!invite) {
+        return res.status(400).json({ error: "Invalid or expired invite token" });
+      }
+      
+      if (invite.editorEmail.toLowerCase() !== currentUser.email?.toLowerCase()) {
+        return res.status(400).json({ error: "This invite is not for your email address" });
+      }
+      
+      // Create active partnership
+      const partnershipId = await createPartnership(
+        currentUser.uid,
+        currentUser.email,
+        invite.editorStudioName,
+        invite.partnerId,
+        invite.partnerName,
+        invite.partnerEmail
+      );
+      
+      // Update invite status
+      await updatePartnershipInviteStatus(token, "accepted");
+      
+      res.status(201).json({ 
+        success: true,
+        partnershipId,
+        message: "Partnership accepted successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error accepting partnership:", error);
+      res.status(500).json({ 
+        error: "Failed to accept partnership", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get editor's pending partnership invites
+  app.get("/api/partnerships/pending", async (req, res) => {
+    try {
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their pending invites" });
+      }
+      
+      const pendingInvites = await getEditorPendingInvites(currentUser.email);
+      res.json(pendingInvites);
+    } catch (error: any) {
+      console.error("Error getting pending invites:", error);
+      res.status(500).json({ 
+        error: "Failed to get pending invites", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get partner's partnerships (for partnerships display)
+  app.get("/api/partnerships", async (req, res) => {
+    try {
+      // Get current user (should be partner)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
@@ -613,21 +809,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
-        return res.status(403).json({ error: "Only partners can view suppliers" });
+        return res.status(403).json({ error: "Only partners can view their partnerships" });
       }
       
-      // Get all users with editor role who could be suppliers
-      const allUsers = await storage.getUsers();
-      const suppliers = allUsers
-        .filter(user => user.role === 'editor')
-        .map(editor => ({
-          id: editor.id,
-          firstName: editor.firstName || 'Editor',
-          lastName: editor.lastName || '',
-          email: editor.email,
-          role: editor.role,
-          studioName: `${editor.firstName || 'Editor'} ${editor.lastName || ''}`.trim() || editor.email.split('@')[0]
-        }));
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      res.json(partnerships);
+    } catch (error: any) {
+      console.error("Error getting partner partnerships:", error);
+      res.status(500).json({ 
+        error: "Failed to get partnerships", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get editor's partnerships 
+  app.get("/api/editor/partnerships", async (req, res) => {
+    try {
+      // Get current user (should be editor)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their partnerships" });
+      }
+      
+      const partnerships = await getEditorPartnerships(currentUser.uid);
+      res.json(partnerships);
+    } catch (error: any) {
+      console.error("Error getting editor partnerships:", error);
+      res.status(500).json({ 
+        error: "Failed to get partnerships", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get partner's partnerships (for suppliers dropdown)
+  app.get("/api/partnerships/suppliers", async (req, res) => {
+    try {
+      // Get current user (should be partner)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      // Verify the Firebase ID token and extract the UID
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'partner') {
+        return res.status(403).json({ error: "Only partners can view their suppliers" });
+      }
+      
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
+      
+      // Format for suppliers dropdown
+      const suppliers = partnerships.map(partnership => ({
+        id: partnership.editorId,
+        firstName: partnership.editorStudioName.split(' ')[0] || partnership.editorStudioName,
+        lastName: partnership.editorStudioName.split(' ').slice(1).join(' ') || '',
+        email: partnership.editorEmail,
+        role: 'editor',
+        studioName: partnership.editorStudioName
+      }));
       
       res.json(suppliers);
     } catch (error: any) {
@@ -638,7 +890,267 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
+
+  // ===== EDITOR SERVICE MANAGEMENT ENDPOINTS =====
+
+  // Get all service categories for an editor
+  app.get("/api/editor/service-categories", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their service categories" });
+      }
+      
+      const categories = await storage.getServiceCategories(uid);
+      res.json(categories);
+    } catch (error: any) {
+      console.error("Error getting service categories:", error);
+      res.status(500).json({ 
+        error: "Failed to get service categories", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create a new service category
+  app.post("/api/editor/service-categories", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can create service categories" });
+      }
+      
+      const categoryData = insertServiceCategorySchema.parse({
+        ...req.body,
+        editorId: uid
+      });
+      
+      const category = await storage.createServiceCategory(categoryData);
+      res.status(201).json(category);
+    } catch (error: any) {
+      console.error("Error creating service category:", error);
+      res.status(500).json({ 
+        error: "Failed to create service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update a service category
+  app.patch("/api/editor/service-categories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update their service categories" });
+      }
+      
+      const category = await storage.updateServiceCategory(id, req.body, uid);
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error updating service category:", error);
+      res.status(500).json({ 
+        error: "Failed to update service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Delete a service category
+  app.delete("/api/editor/service-categories/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can delete their service categories" });
+      }
+      
+      await storage.deleteServiceCategory(id, uid);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting service category:", error);
+      res.status(500).json({ 
+        error: "Failed to delete service category", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get all services for an editor
+  app.get("/api/editor/services", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their services" });
+      }
+      
+      const services = await storage.getEditorServices(uid);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Error getting editor services:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor services", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get services for a specific editor (for upload process)
+  app.get("/api/editor/:editorId/services", async (req, res) => {
+    try {
+      const { editorId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
+        return res.status(403).json({ error: "Only partners and photographers can view editor services" });
+      }
+      
+      const services = await storage.getEditorServices(editorId);
+      res.json(services);
+    } catch (error: any) {
+      console.error("Error getting editor services:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor services", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create a new service
+  app.post("/api/editor/services", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can create services" });
+      }
+      
+      const serviceData = insertEditorServiceSchema.parse({
+        ...req.body,
+        editorId: uid
+      });
+      
+      const service = await storage.createEditorService(serviceData);
+      res.status(201).json(service);
+    } catch (error: any) {
+      console.error("Error creating editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to create editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update a service
+  app.patch("/api/editor/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update their services" });
+      }
+      
+      const service = await storage.updateEditorService(id, req.body, uid);
+      res.json(service);
+    } catch (error: any) {
+      console.error("Error updating editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to update editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Delete a service
+  app.delete("/api/editor/services/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can delete their services" });
+      }
+      
+      await storage.deleteEditorService(id, uid);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting editor service:", error);
+      res.status(500).json({ 
+        error: "Failed to delete editor service", 
+        details: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

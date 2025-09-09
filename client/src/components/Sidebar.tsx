@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Home, 
   Users, 
@@ -12,7 +13,9 @@ import {
   Upload,
   ClipboardList,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Handshake,
+  Settings
 } from "lucide-react";
 
 interface SidebarProps {
@@ -32,7 +35,6 @@ const menuItems: MenuItem[] = [
   { title: "Customers", icon: Users, path: "/customers" },
   { title: "Calendar", icon: Calendar, path: "/calendar" },
   { title: "Jobs", icon: Camera, path: "/jobs" },
-  { title: "Editor Dashboard", icon: Edit, path: "/editor" },
   {
     title: "Production Hub",
     icon: Folder,
@@ -58,11 +60,13 @@ const menuItems: MenuItem[] = [
     ],
   },
   { title: "Team Members", icon: Users, path: "/team" },
+  { title: "Settings", icon: Settings, path: "/settings" },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const { logout } = useAuth();
 
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev => 
@@ -74,6 +78,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const isActive = (path: string) => {
     return location === path;
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      setLocation('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const renderMenuItem = (item: MenuItem) => {
@@ -165,7 +178,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Sign Out */}
         <div className="p-4 border-t border-rpp-grey-medium">
-          <button className="w-full flex items-center px-3 py-2 text-left rounded-lg hover:bg-rpp-grey-medium transition-colors text-white">
+          <button 
+            onClick={handleSignOut}
+            className="w-full flex items-center px-3 py-2 text-left rounded-lg hover:bg-rpp-grey-medium transition-colors text-white"
+          >
             <LogOut className="w-5 h-5 mr-3" />
             <span>Sign Out</span>
           </button>

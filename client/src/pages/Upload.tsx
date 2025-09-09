@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 
 export default function Upload() {
@@ -161,20 +161,14 @@ export default function Upload() {
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
                 >
                   <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
-                    <SelectValue placeholder="Select one job..." />
+                    <SelectValue placeholder="Select a job..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobs.length === 0 ? (
-                      <SelectItem value="no-jobs" disabled>
-                        No jobs available
+                    {jobs.map((job: any) => (
+                      <SelectItem key={job.jobId} value={job.jobId}>
+                        {job.address || `Job ${job.jobId}`}
                       </SelectItem>
-                    ) : (
-                      jobs.map((job: any) => (
-                        <SelectItem key={job.jobId} value={job.jobId}>
-                          {job.address} - {new Date(job.scheduledDate).toLocaleDateString()}
-                        </SelectItem>
-                      ))
-                    )}
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -198,11 +192,11 @@ export default function Upload() {
                   <SelectContent>
                     {isLoadingSuppliers ? (
                       <SelectItem value="loading" disabled>
-                        Loading suppliers...
+                        Loading editors...
                       </SelectItem>
                     ) : suppliers.length === 0 ? (
-                      <SelectItem value="no-suppliers" disabled>
-                        No partner suppliers available
+                      <SelectItem value="no-editors" disabled>
+                        No partner editors available
                       </SelectItem>
                     ) : (
                       suppliers.map((supplier: any) => (
@@ -248,8 +242,8 @@ export default function Upload() {
                         const categoryName = category ? category.name : 'Uncategorized';
                         
                         return (
-                          <SelectGroup key={categoryId}>
-                            {categoryIndex > 0 && <SelectSeparator key={`sep-${categoryId}`} />}
+                          <div key={categoryId}>
+                            {categoryIndex > 0 && <SelectSeparator />}
                             <SelectLabel className="font-medium text-gray-900">
                               {categoryName}
                             </SelectLabel>
@@ -265,7 +259,7 @@ export default function Upload() {
                                 </div>
                               </SelectItem>
                             ))}
-                          </SelectGroup>
+                          </div>
                         );
                       })
                     )}
@@ -544,7 +538,7 @@ export default function Upload() {
                     <span className="text-rpp-grey-light">Supplier:</span>
                     <span className="text-rpp-grey-dark">
                       {(() => {
-                        const supplier = suppliers.find((s: any) => s.id === selectedEditor);
+                        const supplier = suppliers.find(s => s.id === selectedEditor);
                         return supplier ? supplier.studioName : selectedEditor;
                       })()}
                     </span>
