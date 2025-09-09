@@ -48,8 +48,8 @@ export default function Upload() {
 
   useEffect(() => {
     if (editorServices && editorServices.length > 0) {
-      console.log('Editor Services received:', editorServices);
-      console.log('Service Categories received:', serviceCategories);
+      console.log('Editor Services received:', JSON.stringify(editorServices, null, 2));
+      console.log('Service Categories received:', JSON.stringify(serviceCategories, null, 2));
       
       // Group services by category
       const activeServices = editorServices.filter(service => service.isActive);
@@ -57,7 +57,7 @@ export default function Upload() {
       
       // Group services by categoryId
       activeServices.forEach(service => {
-        console.log('Processing service:', service.name, 'categoryId:', service.categoryId);
+        console.log('Processing service:', service.name, 'categoryId:', service.categoryId, 'type:', typeof service.categoryId);
         const categoryId = service.categoryId || 'uncategorized';
         if (!grouped[categoryId]) {
           grouped[categoryId] = [];
