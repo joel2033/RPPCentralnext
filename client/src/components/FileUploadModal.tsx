@@ -5,15 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
-import { uploadFileToFirebase, UploadProgress } from '@/lib/firebase-storage';
+import { uploadFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
 
 interface FileUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   serviceName: string;
   serviceId: string;
-  orderNumber?: string;
-  onFilesUpload: (serviceId: string, files: { file: File; url: string; path: string }[]) => void;
+  userId: string;
+  jobId: string;
+  onFilesUpload: (serviceId: string, files: { file: File; url: string; path: string }[], orderNumber: string) => void;
 }
 
 interface FileUploadItem {
@@ -30,7 +31,8 @@ export function FileUploadModal({
   onClose, 
   serviceName, 
   serviceId,
-  orderNumber = 'temp-order', 
+  userId,
+  jobId,
   onFilesUpload 
 }: FileUploadModalProps) {
   const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);
@@ -38,6 +40,8 @@ export function FileUploadModal({
   const [urlUpload, setUrlUpload] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isUrlConfirmed, setIsUrlConfirmed] = useState(false);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [reservationExpiry, setReservationExpiry] = useState<Date | null>(null);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -95,6 +99,19 @@ export function FileUploadModal({
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
+      // Reserve order number first
+      if (!orderNumber) {
+        const reservation = await reserveOrderNumber(userId, jobId);
+        setOrderNumber(reservation.orderNumber);
+        setReservationExpiry(new Date(reservation.expiresAt));
+        console.log(`Reserved order number ${reservation.orderNumber} until ${reservation.expiresAt}`);
+      }
+
+      // Check if we have a valid order number
+      if (!orderNumber) {
+        throw new Error('Failed to reserve order number');
+      }
+      
       for (let i = 0; i < uploadItems.length; i++) {
         const item = uploadItems[i];
         
@@ -108,6 +125,8 @@ export function FileUploadModal({
           // Add a timeout wrapper
           const uploadPromise = uploadFileToFirebase(
             item.file,
+            userId,
+            jobId,
             orderNumber,
             (progress: UploadProgress) => {
               console.log(`Progress for ${item.file.name}:`, progress);
@@ -162,8 +181,8 @@ export function FileUploadModal({
       }
       
       // Call the callback with completed uploads
-      if (completedUploads.length > 0) {
-        onFilesUpload(serviceId, completedUploads);
+      if (completedUploads.length > 0 && orderNumber) {
+        onFilesUpload(serviceId, completedUploads, orderNumber);
       }
       
     } finally {
@@ -185,6 +204,8 @@ export function FileUploadModal({
     setUrlUpload('');
     setIsUrlConfirmed(false);
     setIsUploading(false);
+    setOrderNumber(null);
+    setReservationExpiry(null);
     onClose();
   };
 

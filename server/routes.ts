@@ -221,8 +221,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: partnerId, services" });
       }
 
-      // Generate sequential order number
-      const orderNumber = await storage.generateOrderNumber();
+      // Use existing order reservation or generate new order number
+      let orderNumber: string;
+      if (req.body.orderNumber) {
+        // If orderNumber provided, confirm the reservation
+        const confirmed = await storage.confirmReservation(req.body.orderNumber);
+        if (!confirmed) {
+          return res.status(400).json({ error: "Invalid or expired order reservation" });
+        }
+        orderNumber = req.body.orderNumber;
+      } else {
+        // Fallback to old behavior if no reservation provided
+        orderNumber = await storage.generateOrderNumber();
+      }
       
       // Calculate 14 days from now for file expiry
       const filesExpiryDate = new Date();

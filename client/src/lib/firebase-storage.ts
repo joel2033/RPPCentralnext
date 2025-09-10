@@ -8,6 +8,8 @@ export interface UploadProgress {
 
 export const uploadFileToFirebase = async (
   file: File,
+  userId: string,
+  jobId: string,
   orderNumber: string,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<{ url: string; path: string }> => {
@@ -25,6 +27,8 @@ export const uploadFileToFirebase = async (
     // Create FormData for server upload
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('userId', userId);
+    formData.append('jobId', jobId);
     formData.append('orderNumber', orderNumber);
 
     // Upload via server to avoid CORS issues
@@ -85,7 +89,57 @@ export const deleteFileFromFirebase = async (filePath: string): Promise<void> =>
   }
 };
 
+// Order reservation functions
+export const reserveOrderNumber = async (userId: string, jobId: string): Promise<{
+  orderNumber: string;
+  expiresAt: string;
+  userId: string;
+  jobId: string;
+}> => {
+  const response = await fetch('/api/orders/reserve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, jobId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to reserve order number: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+export const getReservation = async (orderNumber: string): Promise<{
+  orderNumber: string;
+  expiresAt: string;
+  userId: string;
+  jobId: string;
+  status: string;
+}> => {
+  const response = await fetch(`/api/orders/reservation/${orderNumber}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to get reservation: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+export const confirmReservation = async (orderNumber: string): Promise<{ success: boolean; orderNumber: string }> => {
+  const response = await fetch('/api/orders/confirm-reservation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderNumber }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to confirm reservation: ${response.status}`);
+  }
+
+  return response.json();
+};
+
 export const generateOrderNumber = (): string => {
-  // Generate sequential order number - this will be replaced by backend logic
+  // This is deprecated - use reserveOrderNumber instead
   return `#${Date.now().toString().slice(-5)}`;
 };

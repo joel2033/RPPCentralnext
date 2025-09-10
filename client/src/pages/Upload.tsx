@@ -127,7 +127,7 @@ export default function Upload() {
   };
 
   // Handle file uploads for specific service
-  const handleServiceFileUpload = (serviceId: string, files: { file: File; url: string; path: string }[]) => {
+  const handleServiceFileUpload = (serviceId: string, files: { file: File; url: string; path: string }[], orderNumber: string) => {
     setSelectedServices(prev => 
       prev.map(service => 
         service.id === serviceId 
@@ -763,12 +763,14 @@ export default function Upload() {
       </div>
 
       {/* File Upload Modal */}
-      {currentUploadService && (
+      {currentUploadService && user?.uid && orderDetails.jobId && (
         <FileUploadModal
           isOpen={uploadModalOpen}
           onClose={closeUploadModal}
           serviceName={currentUploadService.service.name}
           serviceId={currentUploadService.id}
+          userId={user.uid}
+          jobId={orderDetails.jobId}
           onFilesUpload={handleServiceFileUpload}
         />
       )}
