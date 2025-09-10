@@ -94,22 +94,30 @@ export function FileUploadModal({
   };
 
   const startUpload = async () => {
+    console.log('Starting upload process...');
+    console.log('Upload items:', uploadItems);
+    console.log('Order number:', orderNumber);
+    
     setIsUploading(true);
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
+      console.log(`Uploading ${uploadItems.length} files`);
       for (let i = 0; i < uploadItems.length; i++) {
         const item = uploadItems[i];
+        console.log(`Starting upload for file ${i + 1}:`, item.file.name);
         
         setUploadItems(prev => prev.map((uploadItem, index) => 
           index === i ? { ...uploadItem, status: 'uploading' } : uploadItem
         ));
 
         try {
+          console.log('Calling uploadFileToFirebase...');
           const result = await uploadFileToFirebase(
             item.file,
             orderNumber,
             (progress: UploadProgress) => {
+              console.log('Upload progress:', progress);
               setUploadItems(prev => prev.map((uploadItem, index) => 
                 index === i ? { 
                   ...uploadItem, 
@@ -120,6 +128,8 @@ export function FileUploadModal({
               ));
             }
           );
+          
+          console.log('Upload result:', result);
           
           completedUploads.push({
             file: item.file,
