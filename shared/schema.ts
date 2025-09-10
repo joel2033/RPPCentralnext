@@ -75,7 +75,34 @@ export const orders = pgTable("orders", {
   createdBy: varchar("created_by").references(() => users.id),
   estimatedTotal: decimal("estimated_total", { precision: 10, scale: 2 }).default("0"),
   dateAccepted: timestamp("date_accepted"),
+  filesExpiryDate: timestamp("files_expiry_date"), // 14 days from upload
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Order service items (tracks each service selected for an order)
+export const orderServices = pgTable("order_services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  serviceId: varchar("service_id").references(() => editorServices.id).notNull(),
+  quantity: integer("quantity").default(1),
+  instructions: text("instructions"), // JSON array of instruction pairs
+  exportTypes: text("export_types"), // JSON array of export type objects
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Order files (tracks uploaded files for each order)
+export const orderFiles = pgTable("order_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  serviceId: varchar("service_id").references(() => orderServices.id), // Optional - link to specific service
+  fileName: text("file_name").notNull(),
+  originalName: text("original_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: text("mime_type").notNull(),
+  firebaseUrl: text("firebase_url").notNull(),
+  downloadUrl: text("download_url").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // 14 days from upload
 });
 
 // Editor service categories
@@ -140,6 +167,18 @@ export const insertJobSchema = z.object({
 export const insertOrderSchema = createInsertSchema(orders).omit({
   id: true,
   createdAt: true,
+  orderNumber: true, // Auto-generated
+  filesExpiryDate: true, // Auto-calculated
+});
+
+export const insertOrderServiceSchema = createInsertSchema(orderServices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertOrderFileSchema = createInsertSchema(orderFiles).omit({
+  id: true,
+  uploadedAt: true,
 });
 
 export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({
@@ -167,6 +206,12 @@ export type InsertJob = z.infer<typeof insertJobSchema>;
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
+
+export type OrderService = typeof orderServices.$inferSelect;
+export type InsertOrderService = z.infer<typeof insertOrderServiceSchema>;
+
+export type OrderFile = typeof orderFiles.$inferSelect;
+export type InsertOrderFile = z.infer<typeof insertOrderFileSchema>;
 
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
 export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
