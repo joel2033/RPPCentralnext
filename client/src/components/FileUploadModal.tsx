@@ -44,7 +44,9 @@ export function FileUploadModal({
     setIsDragOver(false);
     
     const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.type.startsWith('image/')
+      file.type.startsWith('image/') || 
+      file.name.toLowerCase().endsWith('.dng') ||
+      file.type === 'image/x-adobe-dng'
     );
     addFiles(files);
   };
@@ -174,7 +176,7 @@ export function FileUploadModal({
               <input
                 type="file"
                 multiple
-                accept="image/*"
+                accept="image/*,.dng,.DNG"
                 onChange={handleFileSelect}
                 className="hidden"
                 id="file-upload-modal"
@@ -190,8 +192,38 @@ export function FileUploadModal({
             </div>
           </div>
 
+          {/* Drag and Drop Box */}
+          {uploadItems.length === 0 && (
+            <div 
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragOver 
+                  ? 'border-rpp-red-main bg-red-50' 
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              data-testid="drag-drop-area"
+            >
+              <UploadIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-lg font-medium text-gray-700 mb-2">
+                Drag and drop files here
+              </p>
+              <p className="text-sm text-gray-500 mb-4">
+                Supports images and DNG files
+              </p>
+              <label htmlFor="file-upload-modal">
+                <Button variant="outline" asChild>
+                  <span>Browse Files</span>
+                </Button>
+              </label>
+            </div>
+          )}
+
           {/* File List */}
-          <div className="space-y-2 max-h-48 overflow-y-auto">
+          <div className={`space-y-2 max-h-48 overflow-y-auto ${
+            uploadItems.length === 0 ? 'hidden' : ''
+          }`}>
             {uploadItems.map((item, index) => (
               <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
                 <div className="flex-1">
