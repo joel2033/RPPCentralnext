@@ -235,10 +235,9 @@ export function FileUploadModal({
             </div>
           )}
 
-          {/* File List */}
-          <div className={`space-y-2 max-h-48 overflow-y-auto ${
-            uploadItems.length === 0 ? 'hidden' : ''
-          }`}>
+          {/* File List - Always show for debugging */}
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            <p className="text-xs text-blue-600">DEBUG: Items in state: {uploadItems.length}</p>
             {uploadItems.map((item, index) => (
               <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
                 <div className="flex-1">
