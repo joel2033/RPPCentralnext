@@ -140,17 +140,12 @@ export default function Upload() {
   // Submit order mutation
   const submitOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest("/api/orders/submit", {
-        method: "POST",
-        body: JSON.stringify(orderData),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await apiRequest("/api/orders/submit", "POST", orderData);
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
-        title: "Order Submitted Successfully",
+        title: "Order Submitted Successfully", 
         description: `Order ${data.order.orderNumber} has been submitted for editing.`,
       });
       // Reset form

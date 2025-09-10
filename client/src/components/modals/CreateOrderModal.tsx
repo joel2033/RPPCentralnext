@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { X, Upload, Plus, Minus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateOrderModalProps {
@@ -43,19 +44,7 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch("/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create order");
-      }
-      
+      const response = await apiRequest("/api/orders", "POST", data);
       return response.json();
     },
     onSuccess: () => {
