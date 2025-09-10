@@ -32,6 +32,7 @@ import { z } from "zod";
 import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
+import fs from 'fs';
 
 // Initialize Firebase Admin if not already done
 if (getApps().length === 0) {
@@ -1294,12 +1295,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
       const filePath = `orders/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
 
-      // Get Firebase Admin Storage
-      const bucket = getStorage().bucket();
+      // Get Firebase Admin Storage with explicit bucket name
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+      
+      const bucket = getStorage().bucket(bucketName);
       const file = bucket.file(filePath);
 
       // Read the uploaded file and upload to Firebase
-      const fs = require('fs');
       const fileBuffer = fs.readFileSync(req.file.path);
       
       await file.save(fileBuffer, {
@@ -1330,7 +1335,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file on error
       if (req.file?.path) {
         try {
-          const fs = require('fs');
           fs.unlinkSync(req.file.path);
         } catch (unlinkError) {
           console.error("Error cleaning up temp file:", unlinkError);
@@ -1353,8 +1357,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "File path required" });
       }
 
-      // Get Firebase Admin Storage
-      const bucket = getStorage().bucket();
+      // Get Firebase Admin Storage with explicit bucket name
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+      
+      const bucket = getStorage().bucket(bucketName);
       const file = bucket.file(filePath);
 
       // Delete the file
