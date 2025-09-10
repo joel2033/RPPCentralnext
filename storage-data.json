@@ -210,7 +210,48 @@
       "estimatedTotal": "380.00",
       "dateAccepted": null,
       "id": "ed2c8a99-c85b-4c68-a30b-0e870364c84b",
-      "createdAt": "2025-08-03T14:00:36.749Z"
+      "createdAt": "2025-08-03T14:00:36.749Z",
+      "filesExpiryDate": null
+    },
+    "71393a1d-3be2-4eb3-bf97-277783e3f37c": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "uIfVUoD18u5QTe7WxMAmf",
+      "customerId": null,
+      "status": "pending",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "0",
+      "assignedTo": null,
+      "dateAccepted": null,
+      "orderNumber": "#12346",
+      "filesExpiryDate": "2025-09-24T12:00:49.998Z",
+      "id": "71393a1d-3be2-4eb3-bf97-277783e3f37c",
+      "createdAt": "2025-09-10T12:00:49.998Z"
+    }
+  },
+  "orderServices": {
+    "c16b7d7d-6011-4324-9df5-da94beb3c236": {
+      "orderId": "71393a1d-3be2-4eb3-bf97-277783e3f37c",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 1,
+      "instructions": "[{\"fileName\":\"123\",\"detail\":\"acb\"}]",
+      "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
+      "id": "c16b7d7d-6011-4324-9df5-da94beb3c236",
+      "createdAt": "2025-09-10T12:00:49.998Z"
+    }
+  },
+  "orderFiles": {
+    "7a79c319-9efd-4cb6-b4fc-9e0f09ba8c27": {
+      "orderId": "71393a1d-3be2-4eb3-bf97-277783e3f37c",
+      "serviceId": "c16b7d7d-6011-4324-9df5-da94beb3c236",
+      "fileName": "DJI_0774.dng",
+      "originalName": "DJI_0774.dng",
+      "fileSize": 6844610,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/temp-order/1757505627462_DJI_0774.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/temp-order/1757505627462_DJI_0774.dng",
+      "expiresAt": "2025-09-24T12:00:49.999Z",
+      "id": "7a79c319-9efd-4cb6-b4fc-9e0f09ba8c27",
+      "uploadedAt": "2025-09-10T12:00:49.999Z"
     }
   },
   "serviceCategories": {
@@ -282,5 +323,6 @@
       "id": "02524467-7a55-47c3-8c6e-68b08b7d1853",
       "createdAt": "2025-09-08T13:13:08.447Z"
     }
-  }
+  },
+  "orderCounter": 12347
 }

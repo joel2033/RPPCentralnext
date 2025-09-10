@@ -23,6 +23,16 @@ import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { nanoid } from "nanoid";
 
+// Order reservation system
+export interface OrderReservation {
+  orderNumber: string;
+  userId: string;
+  jobId: string;
+  reservedAt: Date;
+  expiresAt: Date;
+  status: 'reserved' | 'confirmed' | 'expired';
+}
+
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -56,6 +66,12 @@ export interface IStorage {
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
   generateOrderNumber(): Promise<string>;
   
+  // Order Reservations
+  reserveOrderNumber(userId: string, jobId: string): Promise<OrderReservation>;
+  confirmReservation(orderNumber: string): Promise<boolean>;
+  getReservation(orderNumber: string): Promise<OrderReservation | undefined>;
+  cleanupExpiredReservations(): Promise<void>;
+  
   // Order Services
   getOrderServices(orderId: string): Promise<OrderService[]>;
   createOrderService(orderService: InsertOrderService): Promise<OrderService>;
@@ -78,18 +94,6 @@ export interface IStorage {
   
   // Customer Profile
   getCustomerJobs(customerId: string): Promise<Job[]>;
-  
-  // Service Categories
-  getServiceCategories(editorId: string): Promise<ServiceCategory[]>;
-  createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
-  updateServiceCategory(id: string, updates: Partial<ServiceCategory>, editorId: string): Promise<ServiceCategory | undefined>;
-  deleteServiceCategory(id: string, editorId: string): Promise<void>;
-  
-  // Editor Services
-  getEditorServices(editorId: string): Promise<EditorService[]>;
-  createEditorService(service: InsertEditorService): Promise<EditorService>;
-  updateEditorService(id: string, updates: Partial<EditorService>, editorId: string): Promise<EditorService | undefined>;
-  deleteEditorService(id: string, editorId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -102,7 +106,8 @@ export class MemStorage implements IStorage {
   private orderFiles: Map<string, OrderFile>;
   private serviceCategories: Map<string, ServiceCategory>;
   private editorServices: Map<string, EditorService>;
-  private orderCounter = 12345; // Sequential order numbering
+  private orderCounter = 1; // Sequential order numbering starting at 1
+  private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
 
   constructor() {
@@ -115,6 +120,7 @@ export class MemStorage implements IStorage {
     this.orderFiles = new Map();
     this.serviceCategories = new Map();
     this.editorServices = new Map();
+    this.orderReservations = new Map();
     this.loadFromFile();
   }
 
@@ -194,6 +200,17 @@ export class MemStorage implements IStorage {
           this.orderCounter = data.orderCounter;
         }
         
+        // Restore order reservations
+        if (data.orderReservations) {
+          Object.entries(data.orderReservations).forEach(([orderNumber, reservation]: [string, any]) => {
+            this.orderReservations.set(orderNumber, { 
+              ...reservation, 
+              reservedAt: new Date(reservation.reservedAt),
+              expiresAt: new Date(reservation.expiresAt)
+            });
+          });
+        }
+        
         // Restore service categories
         if (data.serviceCategories) {
           Object.entries(data.serviceCategories).forEach(([id, category]: [string, any]) => {
@@ -227,7 +244,8 @@ export class MemStorage implements IStorage {
         orderFiles: Object.fromEntries(this.orderFiles.entries()),
         serviceCategories: Object.fromEntries(this.serviceCategories.entries()),
         editorServices: Object.fromEntries(this.editorServices.entries()),
-        orderCounter: this.orderCounter
+        orderCounter: this.orderCounter,
+        orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
       writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
     } catch (error) {
@@ -432,10 +450,90 @@ export class MemStorage implements IStorage {
   }
 
   async generateOrderNumber(): Promise<string> {
-    const orderNumber = `#${this.orderCounter}`;
+    // Clean up expired reservations first
+    await this.cleanupExpiredReservations();
+    
+    const orderNumber = `#${this.orderCounter.toString().padStart(5, '0')}`;
     this.orderCounter++;
     this.saveToFile();
     return orderNumber;
+  }
+
+  // Order Reservation Methods
+  async reserveOrderNumber(userId: string, jobId: string): Promise<OrderReservation> {
+    // Clean up expired reservations first
+    await this.cleanupExpiredReservations();
+    
+    const orderNumber = `#${this.orderCounter.toString().padStart(5, '0')}`;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + (2 * 60 * 60 * 1000)); // 2 hours from now
+    
+    const reservation: OrderReservation = {
+      orderNumber,
+      userId,
+      jobId,
+      reservedAt: now,
+      expiresAt,
+      status: 'reserved'
+    };
+    
+    this.orderReservations.set(orderNumber, reservation);
+    this.orderCounter++;
+    this.saveToFile();
+    
+    return reservation;
+  }
+
+  async confirmReservation(orderNumber: string): Promise<boolean> {
+    const reservation = this.orderReservations.get(orderNumber);
+    if (!reservation || reservation.status !== 'reserved') {
+      return false;
+    }
+    
+    // Check if reservation has expired
+    if (new Date() > reservation.expiresAt) {
+      reservation.status = 'expired';
+      this.saveToFile();
+      return false;
+    }
+    
+    reservation.status = 'confirmed';
+    this.saveToFile();
+    return true;
+  }
+
+  async getReservation(orderNumber: string): Promise<OrderReservation | undefined> {
+    return this.orderReservations.get(orderNumber);
+  }
+
+  async cleanupExpiredReservations(): Promise<void> {
+    const now = new Date();
+    const expiredReservations: string[] = [];
+    
+    for (const [orderNumber, reservation] of this.orderReservations.entries()) {
+      if (now > reservation.expiresAt && reservation.status === 'reserved') {
+        reservation.status = 'expired';
+        expiredReservations.push(orderNumber);
+      }
+    }
+    
+    // Reclaim expired order numbers by adjusting the counter
+    if (expiredReservations.length > 0) {
+      // Find the lowest expired order number to potentially reclaim
+      const expiredNumbers = expiredReservations.map(num => 
+        parseInt(num.replace('#', ''))
+      ).sort((a, b) => a - b);
+      
+      // If the lowest expired number is right before our current counter, we can reclaim it
+      const lowestExpired = expiredNumbers[0];
+      if (lowestExpired === this.orderCounter - expiredReservations.length) {
+        this.orderCounter = lowestExpired;
+        // Remove expired reservations from the map
+        expiredReservations.forEach(num => this.orderReservations.delete(num));
+      }
+      
+      this.saveToFile();
+    }
   }
 
   // Order Services
