@@ -228,16 +228,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filesExpiryDate = new Date();
       filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
 
-      // Create the main order
+      // Create the main order (orderNumber and filesExpiryDate are auto-generated)
       const order = await storage.createOrder({
         partnerId,
-        orderNumber,
         jobId: jobId || null,
         customerId: customerId || null,
         status: "pending",
         createdBy: createdBy || null,
-        estimatedTotal: "0",
-        filesExpiryDate
+        estimatedTotal: "0"
       });
 
       // Create order services and files

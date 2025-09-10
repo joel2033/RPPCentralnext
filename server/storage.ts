@@ -396,6 +396,12 @@ export class MemStorage implements IStorage {
 
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     const id = randomUUID();
+    
+    // Auto-generate order number and files expiry date
+    const orderNumber = await this.generateOrderNumber();
+    const filesExpiryDate = new Date();
+    filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
+    
     const order: Order = {
       ...insertOrder,
       status: insertOrder.status || null,
@@ -405,6 +411,8 @@ export class MemStorage implements IStorage {
       createdBy: insertOrder.createdBy || null,
       estimatedTotal: insertOrder.estimatedTotal || null,
       dateAccepted: insertOrder.dateAccepted || null,
+      orderNumber,
+      filesExpiryDate,
       id,
       createdAt: new Date()
     };
