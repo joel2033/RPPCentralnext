@@ -324,5 +324,15 @@
       "createdAt": "2025-09-08T13:13:08.447Z"
     }
   },
-  "orderCounter": 12347
+  "orderCounter": 12348,
+  "orderReservations": {
+    "#12347": {
+      "orderNumber": "#12347",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "uIfVUoD18u5QTe7WxMAmf",
+      "reservedAt": "2025-09-10T14:03:52.533Z",
+      "expiresAt": "2025-09-10T16:03:52.533Z",
+      "status": "reserved"
+    }
+  }
 }

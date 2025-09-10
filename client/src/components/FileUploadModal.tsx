@@ -99,16 +99,18 @@ export function FileUploadModal({
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
-      // Reserve order number first
-      if (!orderNumber) {
+      // Reserve order number first if not already reserved
+      let currentOrderNumber = orderNumber;
+      if (!currentOrderNumber) {
         const reservation = await reserveOrderNumber(userId, jobId);
+        currentOrderNumber = reservation.orderNumber;
         setOrderNumber(reservation.orderNumber);
         setReservationExpiry(new Date(reservation.expiresAt));
         console.log(`Reserved order number ${reservation.orderNumber} until ${reservation.expiresAt}`);
       }
 
       // Check if we have a valid order number
-      if (!orderNumber) {
+      if (!currentOrderNumber) {
         throw new Error('Failed to reserve order number');
       }
       
@@ -127,7 +129,7 @@ export function FileUploadModal({
             item.file,
             userId,
             jobId,
-            orderNumber,
+            currentOrderNumber,
             (progress: UploadProgress) => {
               console.log(`Progress for ${item.file.name}:`, progress);
               setUploadItems(prev => prev.map((uploadItem, index) => 
@@ -181,8 +183,8 @@ export function FileUploadModal({
       }
       
       // Call the callback with completed uploads
-      if (completedUploads.length > 0 && orderNumber) {
-        onFilesUpload(serviceId, completedUploads, orderNumber);
+      if (completedUploads.length > 0 && currentOrderNumber) {
+        onFilesUpload(serviceId, completedUploads, currentOrderNumber);
       }
       
     } finally {
