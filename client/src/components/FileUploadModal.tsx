@@ -1,25 +1,43 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { X, Upload as UploadIcon, FileImage } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
+import { uploadFileToFirebase, UploadProgress } from '@/lib/firebase-storage';
 
 interface FileUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   serviceName: string;
   serviceId: string;
-  onFilesUpload: (serviceId: string, files: File[]) => void;
+  orderNumber?: string;
+  onFilesUpload: (serviceId: string, files: { file: File; url: string; path: string }[]) => void;
+}
+
+interface FileUploadItem {
+  file: File;
+  progress: number;
+  status: 'waiting' | 'uploading' | 'completed' | 'error';
+  url?: string;
+  path?: string;
+  error?: string;
 }
 
 export function FileUploadModal({ 
   isOpen, 
   onClose, 
   serviceName, 
-  serviceId, 
+  serviceId,
+  orderNumber = '#temp', 
   onFilesUpload 
 }: FileUploadModalProps) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [urlUpload, setUrlUpload] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isUrlConfirmed, setIsUrlConfirmed] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -28,7 +46,7 @@ export function FileUploadModal({
     const files = Array.from(e.dataTransfer.files).filter(file => 
       file.type.startsWith('image/')
     );
-    setSelectedFiles(prev => [...prev, ...files]);
+    addFiles(files);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -41,29 +59,99 @@ export function FileUploadModal({
     setIsDragOver(false);
   };
 
+  const addFiles = (files: File[]) => {
+    const newItems: FileUploadItem[] = files.map(file => ({
+      file,
+      progress: 0,
+      status: 'waiting' as const
+    }));
+    setUploadItems(prev => [...prev, ...newItems]);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setSelectedFiles(prev => [...prev, ...files]);
+      addFiles(files);
     }
   };
 
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setUploadItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpload = () => {
-    if (selectedFiles.length > 0) {
-      onFilesUpload(serviceId, selectedFiles);
-      setSelectedFiles([]);
-      onClose();
+  const startUpload = async () => {
+    setIsUploading(true);
+    const completedUploads: { file: File; url: string; path: string }[] = [];
+    
+    try {
+      for (let i = 0; i < uploadItems.length; i++) {
+        const item = uploadItems[i];
+        
+        setUploadItems(prev => prev.map((uploadItem, index) => 
+          index === i ? { ...uploadItem, status: 'uploading' } : uploadItem
+        ));
+
+        try {
+          const result = await uploadFileToFirebase(
+            item.file,
+            orderNumber,
+            (progress: UploadProgress) => {
+              setUploadItems(prev => prev.map((uploadItem, index) => 
+                index === i ? { 
+                  ...uploadItem, 
+                  progress: progress.progress,
+                  status: progress.status === 'completed' ? 'completed' : 'uploading',
+                  url: progress.url
+                } : uploadItem
+              ));
+            }
+          );
+          
+          completedUploads.push({
+            file: item.file,
+            url: result.url,
+            path: result.path
+          });
+          
+        } catch (error) {
+          setUploadItems(prev => prev.map((uploadItem, index) => 
+            index === i ? { 
+              ...uploadItem, 
+              status: 'error',
+              error: error instanceof Error ? error.message : 'Upload failed'
+            } : uploadItem
+          ));
+        }
+      }
+      
+      // Call the callback with completed uploads
+      if (completedUploads.length > 0) {
+        onFilesUpload(serviceId, completedUploads);
+      }
+      
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (urlUpload && isUrlConfirmed) {
+      // Handle URL uploads - for now just show it's added
+      // In a real implementation, you'd download and upload the file
+      setUrlUpload('');
+      setIsUrlConfirmed(false);
     }
   };
 
   const handleClose = () => {
-    setSelectedFiles([]);
+    setUploadItems([]);
+    setUrlUpload('');
+    setIsUrlConfirmed(false);
+    setIsUploading(false);
     onClose();
   };
+
+  const canSubmit = uploadItems.length > 0 && uploadItems.every(item => item.status === 'completed');
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -74,92 +162,132 @@ export function FileUploadModal({
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6">
-          {/* Drop Zone */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              isDragOver 
-                ? 'border-rpp-red-main bg-red-50' 
-                : 'border-rpp-grey-border hover:border-rpp-red-main'
-            }`}
-          >
-            <UploadIcon className="w-12 h-12 text-rpp-grey-light mx-auto mb-4" />
-            <p className="text-rpp-grey-dark font-medium mb-2">
-              Drag and drop your files here, or click to browse
-            </p>
-            <p className="text-sm text-rpp-grey-light mb-4">
-              Supported formats: JPG, PNG, RAW, TIFF (Max 100MB per file)
-            </p>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-upload-modal"
-            />
-            <label htmlFor="file-upload-modal">
-              <Button variant="outline" className="border-rpp-grey-border" asChild>
-                <span>Choose Files</span>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Include any input files that your supplier may require to carry out this service.
+          </p>
+
+          {/* Upload Section Header */}
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Uploading files 0 of {uploadItems.length}</h4>
+            <div className="flex space-x-2">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-upload-modal"
+              />
+              <label htmlFor="file-upload-modal">
+                <Button variant="outline" size="sm" asChild>
+                  <span><Plus className="w-4 h-4 mr-1" />Add</span>
+                </Button>
+              </label>
+              <Button variant="outline" size="sm" onClick={handleClose}>
+                Cancel
               </Button>
-            </label>
+            </div>
           </div>
 
-          {/* Selected Files */}
-          {selectedFiles.length > 0 && (
-            <div>
-              <h4 className="font-medium text-rpp-grey-dark mb-3">
-                Selected Files ({selectedFiles.length})
-              </h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {selectedFiles.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 border border-rpp-grey-border rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <FileImage className="w-5 h-5 text-rpp-grey-light" />
-                      <div>
-                        <p className="text-sm font-medium text-rpp-grey-dark">{file.name}</p>
-                        <p className="text-xs text-rpp-grey-light">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
+          {/* File List */}
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {uploadItems.map((item, index) => (
+              <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{item.file.name}</span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">
+                        {item.status === 'completed' ? '100%' : `${Math.round(item.progress)}%`}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFile(index)}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFile(index)}
-                      className="text-rpp-grey-light hover:text-red-500"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
-                ))}
+                  <Progress 
+                    value={item.status === 'completed' ? 100 : item.progress} 
+                    className="h-2"
+                  />
+                  {item.status === 'error' && (
+                    <p className="text-xs text-red-500 mt-1">{item.error}</p>
+                  )}
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* 14 Day Notice */}
+          <p className="text-xs text-gray-500">
+            Files uploaded will be automatically removed after 14 days.
+          </p>
+
+          {/* OR Divider */}
+          <div className="flex items-center my-4">
+            <div className="flex-1 border-t border-gray-200"></div>
+            <span className="px-4 text-sm text-gray-500">OR</span>
+            <div className="flex-1 border-t border-gray-200"></div>
+          </div>
+
+          {/* URL Upload Section */}
+          <div>
+            <h4 className="text-sm font-medium mb-3">URL Upload</h4>
+            <div className="space-y-3">
+              <Input
+                placeholder="Paste your URL here"
+                value={urlUpload}
+                onChange={(e) => setUrlUpload(e.target.value)}
+                className="text-sm"
+              />
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="url-confirm"
+                  checked={isUrlConfirmed}
+                  onCheckedChange={(checked) => setIsUrlConfirmed(checked as boolean)}
+                />
+                <label htmlFor="url-confirm" className="text-xs text-gray-600 leading-tight">
+                  I confirm the link I am providing has been set to viewable and contains the input files required for this service.
+                </label>
+              </div>
+              <Button
+                onClick={handleAddUrl}
+                disabled={!urlUpload || !isUrlConfirmed}
+                variant="outline"
+                size="sm"
+              >
+                Add
+              </Button>
             </div>
-          )}
+          </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="border-rpp-grey-border"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpload}
-              disabled={selectedFiles.length === 0}
-              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-            >
-              Upload {selectedFiles.length} {selectedFiles.length === 1 ? 'File' : 'Files'}
-            </Button>
-          </div>
+          {uploadItems.length > 0 && (
+            <div className="flex justify-center pt-4">
+              {!isUploading && uploadItems.some(item => item.status === 'waiting') && (
+                <Button
+                  onClick={startUpload}
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  disabled={uploadItems.length === 0}
+                >
+                  Start Upload
+                </Button>
+              )}
+              {canSubmit && (
+                <Button
+                  onClick={handleClose}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Upload Complete
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
