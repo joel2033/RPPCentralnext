@@ -195,10 +195,8 @@ export class MemStorage implements IStorage {
           });
         }
         
-        // Restore order counter
-        if (data.orderCounter) {
-          this.orderCounter = data.orderCounter;
-        }
+        // Reset order counter to start from 1 (ignore saved value)
+        this.orderCounter = 1;
         
         // Restore order reservations
         if (data.orderReservations) {
@@ -510,7 +508,7 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const expiredReservations: string[] = [];
     
-    for (const [orderNumber, reservation] of this.orderReservations.entries()) {
+    for (const [orderNumber, reservation] of Array.from(this.orderReservations.entries())) {
       if (now > reservation.expiresAt && reservation.status === 'reserved') {
         reservation.status = 'expired';
         expiredReservations.push(orderNumber);
