@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
 import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
 import { FileUploadModal } from "@/components/FileUploadModal";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface SelectedService {
   id: string;
@@ -21,9 +24,18 @@ interface SelectedService {
     description: string;
   }>;
   files: File[];
+  uploadedFiles?: Array<{
+    file: File;
+    url: string;
+    path: string;
+  }>;
 }
 
 export default function Upload() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const [orderDetails, setOrderDetails] = useState({
     jobId: "",
     supplier: "",
@@ -115,11 +127,11 @@ export default function Upload() {
   };
 
   // Handle file uploads for specific service
-  const handleServiceFileUpload = (serviceId: string, files: File[]) => {
+  const handleServiceFileUpload = (serviceId: string, files: { file: File; url: string; path: string }[]) => {
     setSelectedServices(prev => 
       prev.map(service => 
         service.id === serviceId 
-          ? { ...service, files: [...service.files, ...files] }
+          ? { ...service, files: files.map(f => f.file), uploadedFiles: files }
           : service
       )
     );

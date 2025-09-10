@@ -6,6 +6,8 @@ import {
   insertProductSchema,
   insertJobSchema,
   insertOrderSchema,
+  insertOrderServiceSchema,
+  insertOrderFileSchema,
   insertServiceCategorySchema,
   insertEditorServiceSchema
 } from "@shared/schema";
@@ -191,6 +193,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(order);
     } catch (error) {
       res.status(500).json({ error: "Failed to update order" });
+    }
+  });
+
+  // Submit order with services and files
+  app.post("/api/orders/submit", async (req, res) => {
+    try {
+      const { partnerId, jobId, customerId, services, createdBy } = req.body;
+      
+      if (!partnerId || !services || !Array.isArray(services) || services.length === 0) {
+        return res.status(400).json({ error: "Missing required fields: partnerId, services" });
+      }
+
+      // Generate sequential order number
+      const orderNumber = await storage.generateOrderNumber();
+      
+      // Calculate 14 days from now for file expiry
+      const filesExpiryDate = new Date();
+      filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
+
+      // Create the main order
+      const order = await storage.createOrder({
+        partnerId,
+        orderNumber,
+        jobId: jobId || null,
+        customerId: customerId || null,
+        status: "pending",
+        createdBy: createdBy || null,
+        estimatedTotal: "0",
+        filesExpiryDate
+      });
+
+      // Create order services and files
+      for (const service of services) {
+        const { serviceId, quantity, instructions, exportTypes, files } = service;
+        
+        // Create order service record
+        const orderService = await storage.createOrderService({
+          orderId: order.id,
+          serviceId,
+          quantity: quantity || 1,
+          instructions: JSON.stringify(instructions || []),
+          exportTypes: JSON.stringify(exportTypes || [])
+        });
+
+        // Create order file records
+        if (files && Array.isArray(files)) {
+          for (const file of files) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 14);
+            
+            await storage.createOrderFile({
+              orderId: order.id,
+              serviceId: orderService.id,
+              fileName: file.fileName,
+              originalName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              firebaseUrl: file.firebaseUrl,
+              downloadUrl: file.downloadUrl,
+              expiresAt
+            });
+          }
+        }
+      }
+
+      // Return the complete order details
+      const orderServices = await storage.getOrderServices(order.id);
+      const orderFiles = await storage.getOrderFiles(order.id);
+
+      res.status(201).json({
+        order,
+        services: orderServices,
+        files: orderFiles
+      });
+    } catch (error) {
+      console.error("Error submitting order:", error);
+      res.status(500).json({ error: "Failed to submit order" });
     }
   });
 

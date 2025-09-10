@@ -9,6 +9,10 @@ import {
   type InsertJob,
   type Order,
   type InsertOrder,
+  type OrderService,
+  type InsertOrderService,
+  type OrderFile,
+  type InsertOrderFile,
   type ServiceCategory,
   type InsertServiceCategory,
   type EditorService,
@@ -50,6 +54,15 @@ export interface IStorage {
   getOrders(partnerId?: string): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
+  generateOrderNumber(): Promise<string>;
+  
+  // Order Services
+  getOrderServices(orderId: string): Promise<OrderService[]>;
+  createOrderService(orderService: InsertOrderService): Promise<OrderService>;
+  
+  // Order Files
+  getOrderFiles(orderId: string): Promise<OrderFile[]>;
+  createOrderFile(orderFile: InsertOrderFile): Promise<OrderFile>;
 
   // Service Categories
   getServiceCategories(editorId: string): Promise<ServiceCategory[]>;
@@ -85,8 +98,11 @@ export class MemStorage implements IStorage {
   private products: Map<string, Product>;
   private jobs: Map<string, Job>;
   private orders: Map<string, Order>;
+  private orderServices: Map<string, OrderService>;
+  private orderFiles: Map<string, OrderFile>;
   private serviceCategories: Map<string, ServiceCategory>;
   private editorServices: Map<string, EditorService>;
+  private orderCounter = 12345; // Sequential order numbering
   private dataFile = join(process.cwd(), 'storage-data.json');
 
   constructor() {
@@ -95,6 +111,8 @@ export class MemStorage implements IStorage {
     this.products = new Map();
     this.jobs = new Map();
     this.orders = new Map();
+    this.orderServices = new Map();
+    this.orderFiles = new Map();
     this.serviceCategories = new Map();
     this.editorServices = new Map();
     this.loadFromFile();
@@ -144,9 +162,36 @@ export class MemStorage implements IStorage {
             this.orders.set(id, { 
               ...order, 
               createdAt: new Date(order.createdAt),
-              dateAccepted: order.dateAccepted ? new Date(order.dateAccepted) : null
+              dateAccepted: order.dateAccepted ? new Date(order.dateAccepted) : null,
+              filesExpiryDate: order.filesExpiryDate ? new Date(order.filesExpiryDate) : null
             });
           });
+        }
+        
+        // Restore order services
+        if (data.orderServices) {
+          Object.entries(data.orderServices).forEach(([id, orderService]: [string, any]) => {
+            this.orderServices.set(id, { 
+              ...orderService, 
+              createdAt: new Date(orderService.createdAt)
+            });
+          });
+        }
+        
+        // Restore order files
+        if (data.orderFiles) {
+          Object.entries(data.orderFiles).forEach(([id, orderFile]: [string, any]) => {
+            this.orderFiles.set(id, { 
+              ...orderFile, 
+              uploadedAt: new Date(orderFile.uploadedAt),
+              expiresAt: new Date(orderFile.expiresAt)
+            });
+          });
+        }
+        
+        // Restore order counter
+        if (data.orderCounter) {
+          this.orderCounter = data.orderCounter;
         }
         
         // Restore service categories
@@ -178,8 +223,11 @@ export class MemStorage implements IStorage {
         products: Object.fromEntries(this.products.entries()),
         jobs: Object.fromEntries(this.jobs.entries()),
         orders: Object.fromEntries(this.orders.entries()),
+        orderServices: Object.fromEntries(this.orderServices.entries()),
+        orderFiles: Object.fromEntries(this.orderFiles.entries()),
         serviceCategories: Object.fromEntries(this.serviceCategories.entries()),
-        editorServices: Object.fromEntries(this.editorServices.entries())
+        editorServices: Object.fromEntries(this.editorServices.entries()),
+        orderCounter: this.orderCounter
       };
       writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
     } catch (error) {
@@ -373,6 +421,49 @@ export class MemStorage implements IStorage {
     this.orders.set(id, updated);
     this.saveToFile();
     return updated;
+  }
+
+  async generateOrderNumber(): Promise<string> {
+    const orderNumber = `#${this.orderCounter}`;
+    this.orderCounter++;
+    this.saveToFile();
+    return orderNumber;
+  }
+
+  // Order Services
+  async getOrderServices(orderId: string): Promise<OrderService[]> {
+    const allServices = Array.from(this.orderServices.values());
+    return allServices.filter(service => service.orderId === orderId);
+  }
+
+  async createOrderService(insertOrderService: InsertOrderService): Promise<OrderService> {
+    const id = randomUUID();
+    const orderService: OrderService = {
+      ...insertOrderService,
+      id,
+      createdAt: new Date()
+    };
+    this.orderServices.set(id, orderService);
+    this.saveToFile();
+    return orderService;
+  }
+
+  // Order Files
+  async getOrderFiles(orderId: string): Promise<OrderFile[]> {
+    const allFiles = Array.from(this.orderFiles.values());
+    return allFiles.filter(file => file.orderId === orderId);
+  }
+
+  async createOrderFile(insertOrderFile: InsertOrderFile): Promise<OrderFile> {
+    const id = randomUUID();
+    const orderFile: OrderFile = {
+      ...insertOrderFile,
+      id,
+      uploadedAt: new Date()
+    };
+    this.orderFiles.set(id, orderFile);
+    this.saveToFile();
+    return orderFile;
   }
 
   async getCustomerJobs(customerId: string): Promise<Job[]> {
