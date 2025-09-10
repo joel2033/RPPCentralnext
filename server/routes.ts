@@ -29,6 +29,21 @@ import {
   UserRole 
 } from "./firebase-admin";
 import { z } from "zod";
+import multer from "multer";
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
+
+// Initialize Firebase Admin if not already done
+if (getApps().length === 0) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  });
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
@@ -1253,6 +1268,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error deleting editor service:", error);
       res.status(500).json({ 
         error: "Failed to delete editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: '/tmp/uploads',
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit
+    },
+  });
+
+  // Server-side Firebase upload endpoint
+  app.post("/api/upload-firebase", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const orderNumber = req.body.orderNumber || 'temp-order';
+      const timestamp = Date.now();
+      const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
+      const filePath = `orders/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
+
+      // Get Firebase Admin Storage
+      const bucket = getStorage().bucket();
+      const file = bucket.file(filePath);
+
+      // Read the uploaded file and upload to Firebase
+      const fs = require('fs');
+      const fileBuffer = fs.readFileSync(req.file.path);
+      
+      await file.save(fileBuffer, {
+        metadata: {
+          contentType: req.file.mimetype,
+        },
+      });
+
+      // Make the file publicly accessible
+      await file.makePublic();
+
+      // Get the public URL
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+
+      // Clean up temporary file
+      fs.unlinkSync(req.file.path);
+
+      res.json({
+        url: publicUrl,
+        path: filePath,
+        size: req.file.size,
+        originalName: req.file.originalname
+      });
+
+    } catch (error: any) {
+      console.error("Error uploading file to Firebase:", error);
+      
+      // Clean up temporary file on error
+      if (req.file?.path) {
+        try {
+          const fs = require('fs');
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error("Error cleaning up temp file:", unlinkError);
+        }
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to upload file to Firebase", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Server-side Firebase delete endpoint
+  app.delete("/api/delete-firebase", async (req, res) => {
+    try {
+      const { path: filePath } = req.body;
+      
+      if (!filePath) {
+        return res.status(400).json({ error: "File path required" });
+      }
+
+      // Get Firebase Admin Storage
+      const bucket = getStorage().bucket();
+      const file = bucket.file(filePath);
+
+      // Delete the file
+      await file.delete();
+
+      res.json({ success: true });
+
+    } catch (error: any) {
+      console.error("Error deleting file from Firebase:", error);
+      res.status(500).json({ 
+        error: "Failed to delete file from Firebase", 
         details: error.message 
       });
     }
