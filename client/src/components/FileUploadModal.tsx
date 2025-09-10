@@ -128,7 +128,7 @@ export function FileUploadModal({
             setTimeout(() => reject(new Error(`Upload timeout after ${timeoutMs/1000}s`)), timeoutMs)
           );
           
-          const result = await Promise.race([uploadPromise, timeoutPromise]);
+          const result = await Promise.race([uploadPromise, timeoutPromise]) as { url: string; path: string };
           console.log(`Upload completed for ${item.file.name}:`, result);
           
           completedUploads.push({
