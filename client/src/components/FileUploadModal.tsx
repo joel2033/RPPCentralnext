@@ -94,10 +94,12 @@ export function FileUploadModal({
         ));
 
         try {
+          console.log(`Starting Firebase upload for ${item.file.name}...`);
           const result = await uploadFileToFirebase(
             item.file,
             orderNumber,
             (progress: UploadProgress) => {
+              console.log(`Progress for ${item.file.name}:`, progress);
               setUploadItems(prev => prev.map((uploadItem, index) => 
                 index === i ? { 
                   ...uploadItem, 
@@ -109,6 +111,8 @@ export function FileUploadModal({
             }
           );
           
+          console.log(`Upload completed for ${item.file.name}:`, result);
+          
           completedUploads.push({
             file: item.file,
             url: result.url,
@@ -116,6 +120,7 @@ export function FileUploadModal({
           });
           
         } catch (error) {
+          console.error(`Upload failed for ${item.file.name}:`, error);
           setUploadItems(prev => prev.map((uploadItem, index) => 
             index === i ? { 
               ...uploadItem, 
