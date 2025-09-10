@@ -184,6 +184,9 @@ export function FileUploadModal({
           {/* Upload Section Header */}
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Uploading files 0 of {uploadItems.length}</h4>
+            {uploadItems.length > 0 && (
+              <span className="text-xs text-blue-600">DEBUG: {uploadItems.length} items loaded</span>
+            )}
             <div className="flex space-x-2">
               <input
                 type="file"
