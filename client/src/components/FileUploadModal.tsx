@@ -43,11 +43,15 @@ export function FileUploadModal({
     e.preventDefault();
     setIsDragOver(false);
     
-    const files = Array.from(e.dataTransfer.files).filter(file => 
-      file.type.startsWith('image/') || 
-      file.name.toLowerCase().endsWith('.dng') ||
-      file.type === 'image/x-adobe-dng'
-    );
+    console.log('Files dropped:', e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files).filter(file => {
+      const isValid = file.type.startsWith('image/') || 
+        file.name.toLowerCase().endsWith('.dng') ||
+        file.type === 'image/x-adobe-dng';
+      console.log(`File ${file.name}: type=${file.type}, valid=${isValid}`);
+      return isValid;
+    });
+    console.log('Filtered files:', files);
     addFiles(files);
   };
 
@@ -62,17 +66,25 @@ export function FileUploadModal({
   };
 
   const addFiles = (files: File[]) => {
+    console.log('Adding files:', files);
     const newItems: FileUploadItem[] = files.map(file => ({
       file,
       progress: 0,
       status: 'waiting' as const
     }));
-    setUploadItems(prev => [...prev, ...newItems]);
+    console.log('New items:', newItems);
+    setUploadItems(prev => {
+      const updated = [...prev, ...newItems];
+      console.log('Updated upload items:', updated);
+      return updated;
+    });
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('File input changed:', e.target.files);
     if (e.target.files) {
       const files = Array.from(e.target.files);
+      console.log('Selected files:', files);
       addFiles(files);
     }
   };
