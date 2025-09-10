@@ -1272,6 +1272,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Order Reservation System
+  const reserveOrderSchema = z.object({
+    userId: z.string(),
+    jobId: z.string()
+  });
+
+  app.post("/api/orders/reserve", async (req, res) => {
+    try {
+      const { userId, jobId } = reserveOrderSchema.parse(req.body);
+      
+      const reservation = await storage.reserveOrderNumber(userId, jobId);
+      
+      res.status(201).json({
+        orderNumber: reservation.orderNumber,
+        expiresAt: reservation.expiresAt,
+        userId: reservation.userId,
+        jobId: reservation.jobId
+      });
+    } catch (error: any) {
+      console.error("Error reserving order number:", error);
+      res.status(500).json({ 
+        error: "Failed to reserve order number", 
+        details: error.message 
+      });
+    }
+  });
+
+  app.get("/api/orders/reservation/:orderNumber", async (req, res) => {
+    try {
+      const { orderNumber } = req.params;
+      
+      const reservation = await storage.getReservation(orderNumber);
+      if (!reservation) {
+        return res.status(404).json({ error: "Reservation not found" });
+      }
+      
+      res.json({
+        orderNumber: reservation.orderNumber,
+        expiresAt: reservation.expiresAt,
+        userId: reservation.userId,
+        jobId: reservation.jobId,
+        status: reservation.status
+      });
+    } catch (error: any) {
+      console.error("Error getting reservation:", error);
+      res.status(500).json({ 
+        error: "Failed to get reservation", 
+        details: error.message 
+      });
+    }
+  });
+
+  const confirmReservationSchema = z.object({
+    orderNumber: z.string()
+  });
+
+  app.post("/api/orders/confirm-reservation", async (req, res) => {
+    try {
+      const { orderNumber } = confirmReservationSchema.parse(req.body);
+      
+      const confirmed = await storage.confirmReservation(orderNumber);
+      if (!confirmed) {
+        return res.status(400).json({ error: "Failed to confirm reservation or reservation expired" });
+      }
+      
+      res.json({ success: true, orderNumber });
+    } catch (error: any) {
+      console.error("Error confirming reservation:", error);
+      res.status(500).json({ 
+        error: "Failed to confirm reservation", 
+        details: error.message 
+      });
+    }
+  });
+
   // Configure multer for file uploads
   const upload = multer({
     dest: '/tmp/uploads',
@@ -1280,18 +1355,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
   });
 
-  // Server-side Firebase upload endpoint
+  // Server-side Firebase upload endpoint with reservation system
   app.post("/api/upload-firebase", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const orderNumber = req.body.orderNumber || 'temp-order';
+      const { userId, jobId, orderNumber } = req.body;
+      
+      if (!userId || !jobId || !orderNumber) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: userId, jobId, and orderNumber are required" 
+        });
+      }
+
+      // Verify the reservation exists and is valid
+      const reservation = await storage.getReservation(orderNumber);
+      if (!reservation || reservation.status !== 'reserved') {
+        return res.status(400).json({ error: "Invalid or expired order reservation" });
+      }
+
+      if (reservation.userId !== userId || reservation.jobId !== jobId) {
+        return res.status(400).json({ error: "Order reservation does not match provided userId and jobId" });
+      }
+
+      // Check if reservation has expired
+      if (new Date() > reservation.expiresAt) {
+        return res.status(400).json({ error: "Order reservation has expired" });
+      }
+
       const timestamp = Date.now();
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const sanitizedUserId = userId.replace(/[^a-zA-Z0-9-]/g, '');
+      const sanitizedJobId = jobId.replace(/[^a-zA-Z0-9-]/g, '');
       const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
-      const filePath = `orders/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
+      
+      // New organized file path: orders/userID/jobID/orderNumber/timestamp_filename
+      const filePath = `orders/${sanitizedUserId}/${sanitizedJobId}/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
 
       // Get Firebase Admin Storage with explicit bucket name
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
