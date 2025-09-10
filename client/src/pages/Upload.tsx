@@ -45,6 +45,7 @@ export default function Upload() {
   const [selectedEditor, setSelectedEditor] = useState("");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [currentUploadService, setCurrentUploadService] = useState<SelectedService | null>(null);
+  const [reservedOrderNumber, setReservedOrderNumber] = useState<string | null>(null);
 
   // Get jobs for dropdown
   const { data: jobs = [] } = useQuery<any[]>({
@@ -135,6 +136,10 @@ export default function Upload() {
           : service
       )
     );
+    
+    // Store the reserved order number for later use during submission
+    setReservedOrderNumber(orderNumber);
+    console.log(`Stored reserved order number: ${orderNumber}`);
   };
 
   // Submit order mutation
@@ -152,6 +157,7 @@ export default function Upload() {
       setSelectedServices([]);
       setOrderDetails({ jobId: "", supplier: "" });
       setSelectedEditor("");
+      setReservedOrderNumber(null);
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     },
     onError: (error: any) => {
@@ -199,6 +205,7 @@ export default function Upload() {
       jobId: orderDetails.jobId || null,
       customerId: null, // Will be handled if job has a customer
       createdBy: user.uid,
+      orderNumber: reservedOrderNumber, // Include reserved order number
       services: selectedServices.map(service => ({
         serviceId: service.service.id,
         quantity: service.quantity,
