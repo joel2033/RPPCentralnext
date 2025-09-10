@@ -93,25 +93,23 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
   };
 
   const handleSubmit = () => {
-    if (!orderData.orderNumber) {
+    if (!userData?.partnerId) {
       toast({
-        title: "Missing Information",
-        description: "Please provide an order number.",
+        title: "Authentication Error",
+        description: "User partner ID not found. Please log in again.",
         variant: "destructive",
       });
       return;
     }
 
     const orderPayload = {
-      partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha",
-      orderNumber: orderData.orderNumber,
+      partnerId: userData.partnerId,
       jobId: orderData.jobId || null,
       customerId: orderData.customerId || null,
       assignedTo: orderData.assignedTo || null,
       createdBy: userData?.email || "admin",
       estimatedTotal: orderData.estimatedTotal || "0.00",
-      status: "pending",
-      dateAccepted: null
+      status: "pending"
     };
 
     createOrderMutation.mutate(orderPayload);

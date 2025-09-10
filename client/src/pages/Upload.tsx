@@ -32,7 +32,7 @@ interface SelectedService {
 }
 
 export default function Upload() {
-  const { user } = useAuth();
+  const { userData: user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   

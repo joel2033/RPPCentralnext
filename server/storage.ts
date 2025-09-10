@@ -448,6 +448,9 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const orderService: OrderService = {
       ...insertOrderService,
+      quantity: insertOrderService.quantity ?? 1,
+      instructions: insertOrderService.instructions || null,
+      exportTypes: insertOrderService.exportTypes || null,
       id,
       createdAt: new Date()
     };
@@ -466,6 +469,7 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const orderFile: OrderFile = {
       ...insertOrderFile,
+      serviceId: insertOrderFile.serviceId || null,
       id,
       uploadedAt: new Date()
     };
