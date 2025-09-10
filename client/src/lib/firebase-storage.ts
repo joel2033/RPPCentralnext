@@ -1,15 +1,5 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-};
-
-// Initialize Firebase app only if it doesn't exist
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const storage = getStorage(app);
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from './firebase';
 
 export interface UploadProgress {
   fileName: string;
