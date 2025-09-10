@@ -1,0 +1,84 @@
+Upload progress: {fileName: 'RPP05306.dng', progress: 0, status: 'uploading'}
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+requests.js:1  POST https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng net::ERR_FAILED
+s.XMLHttpRequest.send @ requests.js:1
+t.enable.e.send @ Network.js:159
+XMLHttpRequest.send @ traffic.js:1
+send @ firebase_storage.js?v=7e32e128:1498
+doTheRequest @ firebase_storage.js?v=7e32e128:456
+(anonymous) @ firebase_storage.js?v=7e32e128:279
+setTimeout
+callWithDelay @ firebase_storage.js?v=7e32e128:277
+start @ firebase_storage.js?v=7e32e128:337
+start_ @ firebase_storage.js?v=7e32e128:510
+(anonymous) @ firebase_storage.js?v=7e32e128:432
+NetworkRequest @ firebase_storage.js?v=7e32e128:429
+makeRequest @ firebase_storage.js?v=7e32e128:562
+_makeRequest @ firebase_storage.js?v=7e32e128:2417
+makeRequestWithTokens @ firebase_storage.js?v=7e32e128:2430
+await in makeRequestWithTokens
+uploadBytes$1 @ firebase_storage.js?v=7e32e128:2146
+uploadBytes @ firebase_storage.js?v=7e32e128:2442
+uploadFileToFirebase @ firebase-storage.ts:34
+startUpload @ FileUploadModal.tsx:116
+callCallback2 @ chunk-RPCDYKBN.js?v=7e32e128:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=7e32e128:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=7e32e128:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=7e32e128:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=7e32e128:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=7e32e128:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=7e32e128:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=7e32e128:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=7e32e128:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=7e32e128:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=7e32e128:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=7e32e128:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=7e32e128:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=7e32e128:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=7e32e128:5449Understand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+requests.js:1  POST https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng net::ERR_FAILED
+s.XMLHttpRequest.send @ requests.js:1
+t.enable.e.send @ Network.js:159
+XMLHttpRequest.send @ traffic.js:1
+send @ firebase_storage.js?v=7e32e128:1498
+doTheRequest @ firebase_storage.js?v=7e32e128:456
+(anonymous) @ firebase_storage.js?v=7e32e128:279
+setTimeout
+callWithDelay @ firebase_storage.js?v=7e32e128:277
+responseHandler @ firebase_storage.js?v=7e32e128:313
+(anonymous) @ firebase_storage.js?v=7e32e128:465
+Promise.then
+doTheRequest @ firebase_storage.js?v=7e32e128:456
+(anonymous) @ firebase_storage.js?v=7e32e128:279
+setTimeout
+callWithDelay @ firebase_storage.js?v=7e32e128:277
+start @ firebase_storage.js?v=7e32e128:337
+start_ @ firebase_storage.js?v=7e32e128:510
+(anonymous) @ firebase_storage.js?v=7e32e128:432
+NetworkRequest @ firebase_storage.js?v=7e32e128:429
+makeRequest @ firebase_storage.js?v=7e32e128:562
+_makeRequest @ firebase_storage.js?v=7e32e128:2417
+makeRequestWithTokens @ firebase_storage.js?v=7e32e128:2430
+await in makeRequestWithTokens
+uploadBytes$1 @ firebase_storage.js?v=7e32e128:2146
+uploadBytes @ firebase_storage.js?v=7e32e128:2442
+uploadFileToFirebase @ firebase-storage.ts:34
+startUpload @ FileUploadModal.tsx:116
+callCallback2 @ chunk-RPCDYKBN.js?v=7e32e128:3674
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=7e32e128:3699
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=7e32e128:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=7e32e128:3736
+executeDispatch @ chunk-RPCDYKBN.js?v=7e32e128:7014
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=7e32e128:7034
+processDispatchQueue @ chunk-RPCDYKBN.js?v=7e32e128:7043
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=7e32e128:7051
+(anonymous) @ chunk-RPCDYKBN.js?v=7e32e128:7174
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=7e32e128:18913
+batchedUpdates @ chunk-RPCDYKBN.js?v=7e32e128:3579
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=7e32e128:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=7e32e128:5478
+dispatchEvent @ chunk-RPCDYKBN.js?v=7e32e128:5472
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=7e32e128:5449Understand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+requests.js:1  POST https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2F%23temp%2F1757494204596_RPP05306.dng net::ERR_FAILED

@@ -43,15 +43,11 @@ export function FileUploadModal({
     e.preventDefault();
     setIsDragOver(false);
     
-    console.log('Files dropped:', e.dataTransfer.files);
-    const files = Array.from(e.dataTransfer.files).filter(file => {
-      const isValid = file.type.startsWith('image/') || 
-        file.name.toLowerCase().endsWith('.dng') ||
-        file.type === 'image/x-adobe-dng';
-      console.log(`File ${file.name}: type=${file.type}, valid=${isValid}`);
-      return isValid;
-    });
-    console.log('Filtered files:', files);
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/') || 
+      file.name.toLowerCase().endsWith('.dng') ||
+      file.type === 'image/x-adobe-dng'
+    );
     addFiles(files);
   };
 
@@ -66,25 +62,17 @@ export function FileUploadModal({
   };
 
   const addFiles = (files: File[]) => {
-    console.log('Adding files:', files);
     const newItems: FileUploadItem[] = files.map(file => ({
       file,
       progress: 0,
       status: 'waiting' as const
     }));
-    console.log('New items:', newItems);
-    setUploadItems(prev => {
-      const updated = [...prev, ...newItems];
-      console.log('Updated upload items:', updated);
-      return updated;
-    });
+    setUploadItems(prev => [...prev, ...newItems]);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('File input changed:', e.target.files);
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      console.log('Selected files:', files);
       addFiles(files);
     }
   };
@@ -94,30 +82,22 @@ export function FileUploadModal({
   };
 
   const startUpload = async () => {
-    console.log('Starting upload process...');
-    console.log('Upload items:', uploadItems);
-    console.log('Order number:', orderNumber);
-    
     setIsUploading(true);
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
-      console.log(`Uploading ${uploadItems.length} files`);
       for (let i = 0; i < uploadItems.length; i++) {
         const item = uploadItems[i];
-        console.log(`Starting upload for file ${i + 1}:`, item.file.name);
         
         setUploadItems(prev => prev.map((uploadItem, index) => 
           index === i ? { ...uploadItem, status: 'uploading' } : uploadItem
         ));
 
         try {
-          console.log('Calling uploadFileToFirebase...');
           const result = await uploadFileToFirebase(
             item.file,
             orderNumber,
             (progress: UploadProgress) => {
-              console.log('Upload progress:', progress);
               setUploadItems(prev => prev.map((uploadItem, index) => 
                 index === i ? { 
                   ...uploadItem, 
@@ -128,8 +108,6 @@ export function FileUploadModal({
               ));
             }
           );
-          
-          console.log('Upload result:', result);
           
           completedUploads.push({
             file: item.file,
@@ -194,9 +172,6 @@ export function FileUploadModal({
           {/* Upload Section Header */}
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Uploading files 0 of {uploadItems.length}</h4>
-            {uploadItems.length > 0 && (
-              <span className="text-xs text-blue-600">DEBUG: {uploadItems.length} items loaded</span>
-            )}
             <div className="flex space-x-2">
               <input
                 type="file"
@@ -245,9 +220,10 @@ export function FileUploadModal({
             </div>
           )}
 
-          {/* File List - Always show for debugging */}
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            <p className="text-xs text-blue-600">DEBUG: Items in state: {uploadItems.length}</p>
+          {/* File List */}
+          <div className={`space-y-2 max-h-48 overflow-y-auto ${
+            uploadItems.length === 0 ? 'hidden' : ''
+          }`}>
             {uploadItems.map((item, index) => (
               <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded">
                 <div className="flex-1">
