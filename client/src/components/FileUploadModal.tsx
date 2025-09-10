@@ -30,7 +30,7 @@ export function FileUploadModal({
   onClose, 
   serviceName, 
   serviceId,
-  orderNumber = '#temp', 
+  orderNumber = 'temp-order', 
   onFilesUpload 
 }: FileUploadModalProps) {
   const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);

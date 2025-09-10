@@ -18,7 +18,8 @@ export const uploadFileToFirebase = async (
     // Create unique file path: orders/{orderNumber}/{timestamp}_{filename}
     const timestamp = Date.now();
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `orders/${orderNumber}/${timestamp}_${sanitizedFileName}`;
+    const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
+    const filePath = `orders/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
     
     const storageRef = ref(storage, filePath);
     
