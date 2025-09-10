@@ -29,6 +29,9 @@ import {
   UserRole 
 } from "./firebase-admin";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
@@ -1253,6 +1256,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error deleting editor service:", error);
       res.status(500).json({ 
         error: "Failed to delete editor service", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Configure multer for file uploads
+  const upload = multer({
+    dest: '/tmp/uploads',
+    limits: {
+      fileSize: 100 * 1024 * 1024, // 100MB limit
+    },
+  });
+
+  // File upload endpoint using Replit Object Storage
+  app.post("/api/upload", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const filePath = req.body.path || `uploads/${Date.now()}_${req.file.originalname}`;
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      
+      if (!bucketId) {
+        return res.status(500).json({ error: "Object storage not configured" });
+      }
+
+      // Read the uploaded file
+      const fileBuffer = await fs.readFile(req.file.path);
+      
+      // Upload to Replit Object Storage using fetch
+      const uploadResponse = await fetch(`https://objects.replit.com/v0/buckets/${bucketId}/objects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Object-Key': filePath,
+        },
+        body: fileBuffer,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      // Clean up temporary file
+      await fs.unlink(req.file.path);
+
+      // Return the public URL
+      const publicUrl = `https://objects.replit.com/v0/buckets/${bucketId}/objects/${filePath}`;
+      
+      res.json({
+        url: publicUrl,
+        path: filePath,
+        size: req.file.size,
+        originalName: req.file.originalname
+      });
+
+    } catch (error: any) {
+      console.error("Error uploading file:", error);
+      
+      // Clean up temporary file on error
+      if (req.file?.path) {
+        try {
+          await fs.unlink(req.file.path);
+        } catch (unlinkError) {
+          console.error("Error cleaning up temp file:", unlinkError);
+        }
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to upload file", 
+        details: error.message 
+      });
+    }
+  });
+
+  // File delete endpoint
+  app.delete("/api/upload", async (req, res) => {
+    try {
+      const { path: filePath } = req.body;
+      const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+      
+      if (!bucketId) {
+        return res.status(500).json({ error: "Object storage not configured" });
+      }
+
+      // Delete from Replit Object Storage
+      const deleteResponse = await fetch(`https://objects.replit.com/v0/buckets/${bucketId}/objects/${filePath}`, {
+        method: 'DELETE',
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error(`Delete failed: ${deleteResponse.status} ${deleteResponse.statusText}`);
+      }
+
+      res.json({ success: true });
+
+    } catch (error: any) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ 
+        error: "Failed to delete file", 
         details: error.message 
       });
     }

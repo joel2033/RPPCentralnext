@@ -1,0 +1,82 @@
+Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'ambient-light-sensor'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'battery'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'execution-while-not-rendered'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'execution-while-out-of-viewport'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'layout-animations'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'legacy-image-formats'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'navigation-override'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'oversized-images'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'publickey-credentials'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'speaker-selection'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'unoptimized-images'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'unsized-media'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Unrecognized feature: 'pointer-lock'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Allow attribute will take precedence over 'allowfullscreen'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+framework-3a72edc7f7dd830c.js:1 Allow attribute will take precedence over 'allowpaymentrequest'.
+_ @ framework-3a72edc7f7dd830c.js:1Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=%3Ar2i%3A:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+Console.js:61 Loaded user data from Firestore: Object
+Console.js:61 Loaded user data from Firestore: Object
+Console.js:61 Warning: Each child in a list should have a unique "key" prop.
+
+Check the render method of `Upload`. See https://reactjs.org/link/warning-keys for more information.
+    at _c11 (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/components/ui/select.tsx:208:13)
+    at Upload (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/pages/Upload.tsx:32:20)
+    at main
+    at div
+    at div
+    at Layout (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/components/Layout.tsx:21:34)
+    at ProtectedRoute (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/components/ProtectedRoute.tsx:22:27)
+    at Route (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7e32e128:323:16)
+    at Switch (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7e32e128:379:17)
+    at Router
+    at EditorAuthProvider (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/contexts/EditorAuthContext.tsx:30:38)
+    at AuthProvider (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/src/contexts/AuthContext.tsx:30:32)
+    at Provider (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=7e32e128:38:15)
+    at TooltipProvider (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=7e32e128:62:5)
+    at QueryClientProvider (https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7e32e128:2805:3)
+    at App
+Mt.forEach.n.<computed> @ Console.js:61Understand this error
+Console.js:61 Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+Mt.forEach.n.<computed> @ Console.js:61Understand this warning
+Console.js:61 File 26 Alice Parade, Toukley.jpg: size 1.10MB, type: image/jpeg
+Console.js:61 Starting Firebase upload for 26 Alice Parade, Toukley.jpg (1.10MB)...
+Console.js:61 Progress for 26 Alice Parade, Toukley.jpg: Object
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg:1  Failed to load resource: net::ERR_FAILEDUnderstand this error
+upload:1 Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg' from origin 'https://e2e512a1-10c9-428a-8521-2eab9e1bfbcb-00-ssoexoofz92e.picard.replit.dev' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status.Understand this error
+requests.js:1  POST https://firebasestorage.googleapis.com/v0/b/rpp-central-flask.appspot.com/o?name=orders%2Ftemp-order%2F1757497347742_26_Alice_Parade__Toukley.jpg net::ERR_FAILED
