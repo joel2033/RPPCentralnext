@@ -62,11 +62,20 @@ export function FileUploadModal({
   };
 
   const addFiles = (files: File[]) => {
-    const newItems: FileUploadItem[] = files.map(file => ({
-      file,
-      progress: 0,
-      status: 'waiting' as const
-    }));
+    const newItems: FileUploadItem[] = files.map(file => {
+      console.log(`File ${file.name}: size ${(file.size / 1024 / 1024).toFixed(2)}MB, type: ${file.type}`);
+      
+      // Check file size (warn if over 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        console.warn(`Large file detected: ${file.name} is ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      }
+      
+      return {
+        file,
+        progress: 0,
+        status: 'waiting' as const
+      };
+    });
     setUploadItems(prev => [...prev, ...newItems]);
   };
 
@@ -94,8 +103,10 @@ export function FileUploadModal({
         ));
 
         try {
-          console.log(`Starting Firebase upload for ${item.file.name}...`);
-          const result = await uploadFileToFirebase(
+          console.log(`Starting Firebase upload for ${item.file.name} (${(item.file.size / 1024 / 1024).toFixed(2)}MB)...`);
+          
+          // Add a timeout wrapper
+          const uploadPromise = uploadFileToFirebase(
             item.file,
             orderNumber,
             (progress: UploadProgress) => {
@@ -111,6 +122,13 @@ export function FileUploadModal({
             }
           );
           
+          // Set timeout for large files (5 minutes for files over 10MB)
+          const timeoutMs = item.file.size > 10 * 1024 * 1024 ? 300000 : 120000;
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Upload timeout after ${timeoutMs/1000}s`)), timeoutMs)
+          );
+          
+          const result = await Promise.race([uploadPromise, timeoutPromise]);
           console.log(`Upload completed for ${item.file.name}:`, result);
           
           completedUploads.push({
@@ -120,12 +138,24 @@ export function FileUploadModal({
           });
           
         } catch (error) {
-          console.error(`Upload failed for ${item.file.name}:`, error);
+          console.error(`Upload failed for ${item.file.name} (${(item.file.size / 1024 / 1024).toFixed(2)}MB):`, error);
+          
+          let errorMessage = 'Upload failed';
+          if (error instanceof Error) {
+            if (error.message.includes('retry-limit-exceeded')) {
+              errorMessage = `Upload timeout - file too large (${(item.file.size / 1024 / 1024).toFixed(2)}MB)`;
+            } else if (error.message.includes('timeout')) {
+              errorMessage = `Upload timeout after ${(item.file.size / 1024 / 1024).toFixed(2)}MB`;
+            } else {
+              errorMessage = error.message;
+            }
+          }
+          
           setUploadItems(prev => prev.map((uploadItem, index) => 
             index === i ? { 
               ...uploadItem, 
               status: 'error',
-              error: error instanceof Error ? error.message : 'Upload failed'
+              error: errorMessage
             } : uploadItem
           ));
         }
