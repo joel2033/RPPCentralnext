@@ -137,6 +137,92 @@ export default function Upload() {
     );
   };
 
+  // Submit order mutation
+  const submitOrderMutation = useMutation({
+    mutationFn: async (orderData: any) => {
+      return apiRequest("/api/orders/submit", {
+        method: "POST",
+        body: JSON.stringify(orderData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Order Submitted Successfully",
+        description: `Order ${data.order.orderNumber} has been submitted for editing.`,
+      });
+      // Reset form
+      setSelectedServices([]);
+      setOrderDetails({ jobId: "", supplier: "" });
+      setSelectedEditor("");
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error Submitting Order",
+        description: error.message || "Failed to submit order. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmitOrder = () => {
+    if (!user?.partnerId) {
+      toast({
+        title: "Error",
+        description: "User partner ID not found. Please log in again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedServices.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one service before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if all services have uploaded files
+    const servicesWithoutFiles = selectedServices.filter(service => !service.uploadedFiles || service.uploadedFiles.length === 0);
+    if (servicesWithoutFiles.length > 0) {
+      toast({
+        title: "Error",
+        description: "Please upload files for all selected services before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prepare order data
+    const orderData = {
+      partnerId: user.partnerId,
+      jobId: orderDetails.jobId || null,
+      customerId: null, // Will be handled if job has a customer
+      createdBy: user.uid,
+      services: selectedServices.map(service => ({
+        serviceId: service.service.id,
+        quantity: service.quantity,
+        instructions: service.instructions,
+        exportTypes: service.exportTypes,
+        files: service.uploadedFiles?.map(upload => ({
+          fileName: upload.file.name,
+          originalName: upload.file.name,
+          fileSize: upload.file.size,
+          mimeType: upload.file.type,
+          firebaseUrl: upload.url,
+          downloadUrl: upload.url
+        })) || []
+      }))
+    };
+
+    submitOrderMutation.mutate(orderData);
+  };
+
   // Open upload modal for specific service
   const openUploadModal = (service: SelectedService) => {
     setCurrentUploadService(service);
@@ -649,9 +735,11 @@ export default function Upload() {
               <div className="pt-4 space-y-3">
                 <Button
                   className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-                  disabled={selectedServices.length === 0}
+                  disabled={selectedServices.length === 0 || submitOrderMutation.isPending}
+                  onClick={handleSubmitOrder}
+                  data-testid="button-submit-order"
                 >
-                  Submit Order
+                  {submitOrderMutation.isPending ? "Submitting..." : "Submit Order"}
                 </Button>
                 <Button
                   variant="outline"
