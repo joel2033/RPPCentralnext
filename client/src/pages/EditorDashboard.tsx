@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Upload, FileImage, Calendar, DollarSign, Package } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Download, Upload, FileImage, Calendar, DollarSign, Package, Loader2 } from "lucide-react";
+import { auth } from "@/lib/firebase";
 
 interface EditorJob {
   id: string;
@@ -26,6 +30,9 @@ interface EditorJob {
 }
 
 export default function EditorDashboard() {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  
   const { data: editorJobs = [], isLoading } = useQuery<EditorJob[]>({
     queryKey: ['/api/editor/jobs']
   });
@@ -33,6 +40,84 @@ export default function EditorDashboard() {
   const pendingJobs = editorJobs.filter(job => job.status === 'pending');
   const inProgressJobs = editorJobs.filter(job => job.status === 'processing');
   const completedThisWeek = editorJobs.filter(job => job.status === 'completed').length;
+
+  const handleDownloadFiles = async (jobId: string) => {
+    try {
+      console.log('Download button clicked for job:', jobId);
+      
+      // Show progress dialog
+      setIsDownloading(true);
+      setDownloadProgress(10);
+      
+      // Create the API request with authentication headers
+      const headers: Record<string, string> = {};
+      
+      // Add auth header if user is authenticated
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        headers.Authorization = `Bearer ${token}`;
+        setDownloadProgress(25);
+      } else {
+        console.error('No authenticated user found');
+        setIsDownloading(false);
+        return;
+      }
+
+      setDownloadProgress(40);
+      
+      const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+      }
+
+      setDownloadProgress(70);
+
+      // Get the filename from the response headers
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'job_files.zip';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      setDownloadProgress(85);
+
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setDownloadProgress(100);
+      
+      // Hide dialog after a short delay
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error downloading files:', error);
+      setIsDownloading(false);
+      setDownloadProgress(0);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -62,6 +147,29 @@ export default function EditorDashboard() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Download Progress Dialog */}
+      <Dialog open={isDownloading} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Preparing Download
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Zipping files and preparing your download...
+            </p>
+            <div className="space-y-2">
+              <Progress value={downloadProgress} className="w-full" />
+              <p className="text-xs text-gray-500 text-center">
+                {downloadProgress}% complete
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -165,7 +273,12 @@ export default function EditorDashboard() {
                     <p className="text-xs text-gray-500 mt-1">Due: {job.dueDate}</p>
                   </div>
                   <div className="flex space-x-2">
-                    <Button size="sm" variant="outline">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleDownloadFiles(job.id)}
+                      data-testid={`button-download-${job.id}`}
+                    >
                       <Download className="w-4 h-4 mr-1" />
                       Download
                     </Button>

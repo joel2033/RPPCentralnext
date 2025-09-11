@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Upload, FileImage, Calendar, Clock, MapPin } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 
 interface EditorJob {
@@ -33,6 +35,8 @@ export default function EditorJobs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
 
   const { data: jobs = [], isLoading } = useQuery<EditorJob[]>({
     queryKey: ['/api/editor/jobs']
@@ -81,7 +85,10 @@ export default function EditorJobs() {
   const handleDownloadFiles = async (jobId: string) => {
     try {
       console.log('Download button clicked for job:', jobId);
-      console.log('Current user:', auth.currentUser?.email);
+      
+      // Show progress dialog
+      setIsDownloading(true);
+      setDownloadProgress(10);
       
       // Create the API request with authentication headers
       const headers: Record<string, string> = {};
@@ -92,11 +99,15 @@ export default function EditorJobs() {
         const token = await auth.currentUser.getIdToken();
         headers.Authorization = `Bearer ${token}`;
         console.log('Auth token obtained, making request...');
+        setDownloadProgress(25);
       } else {
         console.error('No authenticated user found');
+        setIsDownloading(false);
         return;
       }
 
+      setDownloadProgress(40);
+      
       const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
         method: 'GET',
         headers,
@@ -107,6 +118,8 @@ export default function EditorJobs() {
         throw new Error(`Download failed: ${response.status} ${response.statusText}`);
       }
 
+      setDownloadProgress(70);
+
       // Get the filename from the response headers
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = 'job_files.zip';
@@ -116,6 +129,8 @@ export default function EditorJobs() {
           filename = filenameMatch[1];
         }
       }
+
+      setDownloadProgress(85);
 
       // Convert response to blob
       const blob = await response.blob();
@@ -132,8 +147,18 @@ export default function EditorJobs() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
+      setDownloadProgress(100);
+      
+      // Hide dialog after a short delay
+      setTimeout(() => {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+      }, 1000);
+      
     } catch (error) {
       console.error('Error downloading files:', error);
+      setIsDownloading(false);
+      setDownloadProgress(0);
       // You might want to show a toast notification here
     }
   };
@@ -205,6 +230,29 @@ export default function EditorJobs() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Download Progress Dialog */}
+      <Dialog open={isDownloading} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Preparing Download
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Zipping files and preparing your download...
+            </p>
+            <div className="space-y-2">
+              <Progress value={downloadProgress} className="w-full" />
+              <p className="text-xs text-gray-500 text-center">
+                {downloadProgress}% complete
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Jobs List */}
       <div className="space-y-4">
