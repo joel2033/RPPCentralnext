@@ -33,6 +33,7 @@ import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import fs from 'fs';
+import JSZip from 'jszip';
 
 // Initialize Firebase Admin if not already done
 if (getApps().length === 0) {
@@ -1053,6 +1054,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating job status:", error);
       res.status(500).json({ 
         error: "Failed to update job status", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Download job files as zip
+  app.get("/api/editor/jobs/:jobId/download", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can download job files" });
+      }
+      
+      // Find the order by ID (jobId in this case is actually orderId)
+      const order = await storage.getOrder(jobId);
+      if (!order || order.assignedTo !== uid) {
+        return res.status(404).json({ error: "Job not found or not assigned to you" });
+      }
+      
+      // Get order files and services (for instructions)
+      const orderFiles = await storage.getOrderFiles(jobId);
+      const orderServices = await storage.getOrderServices(jobId);
+      
+      if (orderFiles.length === 0) {
+        return res.status(404).json({ error: "No files found for this job" });
+      }
+      
+      // Create zip file
+      const zip = new JSZip();
+      
+      // Add instructions file if any
+      if (orderServices.length > 0) {
+        let instructionsContent = `Job: ${order.orderNumber}\nInstructions:\n\n`;
+        orderServices.forEach((service, index) => {
+          instructionsContent += `Service ${index + 1}:\n`;
+          if (service.instructions) {
+            try {
+              const instructions = typeof service.instructions === 'string' 
+                ? JSON.parse(service.instructions) 
+                : service.instructions;
+              if (Array.isArray(instructions)) {
+                instructions.forEach(inst => {
+                  instructionsContent += `- File: ${inst.fileName || 'N/A'}\n`;
+                  instructionsContent += `  Details: ${inst.detail || 'N/A'}\n`;
+                });
+              } else {
+                instructionsContent += `- ${JSON.stringify(instructions)}\n`;
+              }
+            } catch (e) {
+              instructionsContent += `- ${service.instructions}\n`;
+            }
+          }
+          if (service.exportTypes) {
+            try {
+              const exportTypes = typeof service.exportTypes === 'string' 
+                ? JSON.parse(service.exportTypes) 
+                : service.exportTypes;
+              instructionsContent += `Export Types:\n`;
+              if (Array.isArray(exportTypes)) {
+                exportTypes.forEach(exp => {
+                  instructionsContent += `  - ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
+                });
+              } else {
+                instructionsContent += `  - ${JSON.stringify(exportTypes)}\n`;
+              }
+            } catch (e) {
+              instructionsContent += `Export Types: ${service.exportTypes}\n`;
+            }
+          }
+          instructionsContent += '\n';
+        });
+        
+        zip.file('instructions.txt', instructionsContent);
+      }
+      
+      // Download each file and add to zip
+      for (const file of orderFiles) {
+        try {
+          // Validate URL is from Firebase Storage to prevent SSRF
+          if (!file.downloadUrl.includes('googleapis.com') && !file.downloadUrl.includes('firebasestorage.app')) {
+            console.error(`Skipping potentially unsafe URL: ${file.downloadUrl}`);
+            continue;
+          }
+          
+          const response = await fetch(file.downloadUrl);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            zip.file(file.originalName, buffer);
+          }
+        } catch (error) {
+          console.error(`Failed to download file ${file.originalName}:`, error);
+          // Continue with other files
+        }
+      }
+      
+      // Generate zip buffer
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      
+      // Set response headers for file download
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="job_${order.orderNumber}_files.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length);
+      
+      res.send(zipBuffer);
+    } catch (error: any) {
+      console.error("Error downloading job files:", error);
+      res.status(500).json({ 
+        error: "Failed to download job files", 
         details: error.message 
       });
     }

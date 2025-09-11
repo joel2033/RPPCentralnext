@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Upload, FileImage, Calendar, Clock, MapPin } from "lucide-react";
+import { auth } from "@/lib/firebase";
 
 interface EditorJob {
   id: string;
@@ -77,9 +78,58 @@ export default function EditorJobs() {
     console.log('Completing job:', jobId);
   };
 
-  const handleDownloadFiles = (jobId: string) => {
-    // This will trigger file download
-    console.log('Downloading files for job:', jobId);
+  const handleDownloadFiles = async (jobId: string) => {
+    try {
+      console.log('Downloading files for job:', jobId);
+      
+      // Create the API request with authentication headers
+      const headers: Record<string, string> = {};
+      
+      // Add auth header if user is authenticated
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+      }
+
+      // Get the filename from the response headers
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'job_files.zip';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Convert response to blob
+      const blob = await response.blob();
+      
+      // Create download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error downloading files:', error);
+      // You might want to show a toast notification here
+    }
   };
 
   if (isLoading) {
