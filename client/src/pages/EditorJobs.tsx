@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2, CheckCircle, AlertCircle, XCircle, Info, Link } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
@@ -32,6 +34,23 @@ interface EditorJob {
     url?: string;
   }>;
   instructions?: any;
+  // Connection validation status
+  connectionStatus?: {
+    isValid: boolean;
+    issues: string[];
+    orderDbId?: string;
+    jobDbId?: string;
+    lastValidated?: string;
+  };
+}
+
+// Connection validation result interface
+interface ConnectionValidation {
+  jobId: string;
+  isValid: boolean;
+  issues: string[];
+  connections: any;
+  timestamp: string;
 }
 
 export default function EditorJobs() {
@@ -42,12 +61,62 @@ export default function EditorJobs() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
+  const [selectedJobForValidation, setSelectedJobForValidation] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: jobs = [], isLoading } = useQuery<EditorJob[]>({
     queryKey: ['/api/editor/jobs-ready-for-upload']
   });
+
+  // Query for connection health check
+  const { data: healthCheck } = useQuery({
+    queryKey: ['/api/health/connection-integrity'],
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Query for job validation when needed
+  const { data: jobValidation, isLoading: isValidating } = useQuery<ConnectionValidation>({
+    queryKey: ['/api/validate/job', selectedJobForValidation],
+    enabled: !!selectedJobForValidation,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  // Function to get connection status icon
+  const getConnectionStatusIcon = (job: EditorJob) => {
+    if (!job.connectionStatus) {
+      return <AlertCircle className="w-4 h-4 text-gray-400" />;
+    }
+    
+    if (job.connectionStatus.isValid) {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    }
+    
+    return <XCircle className="w-4 h-4 text-red-500" />;
+  };
+
+  // Function to get connection status color class
+  const getConnectionStatusColor = (job: EditorJob) => {
+    if (!job.connectionStatus) return "text-gray-500";
+    return job.connectionStatus.isValid ? "text-green-600" : "text-red-600";
+  };
+
+  // Function to validate a specific job
+  const validateJob = async (job: EditorJob) => {
+    setSelectedJobForValidation(job.id);
+    try {
+      await queryClient.refetchQueries({ 
+        queryKey: ['/api/validate/job', job.id] 
+      });
+    } catch (error) {
+      console.error('Error validating job:', error);
+      toast({
+        title: "Validation Error",
+        description: "Failed to validate job connections. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleUploadClick = (job: EditorJob) => {
     setSelectedJob(job);
@@ -332,6 +401,39 @@ export default function EditorJobs() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{job.customerName}</h3>
+                        
+                        {/* Connection Status Indicator */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="flex items-center gap-1">
+                                {getConnectionStatusIcon(job)}
+                                <Link className="w-3 h-3 text-gray-400" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="max-w-xs">
+                                <div className="font-semibold mb-1">Job-Order Connection</div>
+                                <div className="text-xs space-y-1">
+                                  <div>Job ID: {job.jobId}</div>
+                                  <div>Order: #{job.orderNumber}</div>
+                                  {job.connectionStatus?.orderDbId && (
+                                    <div>Order DB ID: {job.connectionStatus.orderDbId}</div>
+                                  )}
+                                  {job.connectionStatus?.issues && job.connectionStatus.issues.length > 0 && (
+                                    <div className="mt-2 p-2 bg-red-50 rounded text-red-800 text-xs">
+                                      <div className="font-medium mb-1">Issues:</div>
+                                      {job.connectionStatus.issues.map((issue, idx) => (
+                                        <div key={idx}>• {issue}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
                         <Badge className={getStatusColor(job.status)}>
                           {job.status.replace('_', ' ')}
                         </Badge>

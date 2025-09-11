@@ -210,6 +210,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (data.dueDate && typeof data.dueDate === 'string') {
         data.dueDate = new Date(data.dueDate);
       }
+
+      // Validate job data before creation
+      const validation = await storage.validateJobCreation(data);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: "Job validation failed", 
+          details: validation.errors 
+        });
+      }
       
       const job = await storage.createJob(data);
 
@@ -275,10 +284,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
 
-      const validatedData = insertOrderSchema.parse({
+      const orderData = {
         ...req.body,
         partnerId: req.user.partnerId
-      });
+      };
+      
+      const validatedData = insertOrderSchema.parse(orderData);
+
+      // Validate order data before creation
+      const validation = await storage.validateOrderCreation(validatedData);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: "Order validation failed", 
+          details: validation.errors 
+        });
+      }
+      
       const order = await storage.createOrder(validatedData);
 
       // Log activity: Order Creation
@@ -2373,7 +2394,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Verify the reservation exists and is valid
+      // ENHANCED SECURITY: Comprehensive validation before processing upload
+      
+      // Step 1: Verify the reservation exists and is valid
       const reservation = await storage.getReservation(orderNumber);
       if (!reservation || reservation.status !== 'reserved') {
         return res.status(400).json({ error: "Invalid or expired order reservation" });
@@ -2386,6 +2409,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if reservation has expired
       if (new Date() > reservation.expiresAt) {
         return res.status(400).json({ error: "Order reservation has expired" });
+      }
+
+      // Step 2: Validate editor workflow access using comprehensive validation
+      const editorAccessValidation = await storage.validateEditorWorkflowAccess(userId, jobId);
+      if (!editorAccessValidation.canAccess) {
+        return res.status(403).json({ 
+          error: "Editor workflow access denied", 
+          details: editorAccessValidation.reason 
+        });
+      }
+
+      // Step 3: Get job and order information for proper validation
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      const orderEntity = editorAccessValidation.orderInfo?.orderId ? 
+        await storage.getOrder(editorAccessValidation.orderInfo.orderId) : null;
+      if (!orderEntity) {
+        return res.status(404).json({ error: "Associated order not found" });
+      }
+
+      // Step 4: Validate upload data integrity with correct IDs
+      const uploadValidation = await storage.validateEditorUpload({
+        jobId: job.id, // Correct job DB ID
+        orderId: orderEntity.id, // Correct order DB ID
+        editorId: userId,
+        fileName: req.file.originalname,
+        firebaseUrl: '', // Will be set after upload
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype
+      });
+
+      if (!uploadValidation.valid) {
+        return res.status(400).json({ 
+          error: "Upload validation failed", 
+          details: uploadValidation.errors 
+        });
       }
 
       const timestamp = Date.now();
@@ -2424,7 +2486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
 
-      // Log activity: File Upload (if user is authenticated)
+      // ENHANCED LOGGING: Comprehensive activity tracking with validation results
       try {
         const authHeader = req.headers.authorization;
         if (authHeader) {
@@ -2433,10 +2495,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userDoc = await getUserDocument(decodedToken.uid);
           
           if (userDoc?.partnerId) {
-            // Get job and order for activity logging
+            // Get comprehensive job and order information
             const job = await storage.getJobByJobId(jobId);
             const orderEntity = orderNumber ? await storage.getOrders().then(orders => 
               orders.find(o => o.orderNumber === orderNumber)) : null;
+
+            // Get validation information for logging
+            const jobValidation = job ? await storage.validateJobIntegrity(job.id) : null;
+            const orderValidation = orderEntity ? await storage.validateOrderIntegrity(orderEntity.id) : null;
 
             await storage.createActivity({
               partnerId: userDoc.partnerId,
@@ -2447,24 +2513,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
               userName: `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email,
               action: "upload",
               category: "file",
-              title: "File Uploaded",
-              description: `Uploaded file: ${req.file.originalname}`,
+              title: "Secure Editor Upload",
+              description: `Editor uploaded ${req.file.originalname} with comprehensive validation`,
               metadata: JSON.stringify({
+                // File information
                 fileName: req.file.originalname,
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype,
                 filePath: filePath,
                 publicUrl: publicUrl,
+                
+                // Job/Order context
                 orderNumber: orderNumber,
-                jobId: jobId
+                jobId: jobId,
+                orderDbId: orderEntity?.id,
+                jobDbId: job?.id,
+                
+                // Validation results
+                editorAccessValidation: {
+                  canAccess: editorAccessValidation.canAccess,
+                  reason: editorAccessValidation.reason,
+                  orderInfo: editorAccessValidation.orderInfo
+                },
+                uploadValidation: {
+                  valid: uploadValidation.valid,
+                  errors: uploadValidation.errors
+                },
+                
+                // Connection health
+                jobIntegrityValid: jobValidation?.isValid || false,
+                orderIntegrityValid: orderValidation?.isValid || false,
+                connectionIssues: [
+                  ...(jobValidation?.issues || []),
+                  ...(orderValidation?.issues || [])
+                ],
+                
+                // Security context
+                reservationId: reservation.id,
+                uploadTimestamp: timestamp,
+                securityLevel: 'enhanced_validation'
               }),
               ipAddress: req.ip,
               userAgent: req.get('User-Agent')
             });
+
+            // Also create an editor upload record with complete validation context
+            if (job && orderEntity) {
+              await storage.createEditorUpload({
+                jobId: job.id,
+                orderId: orderEntity.id,
+                editorId: userId,
+                fileName: req.file.originalname,
+                originalName: req.file.originalname,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype,
+                firebaseUrl: publicUrl,
+                firebasePath: filePath,
+                status: 'uploaded',
+                notes: `Uploaded with enhanced security validation - Access: ${editorAccessValidation.canAccess}, Upload Valid: ${uploadValidation.valid}`
+              });
+            }
           }
         }
       } catch (activityError) {
-        console.error("Failed to log file upload activity:", activityError);
+        console.error("Failed to log enhanced file upload activity:", activityError);
       }
 
       res.json({
@@ -2963,6 +3075,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating activity:", error);
       res.status(400).json({ 
         error: "Invalid activity data", 
+        details: error.message 
+      });
+    }
+  });
+
+  // ===== JOB CONNECTION VALIDATION & HEALTH CHECK ENDPOINTS =====
+
+  // Health check endpoint - overall system health
+  app.get("/api/health/connection-integrity", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const partnerId = req.user?.partnerId;
+      const healthCheck = await storage.performHealthCheck(partnerId);
+      
+      res.json({
+        timestamp: new Date().toISOString(),
+        partnerId: partnerId || 'all',
+        ...healthCheck
+      });
+    } catch (error: any) {
+      console.error("Health check failed:", error);
+      res.status(500).json({ 
+        error: "Health check failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Validate specific job integrity
+  app.get("/api/validate/job/:jobId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { jobId } = req.params;
+      
+      // Verify job belongs to user's partner (tenant isolation)
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: job belongs to different partner" });
+      }
+
+      const validation = await storage.validateJobIntegrity(jobId);
+      
+      res.json({
+        jobId,
+        partnerId: req.user.partnerId,
+        timestamp: new Date().toISOString(),
+        ...validation
+      });
+    } catch (error: any) {
+      console.error("Job validation failed:", error);
+      res.status(500).json({ 
+        error: "Job validation failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Validate specific order integrity
+  app.get("/api/validate/order/:orderId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { orderId } = req.params;
+      
+      // Verify order belongs to user's partner (tenant isolation)
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: order belongs to different partner" });
+      }
+
+      const validation = await storage.validateOrderIntegrity(orderId);
+      
+      res.json({
+        orderId,
+        partnerId: req.user.partnerId,
+        timestamp: new Date().toISOString(),
+        ...validation
+      });
+    } catch (error: any) {
+      console.error("Order validation failed:", error);
+      res.status(500).json({ 
+        error: "Order validation failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Validate editor workflow access
+  app.get("/api/validate/editor-access/:jobId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user || req.user.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can check workflow access" });
+      }
+
+      const { jobId } = req.params;
+      const validation = await storage.validateEditorWorkflowAccess(req.user.uid, jobId);
+      
+      res.json({
+        editorId: req.user.uid,
+        jobId,
+        timestamp: new Date().toISOString(),
+        ...validation
+      });
+    } catch (error: any) {
+      console.error("Editor access validation failed:", error);
+      res.status(500).json({ 
+        error: "Editor access validation failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Repair orphaned order
+  app.post("/api/repair/orphaned-order", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user || !['admin', 'partner'].includes(req.user.role)) {
+        return res.status(403).json({ error: "Only admins and partners can repair data" });
+      }
+
+      const { orderId, correctJobId } = req.body;
+      
+      if (!orderId || !correctJobId) {
+        return res.status(400).json({ error: "orderId and correctJobId are required" });
+      }
+
+      const result = await storage.repairOrphanedOrder(orderId, correctJobId);
+      
+      // Log the repair action
+      if (result.success) {
+        try {
+          await storage.createActivity({
+            partnerId: req.user.partnerId || '',
+            orderId: orderId,
+            userId: req.user.uid,
+            userEmail: req.user.email,
+            userName: req.user.email,
+            action: "update",
+            category: "system",
+            title: "Data Repair",
+            description: "Orphaned order repaired by admin",
+            metadata: JSON.stringify({
+              repairType: 'orphaned_order',
+              orderId,
+              correctJobId,
+              performedBy: req.user.uid
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          });
+        } catch (activityError) {
+          console.error("Failed to log repair activity:", activityError);
+        }
+      }
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        performedBy: req.user.uid,
+        ...result
+      });
+    } catch (error: any) {
+      console.error("Repair operation failed:", error);
+      res.status(500).json({ 
+        error: "Repair operation failed", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Enhanced editor upload validation
+  app.post("/api/validate/editor-upload", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user || req.user.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can validate uploads" });
+      }
+
+      // Add editorId to the upload data for validation
+      const uploadData = {
+        ...req.body,
+        editorId: req.user.uid
+      };
+
+      const validation = await storage.validateEditorUpload(uploadData);
+      
+      res.json({
+        timestamp: new Date().toISOString(),
+        editorId: req.user.uid,
+        ...validation
+      });
+    } catch (error: any) {
+      console.error("Upload validation failed:", error);
+      res.status(500).json({ 
+        error: "Upload validation failed", 
         details: error.message 
       });
     }

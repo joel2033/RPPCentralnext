@@ -143,6 +143,16 @@ export interface IStorage {
   getOrderActivities(orderId: string, partnerId: string): Promise<Activity[]>; // Get all activities for a specific order
   getUserActivities(userId: string, partnerId: string, limit?: number): Promise<Activity[]>; // Get activities by specific user
   getActivityCountByType(partnerId: string, timeRange?: { start: Date; end: Date }): Promise<{ [key: string]: number }>; // Analytics
+
+  // Job Connection Validation System
+  validateJobIntegrity(jobId: string): Promise<{ isValid: boolean; issues: string[]; connections: any }>;
+  validateOrderIntegrity(orderId: string): Promise<{ isValid: boolean; issues: string[]; connections: any }>;
+  validateEditorWorkflowAccess(editorId: string, jobId: string): Promise<{ canAccess: boolean; reason: string; orderInfo?: any }>;
+  performHealthCheck(partnerId?: string): Promise<{ isHealthy: boolean; issues: string[]; statistics: any; orphanedRecords: any }>;
+  repairOrphanedOrder(orderId: string, correctJobId: string): Promise<{ success: boolean; message: string }>;
+  validateJobCreation(insertJob: InsertJob): Promise<{ valid: boolean; errors: string[] }>;
+  validateOrderCreation(insertOrder: InsertOrder): Promise<{ valid: boolean; errors: string[] }>;
+  validateEditorUpload(insertUpload: InsertEditorUpload): Promise<{ valid: boolean; errors: string[] }>;
 }
 
 export class MemStorage implements IStorage {
@@ -1298,6 +1308,443 @@ export class MemStorage implements IStorage {
     }
 
     return counts;
+  }
+
+  // ===== JOB CONNECTION VALIDATION SYSTEM =====
+
+  // Data Integrity Validation
+  async validateJobIntegrity(jobId: string): Promise<{ isValid: boolean; issues: string[]; connections: any }> {
+    const issues: string[] = [];
+    const connections: any = {};
+
+    // Get job by ID (UUID)
+    const job = await this.getJob(jobId);
+    if (!job) {
+      return { isValid: false, issues: ['Job not found'], connections: {} };
+    }
+
+    connections.job = job;
+
+    // Verify jobId (NanoID) exists and is unique
+    if (!job.jobId) {
+      issues.push('Job missing jobId (NanoID)');
+    } else {
+      const jobByJobId = await this.getJobByJobId(job.jobId);
+      if (!jobByJobId || jobByJobId.id !== job.id) {
+        issues.push('JobId (NanoID) reference inconsistency');
+      }
+    }
+
+    // Check customer relationship
+    if (job.customerId) {
+      const customer = await this.getCustomer(job.customerId);
+      if (!customer) {
+        issues.push('Job references non-existent customer');
+      } else {
+        connections.customer = customer;
+      }
+    }
+
+    // Check orders that reference this job
+    const relatedOrders = Array.from(this.orders.values()).filter(order => order.jobId === job.id);
+    connections.orders = relatedOrders;
+
+    if (relatedOrders.length === 0) {
+      issues.push('Job has no associated orders');
+    }
+
+    // Verify each order relationship
+    for (const order of relatedOrders) {
+      if (order.partnerId !== job.partnerId) {
+        issues.push(`Order ${order.orderNumber} partnerId mismatch with job`);
+      }
+      if (order.customerId && order.customerId !== job.customerId) {
+        issues.push(`Order ${order.orderNumber} customer mismatch with job`);
+      }
+    }
+
+    // Check editor uploads
+    const editorUploads = Array.from(this.editorUploads.values()).filter(upload => upload.jobId === job.id);
+    connections.uploads = editorUploads;
+
+    // Verify upload relationships
+    for (const upload of editorUploads) {
+      const relatedOrder = relatedOrders.find(order => order.id === upload.orderId);
+      if (!relatedOrder) {
+        issues.push(`Upload ${upload.fileName} references invalid order`);
+      }
+    }
+
+    return { isValid: issues.length === 0, issues, connections };
+  }
+
+  async validateOrderIntegrity(orderId: string): Promise<{ isValid: boolean; issues: string[]; connections: any }> {
+    const issues: string[] = [];
+    const connections: any = {};
+
+    const order = await this.getOrder(orderId);
+    if (!order) {
+      return { isValid: false, issues: ['Order not found'], connections: {} };
+    }
+
+    connections.order = order;
+
+    // Check job relationship
+    if (order.jobId) {
+      const job = await this.getJob(order.jobId);
+      if (!job) {
+        issues.push('Order references non-existent job');
+      } else {
+        connections.job = job;
+        
+        // Check consistency
+        if (job.partnerId !== order.partnerId) {
+          issues.push('Order/Job partnerId mismatch');
+        }
+        if (job.customerId !== order.customerId) {
+          issues.push('Order/Job customer mismatch');
+        }
+      }
+    } else {
+      issues.push('Order missing job reference');
+    }
+
+    // Check customer relationship
+    if (order.customerId) {
+      const customer = await this.getCustomer(order.customerId);
+      if (!customer) {
+        issues.push('Order references non-existent customer');
+      } else {
+        connections.customer = customer;
+      }
+    }
+
+    // Check order services
+    const orderServices = await this.getOrderServices(order.id);
+    connections.services = orderServices;
+
+    for (const service of orderServices) {
+      const editorService = await this.editorServices.get(service.serviceId);
+      if (!editorService) {
+        issues.push(`Order service references non-existent editor service ${service.serviceId}`);
+      }
+    }
+
+    // Check order files
+    const orderFiles = await this.getOrderFiles(order.id);
+    connections.files = orderFiles;
+
+    // Check editor uploads
+    const editorUploads = Array.from(this.editorUploads.values()).filter(upload => upload.orderId === order.id);
+    connections.uploads = editorUploads;
+
+    return { isValid: issues.length === 0, issues, connections };
+  }
+
+  async validateEditorWorkflowAccess(editorId: string, jobId: string): Promise<{ canAccess: boolean; reason: string; orderInfo?: any }> {
+    const job = await this.getJobByJobId(jobId);
+    if (!job) {
+      return { canAccess: false, reason: 'Job not found' };
+    }
+
+    // Find the order associated with this job
+    const order = Array.from(this.orders.values()).find(o => o.jobId === job.id);
+    if (!order) {
+      return { canAccess: false, reason: 'No order associated with job' };
+    }
+
+    // Check if editor is assigned to this order
+    if (order.assignedTo !== editorId) {
+      return { canAccess: false, reason: 'Editor not assigned to this order' };
+    }
+
+    // Check order status - editor can only work on processing/in_progress orders
+    if (!['processing', 'in_progress'].includes(order.status || 'pending')) {
+      return { canAccess: false, reason: `Order status (${order.status}) does not allow editor access` };
+    }
+
+    return { 
+      canAccess: true, 
+      reason: 'Access granted',
+      orderInfo: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        partnerId: order.partnerId
+      }
+    };
+  }
+
+  // Connection Health Check
+  async performHealthCheck(partnerId?: string): Promise<{ 
+    isHealthy: boolean; 
+    issues: string[]; 
+    statistics: any;
+    orphanedRecords: any;
+  }> {
+    const issues: string[] = [];
+    const statistics = {
+      totalJobs: 0,
+      totalOrders: 0,
+      totalUploads: 0,
+      connectedJobs: 0,
+      orphanedJobs: 0,
+      orphanedOrders: 0,
+      orphanedUploads: 0
+    };
+    const orphanedRecords = {
+      jobs: [] as any[],
+      orders: [] as any[],
+      uploads: [] as any[]
+    };
+
+    const allJobs = partnerId ? await this.getJobs(partnerId) : Array.from(this.jobs.values());
+    const allOrders = partnerId ? await this.getOrders(partnerId) : Array.from(this.orders.values());
+    const allUploads = Array.from(this.editorUploads.values());
+
+    statistics.totalJobs = allJobs.length;
+    statistics.totalOrders = allOrders.length;
+    statistics.totalUploads = allUploads.length;
+
+    // Check job connections
+    for (const job of allJobs) {
+      const relatedOrders = allOrders.filter(order => order.jobId === job.id);
+      
+      if (relatedOrders.length === 0) {
+        statistics.orphanedJobs++;
+        orphanedRecords.jobs.push({
+          id: job.id,
+          jobId: job.jobId,
+          address: job.address,
+          issue: 'No associated orders'
+        });
+      } else {
+        statistics.connectedJobs++;
+      }
+    }
+
+    // Check order connections  
+    for (const order of allOrders) {
+      let hasIssues = false;
+
+      if (order.jobId) {
+        const job = await this.getJob(order.jobId);
+        if (!job) {
+          hasIssues = true;
+          issues.push(`Order ${order.orderNumber} references non-existent job ${order.jobId}`);
+        }
+      } else {
+        hasIssues = true;
+      }
+
+      if (order.customerId) {
+        const customer = await this.getCustomer(order.customerId);
+        if (!customer) {
+          hasIssues = true;
+          issues.push(`Order ${order.orderNumber} references non-existent customer ${order.customerId}`);
+        }
+      }
+
+      if (hasIssues) {
+        statistics.orphanedOrders++;
+        orphanedRecords.orders.push({
+          id: order.id,
+          orderNumber: order.orderNumber,
+          jobId: order.jobId,
+          customerId: order.customerId
+        });
+      }
+    }
+
+    // Check upload connections
+    for (const upload of allUploads) {
+      let hasIssues = false;
+
+      const order = await this.getOrder(upload.orderId);
+      if (!order) {
+        hasIssues = true;
+        issues.push(`Upload ${upload.fileName} references non-existent order ${upload.orderId}`);
+      }
+
+      const job = await this.getJob(upload.jobId);
+      if (!job) {
+        hasIssues = true;
+        issues.push(`Upload ${upload.fileName} references non-existent job ${upload.jobId}`);
+      }
+
+      if (hasIssues) {
+        statistics.orphanedUploads++;
+        orphanedRecords.uploads.push({
+          id: upload.id,
+          fileName: upload.fileName,
+          jobId: upload.jobId,
+          orderId: upload.orderId
+        });
+      }
+    }
+
+    return { 
+      isHealthy: issues.length === 0, 
+      issues, 
+      statistics,
+      orphanedRecords
+    };
+  }
+
+  // Repair Functions
+  async repairOrphanedOrder(orderId: string, correctJobId: string): Promise<{ success: boolean; message: string }> {
+    const order = await this.getOrder(orderId);
+    if (!order) {
+      return { success: false, message: 'Order not found' };
+    }
+
+    const job = await this.getJob(correctJobId);
+    if (!job) {
+      return { success: false, message: 'Target job not found' };
+    }
+
+    // Update the order to reference the correct job
+    const updatedOrder = { 
+      ...order, 
+      jobId: job.id,
+      customerId: job.customerId, // Ensure customer consistency
+      partnerId: job.partnerId    // Ensure partner consistency
+    };
+    
+    this.orders.set(orderId, updatedOrder);
+    this.saveToFile();
+
+    // Log the repair activity
+    await this.createActivity({
+      partnerId: job.partnerId,
+      jobId: job.id,
+      orderId: order.id,
+      userId: 'system',
+      userEmail: 'system@repair',
+      userName: 'System Repair',
+      action: 'update',
+      category: 'system',
+      title: 'Order Repaired',
+      description: `Order ${order.orderNumber} linked to job ${job.jobId}`,
+      metadata: JSON.stringify({
+        repairType: 'orphaned_order',
+        previousJobId: order.jobId,
+        newJobId: job.id
+      })
+    });
+
+    return { success: true, message: `Order ${order.orderNumber} successfully linked to job ${job.jobId}` };
+  }
+
+  // Preventive Validation
+  async validateJobCreation(insertJob: InsertJob): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Ensure partnerId exists
+    if (!insertJob.partnerId) {
+      errors.push('partnerId is required');
+    }
+
+    // Validate customer if provided
+    if (insertJob.customerId) {
+      const customer = await this.getCustomer(insertJob.customerId);
+      if (!customer) {
+        errors.push('Referenced customer does not exist');
+      } else if (customer.partnerId !== insertJob.partnerId) {
+        errors.push('Customer belongs to different partner');
+      }
+    }
+
+    // Ensure address is provided
+    if (!insertJob.address || insertJob.address.trim().length === 0) {
+      errors.push('Job address is required');
+    }
+
+    // Validate jobId uniqueness if provided
+    if (insertJob.jobId) {
+      const existingJob = await this.getJobByJobId(insertJob.jobId);
+      if (existingJob) {
+        errors.push('JobId already exists');
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async validateOrderCreation(insertOrder: InsertOrder): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Ensure partnerId exists
+    if (!insertOrder.partnerId) {
+      errors.push('partnerId is required');
+    }
+
+    // Validate job reference if provided
+    if (insertOrder.jobId) {
+      const job = await this.getJob(insertOrder.jobId);
+      if (!job) {
+        errors.push('Referenced job does not exist');
+      } else if (job.partnerId !== insertOrder.partnerId) {
+        errors.push('Job belongs to different partner');
+      }
+    }
+
+    // Validate customer if provided
+    if (insertOrder.customerId) {
+      const customer = await this.getCustomer(insertOrder.customerId);
+      if (!customer) {
+        errors.push('Referenced customer does not exist');
+      } else if (customer.partnerId !== insertOrder.partnerId) {
+        errors.push('Customer belongs to different partner');
+      }
+    }
+
+    // Ensure job and customer consistency
+    if (insertOrder.jobId && insertOrder.customerId) {
+      const job = await this.getJob(insertOrder.jobId);
+      if (job && job.customerId !== insertOrder.customerId) {
+        errors.push('Job and order customer mismatch');
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async validateEditorUpload(insertUpload: InsertEditorUpload): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+
+    // Validate order exists
+    const order = await this.getOrder(insertUpload.orderId);
+    if (!order) {
+      errors.push('Referenced order does not exist');
+    }
+
+    // Validate job exists
+    const job = await this.getJob(insertUpload.jobId);
+    if (!job) {
+      errors.push('Referenced job does not exist');
+    }
+
+    // Ensure order and job are connected
+    if (order && job && order.jobId !== job.id) {
+      errors.push('Order and job are not connected');
+    }
+
+    // Validate editor assignment
+    if (order && order.assignedTo !== insertUpload.editorId) {
+      errors.push('Editor not assigned to this order');
+    }
+
+    // Validate file data
+    if (!insertUpload.fileName || insertUpload.fileName.trim().length === 0) {
+      errors.push('File name is required');
+    }
+
+    if (!insertUpload.firebaseUrl || insertUpload.firebaseUrl.trim().length === 0) {
+      errors.push('Firebase URL is required');
+    }
+
+    return { valid: errors.length === 0, errors };
   }
 }
 
