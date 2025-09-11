@@ -26,15 +26,6 @@
       "email": "mike.partner@example.com",
       "role": "partner",
       "createdAt": "2025-01-01T10:00:00.000Z"
-    },
-    "imLvMh2sJHcfU5VhQmR1c9MO0N12": {
-      "id": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "partnerId": "partner_192l9bh1xmduwueha",
-      "firstName": "May",
-      "lastName": "Studios",
-      "email": "May@maystudios.com",
-      "role": "editor",
-      "createdAt": "2025-09-11T12:00:00.000Z"
     }
   },
   "customers": {
@@ -240,11 +231,11 @@
       "partnerId": "partner_192l9bh1xmduwueha",
       "jobId": "3N4R7qcGUiQyOzWpgZm3N",
       "customerId": null,
-      "status": "processing",
+      "status": "pending",
       "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
       "estimatedTotal": "0",
-      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "dateAccepted": "2025-09-11T12:36:39.015Z",
+      "assignedTo": null,
+      "dateAccepted": null,
       "orderNumber": "#12349",
       "filesExpiryDate": "2025-09-24T14:11:17.213Z",
       "id": "6601f1bf-3445-4f39-9711-118b3853431a",

@@ -72,13 +72,6 @@ function Router() {
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
-      <Route path="/editor/assignments">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <TeamAssignments />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
       <Route path="/editor/downloads">
         <EditorProtectedRoute>
           <EditorLayout>
