@@ -80,15 +80,21 @@ export default function EditorJobs() {
 
   const handleDownloadFiles = async (jobId: string) => {
     try {
-      console.log('Downloading files for job:', jobId);
+      console.log('Download button clicked for job:', jobId);
+      console.log('Current user:', auth.currentUser?.email);
       
       // Create the API request with authentication headers
       const headers: Record<string, string> = {};
       
       // Add auth header if user is authenticated
       if (auth.currentUser) {
+        console.log('Getting auth token...');
         const token = await auth.currentUser.getIdToken();
         headers.Authorization = `Bearer ${token}`;
+        console.log('Auth token obtained, making request...');
+      } else {
+        console.error('No authenticated user found');
+        return;
       }
 
       const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
