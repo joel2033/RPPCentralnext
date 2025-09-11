@@ -1451,15 +1451,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only editors can download job files" });
       }
       
-      // Find the order by ID (jobId in this case is actually orderId)
-      const order = await storage.getOrder(jobId);
+      // Find the job first, then get associated order
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Get associated order using jobId
+      const allOrders = await storage.getOrders();
+      const order = allOrders.find(o => o.jobId === job.id);
       if (!order || order.assignedTo !== uid) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
       }
       
       // Get order files and services (for instructions)
-      const orderFiles = await storage.getOrderFiles(jobId);
-      const orderServices = await storage.getOrderServices(jobId);
+      const orderFiles = await storage.getOrderFiles(order.id);
+      const orderServices = await storage.getOrderServices(order.id);
       
       if (orderFiles.length === 0) {
         return res.status(404).json({ error: "No files found for this job" });
@@ -1467,6 +1474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create zip file
       const zip = new JSZip();
+      let zipGenerationFailed = false;
       
       // Add instructions file if any
       if (orderServices.length > 0) {
@@ -1534,7 +1542,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate zip buffer
-      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      let zipBuffer;
+      try {
+        zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      } catch (error) {
+        zipGenerationFailed = true;
+        console.error('Failed to generate zip file:', error);
+        return res.status(500).json({ error: 'Failed to generate download archive' });
+      }
+      
+      // Only mark as downloaded after successful zip generation
+      try {
+        await storage.markOrderDownloaded(order.id, uid);
+      } catch (error) {
+        console.error('Failed to update download status:', error);
+        // Continue with download even if status update fails
+      }
       
       // Set response headers for file download
       res.setHeader('Content-Type', 'application/zip');
@@ -1932,6 +1955,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdUploads = await Promise.all(uploadPromises);
       
+      // Mark order as uploaded (status: in_progress → completed)
+      try {
+        await storage.markOrderUploaded(order.id, uid);
+        console.log(`Order ${order.orderNumber} marked as completed after upload`);
+      } catch (error) {
+        console.error('Failed to update upload status:', error);
+        // Continue with success response even if status update fails
+      }
+      
       res.status(201).json({
         success: true,
         uploads: createdUploads,
@@ -1992,14 +2024,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: job belongs to different partner" });
       }
 
+      // Update job status first
       const updatedJob = await storage.updateJobStatusAfterUpload(jobId, status);
       if (!updatedJob) {
         return res.status(404).json({ error: "Job not found" });
       }
 
+      // Also update order status using the new tracking method if completing upload
+      let updatedOrder = order;
+      if (status === 'completed') {
+        updatedOrder = await storage.markOrderUploaded(order.id, uid) || order;
+      }
+
       res.json({
         success: true,
         job: updatedJob,
+        order: updatedOrder,
         message: `Job status updated to ${status}`
       });
     } catch (error: any) {

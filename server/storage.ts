@@ -634,6 +634,121 @@ export class MemStorage implements IStorage {
     return allJobs.filter(job => job.customerId === customerId);
   }
 
+  // Status Validation and Transition Rules
+  private validateOrderStatusTransition(currentStatus: string, newStatus: string): { valid: boolean; error?: string } {
+    const validTransitions: Record<string, string[]> = {
+      'pending': ['processing', 'cancelled'],
+      'processing': ['in_progress', 'cancelled', 'in_revision'],
+      'in_progress': ['completed', 'in_revision', 'cancelled'],
+      'in_revision': ['in_progress', 'cancelled'],
+      'completed': ['in_revision'], // Allow reopening completed orders if needed
+      'cancelled': [] // No transitions from cancelled
+    };
+
+    if (!validTransitions[currentStatus]) {
+      return { valid: false, error: `Invalid current status: ${currentStatus}` };
+    }
+
+    if (!validTransitions[currentStatus].includes(newStatus)) {
+      return { valid: false, error: `Invalid status transition: ${currentStatus} → ${newStatus}` };
+    }
+
+    return { valid: true };
+  }
+
+  private validateJobStatusTransition(currentStatus: string, newStatus: string): { valid: boolean; error?: string } {
+    const validTransitions: Record<string, string[]> = {
+      'scheduled': ['in_progress', 'cancelled'],
+      'in_progress': ['completed', 'cancelled'],
+      'completed': ['in_progress'], // Allow reopening if needed
+      'cancelled': [] // No transitions from cancelled
+    };
+
+    if (!validTransitions[currentStatus]) {
+      return { valid: false, error: `Invalid current job status: ${currentStatus}` };
+    }
+
+    if (!validTransitions[currentStatus].includes(newStatus)) {
+      return { valid: false, error: `Invalid job status transition: ${currentStatus} → ${newStatus}` };
+    }
+
+    return { valid: true };
+  }
+
+  // Comprehensive Status Update Methods
+  async updateOrderStatus(orderId: string, status: string, editorId?: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order) return undefined;
+    
+    // Validate editor assignment if editorId provided
+    if (editorId && order.assignedTo !== editorId) {
+      return undefined;
+    }
+    
+    // Validate status transition
+    const validation = this.validateOrderStatusTransition(order.status, status);
+    if (!validation.valid) {
+      console.error(`Order ${order.orderNumber} status update failed: ${validation.error}`);
+      throw new Error(validation.error);
+    }
+    
+    const updatedOrder = { ...order, status };
+    this.orders.set(orderId, updatedOrder);
+    this.saveToFile();
+    return updatedOrder;
+  }
+
+  async updateOrderStatusWithTracking(orderId: string, status: string, actionType: string, editorId?: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order) return undefined;
+    
+    // Validate editor assignment if editorId provided
+    if (editorId && order.assignedTo !== editorId) {
+      return undefined;
+    }
+    
+    // Validate status transition
+    const validation = this.validateOrderStatusTransition(order.status, status);
+    if (!validation.valid) {
+      console.error(`Order ${order.orderNumber} status update failed: ${validation.error} (${actionType})`);
+      throw new Error(validation.error);
+    }
+    
+    // Update order status
+    const updatedOrder = { ...order, status };
+    this.orders.set(orderId, updatedOrder);
+    
+    // Log status change for audit trail
+    console.log(`Order ${order.orderNumber} status updated: ${order.status} → ${status} (${actionType})`);
+    
+    this.saveToFile();
+    return updatedOrder;
+  }
+
+  async markOrderDownloaded(orderId: string, editorId: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order || order.assignedTo !== editorId) return undefined;
+    
+    // Only update if currently processing
+    if (order.status === 'processing') {
+      return this.updateOrderStatusWithTracking(orderId, 'in_progress', 'files_downloaded', editorId);
+    }
+    
+    return order;
+  }
+
+  async markOrderUploaded(orderId: string, editorId: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order || order.assignedTo !== editorId) return undefined;
+    
+    // Update to completed if currently in progress
+    if (order.status === 'in_progress') {
+      return this.updateOrderStatusWithTracking(orderId, 'completed', 'deliverables_uploaded', editorId);
+    }
+    
+    return order;
+  }
+
   // Editor Upload Methods
   async getJobsReadyForUpload(editorId: string): Promise<any[]> {
     const allOrders = Array.from(this.orders.values());
@@ -711,16 +826,19 @@ export class MemStorage implements IStorage {
     const job = await this.getJobByJobId(jobId);
     if (!job) return undefined;
 
+    // Validate job status transition
+    const validation = this.validateJobStatusTransition(job.status, status);
+    if (!validation.valid) {
+      console.error(`Job ${job.jobId} status update failed: ${validation.error}`);
+      throw new Error(validation.error);
+    }
+
     const updatedJob = { ...job, status };
     this.jobs.set(job.id, updatedJob);
 
-    // Also update the order status if needed
-    const allOrders = Array.from(this.orders.values());
-    const relatedOrder = allOrders.find(order => order.jobId === job.id);
-    if (relatedOrder && status === 'completed') {
-      const updatedOrder = { ...relatedOrder, status: 'completed' };
-      this.orders.set(relatedOrder.id, updatedOrder);
-    }
+    // Note: Order status updates are now handled separately via markOrderUploaded()
+    // This method only updates job status to avoid redundancy and conflicts
+    console.log(`Job ${job.jobId} status updated to ${status}`);
 
     this.saveToFile();
     return updatedJob;
