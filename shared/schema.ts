@@ -164,6 +164,26 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at"),
 });
 
+// Activity tracking system (comprehensive audit log)
+export const activities = pgTable("activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  jobId: varchar("job_id").references(() => jobs.id), // Optional - activity might not be job-specific
+  orderId: varchar("order_id").references(() => orders.id), // Optional - activity might be order-specific
+  customerId: varchar("customer_id").references(() => customers.id), // Optional - for customer-related activities
+  userId: text("user_id").notNull(), // Firebase UID of user who performed the action
+  userEmail: text("user_email").notNull(), // Email for display purposes
+  userName: text("user_name").notNull(), // Full name for display purposes
+  action: text("action").notNull(), // Type of action: "assignment", "download", "upload", "status_change", "comment", "creation", "update", "delete"
+  category: text("category").notNull(), // Category: "job", "order", "customer", "assignment", "file", "system"
+  title: text("title").notNull(), // Human-readable title for the activity
+  description: text("description"), // Detailed description of what happened
+  metadata: text("metadata"), // JSON string with action-specific data (file names, status changes, etc.)
+  ipAddress: text("ip_address"), // IP address of the user (for security audit)
+  userAgent: text("user_agent"), // Browser/client information
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -235,6 +255,30 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   readAt: true,
 });
 
+export const insertActivitySchema = createInsertSchema(activities).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  metadata: z.string().optional().refine((val) => {
+    if (!val) return true;
+    try {
+      JSON.parse(val);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Metadata must be valid JSON"),
+  action: z.enum([
+    "assignment", "download", "upload", "status_change", 
+    "comment", "creation", "update", "delete", "appointment",
+    "notification", "file_management", "system"
+  ]),
+  category: z.enum([
+    "job", "order", "customer", "assignment", "file", 
+    "system", "appointment", "notification", "user"
+  ]),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -268,3 +312,6 @@ export type InsertEditorUpload = z.infer<typeof insertEditorUploadSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type Activity = typeof activities.$inferSelect;
+export type InsertActivity = z.infer<typeof insertActivitySchema>;

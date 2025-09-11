@@ -20,7 +20,9 @@ import {
   type EditorUpload,
   type InsertEditorUpload,
   type Notification,
-  type InsertNotification
+  type InsertNotification,
+  type Activity,
+  type InsertActivity
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -121,6 +123,26 @@ export interface IStorage {
   markNotificationRead(id: string, recipientId: string): Promise<Notification | undefined>;
   markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void>;
   deleteNotification(id: string, recipientId: string): Promise<void>;
+
+  // Activity Tracking (Audit Log)
+  createActivity(activity: InsertActivity): Promise<Activity>;
+  createActivities(activities: InsertActivity[]): Promise<Activity[]>; // Bulk creation for batch operations
+  getActivities(filters?: {
+    partnerId?: string;
+    jobId?: string;
+    orderId?: string;
+    userId?: string;
+    action?: string;
+    category?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<Activity[]>;
+  getJobActivities(jobId: string, partnerId: string): Promise<Activity[]>; // Get all activities for a specific job
+  getOrderActivities(orderId: string, partnerId: string): Promise<Activity[]>; // Get all activities for a specific order
+  getUserActivities(userId: string, partnerId: string, limit?: number): Promise<Activity[]>; // Get activities by specific user
+  getActivityCountByType(partnerId: string, timeRange?: { start: Date; end: Date }): Promise<{ [key: string]: number }>; // Analytics
 }
 
 export class MemStorage implements IStorage {
@@ -135,6 +157,7 @@ export class MemStorage implements IStorage {
   private editorServices: Map<string, EditorService>;
   private editorUploads: Map<string, EditorUpload>;
   private notifications: Map<string, Notification>;
+  private activities: Map<string, Activity>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -151,6 +174,7 @@ export class MemStorage implements IStorage {
     this.editorServices = new Map();
     this.editorUploads = new Map();
     this.notifications = new Map();
+    this.activities = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -276,7 +300,17 @@ export class MemStorage implements IStorage {
           });
         }
         
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications`);
+        // Restore activities
+        if (data.activities) {
+          Object.entries(data.activities).forEach(([id, activity]: [string, any]) => {
+            this.activities.set(id, { 
+              ...activity, 
+              createdAt: new Date(activity.createdAt)
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -297,6 +331,7 @@ export class MemStorage implements IStorage {
         editorServices: Object.fromEntries(this.editorServices.entries()),
         editorUploads: Object.fromEntries(this.editorUploads.entries()),
         notifications: Object.fromEntries(this.notifications.entries()),
+        activities: Object.fromEntries(this.activities.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
@@ -1141,6 +1176,128 @@ export class MemStorage implements IStorage {
       this.notifications.delete(id);
       this.saveToFile();
     }
+  }
+
+  // Activity Tracking Methods
+  async createActivity(insertActivity: InsertActivity): Promise<Activity> {
+    const id = randomUUID();
+    const activity: Activity = {
+      ...insertActivity,
+      id,
+      createdAt: new Date()
+    };
+    this.activities.set(id, activity);
+    this.saveToFile();
+    return activity;
+  }
+
+  async createActivities(insertActivities: InsertActivity[]): Promise<Activity[]> {
+    const activities: Activity[] = [];
+    for (const insertActivity of insertActivities) {
+      const id = randomUUID();
+      const activity: Activity = {
+        ...insertActivity,
+        id,
+        createdAt: new Date()
+      };
+      this.activities.set(id, activity);
+      activities.push(activity);
+    }
+    this.saveToFile();
+    return activities;
+  }
+
+  async getActivities(filters?: {
+    partnerId?: string;
+    jobId?: string;
+    orderId?: string;
+    userId?: string;
+    action?: string;
+    category?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<Activity[]> {
+    let activities = Array.from(this.activities.values());
+
+    // Apply filters
+    if (filters?.partnerId) {
+      activities = activities.filter(activity => activity.partnerId === filters.partnerId);
+    }
+    if (filters?.jobId) {
+      activities = activities.filter(activity => activity.jobId === filters.jobId);
+    }
+    if (filters?.orderId) {
+      activities = activities.filter(activity => activity.orderId === filters.orderId);
+    }
+    if (filters?.userId) {
+      activities = activities.filter(activity => activity.userId === filters.userId);
+    }
+    if (filters?.action) {
+      activities = activities.filter(activity => activity.action === filters.action);
+    }
+    if (filters?.category) {
+      activities = activities.filter(activity => activity.category === filters.category);
+    }
+    if (filters?.startDate) {
+      activities = activities.filter(activity => activity.createdAt >= filters.startDate!);
+    }
+    if (filters?.endDate) {
+      activities = activities.filter(activity => activity.createdAt <= filters.endDate!);
+    }
+
+    // Sort by creation date (latest first)
+    activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    // Apply pagination
+    if (filters?.offset || filters?.limit) {
+      const offset = filters?.offset || 0;
+      const limit = filters?.limit || activities.length;
+      activities = activities.slice(offset, offset + limit);
+    }
+
+    return activities;
+  }
+
+  async getJobActivities(jobId: string, partnerId: string): Promise<Activity[]> {
+    return this.getActivities({
+      jobId,
+      partnerId
+    });
+  }
+
+  async getOrderActivities(orderId: string, partnerId: string): Promise<Activity[]> {
+    return this.getActivities({
+      orderId,
+      partnerId
+    });
+  }
+
+  async getUserActivities(userId: string, partnerId: string, limit?: number): Promise<Activity[]> {
+    return this.getActivities({
+      userId,
+      partnerId,
+      limit
+    });
+  }
+
+  async getActivityCountByType(partnerId: string, timeRange?: { start: Date; end: Date }): Promise<{ [key: string]: number }> {
+    const filters: any = { partnerId };
+    if (timeRange) {
+      filters.startDate = timeRange.start;
+      filters.endDate = timeRange.end;
+    }
+
+    const activities = await this.getActivities(filters);
+    const counts: { [key: string]: number } = {};
+
+    for (const activity of activities) {
+      const key = `${activity.category}:${activity.action}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+
+    return counts;
   }
 }
 

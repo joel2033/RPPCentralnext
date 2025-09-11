@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, User, Calendar, DollarSign, Activity, Upload, Image, FileText, Video, Eye, Building } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building } from "lucide-react";
 import { format } from "date-fns";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
+import ActivityTimeline from "@/components/ActivityTimeline";
 
 interface JobCardData {
   id: string;
@@ -313,42 +314,8 @@ export default function JobCard() {
             </CardContent>
           </Card>
 
-          {/* Activity Log */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Activity className="h-5 w-5 mr-2" />
-                Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="border-l-2 border-green-200 pl-4 py-2">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm font-medium">Job Created</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {format(new Date(jobData.createdAt), 'MMM dd, yyyy h:mm a')}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Job ID: {jobData.jobId}
-                  </p>
-                </div>
-                {jobData.appointmentDate && (
-                  <div className="border-l-2 border-blue-200 pl-4 py-2">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Appointment Scheduled</span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {format(new Date(jobData.appointmentDate), 'MMM dd, yyyy h:mm a')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Activity Timeline */}
+          <ActivityTimeline jobId={jobData.id} />
         </div>
       </div>
     </div>

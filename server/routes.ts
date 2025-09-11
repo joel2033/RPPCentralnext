@@ -10,7 +10,8 @@ import {
   insertOrderFileSchema,
   insertServiceCategorySchema,
   insertEditorServiceSchema,
-  insertNotificationSchema
+  insertNotificationSchema,
+  insertActivitySchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -192,10 +193,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/jobs", async (req, res) => {
+  app.post("/api/jobs", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
       // For now, bypass schema validation and handle dates manually
-      const data = { ...req.body };
+      const data = { 
+        ...req.body, 
+        partnerId: req.user.partnerId // Ensure partnerId is set
+      };
       if (data.appointmentDate && typeof data.appointmentDate === 'string') {
         data.appointmentDate = new Date(data.appointmentDate);
       }
@@ -204,6 +212,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const job = await storage.createJob(data);
+
+      // Log activity: Job Creation
+      try {
+        await storage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.id,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email, // Use email as userName since firstName/lastName aren't in user context
+          action: "creation",
+          category: "job",
+          title: "Job Created",
+          description: `New job created at ${job.address}`,
+          metadata: JSON.stringify({
+            jobId: job.jobId,
+            address: job.address,
+            status: job.status,
+            customerId: job.customerId,
+            totalValue: job.totalValue
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log job creation activity:", activityError);
+        // Don't fail the job creation if activity logging fails
+      }
+
       res.status(201).json(job);
     } catch (error) {
       console.error("Job creation error:", error);
@@ -233,25 +269,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/orders", async (req, res) => {
+  app.post("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = insertOrderSchema.parse(req.body);
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const validatedData = insertOrderSchema.parse({
+        ...req.body,
+        partnerId: req.user.partnerId
+      });
       const order = await storage.createOrder(validatedData);
+
+      // Log activity: Order Creation
+      try {
+        await storage.createActivity({
+          partnerId: req.user.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email, // Use email as userName since firstName/lastName aren't in user context
+          action: "creation",
+          category: "order",
+          title: "Order Created",
+          description: `New order #${order.orderNumber} created`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            status: order.status,
+            estimatedTotal: order.estimatedTotal,
+            jobId: order.jobId,
+            customerId: order.customerId
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log order creation activity:", activityError);
+      }
+
       res.status(201).json(order);
     } catch (error) {
       res.status(400).json({ error: "Invalid order data" });
     }
   });
 
-  app.patch("/api/orders/:id", async (req, res) => {
+  app.patch("/api/orders/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const order = await storage.updateOrder(req.params.id, req.body);
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { id } = req.params;
+      
+      // Verify order exists and belongs to user's partner (security check)
+      const existingOrder = await storage.getOrder(id);
+      if (!existingOrder) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (existingOrder.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      // Store original values for change tracking
+      const originalStatus = existingOrder.status;
+      
+      const order = await storage.updateOrder(id, req.body);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
+
+      // Log activity for status changes (critical for audit trail)
+      if (req.body.status && req.body.status !== originalStatus) {
+        try {
+          await storage.createActivity({
+            partnerId: req.user.partnerId,
+            orderId: order.id,
+            jobId: order.jobId,
+            userId: req.user.uid,
+            userEmail: req.user.email,
+            userName: req.user.email,
+            action: "status_change",
+            category: "order",
+            title: "Order Status Updated",
+            description: `Order #${order.orderNumber} status changed from ${originalStatus} to ${req.body.status}`,
+            metadata: JSON.stringify({
+              orderNumber: order.orderNumber,
+              previousStatus: originalStatus,
+              newStatus: req.body.status,
+              changedBy: req.user.email,
+              changedAt: new Date().toISOString(),
+              updatedFields: Object.keys(req.body)
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          });
+        } catch (activityError) {
+          console.error("Failed to log order update activity:", activityError);
+          // Don't fail the update if activity logging fails
+        }
+      }
+
       res.json(order);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update order" });
+    } catch (error: any) {
+      console.error("Error updating order:", error);
+      res.status(500).json({ 
+        error: "Failed to update order", 
+        details: error.message 
+      });
     }
   });
 
@@ -1330,6 +1456,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!assignedOrder) {
         return res.status(409).json({ error: "Order is no longer available for assignment" });
       }
+
+      // Log activity: Order Assignment
+      try {
+        await storage.createActivity({
+          partnerId: currentUser.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          userName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+          action: "assignment",
+          category: "order",
+          title: "Order Assigned",
+          description: `Order #${order.orderNumber} assigned to editor`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            editorId: editorId,
+            editorEmail: editorPartnership.editorEmail,
+            editorStudioName: editorPartnership.editorStudioName,
+            assignedBy: currentUser.email,
+            assignedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log order assignment activity:", activityError);
+      }
       
       // Create notification for the assigned editor
       try {
@@ -1421,6 +1575,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedOrder = await storage.updateOrderStatus(jobId, status, uid);
       if (!updatedOrder) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
+      }
+
+      // Log activity: Status Change
+      try {
+        await storage.createActivity({
+          partnerId: currentUser.partnerId || '',
+          orderId: updatedOrder.id,
+          jobId: updatedOrder.jobId,
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          userName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+          action: "status_change",
+          category: "order",
+          title: "Status Updated",
+          description: `Order status changed to ${status}`,
+          metadata: JSON.stringify({
+            orderNumber: updatedOrder.orderNumber,
+            previousStatus: "processing", // Could be improved by tracking previous status
+            newStatus: status,
+            editorId: uid,
+            changedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log status change activity:", activityError);
       }
       
       res.json({ success: true, status: updatedOrder.status });
@@ -2243,6 +2424,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
 
+      // Log activity: File Upload (if user is authenticated)
+      try {
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+          const idToken = authHeader.replace('Bearer ', '');
+          const decodedToken = await adminAuth.verifyIdToken(idToken);
+          const userDoc = await getUserDocument(decodedToken.uid);
+          
+          if (userDoc?.partnerId) {
+            // Get job and order for activity logging
+            const job = await storage.getJobByJobId(jobId);
+            const orderEntity = orderNumber ? await storage.getOrders().then(orders => 
+              orders.find(o => o.orderNumber === orderNumber)) : null;
+
+            await storage.createActivity({
+              partnerId: userDoc.partnerId,
+              jobId: job?.id,
+              orderId: orderEntity?.id,
+              userId: userDoc.uid,
+              userEmail: userDoc.email,
+              userName: `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email,
+              action: "upload",
+              category: "file",
+              title: "File Uploaded",
+              description: `Uploaded file: ${req.file.originalname}`,
+              metadata: JSON.stringify({
+                fileName: req.file.originalname,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype,
+                filePath: filePath,
+                publicUrl: publicUrl,
+                orderNumber: orderNumber,
+                jobId: jobId
+              }),
+              ipAddress: req.ip,
+              userAgent: req.get('User-Agent')
+            });
+          }
+        }
+      } catch (activityError) {
+        console.error("Failed to log file upload activity:", activityError);
+      }
+
       res.json({
         url: publicUrl,
         path: filePath,
@@ -2296,6 +2520,449 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error deleting file from Firebase:", error);
       res.status(500).json({ 
         error: "Failed to delete file from Firebase", 
+        details: error.message 
+      });
+    }
+  });
+
+  // =============================================
+  // ACTIVITY TRACKING API ENDPOINTS
+  // =============================================
+
+  // Activity filtering validation schema
+  const activityFiltersSchema = z.object({
+    jobId: z.string().optional(),
+    orderId: z.string().optional(),
+    userId: z.string().optional(),
+    action: z.string().optional(),
+    category: z.string().optional(),
+    startDate: z.string().datetime().optional(),
+    endDate: z.string().datetime().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    offset: z.number().int().min(0).optional()
+  });
+
+  // Create a new activity (manual activity logging)
+  app.post("/api/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Parse and validate activity data
+      const activityData = insertActivitySchema.parse({
+        ...req.body,
+        partnerId: req.user.partnerId,
+        userId: req.user.uid,
+        userEmail: req.user.email,
+        userName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      const activity = await storage.createActivity(activityData);
+      res.status(201).json(activity);
+    } catch (error: any) {
+      console.error("Error creating activity:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          error: "Invalid activity data", 
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Failed to create activity", 
+          details: error.message 
+        });
+      }
+    }
+  });
+
+  // Get activities with comprehensive filtering
+  app.get("/api/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Parse and validate query parameters
+      const filters = activityFiltersSchema.parse(req.query);
+      
+      // Convert date strings to Date objects
+      const searchFilters: any = {
+        partnerId: req.user.partnerId,
+        ...filters
+      };
+      
+      if (filters.startDate) {
+        searchFilters.startDate = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        searchFilters.endDate = new Date(filters.endDate);
+      }
+
+      const activities = await storage.getActivities(searchFilters);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error getting activities:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          error: "Invalid filter parameters", 
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Failed to get activities", 
+          details: error.message 
+        });
+      }
+    }
+  });
+
+  // Get activities for a specific job
+  app.get("/api/jobs/:jobId/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { jobId } = req.params;
+      
+      // Verify job exists and belongs to user's partner
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this job" });
+      }
+
+      const activities = await storage.getJobActivities(jobId, req.user.partnerId);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error getting job activities:", error);
+      res.status(500).json({ 
+        error: "Failed to get job activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get activities for a specific order
+  app.get("/api/orders/:orderId/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { orderId } = req.params;
+      
+      // Verify order exists and belongs to user's partner
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      const activities = await storage.getOrderActivities(orderId, req.user.partnerId);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error getting order activities:", error);
+      res.status(500).json({ 
+        error: "Failed to get order activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get activities for the current user
+  app.get("/api/users/me/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      
+      const activities = await storage.getUserActivities(req.user.uid, req.user.partnerId, limit);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error getting user activities:", error);
+      res.status(500).json({ 
+        error: "Failed to get user activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get activity analytics (counts by type)
+  app.get("/api/activities/analytics", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Parse optional time range
+      let timeRange: { start: Date; end: Date } | undefined;
+      if (req.query.startDate && req.query.endDate) {
+        timeRange = {
+          start: new Date(req.query.startDate as string),
+          end: new Date(req.query.endDate as string)
+        };
+      }
+
+      const analytics = await storage.getActivityCountByType(req.user.partnerId, timeRange);
+      res.json(analytics);
+    } catch (error: any) {
+      console.error("Error getting activity analytics:", error);
+      res.status(500).json({ 
+        error: "Failed to get activity analytics", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Endpoint specifically for JobCard page - get enriched job activities
+  app.get("/api/jobs/card/:jobId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { jobId } = req.params;
+      
+      // Get job by jobId (NanoID, not UUID)
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this job" });
+      }
+
+      // Get customer info if available
+      let customer = null;
+      if (job.customerId) {
+        customer = await storage.getCustomer(job.customerId);
+      }
+
+      // Get job activities
+      const activities = await storage.getJobActivities(job.id, req.user.partnerId);
+
+      res.json({
+        ...job,
+        customer,
+        activities
+      });
+    } catch (error: any) {
+      console.error("Error getting job card data:", error);
+      res.status(500).json({ 
+        error: "Failed to get job card data", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Activity Tracking Endpoints - CRITICAL SECURITY: All protected with requireAuth and partnerId filtering
+  
+  // GET /api/activities - Get activities with proper tenant isolation
+  app.get("/api/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Extract query parameters with defaults for security and performance
+      const {
+        jobId,
+        orderId,
+        userId,
+        action,
+        category,
+        startDate,
+        endDate,
+        limit = 50, // Default limit to prevent large payloads
+        offset = 0
+      } = req.query;
+
+      // Build filters with mandatory partnerId for security
+      const filters: any = {
+        partnerId: req.user.partnerId, // CRITICAL: Always filter by user's partnerId
+        limit: Math.min(Number(limit) || 50, 100), // Max 100 for performance
+        offset: Number(offset) || 0
+      };
+
+      // Add optional filters
+      if (jobId && typeof jobId === 'string') filters.jobId = jobId;
+      if (orderId && typeof orderId === 'string') filters.orderId = orderId;
+      if (userId && typeof userId === 'string') filters.userId = userId;
+      if (action && typeof action === 'string') filters.action = action;
+      if (category && typeof category === 'string') filters.category = category;
+      if (startDate && typeof startDate === 'string') filters.startDate = new Date(startDate);
+      if (endDate && typeof endDate === 'string') filters.endDate = new Date(endDate);
+
+      const activities = await storage.getActivities(filters);
+      
+      res.json({
+        activities,
+        pagination: {
+          limit: filters.limit,
+          offset: filters.offset,
+          total: activities.length
+        }
+      });
+    } catch (error: any) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // GET /api/jobs/:id/activities - Get activities for specific job with security
+  app.get("/api/jobs/:id/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { id } = req.params;
+      
+      // Verify job belongs to user's partner (security check)
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this job" });
+      }
+
+      const activities = await storage.getJobActivities(id, req.user.partnerId);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error fetching job activities:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch job activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // GET /api/orders/:id/activities - Get activities for specific order with security
+  app.get("/api/orders/:id/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const { id } = req.params;
+      
+      // Verify order belongs to user's partner (security check)
+      const order = await storage.getOrder(id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      const activities = await storage.getOrderActivities(id, req.user.partnerId);
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error fetching order activities:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch order activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // GET /api/users/me/activities - Get current user's activities
+  app.get("/api/users/me/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const activities = await storage.getUserActivities(req.user.uid, req.user.partnerId, limit);
+      
+      res.json(activities);
+    } catch (error: any) {
+      console.error("Error fetching user activities:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch user activities", 
+        details: error.message 
+      });
+    }
+  });
+
+  // GET /api/activities/analytics - Get activity analytics with security
+  app.get("/api/activities/analytics", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Build time range filters if provided
+      const filters: any = { partnerId: req.user.partnerId };
+      
+      if (req.query.startDate && typeof req.query.startDate === 'string') {
+        filters.startDate = new Date(req.query.startDate);
+      }
+      if (req.query.endDate && typeof req.query.endDate === 'string') {
+        filters.endDate = new Date(req.query.endDate);
+      }
+
+      const analytics = await storage.getActivityCountByType(req.user.partnerId, 
+        (filters.startDate || filters.endDate) ? {
+          start: filters.startDate,
+          end: filters.endDate
+        } : undefined
+      );
+      
+      res.json(analytics);
+    } catch (error: any) {
+      console.error("Error fetching activity analytics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch activity analytics", 
+        details: error.message 
+      });
+    }
+  });
+
+  // POST /api/activities - Create activity log (for manual logging)
+  app.post("/api/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Validate and enrich activity data with user context
+      const validatedData = insertActivitySchema.parse({
+        ...req.body,
+        partnerId: req.user.partnerId, // Force partnerId from auth context
+        userId: req.user.uid,
+        userEmail: req.user.email,
+        userName: req.user.email,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      const activity = await storage.createActivity(validatedData);
+      res.status(201).json(activity);
+    } catch (error: any) {
+      console.error("Error creating activity:", error);
+      res.status(400).json({ 
+        error: "Invalid activity data", 
         details: error.message 
       });
     }
