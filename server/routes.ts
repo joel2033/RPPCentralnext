@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
@@ -9,7 +9,8 @@ import {
   insertOrderServiceSchema,
   insertOrderFileSchema,
   insertServiceCategorySchema,
-  insertEditorServiceSchema
+  insertEditorServiceSchema,
+  insertNotificationSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -46,6 +47,47 @@ if (getApps().length === 0) {
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   });
 }
+
+// Firebase authentication middleware
+interface AuthenticatedRequest extends Request {
+  user?: {
+    uid: string;
+    partnerId?: string;
+    role: string;
+    email: string;
+  };
+}
+
+const requireAuth = async (req: any, res: any, next: any) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Authorization header required" });
+    }
+
+    const idToken = authHeader.replace('Bearer ', '');
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const userDoc = await getUserDocument(uid);
+    
+    if (!userDoc) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Attach user context to request
+    req.user = {
+      uid: userDoc.uid,
+      partnerId: userDoc.partnerId,
+      role: userDoc.role,
+      email: userDoc.email
+    };
+    
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
@@ -282,6 +324,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         }
+      }
+
+      // Create notifications for eligible editors
+      try {
+        // Extract unique serviceIds from the order
+        const serviceIds = services.map((service: any) => service.serviceId).filter((id: any) => id);
+        
+        // Get all partnerships for this partner
+        const partnerships = await getPartnerPartnerships(partnerId);
+        const eligibleEditorIds = new Set<string>();
+        
+        // Find editors who can handle the requested services
+        if (serviceIds.length > 0) {
+          for (const partnership of partnerships) {
+            if (partnership.status === 'active') {
+              // Get editor's services to check if they can handle any of the requested serviceIds
+              const editorServices = await storage.getEditorServices(partnership.editorId);
+              const hasMatchingService = editorServices.some(editorService => 
+                serviceIds.includes(editorService.id) && editorService.isActive
+              );
+              
+              if (hasMatchingService) {
+                eligibleEditorIds.add(partnership.editorId);
+              }
+            }
+          }
+        }
+        
+        // Fallback: if no exact service match, notify all active partnership editors
+        if (eligibleEditorIds.size === 0) {
+          for (const partnership of partnerships) {
+            if (partnership.status === 'active') {
+              eligibleEditorIds.add(partnership.editorId);
+            }
+          }
+        }
+        
+        // Create notifications for all eligible editors
+        if (eligibleEditorIds.size > 0) {
+          const notifications = Array.from(eligibleEditorIds).map(editorId => ({
+            partnerId,
+            recipientId: editorId,
+            type: 'order_created',
+            title: 'New Order Available',
+            body: `Order #${order.orderNumber} has been submitted and is available for assignment.`,
+            orderId: order.id,
+            jobId: order.jobId,
+            read: false
+          }));
+          
+          await storage.createNotifications(notifications);
+          console.log(`Created ${notifications.length} notifications for order ${order.orderNumber}`);
+        }
+      } catch (notificationError) {
+        // Log error but don't fail the order creation
+        console.error("Failed to create order notifications:", notificationError);
       }
 
       // Return the complete order details
@@ -755,6 +853,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   });
+
+  // Notifications - All endpoints require authentication
+  app.get("/api/notifications", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Only return notifications for the authenticated user with proper tenant filtering
+      const notifications = await storage.getNotificationsForUser(
+        req.user.uid, 
+        req.user.partnerId || ''
+      );
+      
+      res.json(notifications);
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  // Validation schema for marking notification as read (empty body is valid)
+  const markReadSchema = z.object({}).strict();
+
+  app.patch("/api/notifications/:id/read", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Validate notification ID parameter
+      if (!req.params.id || typeof req.params.id !== 'string') {
+        return res.status(400).json({ error: "Invalid notification ID" });
+      }
+
+      // Validate empty request body
+      try {
+        markReadSchema.parse(req.body);
+      } catch (validationError) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+
+      // Verify ownership before allowing the update
+      const notification = await storage.markNotificationRead(req.params.id, req.user.uid);
+      
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found or access denied" });
+      }
+      
+      res.json(notification);
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+      res.status(500).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  // Validation schema for mark-all-read request (empty body is valid)
+  const markAllReadSchema = z.object({}).strict();
+
+  app.post("/api/notifications/mark-all-read", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Validate empty request body
+      try {
+        markAllReadSchema.parse(req.body);
+      } catch (validationError) {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+
+      // Only mark notifications for the authenticated user with proper tenant scoping
+      await storage.markAllNotificationsRead(req.user.uid, req.user.partnerId || '');
+      
+      res.json({ message: "All notifications marked as read" });
+    } catch (error) {
+      console.error("Failed to mark all notifications as read:", error);
+      res.status(500).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
   
   // Partnership Management Routes
 
@@ -1150,6 +1329,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!assignedOrder) {
         return res.status(409).json({ error: "Order is no longer available for assignment" });
+      }
+      
+      // Create notification for the assigned editor
+      try {
+        await storage.createNotification({
+          partnerId: currentUser.partnerId,
+          recipientId: editorId,
+          type: 'order_assigned',
+          title: 'Order Assigned to You',
+          body: `Order #${order.orderNumber} has been assigned to you. Please review and begin processing.`,
+          orderId: order.id,
+          jobId: order.jobId,
+          read: false
+        });
+        console.log(`Created assignment notification for editor ${editorId} on order ${order.orderNumber}`);
+      } catch (notificationError) {
+        // Log error but don't fail the assignment
+        console.error("Failed to create assignment notification:", notificationError);
       }
       
       res.json({

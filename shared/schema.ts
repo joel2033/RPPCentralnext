@@ -149,6 +149,21 @@ export const editorUploads = pgTable("editor_uploads", {
   expiresAt: timestamp("expires_at").notNull(), // 30 days from upload
 });
 
+// Notifications system
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  recipientId: text("recipient_id").notNull(), // Firebase UID of recipient (editor/user)
+  type: text("type").notNull(), // "order_created", "order_assigned", "order_completed", "order_cancelled"
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  orderId: varchar("order_id").references(() => orders.id),
+  jobId: varchar("job_id").references(() => jobs.id),
+  read: boolean("read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  readAt: timestamp("read_at"),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -214,6 +229,12 @@ export const insertEditorUploadSchema = createInsertSchema(editorUploads).omit({
   uploadedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -244,3 +265,6 @@ export type InsertEditorService = z.infer<typeof insertEditorServiceSchema>;
 
 export type EditorUpload = typeof editorUploads.$inferSelect;
 export type InsertEditorUpload = z.infer<typeof insertEditorUploadSchema>;
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;

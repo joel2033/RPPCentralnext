@@ -18,7 +18,9 @@ import {
   type EditorService,
   type InsertEditorService,
   type EditorUpload,
-  type InsertEditorUpload
+  type InsertEditorUpload,
+  type Notification,
+  type InsertNotification
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -110,6 +112,15 @@ export interface IStorage {
   // Team Assignment System
   getPendingOrders(partnerId: string): Promise<Order[]>; // Get unassigned orders for partner
   assignOrderToEditor(orderId: string, editorId: string): Promise<Order | undefined>; // Atomic assignment operation
+  
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  createNotifications(notifications: InsertNotification[]): Promise<Notification[]>; // Bulk creation
+  getNotifications(): Promise<Notification[]>; // Get all notifications
+  getNotificationsForUser(recipientId: string, partnerId: string): Promise<Notification[]>;
+  markNotificationRead(id: string, recipientId: string): Promise<Notification | undefined>;
+  markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void>;
+  deleteNotification(id: string, recipientId: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -123,6 +134,7 @@ export class MemStorage implements IStorage {
   private serviceCategories: Map<string, ServiceCategory>;
   private editorServices: Map<string, EditorService>;
   private editorUploads: Map<string, EditorUpload>;
+  private notifications: Map<string, Notification>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -138,6 +150,7 @@ export class MemStorage implements IStorage {
     this.serviceCategories = new Map();
     this.editorServices = new Map();
     this.editorUploads = new Map();
+    this.notifications = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -252,7 +265,18 @@ export class MemStorage implements IStorage {
           });
         }
         
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads`);
+        // Restore notifications
+        if (data.notifications) {
+          Object.entries(data.notifications).forEach(([id, notification]: [string, any]) => {
+            this.notifications.set(id, { 
+              ...notification, 
+              createdAt: new Date(notification.createdAt),
+              readAt: notification.readAt ? new Date(notification.readAt) : null
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -272,6 +296,7 @@ export class MemStorage implements IStorage {
         serviceCategories: Object.fromEntries(this.serviceCategories.entries()),
         editorServices: Object.fromEntries(this.editorServices.entries()),
         editorUploads: Object.fromEntries(this.editorUploads.entries()),
+        notifications: Object.fromEntries(this.notifications.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
@@ -907,6 +932,97 @@ export class MemStorage implements IStorage {
     this.orders.set(orderId, updated);
     this.saveToFile();
     return updated;
+  }
+
+  // Notifications
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const id = randomUUID();
+    const notification: Notification = {
+      ...insertNotification,
+      id,
+      createdAt: new Date(),
+      readAt: null
+    };
+    this.notifications.set(id, notification);
+    this.saveToFile();
+    return notification;
+  }
+
+  async createNotifications(insertNotifications: InsertNotification[]): Promise<Notification[]> {
+    const notifications: Notification[] = [];
+    for (const insertNotification of insertNotifications) {
+      const id = randomUUID();
+      const notification: Notification = {
+        ...insertNotification,
+        id,
+        createdAt: new Date(),
+        readAt: null
+      };
+      this.notifications.set(id, notification);
+      notifications.push(notification);
+    }
+    this.saveToFile();
+    return notifications;
+  }
+
+  async getNotifications(): Promise<Notification[]> {
+    return Array.from(this.notifications.values())
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Latest first
+  }
+
+  async getNotificationsForUser(recipientId: string, partnerId: string): Promise<Notification[]> {
+    return Array.from(this.notifications.values())
+      .filter(notification => 
+        notification.recipientId === recipientId && 
+        notification.partnerId === partnerId
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Latest first
+  }
+
+  async markNotificationRead(id: string, recipientId: string): Promise<Notification | undefined> {
+    const notification = this.notifications.get(id);
+    if (!notification || notification.recipientId !== recipientId) {
+      return undefined;
+    }
+
+    const updated = {
+      ...notification,
+      read: true,
+      readAt: new Date()
+    };
+    this.notifications.set(id, updated);
+    this.saveToFile();
+    return updated;
+  }
+
+  async markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void> {
+    let hasChanges = false;
+    
+    for (const [id, notification] of this.notifications.entries()) {
+      if (notification.recipientId === recipientId && 
+          notification.partnerId === partnerId && 
+          !notification.read) {
+        const updated = {
+          ...notification,
+          read: true,
+          readAt: new Date()
+        };
+        this.notifications.set(id, updated);
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      this.saveToFile();
+    }
+  }
+
+  async deleteNotification(id: string, recipientId: string): Promise<void> {
+    const notification = this.notifications.get(id);
+    if (notification && notification.recipientId === recipientId) {
+      this.notifications.delete(id);
+      this.saveToFile();
+    }
   }
 }
 
