@@ -24,6 +24,7 @@ import Upload from "@/pages/Upload";
 import InviteEditor from "@/pages/InviteEditor";
 import Partnerships from "@/pages/Partnerships";
 import TeamMembers from "@/pages/TeamMembers";
+import TeamAssignments from "@/pages/TeamAssignments";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
@@ -200,6 +201,14 @@ function Router() {
         <ProtectedRoute route="/settings">
           <Layout>
             <TeamMembers />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/team/assignments">
+        <ProtectedRoute route="/team/assignments">
+          <Layout>
+            <TeamAssignments />
           </Layout>
         </ProtectedRoute>
       </Route>

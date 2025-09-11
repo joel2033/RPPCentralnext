@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from 'firebase/auth';
 import { onAuthStateChange, getCurrentUserData, type UserData } from '@/lib/firebaseAuth';
 
@@ -20,7 +20,7 @@ export const useEditorAuth = () => {
 };
 
 interface EditorAuthProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export const EditorAuthProvider: React.FC<EditorAuthProviderProps> = ({ children }) => {
@@ -60,7 +60,7 @@ export const EditorAuthProvider: React.FC<EditorAuthProviderProps> = ({ children
 
   const isEditor = userData?.role === 'editor';
 
-  const value = {
+  const value: EditorAuthContextType = {
     currentUser,
     userData,
     loading,

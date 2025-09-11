@@ -106,6 +106,10 @@ export interface IStorage {
   getEditorUploads(jobId: string): Promise<EditorUpload[]>;
   createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload>;
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
+
+  // Team Assignment System
+  getPendingOrders(partnerId: string): Promise<Order[]>; // Get unassigned orders for partner
+  assignOrderToEditor(orderId: string, editorId: string): Promise<Order | undefined>; // Atomic assignment operation
 }
 
 export class MemStorage implements IStorage {
@@ -869,6 +873,37 @@ export class MemStorage implements IStorage {
     if (!order || order.assignedTo !== editorId) return undefined;
     
     const updated = { ...order, status };
+    this.orders.set(orderId, updated);
+    this.saveToFile();
+    return updated;
+  }
+
+  // Team Assignment System Implementation
+  async getPendingOrders(partnerId: string): Promise<Order[]> {
+    return Array.from(this.orders.values()).filter(order => 
+      order.partnerId === partnerId && 
+      order.status === 'pending' && 
+      !order.assignedTo
+    );
+  }
+
+  async assignOrderToEditor(orderId: string, editorId: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order) return undefined;
+    
+    // Ensure order is still pending and unassigned (conflict prevention)
+    if (order.status !== 'pending' || order.assignedTo) {
+      return undefined;
+    }
+    
+    // Atomic update: assign editor and change status to processing
+    const updated = { 
+      ...order, 
+      assignedTo: editorId, 
+      status: 'processing',
+      dateAccepted: new Date()
+    };
+    
     this.orders.set(orderId, updated);
     this.saveToFile();
     return updated;

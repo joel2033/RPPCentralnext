@@ -996,6 +996,183 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Team Assignment System Routes
+  
+  // Get pending orders for team assignment
+  app.get("/api/team/pending-orders", async (req, res) => {
+    try {
+      // Get current user (should be partner/admin)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      
+      if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
+        return res.status(403).json({ error: "Only partners and admins can view pending orders" });
+      }
+      
+      if (!currentUser.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+      
+      // Get pending orders for this partner
+      const pendingOrders = await storage.getPendingOrders(currentUser.partnerId);
+      
+      // Enrich orders with customer and job details
+      const enrichedOrders = await Promise.all(
+        pendingOrders.map(async (order) => {
+          const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
+          const job = order.jobId ? await storage.getJob(order.jobId) : null;
+          const orderServices = await storage.getOrderServices(order.id);
+          
+          return {
+            ...order,
+            customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer',
+            customerEmail: customer?.email || '',
+            address: job?.address || 'No address provided',
+            serviceCount: orderServices.length,
+            services: orderServices
+          };
+        })
+      );
+      
+      res.json(enrichedOrders);
+    } catch (error: any) {
+      console.error("Error getting pending orders:", error);
+      res.status(500).json({ 
+        error: "Failed to get pending orders", 
+        details: error.message 
+      });
+    }
+  });
+  
+  // Get team editors for assignment
+  app.get("/api/team/editors", async (req, res) => {
+    try {
+      // Get current user (should be partner/admin)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      
+      if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
+        return res.status(403).json({ error: "Only partners and admins can view team editors" });
+      }
+      
+      if (!currentUser.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+      
+      // Get active partnerships to find team editors
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId);
+      
+      // Format for team assignment dropdown
+      const teamEditors = partnerships.map(partnership => ({
+        id: partnership.editorId,
+        email: partnership.editorEmail,
+        studioName: partnership.editorStudioName,
+        name: partnership.editorStudioName,
+        isActive: partnership.isActive
+      }));
+      
+      res.json(teamEditors);
+    } catch (error: any) {
+      console.error("Error getting team editors:", error);
+      res.status(500).json({ 
+        error: "Failed to get team editors", 
+        details: error.message 
+      });
+    }
+  });
+  
+  // Assign order to editor
+  const assignOrderSchema = z.object({
+    orderId: z.string(),
+    editorId: z.string()
+  });
+  
+  app.post("/api/team/assign-order", async (req, res) => {
+    try {
+      const { orderId, editorId } = assignOrderSchema.parse(req.body);
+      
+      // Get current user (should be partner/admin)
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      
+      if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
+        return res.status(403).json({ error: "Only partners and admins can assign orders" });
+      }
+      
+      if (!currentUser.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+      
+      // Verify order exists and belongs to this partner
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (order.partnerId !== currentUser.partnerId) {
+        return res.status(403).json({ error: "Order does not belong to your organization" });
+      }
+      
+      // Verify editor is part of the team (critical security validation)
+      const partnerships = await getPartnerPartnerships(currentUser.partnerId);
+      const editorPartnership = partnerships.find(p => p.editorId === editorId && p.isActive);
+      
+      if (!editorPartnership) {
+        return res.status(403).json({ 
+          error: "Editor not in your team", 
+          message: "The selected editor is not an active member of your team" 
+        });
+      }
+      
+      // Attempt atomic assignment
+      const assignedOrder = await storage.assignOrderToEditor(orderId, editorId);
+      
+      if (!assignedOrder) {
+        return res.status(409).json({ error: "Order is no longer available for assignment" });
+      }
+      
+      res.json({
+        success: true,
+        message: `Order ${order.orderNumber} assigned to ${editorPartnership.editorStudioName}`,
+        order: assignedOrder
+      });
+    } catch (error: any) {
+      console.error("Error assigning order:", error);
+      if (error.name === 'ZodError') {
+        res.status(400).json({ 
+          error: "Invalid assignment data", 
+          details: error.errors 
+        });
+      } else {
+        res.status(500).json({ 
+          error: "Failed to assign order", 
+          details: error.message 
+        });
+      }
+    }
+  });
+
   // ===== EDITOR SERVICE MANAGEMENT ENDPOINTS =====
 
   // Get all jobs assigned to an editor

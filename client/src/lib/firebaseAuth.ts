@@ -144,6 +144,7 @@ export const routePermissions: Record<string, UserRole[]> = {
   "/orders": ["partner", "admin", "photographer"],
   "/upload": ["partner", "admin", "photographer"],
   "/settings": ["partner"], // Only partners can access team management
+  "/team/assignments": ["partner", "admin"], // Only partners and admins can assign team orders
   // Editor-specific routes
   "/editor": ["editor"],
   "/editor/dashboard": ["editor"],

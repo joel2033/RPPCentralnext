@@ -15,7 +15,8 @@ import {
   LogOut,
   ChevronDown,
   Handshake,
-  Settings
+  Settings,
+  UserPlus
 } from "lucide-react";
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: "Upload to Editor", icon: Upload, path: "/upload" },
       { title: "Order Status", icon: ClipboardList, path: "/orders" },
+      { title: "Team Assignments", icon: UserPlus, path: "/team/assignments" },
     ],
   },
   {
