@@ -11,6 +11,7 @@ import EditorJobs from "@/pages/EditorJobs";
 import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
+import TeamAssignments from "@/pages/TeamAssignments";
 import NotFound from "@/pages/not-found";
 
 function EditorRouter() {
@@ -41,6 +42,14 @@ function EditorRouter() {
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorJobs />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      
+      <Route path="/assignments">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <TeamAssignments />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>

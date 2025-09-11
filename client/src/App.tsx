@@ -205,13 +205,6 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/team/assignments">
-        <ProtectedRoute route="/team/assignments">
-          <Layout>
-            <TeamAssignments />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
       
       <Route path="/settings">
         <ProtectedRoute route="/settings">
