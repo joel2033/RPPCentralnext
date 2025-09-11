@@ -191,9 +191,24 @@ export default function EditorJobs() {
                         <span>{job.service}</span>
                         <span>{job.files.length} files • {job.quantity} final images</span>
                       </div>
-                      <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                        <strong>Instructions:</strong> {job.instructions}
-                      </p>
+                      {job.instructions && (
+                        <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                          <strong>Instructions:</strong>
+                          {typeof job.instructions === 'string' ? (
+                            <span className="ml-2">{job.instructions}</span>
+                          ) : Array.isArray(job.instructions) ? (
+                            <ul className="mt-2 space-y-1">
+                              {job.instructions.map((instruction, index) => (
+                                <li key={index} className="ml-2">
+                                  • {typeof instruction === 'string' ? instruction : JSON.stringify(instruction)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="ml-2">{JSON.stringify(job.instructions)}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col space-y-2 ml-4">
