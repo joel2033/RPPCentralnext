@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Progress } from "@/components/ui/progress";
 import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import { FileUploadModal } from "@/components/FileUploadModal";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface EditorJob {
   id: string;
@@ -37,10 +40,63 @@ export default function EditorJobs() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: jobs = [], isLoading } = useQuery<EditorJob[]>({
-    queryKey: ['/api/editor/jobs']
+    queryKey: ['/api/editor/jobs-ready-for-upload']
   });
+
+  const handleUploadClick = (job: EditorJob) => {
+    setSelectedJob(job);
+    setIsUploadOpen(true);
+  };
+
+  const handleUploadComplete = async (jobId: string, uploads: any[]) => {
+    try {
+      // Record the uploads in the backend
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const response = await apiRequest(`/api/editor/jobs/${jobId}/uploads`, 'POST', {
+        uploads: uploads.map(upload => ({
+          fileName: upload.file.name,
+          originalName: upload.file.name,
+          fileSize: upload.file.size,
+          mimeType: upload.file.type,
+          firebaseUrl: upload.url,
+          downloadUrl: upload.url
+        })),
+        notes: 'Deliverables uploaded via jobs page'
+      });
+
+      if (response.ok) {
+        // Update job status to completed
+        await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', { status: 'completed' });
+
+        // Refresh the jobs list
+        queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+        
+        toast({
+          title: "Upload Successful",
+          description: `${uploads.length} deliverable(s) uploaded and job completed.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error completing upload:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to complete upload. Please try again.",
+        variant: "destructive"
+      });
+    }
+    
+    setIsUploadOpen(false);
+    setSelectedJob(null);
+  };
 
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -319,7 +375,7 @@ export default function EditorJobs() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleDownloadFiles(job.id)}
+                      onClick={() => handleDownloadFiles(job.jobId)}
                       data-testid={`button-download-${job.id}`}
                     >
                       <Download className="w-4 h-4 mr-2" />
@@ -329,7 +385,7 @@ export default function EditorJobs() {
                       <Button
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => handleStartJob(job.id)}
+                        onClick={() => handleStartJob(job.jobId)}
                         data-testid={`button-start-${job.id}`}
                       >
                         Start Job
@@ -339,8 +395,8 @@ export default function EditorJobs() {
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleCompleteJob(job.id)}
-                        data-testid={`button-complete-${job.id}`}
+                        onClick={() => handleUploadClick(job)}
+                        data-testid={`button-upload-${job.id}`}
                       >
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Results
@@ -353,6 +409,24 @@ export default function EditorJobs() {
           ))
         )}
       </div>
+
+      {/* Upload Modal */}
+      {selectedJob && (
+        <FileUploadModal
+          isOpen={isUploadOpen}
+          onClose={() => {
+            setIsUploadOpen(false);
+            setSelectedJob(null);
+          }}
+          serviceName={selectedJob.service || "Deliverables"}
+          serviceId={selectedJob.jobId}
+          userId={auth.currentUser?.uid || ""}
+          jobId={selectedJob.jobId}
+          onFilesUpload={(serviceId, files, orderNumber) => {
+            handleUploadComplete(selectedJob.jobId, files);
+          }}
+        />
+      )}
     </div>
   );
 }

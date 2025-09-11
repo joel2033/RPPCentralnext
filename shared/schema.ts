@@ -131,6 +131,24 @@ export const editorServices = pgTable("editor_services", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Editor uploads (tracks deliverable files uploaded by editors)
+export const editorUploads = pgTable("editor_uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  jobId: varchar("job_id").references(() => jobs.id).notNull(),
+  editorId: text("editor_id").notNull(), // Firebase UID of editor
+  fileName: text("file_name").notNull(),
+  originalName: text("original_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: text("mime_type").notNull(),
+  firebaseUrl: text("firebase_url").notNull(),
+  downloadUrl: text("download_url").notNull(),
+  status: text("status").default("uploaded"), // "uploaded", "processing", "delivered"
+  notes: text("notes"), // Optional notes from editor about the deliverable
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // 30 days from upload
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -191,6 +209,11 @@ export const insertEditorServiceSchema = createInsertSchema(editorServices).omit
   createdAt: true,
 });
 
+export const insertEditorUploadSchema = createInsertSchema(editorUploads).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -218,3 +241,6 @@ export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
 
 export type EditorService = typeof editorServices.$inferSelect;
 export type InsertEditorService = z.infer<typeof insertEditorServiceSchema>;
+
+export type EditorUpload = typeof editorUploads.$inferSelect;
+export type InsertEditorUpload = z.infer<typeof insertEditorUploadSchema>;

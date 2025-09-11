@@ -16,7 +16,9 @@ import {
   type ServiceCategory,
   type InsertServiceCategory,
   type EditorService,
-  type InsertEditorService
+  type InsertEditorService,
+  type EditorUpload,
+  type InsertEditorUpload
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -98,6 +100,12 @@ export interface IStorage {
   
   // Customer Profile
   getCustomerJobs(customerId: string): Promise<Job[]>;
+  
+  // Editor Uploads
+  getJobsReadyForUpload(editorId: string): Promise<any[]>; // Jobs assigned to editor that are ready for upload
+  getEditorUploads(jobId: string): Promise<EditorUpload[]>;
+  createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload>;
+  updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -110,6 +118,7 @@ export class MemStorage implements IStorage {
   private orderFiles: Map<string, OrderFile>;
   private serviceCategories: Map<string, ServiceCategory>;
   private editorServices: Map<string, EditorService>;
+  private editorUploads: Map<string, EditorUpload>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -124,6 +133,7 @@ export class MemStorage implements IStorage {
     this.orderFiles = new Map();
     this.serviceCategories = new Map();
     this.editorServices = new Map();
+    this.editorUploads = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -227,7 +237,18 @@ export class MemStorage implements IStorage {
           });
         }
         
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services`);
+        // Restore editor uploads
+        if (data.editorUploads) {
+          Object.entries(data.editorUploads).forEach(([id, editorUpload]: [string, any]) => {
+            this.editorUploads.set(id, { 
+              ...editorUpload, 
+              uploadedAt: new Date(editorUpload.uploadedAt),
+              expiresAt: new Date(editorUpload.expiresAt)
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -246,6 +267,7 @@ export class MemStorage implements IStorage {
         orderFiles: Object.fromEntries(this.orderFiles.entries()),
         serviceCategories: Object.fromEntries(this.serviceCategories.entries()),
         editorServices: Object.fromEntries(this.editorServices.entries()),
+        editorUploads: Object.fromEntries(this.editorUploads.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
@@ -581,6 +603,98 @@ export class MemStorage implements IStorage {
   async getCustomerJobs(customerId: string): Promise<Job[]> {
     const allJobs = Array.from(this.jobs.values());
     return allJobs.filter(job => job.customerId === customerId);
+  }
+
+  // Editor Upload Methods
+  async getJobsReadyForUpload(editorId: string): Promise<any[]> {
+    const allOrders = Array.from(this.orders.values());
+    const editorOrders = allOrders.filter(order => 
+      order.assignedTo === editorId && 
+      order.status === 'processing'
+    );
+
+    const jobsData = [];
+    for (const order of editorOrders) {
+      const job = await this.getJob(order.jobId!);
+      const customer = await this.getCustomer(order.customerId!);
+      const orderServices = await this.getOrderServices(order.id);
+      const orderFiles = await this.getOrderFiles(order.id);
+      const existingUploads = await this.getEditorUploads(order.jobId!);
+
+      if (job && customer) {
+        jobsData.push({
+          id: job.id,
+          jobId: job.jobId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerName: `${customer.firstName} ${customer.lastName}`,
+          address: job.address,
+          services: orderServices.map(os => {
+            const service = Array.from(this.editorServices.values()).find(s => s.id === os.serviceId);
+            return {
+              id: os.serviceId,
+              name: service?.name || 'Unknown Service',
+              quantity: os.quantity,
+              instructions: os.instructions
+            };
+          }),
+          originalFiles: orderFiles,
+          existingUploads: existingUploads,
+          status: order.status,
+          dueDate: job.dueDate?.toISOString(),
+          createdAt: order.createdAt?.toISOString()
+        });
+      }
+    }
+
+    return jobsData.sort((a, b) => {
+      const dateA = new Date(a.dueDate || a.createdAt || 0);
+      const dateB = new Date(b.dueDate || b.createdAt || 0);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }
+
+  async getEditorUploads(jobId: string): Promise<EditorUpload[]> {
+    const allUploads = Array.from(this.editorUploads.values());
+    return allUploads.filter(upload => upload.jobId === jobId);
+  }
+
+  async createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload> {
+    const id = randomUUID();
+    const now = new Date();
+    const expiryDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
+
+    const newUpload: EditorUpload = {
+      id,
+      ...editorUpload,
+      status: editorUpload.status || null,
+      notes: editorUpload.notes || null,
+      uploadedAt: now,
+      expiresAt: editorUpload.expiresAt || expiryDate,
+    };
+
+    this.editorUploads.set(id, newUpload);
+    this.saveToFile();
+    return newUpload;
+  }
+
+  async updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined> {
+    const job = await this.getJobByJobId(jobId);
+    if (!job) return undefined;
+
+    const updatedJob = { ...job, status };
+    this.jobs.set(job.id, updatedJob);
+
+    // Also update the order status if needed
+    const allOrders = Array.from(this.orders.values());
+    const relatedOrder = allOrders.find(order => order.jobId === job.id);
+    if (relatedOrder && status === 'completed') {
+      const updatedOrder = { ...relatedOrder, status: 'completed' };
+      this.orders.set(relatedOrder.id, updatedOrder);
+    }
+
+    this.saveToFile();
+    return updatedJob;
   }
 
   async getUsers(partnerId?: string): Promise<User[]> {

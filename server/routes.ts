@@ -1463,6 +1463,223 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Editor Upload System Endpoints
+  
+  // Get jobs ready for upload (completed processing, assigned to this editor)
+  app.get("/api/editor/jobs-ready-for-upload", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view jobs ready for upload" });
+      }
+      
+      const jobs = await storage.getJobsReadyForUpload(uid);
+      res.json(jobs);
+    } catch (error: any) {
+      console.error("Error getting jobs ready for upload:", error);
+      res.status(500).json({ 
+        error: "Failed to get jobs ready for upload", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Record uploaded deliverable files for a job
+  app.post("/api/editor/jobs/:jobId/uploads", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can upload deliverables" });
+      }
+
+      // Validate request body with Zod
+      const validationResult = editorUploadsSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: validationResult.error.issues 
+        });
+      }
+      
+      const { uploads, notes } = validationResult.data;
+
+      // Get job to verify editor assignment and get order info
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Get associated order to verify assignment and tenant isolation
+      const allOrders = await storage.getOrders();
+      const order = allOrders.find(o => o.jobId === job.id);
+      if (!order || order.assignedTo !== uid) {
+        return res.status(403).json({ error: "You are not assigned to this job" });
+      }
+
+      // Verify partnerId for tenant isolation
+      if (job.partnerId !== currentUser.partnerId) {
+        return res.status(403).json({ error: "Access denied: job belongs to different partner" });
+      }
+
+      // Create upload records for each file
+      const uploadPromises = uploads.map((upload: any) => {
+        const uploadData = {
+          orderId: order.id,
+          jobId: job.id,
+          editorId: uid,
+          fileName: upload.fileName,
+          originalName: upload.originalName,
+          fileSize: upload.fileSize,
+          mimeType: upload.mimeType,
+          firebaseUrl: upload.firebaseUrl,
+          downloadUrl: upload.downloadUrl,
+          notes: notes || null,
+          expiresAt: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // 30 days from now
+        };
+        return storage.createEditorUpload(uploadData);
+      });
+
+      const createdUploads = await Promise.all(uploadPromises);
+      
+      res.status(201).json({
+        success: true,
+        uploads: createdUploads,
+        message: `${createdUploads.length} deliverable(s) uploaded successfully`
+      });
+    } catch (error: any) {
+      console.error("Error uploading deliverables:", error);
+      res.status(500).json({ 
+        error: "Failed to upload deliverables", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update job status after upload completion
+  app.patch("/api/editor/jobs/:jobId/status", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update job status" });
+      }
+
+      // Validate request body with Zod
+      const validationResult = editorStatusUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: validationResult.error.issues 
+        });
+      }
+      
+      const { status } = validationResult.data;
+
+      // Get job to verify editor assignment
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify assignment through order and tenant isolation
+      const allOrders = await storage.getOrders();
+      const order = allOrders.find(o => o.jobId === job.id);
+      if (!order || order.assignedTo !== uid) {
+        return res.status(403).json({ error: "You are not assigned to this job" });
+      }
+
+      // Verify partnerId for tenant isolation
+      if (job.partnerId !== currentUser.partnerId) {
+        return res.status(403).json({ error: "Access denied: job belongs to different partner" });
+      }
+
+      const updatedJob = await storage.updateJobStatusAfterUpload(jobId, status);
+      if (!updatedJob) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      res.json({
+        success: true,
+        job: updatedJob,
+        message: `Job status updated to ${status}`
+      });
+    } catch (error: any) {
+      console.error("Error updating job status:", error);
+      res.status(500).json({ 
+        error: "Failed to update job status", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Security helpers
+  const validateFirebaseStorageUrl = (url: string): boolean => {
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) return false;
+    
+    // Check if URL matches Firebase Storage pattern
+    const firebaseStoragePattern = new RegExp(
+      `^https://storage\.googleapis\.com/${bucketName.replace('.', '\\.')}/.+`
+    );
+    const firebaseDownloadPattern = new RegExp(
+      `^https://firebasestorage\.googleapis\.com/v0/b/${bucketName.replace('.', '\\.')}/o/.+`
+    );
+    
+    return firebaseStoragePattern.test(url) || firebaseDownloadPattern.test(url);
+  };
+
+  // Editor Upload Schemas
+  const editorUploadFileSchema = z.object({
+    fileName: z.string().min(1, "File name is required"),
+    originalName: z.string().min(1, "Original name is required"),
+    fileSize: z.number().positive("File size must be positive"),
+    mimeType: z.string().min(1, "MIME type is required"),
+    firebaseUrl: z.string().url("Invalid Firebase URL").refine(
+      validateFirebaseStorageUrl,
+      "Firebase URL must belong to the configured storage bucket"
+    ),
+    downloadUrl: z.string().url("Invalid download URL").refine(
+      validateFirebaseStorageUrl, 
+      "Download URL must belong to the configured storage bucket"
+    )
+  });
+
+  const editorUploadsSchema = z.object({
+    uploads: z.array(editorUploadFileSchema).min(1, "At least one upload is required"),
+    notes: z.string().optional()
+  });
+
+  const editorStatusUpdateSchema = z.object({
+    status: z.enum(['completed', 'submitted', 'in_revision'], {
+      errorMap: () => ({ message: "Status must be one of: completed, submitted, in_revision" })
+    })
+  });
+
   // Order Reservation System
   const reserveOrderSchema = z.object({
     userId: z.string(),
