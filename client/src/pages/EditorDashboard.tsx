@@ -7,67 +7,40 @@ import { Download, Upload, FileImage, Calendar, DollarSign, Package } from "luci
 interface EditorJob {
   id: string;
   jobId: string;
+  orderNumber: string;
   customerName: string;
   address: string;
   service: string;
   quantity: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'delivered';
+  status: 'pending' | 'processing' | 'in_revision' | 'completed' | 'cancelled';
   uploadDate: string;
   dueDate: string;
+  priority: 'low' | 'medium' | 'high';
   files: Array<{
     name: string;
     type: string;
     size: number;
+    url?: string;
   }>;
+  instructions?: any;
 }
 
 export default function EditorDashboard() {
-  // Mock data for now - will be replaced with real API calls
-  const mockJobs: EditorJob[] = [
-    {
-      id: '1',
-      jobId: 'job_001',
-      customerName: 'John Smith',
-      address: '123 Main St, City, State',
-      service: 'Digital Edits - (Day To Dusk)',
-      quantity: 25,
-      status: 'pending',
-      uploadDate: '2025-01-07',
-      dueDate: '2025-01-10',
-      files: [
-        { name: 'IMG_001.RAW', type: 'raw', size: 25000000 },
-        { name: 'IMG_002.RAW', type: 'raw', size: 24500000 }
-      ]
-    },
-    {
-      id: '2',
-      jobId: 'job_002',
-      customerName: 'Sarah Johnson',
-      address: '456 Oak Ave, Town, State',
-      service: 'High Resolution Photos',
-      quantity: 15,
-      status: 'in_progress',
-      uploadDate: '2025-01-06',
-      dueDate: '2025-01-09',
-      files: [
-        { name: 'IMG_003.JPG', type: 'jpeg', size: 15000000 }
-      ]
-    }
-  ];
-  
-  const editorJobs = mockJobs;
-  const isLoading = false;
+  const { data: editorJobs = [], isLoading } = useQuery<EditorJob[]>({
+    queryKey: ['/api/editor/jobs']
+  });
 
   const pendingJobs = editorJobs.filter(job => job.status === 'pending');
-  const inProgressJobs = editorJobs.filter(job => job.status === 'in_progress');
+  const inProgressJobs = editorJobs.filter(job => job.status === 'processing');
   const completedThisWeek = editorJobs.filter(job => job.status === 'completed').length;
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'in_revision': return 'bg-orange-100 text-orange-800';
       case 'completed': return 'bg-green-100 text-green-800';
-      case 'delivered': return 'bg-gray-100 text-gray-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -196,7 +169,7 @@ export default function EditorDashboard() {
                       <Download className="w-4 h-4 mr-1" />
                       Download
                     </Button>
-                    {job.status === 'in_progress' && (
+                    {job.status === 'processing' && (
                       <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                         <Upload className="w-4 h-4 mr-1" />
                         Upload

@@ -80,6 +80,10 @@ export interface IStorage {
   getOrderFiles(orderId: string): Promise<OrderFile[]>;
   createOrderFile(orderFile: InsertOrderFile): Promise<OrderFile>;
 
+  // Editor Job Management
+  getEditorJobs(editorId: string): Promise<any[]>;
+  updateOrderStatus(orderId: string, status: string, editorId: string): Promise<Order | undefined>;
+
   // Service Categories
   getServiceCategories(editorId: string): Promise<ServiceCategory[]>;
   createServiceCategory(category: InsertServiceCategory): Promise<ServiceCategory>;
@@ -663,6 +667,97 @@ export class MemStorage implements IStorage {
     
     this.editorServices.delete(id);
     this.saveToFile();
+  }
+
+  // Editor Job Management
+  async getEditorJobs(editorId: string): Promise<any[]> {
+    // Get all orders assigned to this editor
+    const editorOrders = Array.from(this.orders.values()).filter(order => 
+      order.assignedTo === editorId
+    );
+
+    const jobs = [];
+    
+    for (const order of editorOrders) {
+      // Get the job details
+      let job = null;
+      if (order.jobId) {
+        job = this.jobs.get(order.jobId);
+      }
+
+      // Get customer details
+      let customer = null;
+      if (order.customerId) {
+        customer = this.customers.get(order.customerId);
+      }
+
+      // Get order services (which contain the editor services and instructions)
+      const orderServices = Array.from(this.orderServices.values()).filter(
+        service => service.orderId === order.id
+      );
+
+      // Get editor service details and combine
+      let serviceName = 'General Editing';
+      let instructions = null;
+      let quantity = 1;
+
+      if (orderServices.length > 0) {
+        const firstService = orderServices[0];
+        quantity = firstService.quantity || 1;
+        instructions = firstService.instructions;
+
+        // Get the editor service name
+        if (firstService.serviceId) {
+          const editorService = this.editorServices.get(firstService.serviceId);
+          if (editorService) {
+            serviceName = editorService.name;
+          }
+        }
+      }
+
+      // Get order files
+      const orderFiles = Array.from(this.orderFiles.values()).filter(
+        file => file.orderId === order.id
+      );
+
+      const files = orderFiles.map(file => ({
+        name: file.originalName,
+        type: file.mimeType.includes('image') ? 'image' : 'other',
+        size: file.fileSize,
+        url: file.downloadUrl
+      }));
+
+      // Build the editor job object
+      const editorJob = {
+        id: order.id,
+        jobId: job?.jobId || order.orderNumber,
+        orderNumber: order.orderNumber,
+        customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer',
+        address: job?.address || 'No address provided',
+        service: serviceName,
+        quantity,
+        status: order.status || 'pending',
+        uploadDate: order.createdAt?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+        dueDate: order.filesExpiryDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+        priority: 'medium', // Default priority - could be added to schema later
+        instructions: instructions ? JSON.parse(instructions) : null,
+        files
+      };
+
+      jobs.push(editorJob);
+    }
+
+    return jobs;
+  }
+
+  async updateOrderStatus(orderId: string, status: string, editorId: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order || order.assignedTo !== editorId) return undefined;
+    
+    const updated = { ...order, status };
+    this.orders.set(orderId, updated);
+    this.saveToFile();
+    return updated;
   }
 }
 

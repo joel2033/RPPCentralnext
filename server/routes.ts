@@ -997,6 +997,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== EDITOR SERVICE MANAGEMENT ENDPOINTS =====
 
+  // Get all jobs assigned to an editor
+  app.get("/api/editor/jobs", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their jobs" });
+      }
+      
+      const jobs = await storage.getEditorJobs(uid);
+      res.json(jobs);
+    } catch (error: any) {
+      console.error("Error getting editor jobs:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor jobs", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update job status (for editor workflow actions)
+  app.patch("/api/editor/jobs/:jobId/status", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { status } = req.body;
+      
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can update job status" });
+      }
+      
+      const updatedOrder = await storage.updateOrderStatus(jobId, status, uid);
+      if (!updatedOrder) {
+        return res.status(404).json({ error: "Job not found or not assigned to you" });
+      }
+      
+      res.json({ success: true, status: updatedOrder.status });
+    } catch (error: any) {
+      console.error("Error updating job status:", error);
+      res.status(500).json({ 
+        error: "Failed to update job status", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get all service categories for an editor
   app.get("/api/editor/service-categories", async (req, res) => {
     try {

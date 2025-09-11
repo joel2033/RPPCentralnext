@@ -10,11 +10,12 @@ import { Download, Upload, FileImage, Calendar, Clock, MapPin } from "lucide-rea
 interface EditorJob {
   id: string;
   jobId: string;
+  orderNumber: string;
   customerName: string;
   address: string;
   service: string;
   quantity: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'delivered';
+  status: 'pending' | 'processing' | 'in_revision' | 'completed' | 'cancelled';
   uploadDate: string;
   dueDate: string;
   priority: 'low' | 'medium' | 'high';
@@ -24,7 +25,7 @@ interface EditorJob {
     size: number;
     url?: string;
   }>;
-  instructions: string;
+  instructions?: any;
 }
 
 export default function EditorJobs() {
@@ -32,64 +33,8 @@ export default function EditorJobs() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
 
-  // Mock data for now - will be replaced with real API calls
-  const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ['/api/editor/jobs'],
-    queryFn: async () => {
-      const mockJobs: EditorJob[] = [
-        {
-          id: '1',
-          jobId: 'job_001',
-          customerName: 'John Smith',
-          address: '123 Main St, City, State',
-          service: 'Digital Edits - (Day To Dusk)',
-          quantity: 25,
-          status: 'pending',
-          uploadDate: '2025-01-07',
-          dueDate: '2025-01-10',
-          priority: 'high',
-          instructions: 'Please enhance the lighting and make the sky more dramatic. Focus on curb appeal.',
-          files: [
-            { name: 'IMG_001.RAW', type: 'raw', size: 25000000, url: '/mock/file1.raw' },
-            { name: 'IMG_002.RAW', type: 'raw', size: 24500000, url: '/mock/file2.raw' }
-          ]
-        },
-        {
-          id: '2',
-          jobId: 'job_002',
-          customerName: 'Sarah Johnson',
-          address: '456 Oak Ave, Town, State',
-          service: 'High Resolution Photos',
-          quantity: 15,
-          status: 'in_progress',
-          uploadDate: '2025-01-06',
-          dueDate: '2025-01-09',
-          priority: 'medium',
-          instructions: 'Standard high-res editing with color correction and basic retouching.',
-          files: [
-            { name: 'IMG_003.JPG', type: 'jpeg', size: 15000000, url: '/mock/file3.jpg' }
-          ]
-        },
-        {
-          id: '3',
-          jobId: 'job_003',
-          customerName: 'Mike Wilson',
-          address: '789 Pine Dr, Village, State',
-          service: 'Virtual Staging',
-          quantity: 8,
-          status: 'completed',
-          uploadDate: '2025-01-05',
-          dueDate: '2025-01-08',
-          priority: 'low',
-          instructions: 'Add modern furniture to empty rooms. Keep it minimal and contemporary.',
-          files: [
-            { name: 'ROOM_01.JPG', type: 'jpeg', size: 18000000, url: '/mock/file4.jpg' },
-            { name: 'ROOM_02.JPG', type: 'jpeg', size: 16000000, url: '/mock/file5.jpg' }
-          ]
-        }
-      ];
-      return mockJobs;
-    }
+  const { data: jobs = [], isLoading } = useQuery<EditorJob[]>({
+    queryKey: ['/api/editor/jobs']
   });
 
   const filteredJobs = jobs.filter(job => {
@@ -105,9 +50,10 @@ export default function EditorJobs() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'in_revision': return 'bg-orange-100 text-orange-800';
       case 'completed': return 'bg-green-100 text-green-800';
-      case 'delivered': return 'bg-gray-100 text-gray-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -185,9 +131,10 @@ export default function EditorJobs() {
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="processing">Processing</SelectItem>
+            <SelectItem value="in_revision">In Revision</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="delivered">Delivered</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -269,7 +216,7 @@ export default function EditorJobs() {
                         Start Job
                       </Button>
                     )}
-                    {job.status === 'in_progress' && (
+                    {job.status === 'processing' && (
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 text-white"
