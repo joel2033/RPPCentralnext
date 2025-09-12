@@ -804,19 +804,19 @@ export class MemStorage implements IStorage {
 
     const jobsData = [];
     for (const order of editorOrders) {
-      const job = await this.getJob(order.jobId!);
-      const customer = await this.getCustomer(order.customerId!);
+      const job = await this.getJobByJobId(order.jobId!);
+      const customer = order.customerId ? await this.getCustomer(order.customerId) : null;
       const orderServices = await this.getOrderServices(order.id);
       const orderFiles = await this.getOrderFiles(order.id);
       const existingUploads = await this.getEditorUploads(order.jobId!);
 
-      if (job && customer) {
+      if (job) {
         jobsData.push({
           id: job.id,
           jobId: job.jobId,
           orderId: order.id,
           orderNumber: order.orderNumber,
-          customerName: `${customer.firstName} ${customer.lastName}`,
+          customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'No Customer',
           address: job.address,
           services: orderServices.map(os => {
             const service = Array.from(this.editorServices.values()).find(s => s.id === os.serviceId);
