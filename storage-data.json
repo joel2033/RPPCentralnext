@@ -268,7 +268,7 @@
       "partnerId": "partner_192l9bh1xmduwueha",
       "jobId": "AngIgN8qzyFuBWw7k1JP3",
       "customerId": null,
-      "status": "processing",
+      "status": "in_progress",
       "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
       "estimatedTotal": "0",
       "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
@@ -533,7 +533,9 @@
     }
   },
   "editorUploads": {},
-  "orderCounter": 3,
+  "notifications": {},
+  "activities": {},
+  "orderCounter": 1,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",

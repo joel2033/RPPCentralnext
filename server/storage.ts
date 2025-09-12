@@ -816,7 +816,7 @@ export class MemStorage implements IStorage {
           jobId: job.jobId,
           orderId: order.id,
           orderNumber: order.orderNumber,
-          customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'No Customer',
+          customerName: customer ? `${customer.firstName} ${customer.lastName}` : order.orderNumber,
           address: job.address,
           services: orderServices.map(os => {
             const service = Array.from(this.editorServices.values()).find(s => s.id === os.serviceId);
