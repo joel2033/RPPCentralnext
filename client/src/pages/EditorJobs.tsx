@@ -444,9 +444,6 @@ export default function EditorJobs() {
                         <Badge className={getStatusColor(job.status)}>
                           {job.status.replace('_', ' ')}
                         </Badge>
-                        <Badge className="bg-blue-100 text-blue-800">
-                          processing
-                        </Badge>
                       </div>
                       <div className="flex items-center text-sm text-gray-600 mb-2">
                         <MapPin className="w-4 h-4 mr-1" />
