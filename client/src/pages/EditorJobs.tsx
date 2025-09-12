@@ -407,7 +407,7 @@ export default function EditorJobs() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{job.customerName}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">{job.customerName || job.orderNumber}</h3>
                         
                         {/* Connection Status Indicator */}
                         <TooltipProvider>
