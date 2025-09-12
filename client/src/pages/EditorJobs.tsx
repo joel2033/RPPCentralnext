@@ -175,9 +175,9 @@ export default function EditorJobs() {
   };
 
   const filteredJobs = jobs.filter(job => {
-    const matchesSearch = job.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.services?.some(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = (job.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (job.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         job.services?.some(s => (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
     const matchesPriority = priorityFilter === 'all'; // Priority not implemented yet
     
@@ -291,7 +291,40 @@ export default function EditorJobs() {
       console.error('Error downloading files:', error);
       setIsDownloading(false);
       setDownloadProgress(0);
-      // You might want to show a toast notification here
+      toast({
+        title: "Download Error",
+        description: "Failed to download files. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMarkComplete = async (jobId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', {
+        status: 'completed'
+      });
+
+      if (response.ok) {
+        // Refresh the jobs list
+        queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+        
+        toast({
+          title: "Job Completed",
+          description: "Job has been marked as completed.",
+        });
+      }
+    } catch (error) {
+      console.error('Error marking job complete:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark job as complete. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -457,22 +490,18 @@ export default function EditorJobs() {
                         <span>{job.services?.[0]?.name || 'No service'}</span>
                         <span>{job.originalFiles?.length || 0} files • {job.services?.length || 0} services</span>
                       </div>
-                      {job.instructions && (
+                      {job.services && job.services.length > 0 && job.services.some(s => s.instructions) && (
                         <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
                           <strong>Instructions:</strong>
-                          {typeof job.instructions === 'string' ? (
-                            <span className="ml-2">{job.instructions}</span>
-                          ) : Array.isArray(job.instructions) ? (
-                            <ul className="mt-2 space-y-1">
-                              {job.instructions.map((instruction, index) => (
+                          <ul className="mt-2 space-y-1">
+                            {job.services
+                              .filter(service => service.instructions)
+                              .map((service, index) => (
                                 <li key={index} className="ml-2">
-                                  • {typeof instruction === 'string' ? instruction : JSON.stringify(instruction)}
+                                  • {service.instructions}
                                 </li>
                               ))}
-                            </ul>
-                          ) : (
-                            <span className="ml-2">{JSON.stringify(job.instructions)}</span>
-                          )}
+                          </ul>
                         </div>
                       )}
                     </div>
@@ -498,15 +527,25 @@ export default function EditorJobs() {
                       </Button>
                     )}
                     {job.status === 'processing' && (
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleUploadClick(job)}
-                        data-testid={`button-upload-${job.id}`}
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Results
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => handleUploadClick(job)}
+                          data-testid={`button-upload-${job.id}`}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Results
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-gray-600 hover:bg-gray-700 text-white"
+                          onClick={() => handleMarkComplete(job.jobId)}
+                          data-testid={`button-complete-${job.id}`}
+                        >
+                          Mark Complete
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
