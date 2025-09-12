@@ -1661,7 +1661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get associated order using jobId
       const allOrders = await storage.getOrders();
-      const order = allOrders.find(o => o.jobId === job.id);
+      const order = allOrders.find(o => o.jobId === job.jobId);
       if (!order || order.assignedTo !== uid) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
       }

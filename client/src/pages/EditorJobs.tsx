@@ -18,22 +18,29 @@ import { useToast } from "@/hooks/use-toast";
 interface EditorJob {
   id: string;
   jobId: string;
+  orderId: string;
   orderNumber: string;
   customerName: string;
   address: string;
-  service: string;
-  quantity: number;
-  status: 'pending' | 'processing' | 'in_revision' | 'completed' | 'cancelled';
-  uploadDate: string;
-  dueDate: string;
-  priority: 'low' | 'medium' | 'high';
-  files: Array<{
+  services: Array<{
+    id: string;
     name: string;
-    type: string;
-    size: number;
-    url?: string;
+    quantity: number;
+    instructions: string;
   }>;
-  instructions?: any;
+  status: 'pending' | 'processing' | 'in_progress' | 'completed' | 'cancelled';
+  dueDate: string;
+  createdAt: string;
+  originalFiles: Array<{
+    id: string;
+    fileName: string;
+    originalName: string;
+    fileSize: number;
+    mimeType: string;
+    firebaseUrl: string;
+    downloadUrl: string;
+  }>;
+  existingUploads: Array<any>;
   // Connection validation status
   connectionStatus?: {
     isValid: boolean;
@@ -170,9 +177,9 @@ export default function EditorJobs() {
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          job.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.service.toLowerCase().includes(searchTerm.toLowerCase());
+                         job.services?.some(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || job.priority === priorityFilter;
+    const matchesPriority = priorityFilter === 'all'; // Priority not implemented yet
     
     return matchesSearch && matchesStatus && matchesPriority;
   });
@@ -437,8 +444,8 @@ export default function EditorJobs() {
                         <Badge className={getStatusColor(job.status)}>
                           {job.status.replace('_', ' ')}
                         </Badge>
-                        <Badge className={getPriorityColor(job.priority)}>
-                          {job.priority} priority
+                        <Badge className="bg-blue-100 text-blue-800">
+                          processing
                         </Badge>
                       </div>
                       <div className="flex items-center text-sm text-gray-600 mb-2">
@@ -450,8 +457,8 @@ export default function EditorJobs() {
                           <Clock className="w-4 h-4 mr-1" />
                           Due: {job.dueDate}
                         </span>
-                        <span>{job.service}</span>
-                        <span>{job.files.length} files • {job.quantity} final images</span>
+                        <span>{job.services?.[0]?.name || 'No service'}</span>
+                        <span>{job.originalFiles?.length || 0} files • {job.services?.length || 0} services</span>
                       </div>
                       {job.instructions && (
                         <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
