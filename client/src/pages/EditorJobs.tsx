@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2, CheckCircle, AlertCircle, XCircle, Info, Link } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { FileUploadModal } from "@/components/FileUploadModal";
@@ -94,11 +95,11 @@ export default function EditorJobs() {
     if (!job.connectionStatus) {
       return <AlertCircle className="w-4 h-4 text-gray-400" />;
     }
-    
+
     if (job.connectionStatus.isValid) {
       return <CheckCircle className="w-4 h-4 text-green-500" />;
     }
-    
+
     return <XCircle className="w-4 h-4 text-red-500" />;
   };
 
@@ -155,7 +156,7 @@ export default function EditorJobs() {
         // Refresh the jobs list
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
-        
+
         toast({
           title: "Upload Successful",
           description: `${uploads.length} deliverable(s) uploaded and job completed.`,
@@ -169,7 +170,7 @@ export default function EditorJobs() {
         variant: "destructive"
       });
     }
-    
+
     setIsUploadOpen(false);
     setSelectedJob(null);
   };
@@ -180,7 +181,7 @@ export default function EditorJobs() {
                          job.services?.some(s => (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
     const matchesPriority = priorityFilter === 'all'; // Priority not implemented yet
-    
+
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
@@ -217,14 +218,14 @@ export default function EditorJobs() {
   const handleDownloadFiles = async (jobId: string) => {
     try {
       console.log('Download button clicked for job:', jobId);
-      
+
       // Show progress dialog
       setIsDownloading(true);
       setDownloadProgress(10);
-      
+
       // Create the API request with authentication headers
       const headers: Record<string, string> = {};
-      
+
       // Add auth header if user is authenticated
       if (auth.currentUser) {
         console.log('Getting auth token...');
@@ -239,7 +240,7 @@ export default function EditorJobs() {
       }
 
       setDownloadProgress(40);
-      
+
       const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
         method: 'GET',
         headers,
@@ -266,7 +267,7 @@ export default function EditorJobs() {
 
       // Convert response to blob
       const blob = await response.blob();
-      
+
       // Create download link and trigger download
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -274,19 +275,19 @@ export default function EditorJobs() {
       link.download = filename;
       document.body.appendChild(link);
       link.click();
-      
+
       // Clean up
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       setDownloadProgress(100);
-      
+
       // Hide dialog after a short delay
       setTimeout(() => {
         setIsDownloading(false);
         setDownloadProgress(0);
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error downloading files:', error);
       setIsDownloading(false);
@@ -312,7 +313,7 @@ export default function EditorJobs() {
       if (response.ok) {
         // Refresh the jobs list
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
-        
+
         toast({
           title: "Job Completed",
           description: "Job has been marked as completed.",
@@ -441,7 +442,7 @@ export default function EditorJobs() {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{job.customerName || job.orderNumber}</h3>
-                        
+
                         {/* Connection Status Indicator */}
                         <TooltipProvider>
                           <Tooltip>
@@ -473,7 +474,7 @@ export default function EditorJobs() {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        
+
                         <Badge className={getStatusColor(job.status)}>
                           {job.status.replace('_', ' ')}
                         </Badge>
@@ -491,18 +492,24 @@ export default function EditorJobs() {
                         <span>{job.originalFiles?.length || 0} files • {job.services?.length || 0} services</span>
                       </div>
                       {job.services && job.services.length > 0 && job.services.some(s => s.instructions) && (
-                        <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                          <strong>Instructions:</strong>
-                          <ul className="mt-2 space-y-1">
+                        <Collapsible className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" className="w-full justify-start p-0 h-auto">
+                              <span className="font-bold mr-2">Instructions:</span>
+                              <Info className="w-4 h-4 mr-1" />
+                              Click to view
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="mt-2 space-y-1">
                             {job.services
                               .filter(service => service.instructions)
                               .map((service, index) => (
-                                <li key={index} className="ml-2">
-                                  • {service.instructions}
-                                </li>
+                                <div key={index} className="ml-2 border-l pl-2 border-gray-300">
+                                  {service.instructions}
+                                </div>
                               ))}
-                          </ul>
-                        </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       )}
                     </div>
                   </div>
