@@ -509,7 +509,46 @@ export default function EditorJobs() {
                                     {service.name} ({service.quantity}x)
                                   </div>
                                   <div className="text-gray-700">
-                                    {service.instructions}
+                                    {(() => {
+                                      try {
+                                        // Try to parse as JSON
+                                        const parsed = JSON.parse(service.instructions);
+                                        if (Array.isArray(parsed)) {
+                                          return (
+                                            <div className="space-y-2">
+                                              {parsed.map((item, idx) => (
+                                                <div key={idx} className="bg-gray-50 p-2 rounded border-l-2 border-blue-300">
+                                                  {typeof item === 'object' ? (
+                                                    <div>
+                                                      {item.fileName && <div className="font-medium text-gray-800">File: {item.fileName}</div>}
+                                                      {item.detail && <div className="text-sm mt-1">{item.detail}</div>}
+                                                      {item.instruction && <div className="text-sm mt-1">{item.instruction}</div>}
+                                                      {item.notes && <div className="text-sm text-gray-600 mt-1">Notes: {item.notes}</div>}
+                                                    </div>
+                                                  ) : (
+                                                    <div>{String(item)}</div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          );
+                                        } else if (typeof parsed === 'object') {
+                                          return (
+                                            <div className="bg-gray-50 p-2 rounded border-l-2 border-blue-300">
+                                              {parsed.fileName && <div className="font-medium text-gray-800">File: {parsed.fileName}</div>}
+                                              {parsed.detail && <div className="text-sm mt-1">{parsed.detail}</div>}
+                                              {parsed.instruction && <div className="text-sm mt-1">{parsed.instruction}</div>}
+                                              {parsed.notes && <div className="text-sm text-gray-600 mt-1">Notes: {parsed.notes}</div>}
+                                            </div>
+                                          );
+                                        } else {
+                                          return <div>{String(parsed)}</div>;
+                                        }
+                                      } catch (e) {
+                                        // If not valid JSON, display as plain text
+                                        return <div>{service.instructions}</div>;
+                                      }
+                                    })()}
                                   </div>
                                 </div>
                               ))}
