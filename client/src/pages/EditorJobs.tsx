@@ -504,8 +504,13 @@ export default function EditorJobs() {
                             {job.services
                               .filter(service => service.instructions)
                               .map((service, index) => (
-                                <div key={index} className="ml-2 border-l pl-2 border-gray-300">
-                                  {service.instructions}
+                                <div key={index} className="ml-2 border-l pl-3 border-blue-200 bg-white p-2 rounded">
+                                  <div className="font-medium text-blue-800 text-xs uppercase tracking-wide mb-1">
+                                    {service.name} ({service.quantity}x)
+                                  </div>
+                                  <div className="text-gray-700">
+                                    {service.instructions}
+                                  </div>
                                 </div>
                               ))}
                           </CollapsibleContent>
