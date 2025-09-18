@@ -361,8 +361,11 @@ export default function Upload() {
                   </SelectTrigger>
                   <SelectContent>
                     {jobs.map((job: any) => (
-                      <SelectItem key={job.jobId} value={job.jobId}>
-                        {job.address || `Job ${job.jobId}`}
+                      <SelectItem 
+                        key={job.id} 
+                        value={job.jobId || job.id}
+                      >
+                        {job.address || `Job ${job.jobId || job.id}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
