@@ -819,11 +819,21 @@ export class MemStorage implements IStorage {
 
   // Editor Upload Methods
   async getJobsReadyForUpload(editorId: string): Promise<any[]> {
+    console.log(`[DEBUG] getJobsReadyForUpload called for editor: ${editorId}`);
     const allOrders = Array.from(this.orders.values());
+    console.log(`[DEBUG] Total orders in system: ${allOrders.length}`);
+    
+    const assignedOrders = allOrders.filter(order => order.assignedTo === editorId);
+    console.log(`[DEBUG] Orders assigned to editor ${editorId}: ${assignedOrders.length}`);
+    assignedOrders.forEach(order => {
+      console.log(`[DEBUG] Assigned order: ${order.orderNumber}, status: ${order.status}, assignedTo: ${order.assignedTo}`);
+    });
+    
     const editorOrders = allOrders.filter(order => 
       order.assignedTo === editorId && 
       order.status === 'processing'
     );
+    console.log(`[DEBUG] Orders ready for upload (assigned + processing): ${editorOrders.length}`);
 
     const jobsData = [];
     for (const order of editorOrders) {

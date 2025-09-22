@@ -2120,22 +2120,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Editor Upload System Endpoints
   
   // Get jobs ready for upload (completed processing, assigned to this editor)
-  app.get("/api/editor/jobs-ready-for-upload", async (req, res) => {
+  app.get("/api/editor/jobs-ready-for-upload", requireAuth, async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader) {
-        return res.status(401).json({ error: "Authorization header required" });
-      }
-      
-      const idToken = authHeader.replace('Bearer ', '');
-      const decodedToken = await adminAuth.verifyIdToken(idToken);
-      const uid = decodedToken.uid;
-      const currentUser = await getUserDocument(uid);
-      if (!currentUser || currentUser.role !== 'editor') {
+      const user = req.user; // Set by requireAuth middleware
+      if (!user || user.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view jobs ready for upload" });
       }
       
-      const jobs = await storage.getJobsReadyForUpload(uid);
+      console.log(`[DEBUG] Editor dashboard request from: ${user.uid}, role: ${user.role}`);
+      const jobs = await storage.getJobsReadyForUpload(user.uid);
+      console.log(`[DEBUG] Returning ${jobs.length} jobs to editor dashboard`);
       res.json(jobs);
     } catch (error: any) {
       console.error("Error getting jobs ready for upload:", error);
