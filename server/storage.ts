@@ -840,16 +840,11 @@ export class MemStorage implements IStorage {
 
     const jobsData = [];
     for (const order of editorOrders) {
-      console.log(`[DEBUG] Processing order ${order.orderNumber}, jobId: ${order.jobId}`);
-      
       if (!order.jobId) {
-        console.log(`[DEBUG] Order ${order.orderNumber} has no jobId - skipping`);
         continue;
       }
       
       const job = await this.getJobByJobId(order.jobId!);
-      console.log(`[DEBUG] Job lookup for ${order.orderNumber}: ${job ? 'found' : 'NOT FOUND'}`);
-      
       const customer = order.customerId ? await this.getCustomer(order.customerId) : null;
       const orderServices = await this.getOrderServices(order.id);
       const orderFiles = await this.getOrderFiles(order.id);
