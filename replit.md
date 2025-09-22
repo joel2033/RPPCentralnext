@@ -6,6 +6,16 @@ This is a full-stack SaaS platform for Real Property Photography (RPP) business 
 
 Preferred communication style: Simple, everyday language.
 
+# Testing Credentials
+
+## Editor Dashboard Login
+- Email: May@maystudios.com
+- Password: benjiman1993
+
+## Partner Dashboard Login  
+- Email: adamson652@gmail.com
+- Password: benjiman1993
+
 # Recent Changes
 
 ## 2025-08-03: Job Card + Google Maps Integration - COMPLETED
