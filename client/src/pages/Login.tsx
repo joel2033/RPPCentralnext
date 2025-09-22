@@ -80,14 +80,24 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
             
-            <div className="text-center mt-4">
+            <div className="text-center mt-4 space-y-2">
               <Button 
                 type="button"
                 variant="link" 
                 onClick={() => setLocation('/signup')}
-                className="text-rpp-red-main"
+                className="text-rpp-red-main block w-full"
               >
                 Need to create an account? Sign up here
+              </Button>
+              
+              <Button 
+                type="button"
+                variant="link" 
+                onClick={() => setLocation('/editor')}
+                className="text-blue-600 hover:text-blue-800 block w-full"
+                data-testid="link-editor-dashboard"
+              >
+                Go to Editor Dashboard →
               </Button>
             </div>
           </form>
