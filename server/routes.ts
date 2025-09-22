@@ -904,10 +904,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // New endpoint for jobs that have associated orders (for upload page)
-  app.get("/api/jobs-with-orders", async (req, res) => {
+  app.get("/api/jobs-with-orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const jobs = await storage.getJobs();
-      const orders = await storage.getOrders();
+      const jobs = await storage.getJobs(req.user?.partnerId);
+      const orders = await storage.getOrders(req.user?.partnerId);
       
       // Filter jobs to only include those with associated orders
       const jobsWithOrders = jobs.filter(job => {
