@@ -493,7 +493,10 @@ export class MemStorage implements IStorage {
   }
 
   async getJobByJobId(jobId: string): Promise<Job | undefined> {
-    return Array.from(this.jobs.values()).find(job => job.jobId === jobId);
+    // Handle both NanoID (job.jobId) and UUID (job.id) for flexibility
+    return Array.from(this.jobs.values()).find(job => 
+      job.jobId === jobId || job.id === jobId
+    );
   }
 
   async getJobs(partnerId?: string): Promise<Job[]> {
@@ -837,7 +840,16 @@ export class MemStorage implements IStorage {
 
     const jobsData = [];
     for (const order of editorOrders) {
+      console.log(`[DEBUG] Processing order ${order.orderNumber}, jobId: ${order.jobId}`);
+      
+      if (!order.jobId) {
+        console.log(`[DEBUG] Order ${order.orderNumber} has no jobId - skipping`);
+        continue;
+      }
+      
       const job = await this.getJobByJobId(order.jobId!);
+      console.log(`[DEBUG] Job lookup for ${order.orderNumber}: ${job ? 'found' : 'NOT FOUND'}`);
+      
       const customer = order.customerId ? await this.getCustomer(order.customerId) : null;
       const orderServices = await this.getOrderServices(order.id);
       const orderFiles = await this.getOrderFiles(order.id);
