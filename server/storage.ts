@@ -1713,26 +1713,30 @@ export class MemStorage implements IStorage {
   async validateEditorUpload(insertUpload: InsertEditorUpload): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    // Validate order exists
-    const order = await this.getOrder(insertUpload.orderId);
-    if (!order) {
-      errors.push('Referenced order does not exist');
+    // Skip order validation for new orders (temp IDs)
+    let order = null;
+    if (insertUpload.orderId !== 'temp-new-order') {
+      // Validate order exists
+      order = await this.getOrder(insertUpload.orderId);
+      if (!order) {
+        errors.push('Referenced order does not exist');
+      }
+
+      // Validate editor assignment
+      if (order && order.assignedTo !== insertUpload.editorId) {
+        errors.push('Editor not assigned to this order');
+      }
     }
 
-    // Validate job exists
+    // Validate job exists (always required)
     const job = await this.getJob(insertUpload.jobId);
     if (!job) {
       errors.push('Referenced job does not exist');
     }
 
-    // Ensure order and job are connected
+    // Ensure order and job are connected (only if order exists)
     if (order && job && order.jobId !== job.id) {
       errors.push('Order and job are not connected');
-    }
-
-    // Validate editor assignment
-    if (order && order.assignedTo !== insertUpload.editorId) {
-      errors.push('Editor not assigned to this order');
     }
 
     // Validate file data
