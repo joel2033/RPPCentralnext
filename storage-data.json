@@ -319,6 +319,34 @@
       "filesExpiryDate": "2025-10-06T09:04:11.408Z",
       "id": "546ded0d-952f-422b-ba12-c7031ff9244c",
       "createdAt": "2025-09-22T09:04:11.408Z"
+    },
+    "8a231843-0556-4221-833d-ea364f8f988a": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "0",
+      "dateAccepted": null,
+      "orderNumber": "#00008",
+      "filesExpiryDate": "2025-10-06T09:31:01.889Z",
+      "id": "8a231843-0556-4221-833d-ea364f8f988a",
+      "createdAt": "2025-09-22T09:31:01.889Z"
+    },
+    "85fdbb32-5067-4437-8185-a54d6f0cb631": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "0",
+      "dateAccepted": null,
+      "orderNumber": "#00009",
+      "filesExpiryDate": "2025-10-06T09:37:56.995Z",
+      "id": "85fdbb32-5067-4437-8185-a54d6f0cb631",
+      "createdAt": "2025-09-22T09:37:56.995Z"
     }
   },
   "orderServices": {
@@ -384,6 +412,24 @@
       "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
       "id": "d1708e71-ae83-46fb-9de1-b063cbe8b4a3",
       "createdAt": "2025-09-22T09:04:11.409Z"
+    },
+    "772432be-9e4e-4105-afc0-86c9c96a0235": {
+      "orderId": "8a231843-0556-4221-833d-ea364f8f988a",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 1,
+      "instructions": "[{\"fileName\":\"\",\"detail\":\"\"}]",
+      "exportTypes": "[{\"type\":\"\",\"description\":\"\"}]",
+      "id": "772432be-9e4e-4105-afc0-86c9c96a0235",
+      "createdAt": "2025-09-22T09:31:01.918Z"
+    },
+    "193e5883-955e-4ece-bf53-84d9cb12ffba": {
+      "orderId": "85fdbb32-5067-4437-8185-a54d6f0cb631",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 1,
+      "instructions": "[{\"fileName\":\"\",\"detail\":\"\"}]",
+      "exportTypes": "[{\"type\":\"\",\"description\":\"\"}]",
+      "id": "193e5883-955e-4ece-bf53-84d9cb12ffba",
+      "createdAt": "2025-09-22T09:37:57.007Z"
     }
   },
   "orderFiles": {
@@ -672,6 +718,32 @@
       "expiresAt": "2025-10-06T09:04:11.422Z",
       "id": "95fe5113-ece5-4e5c-9497-08b5acab66f7",
       "uploadedAt": "2025-09-22T09:04:11.422Z"
+    },
+    "a155a7e4-cd85-464f-a611-870821347ba3": {
+      "orderId": "8a231843-0556-4221-833d-ea364f8f988a",
+      "serviceId": "772432be-9e4e-4105-afc0-86c9c96a0235",
+      "fileName": "test.jpg",
+      "originalName": "test.jpg",
+      "fileSize": 4,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/4a04b9b0-3692-4682-baaa-9a1d5eacd9db/00008/1758533427959_test.jpg",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/4a04b9b0-3692-4682-baaa-9a1d5eacd9db/00008/1758533427959_test.jpg",
+      "expiresAt": "2025-10-06T09:31:01.971Z",
+      "id": "a155a7e4-cd85-464f-a611-870821347ba3",
+      "uploadedAt": "2025-09-22T09:31:01.971Z"
+    },
+    "5b6ed999-f7ae-4470-ab8b-92800c9e54f8": {
+      "orderId": "85fdbb32-5067-4437-8185-a54d6f0cb631",
+      "serviceId": "193e5883-955e-4ece-bf53-84d9cb12ffba",
+      "fileName": "test.jpg",
+      "originalName": "test.jpg",
+      "fileSize": 4,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/4a04b9b0-3692-4682-baaa-9a1d5eacd9db/00009/1758533856032_test.jpg",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/4a04b9b0-3692-4682-baaa-9a1d5eacd9db/00009/1758533856032_test.jpg",
+      "expiresAt": "2025-10-06T09:37:57.022Z",
+      "id": "5b6ed999-f7ae-4470-ab8b-92800c9e54f8",
+      "uploadedAt": "2025-09-22T09:37:57.022Z"
     }
   },
   "serviceCategories": {
@@ -758,10 +830,36 @@
       "id": "985e5423-9077-4d92-8c71-f503e754b6e5",
       "createdAt": "2025-09-22T09:04:11.432Z",
       "readAt": null
+    },
+    "2b7fc2a5-a12d-4d09-8612-d2c45f6bcc19": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##00008 has been assigned to you and is ready for processing.",
+      "orderId": "8a231843-0556-4221-833d-ea364f8f988a",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "read": false,
+      "id": "2b7fc2a5-a12d-4d09-8612-d2c45f6bcc19",
+      "createdAt": "2025-09-22T09:31:01.981Z",
+      "readAt": null
+    },
+    "191ea8a5-0a5d-4852-b996-6fc596011ad5": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##00009 has been assigned to you and is ready for processing.",
+      "orderId": "85fdbb32-5067-4437-8185-a54d6f0cb631",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "read": false,
+      "id": "191ea8a5-0a5d-4852-b996-6fc596011ad5",
+      "createdAt": "2025-09-22T09:37:57.055Z",
+      "readAt": null
     }
   },
   "activities": {},
-  "orderCounter": 12351,
+  "orderCounter": 10,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -833,6 +931,30 @@
       "jobId": "3N4R7qcGUiQyOzWpgZm3N",
       "reservedAt": "2025-09-22T09:03:25.104Z",
       "expiresAt": "2025-09-22T11:03:25.104Z",
+      "status": "confirmed"
+    },
+    "#00007": {
+      "orderNumber": "#00007",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-22T09:25:51.157Z",
+      "expiresAt": "2025-09-22T11:25:51.157Z",
+      "status": "reserved"
+    },
+    "#00008": {
+      "orderNumber": "#00008",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-22T09:30:27.895Z",
+      "expiresAt": "2025-09-22T11:30:27.895Z",
+      "status": "confirmed"
+    },
+    "#00009": {
+      "orderNumber": "#00009",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-22T09:37:35.960Z",
+      "expiresAt": "2025-09-22T11:37:35.960Z",
       "status": "confirmed"
     }
   }

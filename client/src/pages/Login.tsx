@@ -20,8 +20,21 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await signInUser(email, password);
-      setLocation('/dashboard');
+      const user = await signInUser(email, password);
+      
+      // Get user data to determine role and redirect accordingly
+      const response = await fetch(`/api/auth/user/${user.uid}`);
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData.role === 'editor') {
+          setLocation('/editor/dashboard');
+        } else {
+          setLocation('/dashboard');
+        }
+      } else {
+        // Fallback to partner dashboard if role check fails
+        setLocation('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
     } finally {

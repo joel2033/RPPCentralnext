@@ -2466,10 +2466,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "User not found" });
       }
 
-      // Get job and order information for validation
-      const job = await storage.getJobByJobId(jobId);
+      // Get job and order information for validation  
+      // Try to find job by jobId (could be UUID or NanoID)
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        // If not found by jobId, try looking by UUID in the jobs map
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
       if (!job) {
         console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
+        console.log(`[UPLOAD DEBUG] Available jobs:`, (await storage.getJobs()).map(j => ({ id: j.id, jobId: j.jobId, address: j.address })));
         return res.status(404).json({ error: "Job not found" });
       }
 
