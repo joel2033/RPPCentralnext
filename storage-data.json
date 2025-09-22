@@ -685,7 +685,7 @@
   "editorUploads": {},
   "notifications": {},
   "activities": {},
-  "orderCounter": 6,
+  "orderCounter": 12351,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -749,6 +749,14 @@
       "jobId": "OvghgL0MZna5VDxKycwFq",
       "reservedAt": "2025-09-22T08:00:17.508Z",
       "expiresAt": "2025-09-22T10:00:17.508Z",
+      "status": "reserved"
+    },
+    "#12350": {
+      "orderNumber": "#12350",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "3N4R7qcGUiQyOzWpgZm3N",
+      "reservedAt": "2025-09-22T09:03:25.104Z",
+      "expiresAt": "2025-09-22T11:03:25.104Z",
       "status": "reserved"
     }
   }
