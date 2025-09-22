@@ -2521,6 +2521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (!uploadValidation.valid) {
+        console.log(`[UPLOAD DEBUG] Validation failed:`, uploadValidation.errors);
         return res.status(400).json({ 
           error: "Upload validation failed", 
           details: uploadValidation.errors 

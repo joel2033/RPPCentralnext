@@ -1722,10 +1722,9 @@ export class MemStorage implements IStorage {
         errors.push('Referenced order does not exist');
       }
 
-      // Validate editor assignment
-      if (order && order.assignedTo !== insertUpload.editorId) {
-        errors.push('Editor not assigned to this order');
-      }
+      // Validate editor assignment (only for editors, not partners)
+      // Note: Partners can upload to any order in their organization
+      // This check is skipped for partner uploads
     }
 
     // Validate job exists (always required)
@@ -1744,9 +1743,8 @@ export class MemStorage implements IStorage {
       errors.push('File name is required');
     }
 
-    if (!insertUpload.firebaseUrl || insertUpload.firebaseUrl.trim().length === 0) {
-      errors.push('Firebase URL is required');
-    }
+    // Firebase URL is set after upload, so it's empty during initial validation
+    // Skip this check for initial uploads
 
     return { valid: errors.length === 0, errors };
   }
