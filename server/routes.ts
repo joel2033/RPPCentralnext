@@ -405,7 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submit order with services and files
   app.post("/api/orders/submit", async (req, res) => {
     try {
-      const { partnerId, jobId, customerId, services, createdBy } = req.body;
+      const { partnerId, jobId, customerId, services, createdBy, assignedTo } = req.body;
       
       if (!partnerId || !services || !Array.isArray(services) || services.length === 0) {
         return res.status(400).json({ error: "Missing required fields: partnerId, services" });
@@ -434,7 +434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         partnerId,
         jobId: jobId || null,
         customerId: customerId || null,
-        status: "pending",
+        assignedTo: assignedTo || null,
+        status: assignedTo ? "processing" : "pending", // Set to processing if assigned, pending if not
         createdBy: createdBy || null,
         estimatedTotal: "0"
       });
@@ -473,56 +474,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create notifications for eligible editors
+      // Create notifications for assigned editor
       try {
-        // Extract unique serviceIds from the order
-        const serviceIds = services.map((service: any) => service.serviceId).filter((id: any) => id);
-        
-        // Get all partnerships for this partner
-        const partnerships = await getPartnerPartnerships(partnerId);
-        const eligibleEditorIds = new Set<string>();
-        
-        // Find editors who can handle the requested services
-        if (serviceIds.length > 0) {
-          for (const partnership of partnerships) {
-            if (partnership.status === 'active') {
-              // Get editor's services to check if they can handle any of the requested serviceIds
-              const editorServices = await storage.getEditorServices(partnership.editorId);
-              const hasMatchingService = editorServices.some(editorService => 
-                serviceIds.includes(editorService.id) && editorService.isActive
-              );
-              
-              if (hasMatchingService) {
+        if (assignedTo) {
+          // Order is assigned to specific editor - notify only them
+          const notification = {
+            partnerId,
+            recipientId: assignedTo,
+            type: 'order_assigned',
+            title: 'New Order Assigned',
+            body: `Order #${order.orderNumber} has been assigned to you and is ready for processing.`,
+            orderId: order.id,
+            jobId: order.jobId,
+            read: false
+          };
+          
+          await storage.createNotifications([notification]);
+          console.log(`Created notification for assigned editor ${assignedTo} for order ${order.orderNumber}`);
+        } else {
+          // Order is not assigned - use existing logic to notify eligible editors
+          const serviceIds = services.map((service: any) => service.serviceId).filter((id: any) => id);
+          const partnerships = await getPartnerPartnerships(partnerId);
+          const eligibleEditorIds = new Set<string>();
+          
+          // Find editors who can handle the requested services
+          if (serviceIds.length > 0) {
+            for (const partnership of partnerships) {
+              if (partnership.status === 'active') {
+                const editorServices = await storage.getEditorServices(partnership.editorId);
+                const hasMatchingService = editorServices.some(editorService => 
+                  serviceIds.includes(editorService.id) && editorService.isActive
+                );
+                
+                if (hasMatchingService) {
+                  eligibleEditorIds.add(partnership.editorId);
+                }
+              }
+            }
+          }
+          
+          // Fallback: if no exact service match, notify all active partnership editors
+          if (eligibleEditorIds.size === 0) {
+            for (const partnership of partnerships) {
+              if (partnership.status === 'active') {
                 eligibleEditorIds.add(partnership.editorId);
               }
             }
           }
-        }
-        
-        // Fallback: if no exact service match, notify all active partnership editors
-        if (eligibleEditorIds.size === 0) {
-          for (const partnership of partnerships) {
-            if (partnership.status === 'active') {
-              eligibleEditorIds.add(partnership.editorId);
-            }
-          }
-        }
-        
-        // Create notifications for all eligible editors
-        if (eligibleEditorIds.size > 0) {
-          const notifications = Array.from(eligibleEditorIds).map(editorId => ({
-            partnerId,
-            recipientId: editorId,
-            type: 'order_created',
-            title: 'New Order Available',
-            body: `Order #${order.orderNumber} has been submitted and is available for assignment.`,
-            orderId: order.id,
-            jobId: order.jobId,
-            read: false
-          }));
           
-          await storage.createNotifications(notifications);
-          console.log(`Created ${notifications.length} notifications for order ${order.orderNumber}`);
+          // Create notifications for all eligible editors
+          if (eligibleEditorIds.size > 0) {
+            const notifications = Array.from(eligibleEditorIds).map(editorId => ({
+              partnerId,
+              recipientId: editorId,
+              type: 'order_created',
+              title: 'New Order Available',
+              body: `Order #${order.orderNumber} has been submitted and is available for assignment.`,
+              orderId: order.id,
+              jobId: order.jobId,
+              read: false
+            }));
+            
+            await storage.createNotifications(notifications);
+            console.log(`Created ${notifications.length} notifications for order ${order.orderNumber}`);
+          }
         }
       } catch (notificationError) {
         // Log error but don't fail the order creation

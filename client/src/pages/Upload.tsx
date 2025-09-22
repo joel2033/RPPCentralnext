@@ -205,6 +205,7 @@ export default function Upload() {
       jobId: orderDetails.jobId || null,
       customerId: null, // Will be handled if job has a customer
       createdBy: user.uid,
+      assignedTo: selectedEditor, // Add selected editor assignment
       orderNumber: reservedOrderNumber, // Include reserved order number
       services: selectedServices.map(service => ({
         serviceId: service.service.id,
