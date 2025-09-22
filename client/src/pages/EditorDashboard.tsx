@@ -97,9 +97,9 @@ export default function EditorDashboard() {
     setSelectedJob(null);
   };
 
-  const handleDownloadFiles = async (jobId: string) => {
+  const handleDownloadFiles = async (job: EditorJob) => {
     try {
-      console.log('Download button clicked for job:', jobId);
+      console.log('Download button clicked for order:', job.orderNumber);
       
       // Show progress dialog
       setIsDownloading(true);
@@ -121,7 +121,7 @@ export default function EditorDashboard() {
 
       setDownloadProgress(40);
       
-      const response = await fetch(`/api/editor/jobs/${jobId}/download`, {
+      const response = await fetch(`/api/editor/orders/${encodeURIComponent(job.orderNumber)}/download`, {
         method: 'GET',
         headers,
         credentials: 'include'
@@ -350,8 +350,8 @@ export default function EditorDashboard() {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => handleDownloadFiles(job.id)}
-                      data-testid={`button-download-${job.id}`}
+                      onClick={() => handleDownloadFiles(job)}
+                      data-testid={`button-download-${job.orderNumber}`}
                     >
                       <Download className="w-4 h-4 mr-1" />
                       Download

@@ -1690,7 +1690,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Download job files as zip
+  // Download order files as zip by order number  
+  app.get("/api/editor/orders/:orderNumber/download", async (req, res) => {
+    try {
+      const { orderNumber } = req.params;
+      console.log(`[DOWNLOAD] Download request for order: ${orderNumber}`);
+      
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can download order files" });
+      }
+      
+      // Find the order by order number and ensure it's assigned to current editor
+      const allOrders = await storage.getOrders();
+      const order = allOrders.find(o => o.orderNumber === orderNumber && o.assignedTo === uid);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found or not assigned to you" });
+      }
+      
+      // Get order files and services (for instructions)
+      const orderFiles = await storage.getOrderFiles(order.id);
+      const orderServices = await storage.getOrderServices(order.id);
+      
+      if (!orderFiles || orderFiles.length === 0) {
+        return res.status(404).json({ error: "No files found for this order" });
+      }
+      
+      console.log(`Found ${orderFiles.length} files for order ${orderNumber}`);
+      
+      // Create zip file
+      const zip = new JSZip();
+      const folderName = orderNumber.replace('#', ''); // Remove # from folder name
+      
+      // Add order files to zip
+      for (const file of orderFiles) {
+        if (file.fileContent) {
+          const buffer = Buffer.from(file.fileContent, 'base64');
+          zip.file(`${folderName}/${file.fileName}`, buffer);
+        }
+      }
+      
+      // Add instructions if any
+      if (orderServices && orderServices.length > 0) {
+        const instructions = orderServices.map(service => ({
+          service: service.serviceName,
+          instructions: service.instructions,
+          notes: service.notes
+        }));
+        
+        zip.file(`${folderName}/INSTRUCTIONS.json`, JSON.stringify(instructions, null, 2));
+      }
+      
+      // Generate zip
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      
+      // Send the zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}_files.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length);
+      res.send(zipBuffer);
+      
+    } catch (error: any) {
+      console.error("Error downloading order files:", error);
+      res.status(500).json({ 
+        error: "Failed to download order files", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Download job files as zip (legacy route - keeping for compatibility)
   app.get("/api/editor/jobs/:jobId/download", async (req, res) => {
     try {
       const { jobId } = req.params;
