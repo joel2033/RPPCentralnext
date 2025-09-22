@@ -59,11 +59,14 @@ export default function Upload() {
 
   // Filter jobs to only show those with associated orders
   const jobs = allJobs.filter(job => {
-    return orders.some(order => 
+    const hasOrder = orders.some(order => 
       order.jobId === job.id || // Match by UUID
-      order.jobId === job.jobId // Match by NanoID  
+      (job.jobId && order.jobId === job.jobId) // Match by NanoID (only if job has NanoID)
     );
+    return hasOrder;
   });
+
+  console.log(`[FILTER] Showing ${jobs.length} of ${allJobs.length} jobs (${orders.length} orders available)`);
 
   // Get partnered editors (suppliers) for dropdown
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({
