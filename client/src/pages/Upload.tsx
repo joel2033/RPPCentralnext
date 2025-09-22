@@ -49,7 +49,7 @@ export default function Upload() {
 
   // Get jobs for dropdown
   const { data: jobs = [] } = useQuery<any[]>({
-    queryKey: ["/api/jobs"],
+    queryKey: ["/api/jobs-with-orders"],
   });
 
   // Get partnered editors (suppliers) for dropdown

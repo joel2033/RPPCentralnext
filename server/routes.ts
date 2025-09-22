@@ -903,6 +903,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New endpoint for jobs that have associated orders (for upload page)
+  app.get("/api/jobs-with-orders", async (req, res) => {
+    try {
+      const jobs = await storage.getJobs();
+      const orders = await storage.getOrders();
+      
+      // Filter jobs to only include those with associated orders
+      const jobsWithOrders = jobs.filter(job => {
+        return orders.some(order => 
+          order.jobId === job.id || // Match by UUID
+          order.jobId === job.jobId // Match by NanoID
+        );
+      });
+      
+      console.log(`[JOBS-WITH-ORDERS] Found ${jobsWithOrders.length} jobs with orders out of ${jobs.length} total jobs`);
+      res.json(jobsWithOrders);
+    } catch (error: any) {
+      console.error("Error fetching jobs with orders:", error);
+      res.status(500).json({ error: "Failed to fetch jobs with orders" });
+    }
+  });
+
   // Customers endpoints
   app.get("/api/customers", async (req, res) => {
     try {
@@ -2420,8 +2442,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get job and order information for validation
       const job = await storage.getJobByJobId(jobId);
       if (!job) {
+        console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
         return res.status(404).json({ error: "Job not found" });
       }
+
+      console.log(`[UPLOAD DEBUG] Found job: ${job.id} (nanoId: ${job.jobId}) for request jobId: ${jobId}`);
 
       // Find the order associated with this job
       // Orders may reference jobs by either UUID (job.id) or NanoID (job.jobId)
@@ -2431,8 +2456,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         o.jobId === job.jobId || // Match by NanoID
         (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
       );
+      
+      console.log(`[UPLOAD DEBUG] Available orders: ${allOrders.length}`);
+      console.log(`[UPLOAD DEBUG] Job UUID matches: ${allOrders.filter(o => o.jobId === job.id).map(o => o.orderNumber)}`);
+      console.log(`[UPLOAD DEBUG] Job NanoID matches: ${allOrders.filter(o => o.jobId === job.jobId).map(o => o.orderNumber)}`);
+      
       if (!orderEntity) {
-        return res.status(404).json({ error: "No order associated with job" });
+        console.log(`[UPLOAD DEBUG] No order found for job ${job.id} (nanoId: ${job.jobId})`);
+        return res.status(404).json({ 
+          error: "No order associated with job",
+          debug: {
+            jobId: job.id,
+            jobNanoId: job.jobId,
+            requestJobId: jobId,
+            availableOrders: allOrders.map(o => ({ orderNumber: o.orderNumber, jobId: o.jobId }))
+          }
+        });
       }
 
       // Step 3: Role-based access validation
