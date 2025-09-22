@@ -1734,7 +1734,8 @@ export class MemStorage implements IStorage {
     }
 
     // Ensure order and job are connected (only if order exists)
-    if (order && job && order.jobId !== job.id) {
+    // Orders can reference jobs by either UUID (job.id) or NanoID (job.jobId)
+    if (order && job && order.jobId !== job.id && order.jobId !== job.jobId) {
       errors.push('Order and job are not connected');
     }
 
