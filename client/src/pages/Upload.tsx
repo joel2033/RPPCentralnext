@@ -47,26 +47,10 @@ export default function Upload() {
   const [currentUploadService, setCurrentUploadService] = useState<SelectedService | null>(null);
   const [reservedOrderNumber, setReservedOrderNumber] = useState<string | null>(null);
 
-  // Get jobs for dropdown
-  const { data: allJobs = [] } = useQuery<any[]>({
+  // Get jobs for dropdown - show ALL jobs
+  const { data: jobs = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
-
-  // Get orders to filter jobs that have associated orders
-  const { data: orders = [] } = useQuery<any[]>({
-    queryKey: ["/api/orders"],
-  });
-
-  // Filter jobs to only show those with associated orders
-  const jobs = allJobs.filter(job => {
-    const hasOrder = orders.some(order => 
-      order.jobId === job.id || // Match by UUID
-      (job.jobId && order.jobId === job.jobId) // Match by NanoID (only if job has NanoID)
-    );
-    return hasOrder;
-  });
-
-  console.log(`[FILTER] Showing ${jobs.length} of ${allJobs.length} jobs (${orders.length} orders available)`);
 
   // Get partnered editors (suppliers) for dropdown
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({

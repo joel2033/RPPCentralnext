@@ -2461,17 +2461,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[UPLOAD DEBUG] Job UUID matches: ${allOrders.filter(o => o.jobId === job.id).map(o => o.orderNumber)}`);
       console.log(`[UPLOAD DEBUG] Job NanoID matches: ${allOrders.filter(o => o.jobId === job.jobId).map(o => o.orderNumber)}`);
       
+      // Note: orderEntity can be null for new orders - this is allowed
       if (!orderEntity) {
-        console.log(`[UPLOAD DEBUG] No order found for job ${job.id} (nanoId: ${job.jobId})`);
-        return res.status(404).json({ 
-          error: "No order associated with job",
-          debug: {
-            jobId: job.id,
-            jobNanoId: job.jobId,
-            requestJobId: jobId,
-            availableOrders: allOrders.map(o => ({ orderNumber: o.orderNumber, jobId: o.jobId }))
-          }
-        });
+        console.log(`[UPLOAD DEBUG] No existing order for job ${job.id} - will work with reservation data`);
+      } else {
+        console.log(`[UPLOAD DEBUG] Found existing order ${orderEntity.orderNumber} for job`);
       }
 
       // Step 3: Role-based access validation
@@ -2479,18 +2473,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let accessReason = "";
 
       if (user.role === 'partner' || user.role === 'admin') {
-        // Partners and admins can upload to their own organization's orders
-        if (orderEntity.partnerId === user.partnerId) {
+        // Partners and admins can upload to their own organization's jobs
+        if (job.partnerId === user.partnerId) {
+          hasUploadAccess = true;
+          accessReason = "Partner/admin access to own organization's job";
+        } else if (orderEntity && orderEntity.partnerId === user.partnerId) {
           hasUploadAccess = true;
           accessReason = "Partner/admin access to own organization's order";
         } else {
-          accessReason = "Order does not belong to your organization";
+          accessReason = "Job/order does not belong to your organization";
         }
       } else if (user.role === 'editor') {
         // Editors can only upload to orders they're assigned to
-        if (orderEntity.assignedTo === userId && ['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
+        if (orderEntity && orderEntity.assignedTo === userId && ['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
           hasUploadAccess = true;
           accessReason = "Editor access to assigned order";
+        } else if (!orderEntity) {
+          accessReason = "No order found for editor to work on";
         } else if (orderEntity.assignedTo !== userId) {
           accessReason = "Editor not assigned to this order";
         } else {
@@ -2510,7 +2509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 4: Validate upload data integrity with correct IDs
       const uploadValidation = await storage.validateEditorUpload({
         jobId: job.id, // Correct job DB ID
-        orderId: orderEntity.id, // Correct order DB ID
+        orderId: orderEntity?.id || 'temp-new-order', // Use temp ID for new orders
         editorId: userId,
         fileName: req.file.originalname,
         originalName: req.file.originalname,
