@@ -403,21 +403,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Submit order with services and files
-  app.post("/api/orders/submit", async (req, res) => {
+  app.post("/api/orders/submit", requireAuth, async (req, res) => {
     try {
-      const { partnerId, jobId, customerId, services, createdBy, assignedTo } = req.body;
+      const { jobId, customerId, services, createdBy, assignedTo } = req.body;
       
-      if (!partnerId || !services || !Array.isArray(services) || services.length === 0) {
-        return res.status(400).json({ error: "Missing required fields: partnerId, services" });
+      if (!services || !Array.isArray(services) || services.length === 0) {
+        return res.status(400).json({ error: "Missing required fields: services" });
+      }
+
+      // Security: Always use server-side partnerId from authenticated user (never trust client)
+      const partnerId = req.user.partnerId;
+      if (!partnerId) {
+        return res.status(403).json({ error: "User has no associated partner ID" });
       }
 
       // Use existing order reservation or generate new order number
       let orderNumber: string;
       if (req.body.orderNumber) {
-        // If orderNumber provided, confirm the reservation
+        // Security: Validate reservation ownership before confirming
+        const reservation = await storage.getReservation(req.body.orderNumber);
+        if (!reservation) {
+          return res.status(404).json({ error: "Order reservation not found" });
+        }
+        if (reservation.status !== 'reserved') {
+          return res.status(409).json({ error: "Order reservation is not in reserved status" });
+        }
+        if (reservation.userId !== req.user.uid) {
+          return res.status(403).json({ error: "Unauthorized: Cannot use another user's reservation" });
+        }
+        
+        // Now confirm the validated reservation
         const confirmed = await storage.confirmReservation(req.body.orderNumber);
         if (!confirmed) {
-          return res.status(400).json({ error: "Invalid or expired order reservation" });
+          return res.status(400).json({ error: "Failed to confirm order reservation" });
         }
         orderNumber = req.body.orderNumber;
       } else {
@@ -429,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filesExpiryDate = new Date();
       filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
 
-      // Create the main order (orderNumber and filesExpiryDate are auto-generated)
+      // Create the main order with confirmed order number
       const order = await storage.createOrder({
         partnerId,
         jobId: jobId || null,
@@ -438,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: assignedTo ? "processing" : "pending", // Set to processing if assigned, pending if not
         createdBy: createdBy || null,
         estimatedTotal: "0"
-      });
+      }, orderNumber); // Pass the confirmed order number
 
       // Create order services and files
       for (const service of services) {

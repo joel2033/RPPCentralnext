@@ -199,6 +199,16 @@ export default function Upload() {
       return;
     }
 
+    // Check if an editor is selected
+    if (!selectedEditor) {
+      toast({
+        title: "Error",
+        description: "Please select an editor before submitting the order.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Prepare order data
     const orderData = {
       partnerId: user.partnerId,

@@ -260,10 +260,7 @@ export class MemStorage implements IStorage {
           });
         }
         
-        // Reset order counter to start from 1 (ignore saved value)
-        this.orderCounter = 1;
-        
-        // Restore order reservations
+        // Restore order reservations FIRST before calculating counter
         if (data.orderReservations) {
           Object.entries(data.orderReservations).forEach(([orderNumber, reservation]: [string, any]) => {
             this.orderReservations.set(orderNumber, { 
@@ -273,6 +270,33 @@ export class MemStorage implements IStorage {
             });
           });
         }
+        
+        // Calculate proper order counter from existing orders and reservations
+        let highestOrderNumber = 0;
+        
+        // Find highest order number from existing orders
+        for (const order of this.orders.values()) {
+          if (order.orderNumber && order.orderNumber.startsWith('#')) {
+            const num = parseInt(order.orderNumber.replace('#', ''));
+            if (!isNaN(num) && num > highestOrderNumber) {
+              highestOrderNumber = num;
+            }
+          }
+        }
+        
+        // Find highest order number from active reservations (now properly restored)
+        for (const reservation of this.orderReservations.values()) {
+          if (reservation.orderNumber && reservation.orderNumber.startsWith('#')) {
+            const num = parseInt(reservation.orderNumber.replace('#', ''));
+            if (!isNaN(num) && num > highestOrderNumber) {
+              highestOrderNumber = num;
+            }
+          }
+        }
+        
+        // Set counter to next available number
+        this.orderCounter = highestOrderNumber + 1;
+        console.log(`Order counter set to ${this.orderCounter} (highest existing: ${highestOrderNumber})`);
         
         // Restore service categories
         if (data.serviceCategories) {
@@ -510,11 +534,11 @@ export class MemStorage implements IStorage {
     return partnerId ? allOrders.filter(order => order.partnerId === partnerId) : allOrders;
   }
 
-  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+  async createOrder(insertOrder: InsertOrder, confirmedOrderNumber?: string): Promise<Order> {
     const id = randomUUID();
     
-    // Auto-generate order number and files expiry date
-    const orderNumber = await this.generateOrderNumber();
+    // Use confirmed order number or auto-generate new one
+    const orderNumber = confirmedOrderNumber || await this.generateOrderNumber();
     const filesExpiryDate = new Date();
     filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
     
@@ -606,30 +630,20 @@ export class MemStorage implements IStorage {
 
   async cleanupExpiredReservations(): Promise<void> {
     const now = new Date();
-    const expiredReservations: string[] = [];
+    let cleaned = false;
     
     for (const [orderNumber, reservation] of Array.from(this.orderReservations.entries())) {
       if (now > reservation.expiresAt && reservation.status === 'reserved') {
         reservation.status = 'expired';
-        expiredReservations.push(orderNumber);
+        // Remove expired reservations completely
+        this.orderReservations.delete(orderNumber);
+        cleaned = true;
       }
     }
     
-    // Reclaim expired order numbers by adjusting the counter
-    if (expiredReservations.length > 0) {
-      // Find the lowest expired order number to potentially reclaim
-      const expiredNumbers = expiredReservations.map(num => 
-        parseInt(num.replace('#', ''))
-      ).sort((a, b) => a - b);
-      
-      // If the lowest expired number is right before our current counter, we can reclaim it
-      const lowestExpired = expiredNumbers[0];
-      if (lowestExpired === this.orderCounter - expiredReservations.length) {
-        this.orderCounter = lowestExpired;
-        // Remove expired reservations from the map
-        expiredReservations.forEach(num => this.orderReservations.delete(num));
-      }
-      
+    // Never roll back the counter - once a number is assigned, it's assigned forever
+    // This prevents duplicate order numbers which break billing and tracking
+    if (cleaned) {
       this.saveToFile();
     }
   }
