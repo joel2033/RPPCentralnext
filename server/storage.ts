@@ -271,32 +271,41 @@ export class MemStorage implements IStorage {
           });
         }
         
-        // Calculate proper order counter from existing orders and reservations
-        let highestOrderNumber = 0;
+        // Calculate proper order counter for sequential numbering starting from 1
+        // User requires sequential numbering starting from #00001 regardless of existing numbers
+        let nextSequentialNumber = 1;
         
-        // Find highest order number from existing orders
+        // Find the next available sequential number starting from 1
+        const existingNumbers = new Set<number>();
+        
+        // Collect all existing order numbers
         for (const order of this.orders.values()) {
           if (order.orderNumber && order.orderNumber.startsWith('#')) {
             const num = parseInt(order.orderNumber.replace('#', ''));
-            if (!isNaN(num) && num > highestOrderNumber) {
-              highestOrderNumber = num;
+            if (!isNaN(num)) {
+              existingNumbers.add(num);
             }
           }
         }
         
-        // Find highest order number from active reservations (now properly restored)
+        // Collect all reservation numbers
         for (const reservation of this.orderReservations.values()) {
           if (reservation.orderNumber && reservation.orderNumber.startsWith('#')) {
             const num = parseInt(reservation.orderNumber.replace('#', ''));
-            if (!isNaN(num) && num > highestOrderNumber) {
-              highestOrderNumber = num;
+            if (!isNaN(num)) {
+              existingNumbers.add(num);
             }
           }
         }
         
-        // Set counter to next available number
-        this.orderCounter = highestOrderNumber + 1;
-        console.log(`Order counter set to ${this.orderCounter} (highest existing: ${highestOrderNumber})`);
+        // Find the next available sequential number starting from 1
+        while (existingNumbers.has(nextSequentialNumber)) {
+          nextSequentialNumber++;
+        }
+        
+        // Set counter to next available sequential number
+        this.orderCounter = nextSequentialNumber;
+        console.log(`Order counter reset to ${this.orderCounter} for sequential numbering (${existingNumbers.size} existing numbers)`);
         
         // Restore service categories
         if (data.serviceCategories) {

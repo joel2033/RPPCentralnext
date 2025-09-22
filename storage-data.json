@@ -305,6 +305,20 @@
       "filesExpiryDate": "2025-10-06T08:27:19.141Z",
       "id": "ea2acb0c-2ff3-417a-a660-e787bca3481f",
       "createdAt": "2025-09-22T08:27:19.141Z"
+    },
+    "546ded0d-952f-422b-ba12-c7031ff9244c": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "3N4R7qcGUiQyOzWpgZm3N",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "0",
+      "dateAccepted": null,
+      "orderNumber": "#12350",
+      "filesExpiryDate": "2025-10-06T09:04:11.408Z",
+      "id": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "createdAt": "2025-09-22T09:04:11.408Z"
     }
   },
   "orderServices": {
@@ -361,6 +375,15 @@
       "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
       "id": "1360ea8e-4f16-42ba-b8de-28a41de19e16",
       "createdAt": "2025-09-22T08:27:19.150Z"
+    },
+    "d1708e71-ae83-46fb-9de1-b063cbe8b4a3": {
+      "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 1,
+      "instructions": "[{\"fileName\":\"test edits\",\"detail\":\"sky swap\"},{\"fileName\":\"abc 123\",\"detail\":\"grass replacement \"}]",
+      "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
+      "id": "d1708e71-ae83-46fb-9de1-b063cbe8b4a3",
+      "createdAt": "2025-09-22T09:04:11.409Z"
     }
   },
   "orderFiles": {
@@ -610,6 +633,45 @@
       "expiresAt": "2025-10-06T08:27:19.192Z",
       "id": "ba22df5f-5a06-4192-af50-098fcba7eac1",
       "uploadedAt": "2025-09-22T08:27:19.192Z"
+    },
+    "0dbd50c8-ce30-41e1-a744-51c03df1b7a9": {
+      "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "serviceId": "d1708e71-ae83-46fb-9de1-b063cbe8b4a3",
+      "fileName": "RPP05479.dng",
+      "originalName": "RPP05479.dng",
+      "fileSize": 3487280,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531806896_RPP05479.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531806896_RPP05479.dng",
+      "expiresAt": "2025-10-06T09:04:11.410Z",
+      "id": "0dbd50c8-ce30-41e1-a744-51c03df1b7a9",
+      "uploadedAt": "2025-09-22T09:04:11.410Z"
+    },
+    "51e5f504-0880-4281-816a-df43ba5963bd": {
+      "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "serviceId": "d1708e71-ae83-46fb-9de1-b063cbe8b4a3",
+      "fileName": "RPP05480.dng",
+      "originalName": "RPP05480.dng",
+      "fileSize": 3657868,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531811803_RPP05480.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531811803_RPP05480.dng",
+      "expiresAt": "2025-10-06T09:04:11.420Z",
+      "id": "51e5f504-0880-4281-816a-df43ba5963bd",
+      "uploadedAt": "2025-09-22T09:04:11.420Z"
+    },
+    "95fe5113-ece5-4e5c-9497-08b5acab66f7": {
+      "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "serviceId": "d1708e71-ae83-46fb-9de1-b063cbe8b4a3",
+      "fileName": "RPP05481.dng",
+      "originalName": "RPP05481.dng",
+      "fileSize": 3304934,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531815440_RPP05481.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/3N4R7qcGUiQyOzWpgZm3N/12350/1758531815440_RPP05481.dng",
+      "expiresAt": "2025-10-06T09:04:11.422Z",
+      "id": "95fe5113-ece5-4e5c-9497-08b5acab66f7",
+      "uploadedAt": "2025-09-22T09:04:11.422Z"
     }
   },
   "serviceCategories": {
@@ -683,7 +745,21 @@
     }
   },
   "editorUploads": {},
-  "notifications": {},
+  "notifications": {
+    "985e5423-9077-4d92-8c71-f503e754b6e5": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##12350 has been assigned to you and is ready for processing.",
+      "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
+      "jobId": "3N4R7qcGUiQyOzWpgZm3N",
+      "read": false,
+      "id": "985e5423-9077-4d92-8c71-f503e754b6e5",
+      "createdAt": "2025-09-22T09:04:11.432Z",
+      "readAt": null
+    }
+  },
   "activities": {},
   "orderCounter": 12351,
   "orderReservations": {
@@ -757,7 +833,7 @@
       "jobId": "3N4R7qcGUiQyOzWpgZm3N",
       "reservedAt": "2025-09-22T09:03:25.104Z",
       "expiresAt": "2025-09-22T11:03:25.104Z",
-      "status": "reserved"
+      "status": "confirmed"
     }
   }
 }
