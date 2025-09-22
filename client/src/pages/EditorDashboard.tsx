@@ -350,7 +350,7 @@ export default function EditorDashboard() {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => handleDownloadFiles(job.jobId)}
+                      onClick={() => handleDownloadFiles(job.id)}
                       data-testid={`button-download-${job.id}`}
                     >
                       <Download className="w-4 h-4 mr-1" />

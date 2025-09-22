@@ -1714,10 +1714,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
       
-      // Get associated order using jobId
+      // Get associated order using jobId - find one assigned to current editor
       const allOrders = await storage.getOrders();
-      const order = allOrders.find(o => o.jobId === job.jobId);
-      if (!order || order.assignedTo !== uid) {
+      const order = allOrders.find(o => o.jobId === job.id && o.assignedTo === uid);
+      if (!order) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
       }
       
