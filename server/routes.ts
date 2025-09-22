@@ -2411,25 +2411,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Order reservation has expired" });
       }
 
-      // Step 2: Validate editor workflow access using comprehensive validation
-      const editorAccessValidation = await storage.validateEditorWorkflowAccess(userId, jobId);
-      if (!editorAccessValidation.canAccess) {
-        return res.status(403).json({ 
-          error: "Editor workflow access denied", 
-          details: editorAccessValidation.reason 
-        });
+      // Step 2: Get user information and validate access based on role
+      const user = await getUserDocument(userId);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
       }
 
-      // Step 3: Get job and order information for proper validation
+      // Get job and order information for validation
       const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
-      const orderEntity = editorAccessValidation.orderInfo?.orderId ? 
-        await storage.getOrder(editorAccessValidation.orderInfo.orderId) : null;
+
+      // Find the order associated with this job
+      const allOrders = await storage.getOrders();
+      const orderEntity = allOrders.find(o => o.jobId === job.id);
       if (!orderEntity) {
-        return res.status(404).json({ error: "Associated order not found" });
+        return res.status(404).json({ error: "No order associated with job" });
+      }
+
+      // Step 3: Role-based access validation
+      let hasUploadAccess = false;
+      let accessReason = "";
+
+      if (user.role === 'partner' || user.role === 'admin') {
+        // Partners and admins can upload to their own organization's orders
+        if (orderEntity.partnerId === user.partnerId) {
+          hasUploadAccess = true;
+          accessReason = "Partner/admin access to own organization's order";
+        } else {
+          accessReason = "Order does not belong to your organization";
+        }
+      } else if (user.role === 'editor') {
+        // Editors can only upload to orders they're assigned to
+        if (orderEntity.assignedTo === userId && ['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
+          hasUploadAccess = true;
+          accessReason = "Editor access to assigned order";
+        } else if (orderEntity.assignedTo !== userId) {
+          accessReason = "Editor not assigned to this order";
+        } else {
+          accessReason = `Order status (${orderEntity.status}) does not allow editor uploads`;
+        }
+      } else {
+        accessReason = "Insufficient role permissions for file upload";
+      }
+
+      if (!hasUploadAccess) {
+        return res.status(403).json({ 
+          error: "Upload access denied", 
+          details: accessReason 
+        });
       }
 
       // Step 4: Validate upload data integrity with correct IDs
@@ -2438,9 +2469,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderId: orderEntity.id, // Correct order DB ID
         editorId: userId,
         fileName: req.file.originalname,
-        firebaseUrl: '', // Will be set after upload
+        originalName: req.file.originalname,
         fileSize: req.file.size,
-        mimeType: req.file.mimetype
+        mimeType: req.file.mimetype,
+        firebaseUrl: '', // Will be set after upload
+        downloadUrl: '', // Will be set after upload
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
       });
 
       if (!uploadValidation.valid) {
@@ -2510,7 +2544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               orderId: orderEntity?.id,
               userId: userDoc.uid,
               userEmail: userDoc.email,
-              userName: `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email,
+              userName: userDoc.email,
               action: "upload",
               category: "file",
               title: "Secure Editor Upload",
@@ -2530,10 +2564,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 jobDbId: job?.id,
                 
                 // Validation results
-                editorAccessValidation: {
-                  canAccess: editorAccessValidation.canAccess,
-                  reason: editorAccessValidation.reason,
-                  orderInfo: editorAccessValidation.orderInfo
+                accessValidation: {
+                  hasAccess: hasUploadAccess,
+                  reason: accessReason,
+                  userRole: user.role
                 },
                 uploadValidation: {
                   valid: uploadValidation.valid,
@@ -2549,7 +2583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ],
                 
                 // Security context
-                reservationId: reservation.id,
+                reservationOrderNumber: reservation.orderNumber,
                 uploadTimestamp: timestamp,
                 securityLevel: 'enhanced_validation'
               }),
@@ -2568,9 +2602,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype,
                 firebaseUrl: publicUrl,
-                firebasePath: filePath,
+                downloadUrl: publicUrl,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
                 status: 'uploaded',
-                notes: `Uploaded with enhanced security validation - Access: ${editorAccessValidation.canAccess}, Upload Valid: ${uploadValidation.valid}`
+                notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}`
               });
             }
           }
