@@ -1732,9 +1732,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Add order files to zip
       for (const file of orderFiles) {
-        if (file.fileContent) {
-          const buffer = Buffer.from(file.fileContent, 'base64');
-          zip.file(`${folderName}/${file.fileName}`, buffer);
+        try {
+          let fileBuffer: Buffer;
+          
+          if (file.fileContent) {
+            // Handle base64 content (legacy)
+            fileBuffer = Buffer.from(file.fileContent, 'base64');
+          } else if (file.downloadUrl || file.firebaseUrl) {
+            // Fetch file from Firebase Storage
+            const url = file.downloadUrl || file.firebaseUrl;
+            console.log(`Fetching file ${file.fileName} from: ${url}`);
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+              console.error(`Failed to fetch file ${file.fileName}: ${response.status}`);
+              continue;
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            fileBuffer = Buffer.from(arrayBuffer);
+            console.log(`Successfully fetched ${file.fileName} (${fileBuffer.length} bytes)`);
+          } else {
+            console.log(`Skipping file ${file.fileName} - no content or URL`);
+            continue;
+          }
+          
+          zip.file(`${folderName}/${file.fileName}`, fileBuffer);
+        } catch (error) {
+          console.error(`Error processing file ${file.fileName}:`, error);
+          // Continue with other files even if one fails
         }
       }
       
