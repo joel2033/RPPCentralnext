@@ -2424,8 +2424,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the order associated with this job
+      // Orders may reference jobs by either UUID (job.id) or NanoID (job.jobId)
       const allOrders = await storage.getOrders();
-      const orderEntity = allOrders.find(o => o.jobId === job.id);
+      const orderEntity = allOrders.find(o => 
+        o.jobId === job.id || // Match by UUID
+        o.jobId === job.jobId || // Match by NanoID
+        (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
+      );
       if (!orderEntity) {
         return res.status(404).json({ error: "No order associated with job" });
       }
