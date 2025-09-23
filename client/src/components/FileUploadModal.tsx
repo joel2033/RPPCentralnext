@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
-import { uploadFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
+import { uploadFileToFirebase, uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
 
 interface FileUploadModalProps {
   isOpen: boolean;
@@ -15,6 +15,8 @@ interface FileUploadModalProps {
   userId: string;
   jobId: string;
   onFilesUpload: (serviceId: string, files: { file: File; url: string; path: string }[], orderNumber: string) => void;
+  uploadType?: 'client' | 'completed'; // New prop to determine upload type
+  orderNumber?: string; // For completed files, we already know the order number
 }
 
 interface FileUploadItem {
@@ -33,14 +35,16 @@ export function FileUploadModal({
   serviceId,
   userId,
   jobId,
-  onFilesUpload 
+  onFilesUpload,
+  uploadType = 'client',
+  orderNumber: providedOrderNumber
 }: FileUploadModalProps) {
   const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [urlUpload, setUrlUpload] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isUrlConfirmed, setIsUrlConfirmed] = useState(false);
-  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(providedOrderNumber || null);
   const [reservationExpiry, setReservationExpiry] = useState<Date | null>(null);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -99,9 +103,9 @@ export function FileUploadModal({
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
-      // Reserve order number first if not already reserved
+      // Reserve order number first if not already reserved (only for client uploads)
       let currentOrderNumber = orderNumber;
-      if (!currentOrderNumber) {
+      if (uploadType === 'client' && !currentOrderNumber) {
         const reservation = await reserveOrderNumber(userId, jobId);
         currentOrderNumber = reservation.orderNumber;
         setOrderNumber(reservation.orderNumber);
@@ -111,7 +115,7 @@ export function FileUploadModal({
 
       // Check if we have a valid order number
       if (!currentOrderNumber) {
-        throw new Error('Failed to reserve order number');
+        throw new Error(uploadType === 'client' ? 'Failed to reserve order number' : 'Order number is required for completed files');
       }
       
       for (let i = 0; i < uploadItems.length; i++) {
@@ -124,24 +128,42 @@ export function FileUploadModal({
         try {
           console.log(`Starting Firebase upload for ${item.file.name} (${(item.file.size / 1024 / 1024).toFixed(2)}MB)...`);
           
-          // Add a timeout wrapper
-          const uploadPromise = uploadFileToFirebase(
-            item.file,
-            userId,
-            jobId,
-            currentOrderNumber,
-            (progress: UploadProgress) => {
-              console.log(`Progress for ${item.file.name}:`, progress);
-              setUploadItems(prev => prev.map((uploadItem, index) => 
-                index === i ? { 
-                  ...uploadItem, 
-                  progress: progress.progress,
-                  status: progress.status === 'completed' ? 'completed' : 'uploading',
-                  url: progress.url
-                } : uploadItem
-              ));
-            }
-          );
+          // Add a timeout wrapper and choose upload function based on type
+          const uploadPromise = uploadType === 'completed' 
+            ? uploadCompletedFileToFirebase(
+                item.file,
+                userId, // For completed files, userId is the editorId
+                jobId,
+                currentOrderNumber,
+                (progress: UploadProgress) => {
+                  console.log(`Progress for ${item.file.name}:`, progress);
+                  setUploadItems(prev => prev.map((uploadItem, index) => 
+                    index === i ? { 
+                      ...uploadItem, 
+                      progress: progress.progress,
+                      status: progress.status === 'completed' ? 'completed' : 'uploading',
+                      url: progress.url
+                    } : uploadItem
+                  ));
+                }
+              )
+            : uploadFileToFirebase(
+                item.file,
+                userId,
+                jobId,
+                currentOrderNumber,
+                (progress: UploadProgress) => {
+                  console.log(`Progress for ${item.file.name}:`, progress);
+                  setUploadItems(prev => prev.map((uploadItem, index) => 
+                    index === i ? { 
+                      ...uploadItem, 
+                      progress: progress.progress,
+                      status: progress.status === 'completed' ? 'completed' : 'uploading',
+                      url: progress.url
+                    } : uploadItem
+                  ));
+                }
+              );
           
           // Set timeout for large files (5 minutes for files over 10MB)
           const timeoutMs = item.file.size > 10 * 1024 * 1024 ? 300000 : 120000;
@@ -218,13 +240,16 @@ export function FileUploadModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-rpp-grey-dark">
-            Upload Files for {serviceName}
+            {uploadType === 'completed' ? `Upload Completed Files for ${serviceName}` : `Upload Files for ${serviceName}`}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Include any input files that your supplier may require to carry out this service.
+            {uploadType === 'completed' 
+              ? 'Upload your completed edited files ready for client delivery.'
+              : 'Include any input files that your supplier may require to carry out this service.'
+            }
           </p>
 
           {/* Upload Section Header */}

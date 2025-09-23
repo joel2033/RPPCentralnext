@@ -143,3 +143,70 @@ export const generateOrderNumber = (): string => {
   // This is deprecated - use reserveOrderNumber instead
   return `#${Date.now().toString().slice(-5)}`;
 };
+
+// Upload completed files (for editor deliverables)
+export const uploadCompletedFileToFirebase = async (
+  file: File,
+  editorId: string,
+  jobId: string,
+  orderNumber: string,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<{ url: string; path: string }> => {
+  try {
+    console.log(`Starting completed file upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
+    
+    if (onProgress) {
+      onProgress({
+        fileName: file.name,
+        progress: 0,
+        status: 'uploading'
+      });
+    }
+
+    // Create FormData for server upload
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('editorId', editorId);
+    formData.append('jobId', jobId);
+    formData.append('orderNumber', orderNumber);
+
+    // Upload via server to separate endpoint for completed files
+    const response = await fetch('/api/upload-completed-files', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    console.log(`Completed file upload successful for ${file.name}: ${result.url}`);
+    
+    if (onProgress) {
+      onProgress({
+        fileName: file.name,
+        progress: 100,
+        status: 'completed',
+        url: result.url
+      });
+    }
+
+    return {
+      url: result.url,
+      path: result.path
+    };
+  } catch (error) {
+    console.error('Error uploading completed file:', error);
+    if (onProgress) {
+      onProgress({
+        fileName: file.name,
+        progress: 0,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Upload failed'
+      });
+    }
+    throw error;
+  }
+};

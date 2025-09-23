@@ -2886,6 +2886,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Server-side Firebase upload endpoint for completed files (editor deliverables)
+  app.post("/api/upload-completed-files", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { editorId, jobId, orderNumber } = req.body;
+      
+      if (!editorId || !jobId || !orderNumber) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: editorId, jobId, and orderNumber are required" 
+        });
+      }
+
+      // Validate editor access to the job
+      const user = await getUserDocument(editorId);
+      if (!user || user.role !== 'editor') {
+        return res.status(401).json({ error: "Invalid editor or user not found" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Find the order to validate editor assignment
+      const allOrders = await storage.getOrders();
+      const orderEntity = allOrders.find(o => 
+        (o.jobId === job.id || o.jobId === job.jobId) && o.orderNumber === orderNumber
+      );
+      
+      if (!orderEntity) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Validate editor is assigned to this order
+      if (orderEntity.assignedTo !== editorId) {
+        return res.status(403).json({ error: "Editor not assigned to this order" });
+      }
+
+      // Get Firebase Admin Storage
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+      
+      const bucket = getStorage().bucket(bucketName);
+      
+      // Create file path with separate folder structure for completed files
+      const timestamp = Date.now();
+      const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `completed/${jobId}/${orderNumber}/${timestamp}_${sanitizedFileName}`;
+      
+      const file = bucket.file(filePath);
+
+      // Read the uploaded file and upload to Firebase
+      const fileBuffer = fs.readFileSync(req.file.path);
+      
+      await file.save(fileBuffer, {
+        metadata: {
+          contentType: req.file.mimetype,
+        },
+      });
+
+      // Make the file publicly accessible
+      await file.makePublic();
+
+      // Get the public URL
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+
+      // Clean up temporary file
+      fs.unlinkSync(req.file.path);
+
+      // Create editor upload record
+      await storage.createEditorUpload({
+        jobId: job.id,
+        orderId: orderEntity.id,
+        editorId: editorId,
+        fileName: sanitizedFileName,
+        originalName: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        firebaseUrl: publicUrl,
+        downloadUrl: publicUrl,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        status: 'completed',
+        notes: 'Completed deliverable uploaded by editor'
+      });
+
+      // Log activity
+      try {
+        if (user?.partnerId) {
+          await storage.createActivity({
+            partnerId: orderEntity.partnerId || user.partnerId,
+            jobId: job.id,
+            orderId: orderEntity.id,
+            userId: editorId,
+            userEmail: user.email,
+            userName: user.email,
+            action: "upload_completed",
+            category: "deliverable",
+            title: "Completed File Upload",
+            description: `Editor uploaded completed deliverable: ${req.file.originalname}`,
+            metadata: JSON.stringify({
+              fileName: req.file.originalname,
+              fileSize: req.file.size,
+              uploadPath: filePath,
+              orderNumber: orderNumber
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          });
+        }
+      } catch (activityError) {
+        console.error("Failed to log completed file upload activity:", activityError);
+      }
+
+      res.json({
+        url: publicUrl,
+        path: filePath,
+        size: req.file.size,
+        originalName: req.file.originalname
+      });
+
+    } catch (error: any) {
+      console.error("Error uploading completed file to Firebase:", error);
+      
+      // Clean up temporary file on error
+      if (req.file?.path) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error("Error cleaning up temp file:", unlinkError);
+        }
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to upload completed file to Firebase", 
+        details: error.message 
+      });
+    }
+  });
+
   // Server-side Firebase delete endpoint
   app.delete("/api/delete-firebase", async (req, res) => {
     try {

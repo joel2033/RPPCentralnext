@@ -14,22 +14,29 @@ import { useToast } from "@/hooks/use-toast";
 interface EditorJob {
   id: string;
   jobId: string;
+  orderId: string;
   orderNumber: string;
   customerName: string;
   address: string;
-  service: string;
-  quantity: number;
-  status: 'pending' | 'processing' | 'in_revision' | 'completed' | 'cancelled';
-  uploadDate: string;
-  dueDate: string;
-  priority: 'low' | 'medium' | 'high';
-  files: Array<{
+  services: Array<{
+    id: string;
     name: string;
-    type: string;
-    size: number;
-    url?: string;
+    quantity: number;
+    instructions: string;
   }>;
-  instructions?: any;
+  status: 'pending' | 'processing' | 'in_revision' | 'completed' | 'cancelled';
+  dueDate: string;
+  createdAt: string;
+  originalFiles: Array<{
+    id: string;
+    fileName: string;
+    originalName: string;
+    fileSize: number;
+    mimeType: string;
+    firebaseUrl: string;
+    downloadUrl: string;
+  }>;
+  existingUploads: Array<any>;
 }
 
 export default function EditorDashboard() {
@@ -234,10 +241,12 @@ export default function EditorDashboard() {
             setIsUploadOpen(false);
             setSelectedJob(null);
           }}
-          serviceName={selectedJob.service || "Deliverables"}
+          serviceName={selectedJob.services[0]?.name || "Deliverables"}
           serviceId={selectedJob.jobId}
           userId={auth.currentUser?.uid || ""}
           jobId={selectedJob.jobId}
+          uploadType="completed"
+          orderNumber={selectedJob.orderNumber}
           onFilesUpload={(serviceId, files, orderNumber) => {
             handleUploadComplete(selectedJob.jobId, files);
           }}
@@ -336,7 +345,7 @@ export default function EditorDashboard() {
                   <div>
                     <h4 className="font-medium text-gray-900">{job.customerName}</h4>
                     <p className="text-sm text-gray-600">{job.address}</p>
-                    <p className="text-xs text-gray-500">{job.service} • {job.quantity} files</p>
+                    <p className="text-xs text-gray-500">{job.services[0]?.name || 'Service'} • {job.originalFiles?.length || 0} files</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
