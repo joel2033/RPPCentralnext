@@ -2850,11 +2850,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: `File too large. Maximum size: ${maxFileSize / 1024 / 1024}MB` });
       }
 
-      const { jobId, orderNumber } = req.body;
+      const { jobId, orderNumber, folderPath, editorFolderName } = req.body;
       
-      if (!jobId || !orderNumber) {
+      if (!jobId) {
         return res.status(400).json({ 
-          error: "Missing required parameters: jobId and orderNumber are required" 
+          error: "Missing required parameter: jobId is required" 
         });
       }
 
@@ -2950,10 +2950,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const bucket = getStorage().bucket(bucketName);
       
-      // Create file path with separate folder structure for completed files
+      // Create file path with folder structure for completed files
       const timestamp = Date.now();
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `completed/${jobId}/${orderNumber}/${timestamp}_${sanitizedFileName}`;
+      
+      // Build file path with optional folder structure
+      let filePath = `completed/${jobId}/${orderEntity.orderNumber}`;
+      if (folderPath) {
+        // Safely sanitize folder path by segments
+        const segments = folderPath.split('/').map(segment => {
+          // Remove dangerous patterns and sanitize each segment
+          return segment
+            .replace(/\.\./g, '') // Remove path traversal attempts
+            .replace(/[^a-zA-Z0-9 _-]/g, '_') // Safe character whitelist
+            .trim() // Remove leading/trailing spaces
+            .substring(0, 50); // Limit length
+        }).filter(segment => segment.length > 0); // Remove empty segments
+        
+        if (segments.length > 0) {
+          filePath += `/${segments.join('/')}`;
+        }
+      }
+      filePath += `/${timestamp}_${sanitizedFileName}`;
       
       const file = bucket.file(filePath);
 
@@ -2975,7 +2993,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
 
-      // Create editor upload record
+      // Create editor upload record with folder information
       await storage.createEditorUpload({
         jobId: job.id,
         orderId: orderEntity.id,
@@ -2986,6 +3004,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType: req.file.mimetype,
         firebaseUrl: publicUrl,
         downloadUrl: publicUrl,
+        folderPath: folderPath || null,
+        editorFolderName: editorFolderName || null,
+        partnerFolderName: null, // Partners can rename later
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         status: 'completed',
         notes: 'Completed deliverable uploaded by editor'
@@ -3109,6 +3130,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching completed files:", error);
       res.status(500).json({ 
         error: "Failed to fetch completed files", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get upload folders for a job
+  app.get("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get folders for this job
+      const folders = await storage.getUploadFolders(job.id);
+      
+      res.json({ folders });
+    } catch (error: any) {
+      console.error("Error fetching upload folders:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch upload folders", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update folder name (for partners to rename folders)  
+  app.patch("/api/jobs/:jobId/folders/rename", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folderPath, newPartnerFolderName } = req.body;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!newPartnerFolderName) {
+        return res.status(400).json({ error: "newPartnerFolderName is required" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Update folder name
+      await storage.updateFolderName(job.id, folderPath, newPartnerFolderName);
+      
+      res.json({ success: true, message: "Folder renamed successfully" });
+    } catch (error: any) {
+      console.error("Error renaming folder:", error);
+      res.status(500).json({ 
+        error: "Failed to rename folder", 
         details: error.message 
       });
     }

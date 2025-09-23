@@ -46,6 +46,9 @@ export function FileUploadModal({
   const [isUrlConfirmed, setIsUrlConfirmed] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(providedOrderNumber || null);
   const [reservationExpiry, setReservationExpiry] = useState<Date | null>(null);
+  // Folder functionality
+  const [useFolder, setUseFolder] = useState(false);
+  const [folderName, setFolderName] = useState('');
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -150,7 +153,12 @@ export function FileUploadModal({
                       url: progress.url
                     } : uploadItem
                   ));
-                }
+                },
+                // Pass folder data if folder is being used
+                useFolder && folderName ? {
+                  folderPath: folderName,
+                  editorFolderName: folderName
+                } : undefined
               )
             : uploadFileToFirebase(
                 item.file,
@@ -256,6 +264,42 @@ export function FileUploadModal({
               : 'Include any input files that your supplier may require to carry out this service.'
             }
           </p>
+
+          {/* Folder Options - Only for completed uploads */}
+          {uploadType === 'completed' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-folder"
+                  checked={useFolder}
+                  onCheckedChange={(checked) => setUseFolder(checked as boolean)}
+                  data-testid="checkbox-use-folder"
+                />
+                <label htmlFor="use-folder" className="text-sm font-medium text-blue-900">
+                  Organize files in a folder
+                </label>
+              </div>
+              
+              {useFolder && (
+                <div className="space-y-2">
+                  <label htmlFor="folder-name" className="text-sm font-medium text-blue-900">
+                    Folder Name
+                  </label>
+                  <Input
+                    id="folder-name"
+                    placeholder="Enter folder name (e.g., 'High Resolution', 'Web Ready')"
+                    value={folderName}
+                    onChange={(e) => setFolderName(e.target.value)}
+                    className="text-sm"
+                    data-testid="input-folder-name"
+                  />
+                  <p className="text-xs text-blue-700">
+                    Files will be organized in this folder for easier client browsing
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Upload Section Header */}
           <div className="flex items-center justify-between">

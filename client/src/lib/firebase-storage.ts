@@ -160,7 +160,8 @@ export const uploadCompletedFileToFirebase = async (
   file: File,
   jobId: string,
   orderNumber?: string,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
+  folderData?: { folderPath: string; editorFolderName: string }
 ): Promise<{ url: string; path: string }> => {
   try {
     console.log(`Starting completed file upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
@@ -179,6 +180,11 @@ export const uploadCompletedFileToFirebase = async (
     formData.append('jobId', jobId);
     if (orderNumber) {
       formData.append('orderNumber', orderNumber);
+    }
+    // Add folder data if provided
+    if (folderData) {
+      formData.append('folderPath', folderData.folderPath);
+      formData.append('editorFolderName', folderData.editorFolderName);
     }
 
     // Upload via server to separate endpoint for completed files (with authentication)

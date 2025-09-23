@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, FileImage, X, Plus, Check, Clock, AlertCircle } from "lucide-react";
 import { uploadCompletedFileToFirebase, UploadProgress } from "@/lib/firebase-storage";
 import { auth } from "@/lib/firebase";
@@ -38,6 +39,9 @@ export default function EditorUploads() {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [uploadNotes, setUploadNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  // Folder functionality
+  const [useFolder, setUseFolder] = useState(false);
+  const [folderName, setFolderName] = useState("");
 
   // Get real jobs ready for upload from the API
   const { data: completedJobs = [], isLoading } = useQuery({
@@ -140,7 +144,12 @@ export default function EditorUploads() {
         uploadFile.file,
         jobId,
         undefined, // No orderNumber - let server auto-detect
-        (progress: UploadProgress) => updateProgress(progress.progress)
+        (progress: UploadProgress) => updateProgress(progress.progress),
+        // Pass folder data if folder is being used
+        useFolder && folderName ? {
+          folderPath: folderName,
+          editorFolderName: folderName
+        } : undefined
       );
       
       console.log(`Upload completed for ${uploadFile.file.name}:`, result);
@@ -264,6 +273,47 @@ export default function EditorUploads() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Folder Options */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Organization Options</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="use-folder-uploads"
+                    checked={useFolder}
+                    onCheckedChange={(checked) => setUseFolder(checked as boolean)}
+                    data-testid="checkbox-use-folder-uploads"
+                  />
+                  <label htmlFor="use-folder-uploads" className="text-sm font-medium">
+                    Organize files in a folder
+                  </label>
+                </div>
+                
+                {useFolder && (
+                  <div className="space-y-2 pl-6">
+                    <label htmlFor="folder-name-uploads" className="text-sm font-medium">
+                      Folder Name
+                    </label>
+                    <Input
+                      id="folder-name-uploads"
+                      placeholder="Enter folder name (e.g., 'High Resolution', 'Web Ready')"
+                      value={folderName}
+                      onChange={(e) => setFolderName(e.target.value)}
+                      className="text-sm"
+                      data-testid="input-folder-name-uploads"
+                    />
+                    <p className="text-xs text-gray-600">
+                      Files will be organized in this folder for easier client browsing
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 

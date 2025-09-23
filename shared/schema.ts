@@ -143,6 +143,10 @@ export const editorUploads = pgTable("editor_uploads", {
   mimeType: text("mime_type").notNull(),
   firebaseUrl: text("firebase_url").notNull(),
   downloadUrl: text("download_url").notNull(),
+  // Folder functionality
+  folderPath: text("folder_path"), // Complete folder path (e.g., "Edited Photos/High Res")
+  editorFolderName: text("editor_folder_name"), // Original name given by editor
+  partnerFolderName: text("partner_folder_name"), // Optional renamed version by partner
   status: text("status").default("uploaded"), // "uploaded", "processing", "delivered"
   notes: text("notes"), // Optional notes from editor about the deliverable
   uploadedAt: timestamp("uploaded_at").defaultNow(),

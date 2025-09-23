@@ -110,6 +110,10 @@ export interface IStorage {
   getEditorUploads(jobId: string): Promise<EditorUpload[]>;
   createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload>;
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
+  
+  // Folder Management
+  getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string}[]>;
+  updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void>;
 
   // Team Assignment System
   getPendingOrders(partnerId: string): Promise<Order[]>; // Get unassigned orders for partner
@@ -947,6 +951,45 @@ export class MemStorage implements IStorage {
 
     this.saveToFile();
     return updatedJob;
+  }
+
+  // Folder Management
+  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string}[]> {
+    const allUploads = Array.from(this.editorUploads.values());
+    const jobUploads = allUploads.filter(upload => upload.jobId === jobId);
+    
+    // Group uploads by folder path and get unique folders
+    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string}>();
+    
+    for (const upload of jobUploads) {
+      if (upload.folderPath && upload.editorFolderName) {
+        const key = upload.folderPath;
+        if (!foldersMap.has(key)) {
+          foldersMap.set(key, {
+            folderPath: upload.folderPath,
+            editorFolderName: upload.editorFolderName,
+            partnerFolderName: upload.partnerFolderName || undefined
+          });
+        }
+      }
+    }
+    
+    return Array.from(foldersMap.values());
+  }
+
+  async updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void> {
+    const allUploads = Array.from(this.editorUploads.values());
+    const uploadsToUpdate = allUploads.filter(upload => 
+      upload.jobId === jobId && upload.folderPath === folderPath
+    );
+    
+    // Update all uploads in this folder with the new partner folder name
+    for (const upload of uploadsToUpdate) {
+      const updatedUpload = { ...upload, partnerFolderName: newPartnerFolderName };
+      this.editorUploads.set(upload.id, updatedUpload);
+    }
+    
+    this.saveToFile();
   }
 
   async getUsers(partnerId?: string): Promise<User[]> {
