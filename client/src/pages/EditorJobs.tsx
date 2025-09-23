@@ -127,6 +127,7 @@ export default function EditorJobs() {
   };
 
   const handleUploadClick = (job: EditorJob) => {
+    console.log('[DEBUG] Upload clicked for job:', { id: job.id, jobId: job.jobId, orderNumber: job.orderNumber });
     setSelectedJob(job);
     setIsUploadOpen(true);
   };
@@ -432,7 +433,7 @@ export default function EditorJobs() {
           </Card>
         ) : (
           filteredJobs.map((job) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
+            <Card key={job.orderId} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">

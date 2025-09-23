@@ -178,6 +178,18 @@ export const getUserDocument = async (uid: string): Promise<UserData | null> => 
   }
 };
 
+// Update user document with partnerId (for editors who get assigned to partners)
+export const updateUserPartnerId = async (uid: string, partnerId: string): Promise<void> => {
+  try {
+    const userRef = adminDb.collection('users').doc(uid);
+    await userRef.update({ partnerId });
+    console.log(`Updated user ${uid} with partnerId ${partnerId}`);
+  } catch (error) {
+    console.error('Error updating user partnerId:', error);
+    throw error;
+  }
+};
+
 // Get pending invite by token
 export const getPendingInvite = async (token: string): Promise<PendingInvite | null> => {
   try {

@@ -99,6 +99,7 @@ export function FileUploadModal({
   };
 
   const startUpload = async () => {
+    console.log('[DEBUG] FileUploadModal starting upload with props:', { jobId, uploadType, orderNumber: providedOrderNumber });
     setIsUploading(true);
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
