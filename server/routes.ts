@@ -3063,6 +3063,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get completed files for a job (for job card gallery display)
+  app.get("/api/jobs/:jobId/completed-files", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get all editor uploads for this job with completed status
+      const allUploads = await storage.getEditorUploads(job.id);
+      const completedFiles = allUploads.filter(upload => upload.status === 'completed');
+
+      // Group files by order and enrich with order information
+      const filesByOrder = completedFiles.reduce((acc, file) => {
+        if (!acc[file.orderId]) {
+          acc[file.orderId] = [];
+        }
+        acc[file.orderId].push(file);
+        return acc;
+      }, {} as Record<string, typeof completedFiles>);
+
+      // Get order information for each group
+      const enrichedFiles = await Promise.all(
+        Object.entries(filesByOrder).map(async ([orderId, files]) => {
+          const order = await storage.getOrder(orderId);
+          return {
+            orderId,
+            orderNumber: order?.orderNumber || 'Unknown',
+            files: files.map(file => ({
+              id: file.id,
+              fileName: file.fileName,
+              originalName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              downloadUrl: file.downloadUrl,
+              uploadedAt: file.uploadedAt,
+              notes: file.notes
+            }))
+          };
+        })
+      );
+
+      res.json({ completedFiles: enrichedFiles });
+    } catch (error: any) {
+      console.error("Error fetching completed files:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch completed files", 
+        details: error.message 
+      });
+    }
+  });
+
   // Server-side Firebase delete endpoint
   app.delete("/api/delete-firebase", async (req, res) => {
     try {

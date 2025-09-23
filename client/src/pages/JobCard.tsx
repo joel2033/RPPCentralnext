@@ -8,6 +8,7 @@ import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText,
 import { format } from "date-fns";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import ActivityTimeline from "@/components/ActivityTimeline";
+import FileGallery from "@/components/FileGallery";
 
 interface JobCardData {
   id: string;
@@ -42,6 +43,26 @@ export default function JobCard() {
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
+    enabled: !!jobId,
+  });
+
+  const { data: completedFilesData, isLoading: isFilesLoading } = useQuery<{
+    completedFiles: Array<{
+      orderId: string;
+      orderNumber: string;
+      files: Array<{
+        id: string;
+        fileName: string;
+        originalName: string;
+        fileSize: number;
+        mimeType: string;
+        downloadUrl: string;
+        uploadedAt: string;
+        notes?: string;
+      }>;
+    }>;
+  }>({
+    queryKey: [`/api/jobs/${jobId}/completed-files`],
     enabled: !!jobId,
   });
 
@@ -136,82 +157,17 @@ export default function JobCard() {
             </CardContent>
           </Card>
 
-          {/* Manage Content Tabs */}
+          {/* Completed Files Gallery */}
           <Card>
             <CardHeader>
-              <CardTitle>Manage Content</CardTitle>
-              <p className="text-sm text-gray-600">Upload and manage property content for this job</p>
+              <CardTitle>Completed Deliverables</CardTitle>
+              <p className="text-sm text-gray-600">View and download completed files from editors</p>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="photos" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="photos">Photos</TabsTrigger>
-                  <TabsTrigger value="floorplans">Floor Plans</TabsTrigger>
-                  <TabsTrigger value="videos">Videos</TabsTrigger>
-                  <TabsTrigger value="tours">Virtual Tours</TabsTrigger>
-                  <TabsTrigger value="other">Other Files</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="photos" className="mt-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Image className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Upload Photos</h3>
-                    <p className="text-gray-500 mb-4">Drag and drop photos here, or click to select files</p>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Select Photos
-                    </Button>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="floorplans" className="mt-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Upload Floor Plans</h3>
-                    <p className="text-gray-500 mb-4">Add floor plan images or PDFs</p>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Select Files
-                    </Button>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="videos" className="mt-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Video className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Upload Videos</h3>
-                    <p className="text-gray-500 mb-4">Add property walkthrough videos</p>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Select Videos
-                    </Button>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="tours" className="mt-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Eye className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Virtual Tours</h3>
-                    <p className="text-gray-500 mb-4">Upload or link virtual tour content</p>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Add Tour
-                    </Button>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="other" className="mt-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Other Files</h3>
-                    <p className="text-gray-500 mb-4">Upload additional documents or files</p>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Select Files
-                    </Button>
-                  </div>
-                </TabsContent>
-              </Tabs>
+              <FileGallery 
+                completedFiles={completedFilesData?.completedFiles || []} 
+                isLoading={isFilesLoading}
+              />
             </CardContent>
           </Card>
         </div>
