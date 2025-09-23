@@ -2887,25 +2887,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Server-side Firebase upload endpoint for completed files (editor deliverables)
-  app.post("/api/upload-completed-files", upload.single('file'), async (req, res) => {
+  app.post("/api/upload-completed-files", requireAuth, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { editorId, jobId, orderNumber } = req.body;
+      // Validate file type and size for completed files
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/tif', 'image/x-adobe-dng', 'application/zip'];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` });
+      }
+
+      // File size limit (100MB)
+      const maxFileSize = 100 * 1024 * 1024;
+      if (req.file.size > maxFileSize) {
+        return res.status(400).json({ error: `File too large. Maximum size: ${maxFileSize / 1024 / 1024}MB` });
+      }
+
+      const { jobId, orderNumber } = req.body;
       
-      if (!editorId || !jobId || !orderNumber) {
+      if (!jobId || !orderNumber) {
         return res.status(400).json({ 
-          error: "Missing required parameters: editorId, jobId, and orderNumber are required" 
+          error: "Missing required parameters: jobId and orderNumber are required" 
         });
       }
 
-      // Validate editor access to the job
-      const user = await getUserDocument(editorId);
+      // Get authenticated user - editorId comes from authentication, not request body
+      const user = req.user; // Set by requireAuth middleware
       if (!user || user.role !== 'editor') {
-        return res.status(401).json({ error: "Invalid editor or user not found" });
+        return res.status(403).json({ error: "Only editors can upload completed files" });
       }
+
+      const editorId = user.uid;
 
       // Find the job
       let job = await storage.getJobByJobId(jobId);
@@ -2918,19 +2932,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      // Find the order to validate editor assignment
+      // Find the order by orderNumber first for proper validation
       const allOrders = await storage.getOrders();
-      const orderEntity = allOrders.find(o => 
-        (o.jobId === job.id || o.jobId === job.jobId) && o.orderNumber === orderNumber
-      );
+      const orderEntity = allOrders.find(o => o.orderNumber === orderNumber);
       
       if (!orderEntity) {
         return res.status(404).json({ error: "Order not found" });
       }
 
-      // Validate editor is assigned to this order
+      // CRITICAL: Validate tenant isolation - order must belong to editor's organization
+      if (orderEntity.partnerId !== user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Order belongs to different organization" });
+      }
+
+      // CRITICAL: Validate the order actually belongs to the requested job
+      if (orderEntity.jobId !== job.id && orderEntity.jobId !== job.jobId) {
+        return res.status(400).json({ error: "Order does not belong to the specified job" });
+      }
+
+      // CRITICAL: Validate editor is actually assigned to this specific order
       if (orderEntity.assignedTo !== editorId) {
-        return res.status(403).json({ error: "Editor not assigned to this order" });
+        return res.status(403).json({ error: "Access denied: You are not assigned to this order" });
+      }
+
+      // Additional validation: Ensure order is in a state that allows uploads
+      if (!['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
+        return res.status(400).json({ error: `Cannot upload to order with status: ${orderEntity.status}` });
       }
 
       // Get Firebase Admin Storage

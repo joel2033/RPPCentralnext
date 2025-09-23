@@ -132,7 +132,6 @@ export function FileUploadModal({
           const uploadPromise = uploadType === 'completed' 
             ? uploadCompletedFileToFirebase(
                 item.file,
-                userId, // For completed files, userId is the editorId
                 jobId,
                 currentOrderNumber,
                 (progress: UploadProgress) => {

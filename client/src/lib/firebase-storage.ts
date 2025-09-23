@@ -1,3 +1,5 @@
+import { auth } from '@/lib/firebase';
+
 export interface UploadProgress {
   fileName: string;
   progress: number;
@@ -5,6 +7,15 @@ export interface UploadProgress {
   url?: string;
   error?: string;
 }
+
+// Helper function to get authentication token
+const getAuthToken = async (): Promise<string> => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  return await user.getIdToken();
+};
 
 export const uploadFileToFirebase = async (
   file: File,
@@ -147,7 +158,6 @@ export const generateOrderNumber = (): string => {
 // Upload completed files (for editor deliverables)
 export const uploadCompletedFileToFirebase = async (
   file: File,
-  editorId: string,
   jobId: string,
   orderNumber: string,
   onProgress?: (progress: UploadProgress) => void
@@ -163,16 +173,18 @@ export const uploadCompletedFileToFirebase = async (
       });
     }
 
-    // Create FormData for server upload
+    // Create FormData for server upload (editorId now comes from authentication)
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('editorId', editorId);
     formData.append('jobId', jobId);
     formData.append('orderNumber', orderNumber);
 
-    // Upload via server to separate endpoint for completed files
+    // Upload via server to separate endpoint for completed files (with authentication)
     const response = await fetch('/api/upload-completed-files', {
       method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${await getAuthToken()}`
+      },
       body: formData,
     });
 
