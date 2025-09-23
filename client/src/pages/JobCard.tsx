@@ -217,6 +217,7 @@ export default function JobCard() {
             <CardContent>
               <FileGallery 
                 completedFiles={completedFilesData?.completedFiles || []} 
+                jobId={jobData.jobId}
                 isLoading={isFilesLoading}
               />
             </CardContent>

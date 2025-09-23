@@ -3173,6 +3173,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create new folder (for partners to create folders)
+  app.post("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { partnerFolderName } = req.body;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!partnerFolderName) {
+        return res.status(400).json({ error: "partnerFolderName is required" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Create folder placeholder - folder will be created when files are uploaded
+      res.json({ 
+        success: true, 
+        message: "Folder template created",
+        folderName: partnerFolderName 
+      });
+    } catch (error: any) {
+      console.error("Error creating folder template:", error);
+      res.status(500).json({ 
+        error: "Failed to create folder template", 
+        details: error.message 
+      });
+    }
+  });
+
   // Update folder name (for partners to rename folders)  
   app.patch("/api/jobs/:jobId/folders/rename", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
