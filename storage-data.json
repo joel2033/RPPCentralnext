@@ -982,7 +982,42 @@
       "readAt": null
     }
   },
-  "activities": {},
+  "activities": {
+    "91a991ac-f75e-44f2-9700-7549284c0556": {
+      "partnerId": "",
+      "orderId": "b5d02684-a32c-466a-9d37-5d2220c603e4",
+      "jobId": "AngIgN8qzyFuBWw7k1JP3",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "download",
+      "category": "file",
+      "title": "Order Files Downloaded",
+      "description": "Editor downloaded files for order #00011",
+      "metadata": "{\"orderNumber\":\"#00011\",\"fileCount\":2,\"totalSize\":6337827,\"downloadedFiles\":[{\"fileName\":\"RPP05484.dng\",\"fileSize\":2801000,\"mimeType\":\"image/x-adobe-dng\"},{\"fileName\":\"RPP05485.dng\",\"fileSize\":3536300,\"mimeType\":\"image/x-adobe-dng\"}],\"downloadedAt\":\"2025-09-23T00:36:19.225Z\"}",
+      "ipAddress": "172.31.95.162",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      "id": "91a991ac-f75e-44f2-9700-7549284c0556",
+      "createdAt": "2025-09-23T00:36:19.230Z"
+    },
+    "e13db548-ce8d-422a-b3e3-2558f801e701": {
+      "partnerId": "",
+      "orderId": "b5d02684-a32c-466a-9d37-5d2220c603e4",
+      "jobId": "AngIgN8qzyFuBWw7k1JP3",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "download",
+      "category": "file",
+      "title": "Order Files Downloaded",
+      "description": "Editor downloaded files for order #00011",
+      "metadata": "{\"orderNumber\":\"#00011\",\"fileCount\":2,\"totalSize\":6337827,\"downloadedFiles\":[{\"fileName\":\"RPP05484.dng\",\"fileSize\":2801000,\"mimeType\":\"image/x-adobe-dng\"},{\"fileName\":\"RPP05485.dng\",\"fileSize\":3536300,\"mimeType\":\"image/x-adobe-dng\"}],\"downloadedAt\":\"2025-09-23T00:38:24.629Z\"}",
+      "ipAddress": "172.31.95.162",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      "id": "e13db548-ce8d-422a-b3e3-2558f801e701",
+      "createdAt": "2025-09-23T00:38:24.630Z"
+    }
+  },
   "orderCounter": 6,
   "orderReservations": {
     "#12347": {

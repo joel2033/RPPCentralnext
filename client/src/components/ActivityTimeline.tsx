@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus } from "lucide-react";
 import { format } from "date-fns";
+import { auth } from "@/lib/firebase";
 
 interface ActivityData {
   id: string;
@@ -36,14 +37,25 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
 
   const { data: activities = [], isLoading, error } = useQuery<ActivityData[]>({
     queryKey: ['/api/activities', { jobId, orderId }],
-    queryFn: () => fetch(`/api/activities?${queryParams.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+    queryFn: async () => {
+      const headers: HeadersInit = {};
+      
+      // Add Firebase Auth token if user is authenticated
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        headers.Authorization = `Bearer ${token}`;
       }
-    }).then(res => {
-      if (!res.ok) throw new Error('Failed to fetch activities');
-      return res.json();
-    }),
+      
+      const response = await fetch(`/api/activities?${queryParams.toString()}`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch activities');
+      }
+      
+      return response.json();
+    },
     enabled: !!(jobId || orderId),
   });
 

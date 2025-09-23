@@ -127,10 +127,11 @@ export default function Jobs() {
             key={job.id} 
             className="border-rpp-grey-border hover:shadow-md transition-shadow cursor-pointer"
             onClick={() => {
-              if (job.jobId) {
-                setLocation(`/jobs/${job.jobId}`);
+              const navigationId = job.jobId || job.id;
+              if (navigationId) {
+                setLocation(`/jobs/${navigationId}`);
               } else {
-                console.warn('Job missing jobId:', job);
+                console.warn('Job missing both jobId and id:', job);
               }
             }}
           >

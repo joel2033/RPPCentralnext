@@ -1778,6 +1778,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate zip
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
       
+      // Log activity: File Download
+      try {
+        await storage.createActivity({
+          partnerId: currentUser.partnerId || '',
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          userName: currentUser.email,
+          action: "download",
+          category: "file",
+          title: "Order Files Downloaded",
+          description: `Editor downloaded files for order ${order.orderNumber}`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            fileCount: orderFiles.length,
+            totalSize: zipBuffer.length,
+            downloadedFiles: orderFiles.map(f => ({
+              fileName: f.fileName,
+              fileSize: f.fileSize,
+              mimeType: f.mimeType
+            })),
+            downloadedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log download activity:", activityError);
+        // Don't fail the download if activity logging fails
+      }
+      
       // Send the zip file
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${folderName}_files.zip"`);
@@ -1917,6 +1949,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error('Failed to update download status:', error);
         // Continue with download even if status update fails
+      }
+      
+      // Log activity: File Download (legacy endpoint)
+      try {
+        const userDoc = await getUserDocument(uid);
+        if (userDoc) {
+          await storage.createActivity({
+            partnerId: userDoc.partnerId || '',
+            orderId: order.id,
+            jobId: order.jobId,
+            userId: uid,
+            userEmail: userDoc.email,
+            userName: userDoc.email,
+            action: "download",
+            category: "file",
+            title: "Job Files Downloaded",
+            description: `Editor downloaded files for job ${jobId} (legacy endpoint)`,
+            metadata: JSON.stringify({
+              orderNumber: order.orderNumber,
+              jobId: jobId,
+              fileCount: successfulFiles,
+              totalSize: zipBuffer.length,
+              downloadedAt: new Date().toISOString(),
+              endpointType: 'legacy'
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          });
+        }
+      } catch (activityError) {
+        console.error("Failed to log download activity:", activityError);
+        // Don't fail the download if activity logging fails
       }
       
       // Set response headers for file download
