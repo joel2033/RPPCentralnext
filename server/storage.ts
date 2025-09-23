@@ -838,27 +838,50 @@ export class MemStorage implements IStorage {
     );
     console.log(`[DEBUG] Orders ready for upload (assigned + processing): ${editorOrders.length}`);
 
-    const jobsData = [];
+    // Group orders by jobId to avoid duplicate jobs in the UI
+    const jobGroups = new Map<string, any[]>();
+    
     for (const order of editorOrders) {
       if (!order.jobId) {
         continue;
       }
       
-      const job = await this.getJobByJobId(order.jobId!);
-      const customer = order.customerId ? await this.getCustomer(order.customerId) : null;
-      const orderServices = await this.getOrderServices(order.id);
-      const orderFiles = await this.getOrderFiles(order.id);
-      const existingUploads = await this.getEditorUploads(order.jobId!);
+      if (!jobGroups.has(order.jobId)) {
+        jobGroups.set(order.jobId, []);
+      }
+      jobGroups.get(order.jobId)!.push(order);
+    }
+
+    const jobsData = [];
+    for (const [jobId, orders] of jobGroups) {
+      // Use the first order as the representative order
+      const primaryOrder = orders[0];
+      
+      const job = await this.getJobByJobId(jobId);
+      const customer = primaryOrder.customerId ? await this.getCustomer(primaryOrder.customerId) : null;
+      
+      // Collect all order services and files from all orders for this job
+      const allOrderServices = [];
+      const allOrderFiles = [];
+      for (const order of orders) {
+        const orderServices = await this.getOrderServices(order.id);
+        const orderFiles = await this.getOrderFiles(order.id);
+        allOrderServices.push(...orderServices);
+        allOrderFiles.push(...orderFiles);
+      }
+      
+      const existingUploads = await this.getEditorUploads(jobId);
 
       if (job) {
         jobsData.push({
           id: job.id,
           jobId: job.jobId,
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          customerName: customer ? `${customer.firstName} ${customer.lastName}` : order.orderNumber,
+          orderId: primaryOrder.id,
+          orderNumber: primaryOrder.orderNumber,
+          customerName: customer ? `${customer.firstName} ${customer.lastName}` : primaryOrder.orderNumber,
           address: job.address,
-          services: orderServices.map(os => {
+          allOrders: orders.map(o => ({ id: o.id, orderNumber: o.orderNumber, status: o.status })), // Include all orders for reference
+          services: allOrderServices.map(os => {
             const service = Array.from(this.editorServices.values()).find(s => s.id === os.serviceId);
             return {
               id: os.serviceId,
@@ -867,15 +890,16 @@ export class MemStorage implements IStorage {
               instructions: os.instructions
             };
           }),
-          originalFiles: orderFiles,
+          originalFiles: allOrderFiles,
           existingUploads: existingUploads,
-          status: order.status,
+          status: primaryOrder.status,
           dueDate: job.dueDate?.toISOString(),
-          createdAt: order.createdAt?.toISOString()
+          createdAt: primaryOrder.createdAt?.toISOString()
         });
       }
     }
 
+    console.log(`[DEBUG] Returning ${jobsData.length} unique jobs to editor dashboard`);
     return jobsData.sort((a, b) => {
       const dateA = new Date(a.dueDate || a.createdAt || 0);
       const dateB = new Date(b.dueDate || b.createdAt || 0);
