@@ -114,9 +114,14 @@ export function FileUploadModal({
         console.log(`Reserved order number ${reservation.orderNumber} until ${reservation.expiresAt}`);
       }
 
-      // Check if we have a valid order number
-      if (!currentOrderNumber) {
-        throw new Error(uploadType === 'client' ? 'Failed to reserve order number' : 'Order number is required for completed files');
+      // Check if we have a valid order number (only required for client uploads)
+      if (uploadType === 'client' && !currentOrderNumber) {
+        throw new Error('Failed to reserve order number');
+      }
+      
+      // For completed uploads, order number is optional - server will find assigned order automatically
+      if (uploadType === 'completed') {
+        console.log(`[DEBUG] Completed upload - using order number: ${currentOrderNumber || 'auto-detect'}`);
       }
       
       for (let i = 0; i < uploadItems.length; i++) {

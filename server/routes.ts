@@ -2888,12 +2888,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[UPLOAD DEBUG] Successfully found job:`, { id: job.id, jobId: job.jobId, partnerId: job.partnerId });
 
-      // Find the order by orderNumber first for proper validation
+      // For completed file uploads, find an order assigned to this editor for the job
       const allOrders = await storage.getOrders();
-      const orderEntity = allOrders.find(o => o.orderNumber === orderNumber);
       
+      // First try to find by the provided orderNumber if it exists
+      let orderEntity = null;
+      if (orderNumber) {
+        orderEntity = allOrders.find(o => o.orderNumber === orderNumber);
+      }
+      
+      // If order not found by orderNumber, or no orderNumber provided, find any order assigned to this editor for this job
       if (!orderEntity) {
-        return res.status(404).json({ error: "Order not found" });
+        console.log(`[UPLOAD DEBUG] Order ${orderNumber || 'not provided'} not found, searching for editor's assigned order`);
+        
+        // Find orders for this job that are assigned to the current editor
+        const jobOrders = allOrders.filter(o => 
+          (o.jobId === job.id || o.jobId === job.jobId) && 
+          o.assignedTo === editorId &&
+          o.partnerId === user.partnerId
+        );
+        
+        console.log(`[UPLOAD DEBUG] Found ${jobOrders.length} orders assigned to editor for this job`);
+        
+        if (jobOrders.length === 0) {
+          return res.status(403).json({ error: "No orders assigned to you for this job" });
+        }
+        
+        // Prefer orders in processing status, then in_progress
+        orderEntity = jobOrders.find(o => o.status === 'processing') || 
+                     jobOrders.find(o => o.status === 'in_progress') ||
+                     jobOrders[0]; // fallback to first order
+        
+        console.log(`[UPLOAD DEBUG] Selected order: ${orderEntity.orderNumber} (${orderEntity.status})`);
       }
 
       // CRITICAL: Validate tenant isolation - order must belong to editor's organization

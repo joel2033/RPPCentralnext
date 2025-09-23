@@ -911,14 +911,34 @@ export class MemStorage implements IStorage {
     const job = await this.getJobByJobId(jobId);
     if (!job) return undefined;
 
-    // Validate job status transition
-    const validation = this.validateJobStatusTransition(job.status, status);
+    let currentStatus = job.status;
+    let finalJob = job;
+
+    // Handle transition from scheduled to completed by going through in_progress first
+    if (currentStatus === 'scheduled' && status === 'completed') {
+      console.log(`Job ${job.jobId} transitioning from scheduled → in_progress → completed`);
+      
+      // First transition to in_progress
+      const progressValidation = this.validateJobStatusTransition(currentStatus, 'in_progress');
+      if (!progressValidation.valid) {
+        console.error(`Job ${job.jobId} intermediate status update failed: ${progressValidation.error}`);
+        throw new Error(progressValidation.error);
+      }
+      
+      finalJob = { ...finalJob, status: 'in_progress' };
+      this.jobs.set(job.id, finalJob);
+      currentStatus = 'in_progress';
+      console.log(`Job ${job.jobId} status updated to in_progress`);
+    }
+
+    // Now validate the final transition
+    const validation = this.validateJobStatusTransition(currentStatus, status);
     if (!validation.valid) {
       console.error(`Job ${job.jobId} status update failed: ${validation.error}`);
       throw new Error(validation.error);
     }
 
-    const updatedJob = { ...job, status };
+    const updatedJob = { ...finalJob, status };
     this.jobs.set(job.id, updatedJob);
 
     // Note: Order status updates are now handled separately via markOrderUploaded()
