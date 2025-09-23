@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import FileGallery from "@/components/FileGallery";
+import { useToast } from "@/hooks/use-toast";
 
 interface JobCardData {
   id: string;
@@ -40,6 +41,7 @@ export default function JobCard() {
   const params = useParams();
   const [, setLocation] = useLocation();
   const jobId = params.jobId;
+  const { toast } = useToast();
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
@@ -125,6 +127,7 @@ export default function JobCard() {
           <Button 
             variant="outline" 
             onClick={() => setLocation('/jobs')}
+            data-testid="button-back"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Jobs
@@ -133,9 +136,57 @@ export default function JobCard() {
             <h1 className="text-2xl font-bold">Job Details</h1>
           </div>
         </div>
-        <Badge className={getStatusColor(jobData.status)}>
-          {jobData.status || 'scheduled'}
-        </Badge>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-preview"
+              onClick={() => {
+                const newWindow = window.open(`/delivery/${jobData.jobId}`, '_blank', 'noopener,noreferrer');
+                if (newWindow) newWindow.opener = null;
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Preview
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-share"
+              onClick={async () => {
+                try {
+                  const deliveryUrl = `${window.location.origin}/delivery/${jobData.jobId}`;
+                  await navigator.clipboard.writeText(deliveryUrl);
+                  toast({
+                    title: "Link copied!",
+                    description: "Delivery link has been copied to your clipboard.",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Copy failed",
+                    description: "Could not copy link to clipboard. Please copy manually from the address bar.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Share
+            </Button>
+            <Button 
+              size="sm"
+              data-testid="button-delivery"
+              onClick={() => setLocation(`/delivery/${jobData.jobId}`)}
+            >
+              <DollarSign className="h-4 w-4 mr-2" />
+              Delivery
+            </Button>
+          </div>
+          <Badge className={getStatusColor(jobData.status)}>
+            {jobData.status || 'scheduled'}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
