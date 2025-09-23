@@ -3132,6 +3132,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public delivery endpoint - No authentication required for client access
+  app.get("/api/delivery/:jobId", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+
+      // Find the job by jobId (string identifier)
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        // Fallback: try to find by internal ID
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      // Get customer details if available
+      let customer = null;
+      if (job.customerId) {
+        customer = await storage.getCustomerById(job.customerId);
+      }
+
+      // Get all editor uploads for this job with completed status
+      const allUploads = await storage.getEditorUploads(job.id);
+      const completedFiles = allUploads.filter(upload => upload.status === 'completed');
+
+      // Group files by order and enrich with order information
+      const filesByOrder = completedFiles.reduce((acc, file) => {
+        if (!acc[file.orderId]) {
+          acc[file.orderId] = [];
+        }
+        acc[file.orderId].push(file);
+        return acc;
+      }, {} as Record<string, typeof completedFiles>);
+
+      // Get order information for each group
+      const enrichedFiles = await Promise.all(
+        Object.entries(filesByOrder).map(async ([orderId, files]) => {
+          const order = await storage.getOrder(orderId);
+          return {
+            orderId,
+            orderNumber: order?.orderNumber || 'Unknown',
+            files: files.map(file => ({
+              id: file.id,
+              fileName: file.fileName,
+              originalName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              downloadUrl: file.downloadUrl,
+              uploadedAt: file.uploadedAt,
+              notes: file.notes
+            }))
+          };
+        })
+      );
+
+      // Return job info and completed files for delivery
+      res.json({
+        job: {
+          id: job.id,
+          jobId: job.jobId,
+          address: job.address,
+          status: job.status,
+          appointmentDate: job.appointmentDate,
+          customer: customer ? {
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            company: customer.company,
+          } : null,
+        },
+        completedFiles: enrichedFiles,
+      });
+    } catch (error: any) {
+      console.error("Error fetching delivery data:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch delivery data", 
+        details: error.message 
+      });
+    }
+  });
+
   // Server-side Firebase delete endpoint
   app.delete("/api/delete-firebase", async (req, res) => {
     try {

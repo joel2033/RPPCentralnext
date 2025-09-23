@@ -28,6 +28,9 @@ import TeamAssignments from "@/pages/TeamAssignments";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
+// Public Pages (No Auth Required)
+import DeliveryPage from "@/pages/DeliveryPage";
+
 // Editor Components
 import EditorLogin from "@/pages/EditorLogin";
 import EditorSignup from "@/pages/EditorSignup";
@@ -44,6 +47,9 @@ import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
 function Router() {
   return (
     <Switch>
+      {/* Public Routes - No Authentication Required */}
+      <Route path="/delivery/:jobId" component={DeliveryPage} />
+      
       {/* Partner Authentication */}
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
