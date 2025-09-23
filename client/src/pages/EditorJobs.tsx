@@ -614,12 +614,14 @@ export default function EditorJobs() {
             setIsUploadOpen(false);
             setSelectedJob(null);
           }}
-          serviceName={selectedJob.service || "Deliverables"}
+          serviceName={selectedJob.services?.[0]?.name || "Deliverables"}
           serviceId={selectedJob.jobId}
           userId={auth.currentUser?.uid || ""}
-          jobId={selectedJob.jobId}
+          jobId={selectedJob.id}
+          uploadType="completed"
+          orderNumber={selectedJob.orderNumber}
           onFilesUpload={(serviceId, files, orderNumber) => {
-            handleUploadComplete(selectedJob.jobId, files);
+            handleUploadComplete(selectedJob.id, files);
           }}
         />
       )}

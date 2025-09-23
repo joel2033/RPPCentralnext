@@ -246,7 +246,7 @@ export default function EditorUploads() {
                 <SelectContent>
                   {completedJobs.map((job) => (
                     <SelectItem key={job.id} value={job.id}>
-                      {job.customerName} - {job.service} (Job {job.jobId})
+                      {job.customerName} - {job.services?.[0]?.name || 'Unknown Service'} (Job {job.jobId})
                     </SelectItem>
                   ))}
                 </SelectContent>

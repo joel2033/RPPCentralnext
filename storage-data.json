@@ -1065,9 +1065,26 @@
       "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
       "id": "e13db548-ce8d-422a-b3e3-2558f801e701",
       "createdAt": "2025-09-23T00:38:24.630Z"
+    },
+    "ad8110d2-c50d-4527-ad5d-e593b6151063": {
+      "partnerId": "",
+      "orderId": "85fdbb32-5067-4437-8185-a54d6f0cb631",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "download",
+      "category": "file",
+      "title": "Order Files Downloaded",
+      "description": "Editor downloaded files for order #00009",
+      "metadata": "{\"orderNumber\":\"#00009\",\"fileCount\":1,\"totalSize\":411,\"downloadedFiles\":[{\"fileName\":\"test.jpg\",\"fileSize\":4,\"mimeType\":\"image/jpeg\"}],\"downloadedAt\":\"2025-09-23T10:12:27.228Z\"}",
+      "ipAddress": "172.31.95.162",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+      "id": "ad8110d2-c50d-4527-ad5d-e593b6151063",
+      "createdAt": "2025-09-23T10:12:27.228Z"
     }
   },
-  "orderCounter": 15,
+  "orderCounter": 17,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1187,6 +1204,22 @@
       "jobId": "4c60ac49-84d7-4d93-a924-64eca108a5a4",
       "reservedAt": "2025-09-23T09:23:59.403Z",
       "expiresAt": "2025-09-23T11:23:59.403Z",
+      "status": "reserved"
+    },
+    "#00015": {
+      "orderNumber": "#00015",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "jobId": "92a46673-cfe7-4f49-be44-bf254fe95134",
+      "reservedAt": "2025-09-23T09:53:56.846Z",
+      "expiresAt": "2025-09-23T11:53:56.846Z",
+      "status": "reserved"
+    },
+    "#00016": {
+      "orderNumber": "#00016",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-23T10:11:04.275Z",
+      "expiresAt": "2025-09-23T12:11:04.275Z",
       "status": "reserved"
     }
   }
