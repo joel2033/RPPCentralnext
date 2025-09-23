@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileImage, X, Plus, Check, Clock, AlertCircle } from "lucide-react";
+import { uploadCompletedFileToFirebase, UploadProgress } from "@/lib/firebase-storage";
 
 interface CompletedJob {
   id: string;
@@ -133,34 +134,61 @@ export default function EditorUploads() {
     }
   };
 
-  const simulateUpload = async (fileId: string) => {
+  const performActualUpload = async (uploadFile: UploadFile, jobId: string, orderNumber: string) => {
     const updateProgress = (progress: number) => {
       setUploadFiles(prev => prev.map(file => 
-        file.id === fileId 
+        file.id === uploadFile.id 
           ? { ...file, progress, status: progress === 100 ? 'completed' : 'uploading' }
           : file
       ));
     };
 
-    // Simulate upload progress
-    for (let progress = 0; progress <= 100; progress += 10) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      updateProgress(progress);
+    const updateStatus = (status: 'pending' | 'uploading' | 'completed' | 'error') => {
+      setUploadFiles(prev => prev.map(file => 
+        file.id === uploadFile.id ? { ...file, status } : file
+      ));
+    };
+
+    try {
+      updateStatus('uploading');
+      
+      // Upload file to Firebase and create database record
+      const result = await uploadCompletedFileToFirebase(
+        uploadFile.file,
+        jobId,
+        orderNumber,
+        (progress: UploadProgress) => updateProgress(progress.progress)
+      );
+      
+      console.log(`Upload completed for ${uploadFile.file.name}:`, result);
+      updateStatus('completed');
+      
+      return result;
+    } catch (error) {
+      console.error(`Upload failed for ${uploadFile.file.name}:`, error);
+      updateStatus('error');
+      throw error;
     }
   };
 
   const handleStartUpload = async () => {
     if (!selectedJob || uploadFiles.length === 0) return;
 
+    const selectedJobData = completedJobs.find(job => job.id === selectedJob);
+    if (!selectedJobData) {
+      console.error('Selected job not found');
+      return;
+    }
+
     setIsUploading(true);
     
-    // Start upload for all files
-    const uploadPromises = uploadFiles.map(file => simulateUpload(file.id));
-    
     try {
-      await Promise.all(uploadPromises);
-      console.log('Upload completed for job:', selectedJob);
-      console.log('Upload notes:', uploadNotes);
+      // Upload all files sequentially to avoid overwhelming the server
+      for (const file of uploadFiles) {
+        await performActualUpload(file, selectedJobData.jobId, '1'); // Using order number 1 for now
+      }
+      
+      console.log('All uploads completed for job:', selectedJobData.jobId);
       
       // Reset form after successful upload
       setTimeout(() => {
