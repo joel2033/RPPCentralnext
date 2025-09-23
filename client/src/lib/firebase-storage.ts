@@ -159,7 +159,7 @@ export const generateOrderNumber = (): string => {
 export const uploadCompletedFileToFirebase = async (
   file: File,
   jobId: string,
-  orderNumber: string,
+  orderNumber?: string,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<{ url: string; path: string }> => {
   try {
@@ -177,7 +177,9 @@ export const uploadCompletedFileToFirebase = async (
     const formData = new FormData();
     formData.append('file', file);
     formData.append('jobId', jobId);
-    formData.append('orderNumber', orderNumber);
+    if (orderNumber) {
+      formData.append('orderNumber', orderNumber);
+    }
 
     // Upload via server to separate endpoint for completed files (with authentication)
     const response = await fetch('/api/upload-completed-files', {

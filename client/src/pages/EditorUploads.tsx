@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileImage, X, Plus, Check, Clock, AlertCircle } from "lucide-react";
-import { uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber, confirmReservation } from "@/lib/firebase-storage";
+import { uploadCompletedFileToFirebase, UploadProgress } from "@/lib/firebase-storage";
 import { auth } from "@/lib/firebase";
 
 interface CompletedJob {
@@ -124,34 +124,24 @@ export default function EditorUploads() {
       ));
     };
 
-    let reservedOrderNumber: string | null = null;
-
     try {
       updateStatus('uploading');
       
-      // Get current user for order reservation
+      // Get current user for authentication check
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
       }
       
-      // Reserve an order number for this upload
-      console.log(`Reserving order number for ${uploadFile.file.name}...`);
-      const reservation = await reserveOrderNumber(user.uid, jobId);
-      reservedOrderNumber = reservation.orderNumber;
-      console.log(`Reserved order number ${reservedOrderNumber} until ${reservation.expiresAt}`);
+      console.log(`Starting upload for ${uploadFile.file.name} to job ${jobId}...`);
       
-      // Upload file to Firebase and create database record
+      // Upload file - server will auto-detect appropriate order
       const result = await uploadCompletedFileToFirebase(
         uploadFile.file,
         jobId,
-        reservedOrderNumber,
+        undefined, // No orderNumber - let server auto-detect
         (progress: UploadProgress) => updateProgress(progress.progress)
       );
-      
-      // Confirm the reservation after successful upload
-      await confirmReservation(reservedOrderNumber);
-      console.log(`Confirmed reservation for order number: ${reservedOrderNumber}`);
       
       console.log(`Upload completed for ${uploadFile.file.name}:`, result);
       updateStatus('completed');
