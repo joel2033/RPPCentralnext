@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileImage, X, Plus, Check, Clock, AlertCircle } from "lucide-react";
-import { uploadCompletedFileToFirebase, UploadProgress } from "@/lib/firebase-storage";
+import { uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber, confirmReservation } from "@/lib/firebase-storage";
+import { auth } from "@/lib/firebase";
 
 interface CompletedJob {
   id: string;
@@ -38,36 +39,10 @@ export default function EditorUploads() {
   const [uploadNotes, setUploadNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
-  // Mock data for completed jobs ready for upload
+  // Get real jobs ready for upload from the API
   const { data: completedJobs = [], isLoading } = useQuery({
-    queryKey: ['/api/editor/completed-jobs'],
-    queryFn: async () => {
-      const mockJobs: CompletedJob[] = [
-        {
-          id: '1',
-          jobId: 'job_001',
-          customerName: 'John Smith',
-          service: 'Digital Edits - (Day To Dusk)',
-          originalFiles: 3,
-          deliverables: 25,
-          status: 'ready_to_upload',
-          completedDate: '2025-01-07',
-          dueDate: '2025-01-10'
-        },
-        {
-          id: '2',
-          jobId: 'job_003',
-          customerName: 'Mike Wilson',
-          service: 'Virtual Staging',
-          originalFiles: 2,
-          deliverables: 8,
-          status: 'ready_to_upload',
-          completedDate: '2025-01-06',
-          dueDate: '2025-01-08'
-        }
-      ];
-      return mockJobs;
-    }
+    queryKey: ['/api/editor/jobs-ready-for-upload'],
+    // Default fetcher will be used - it automatically handles authentication
   });
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +109,7 @@ export default function EditorUploads() {
     }
   };
 
-  const performActualUpload = async (uploadFile: UploadFile, jobId: string, orderNumber: string) => {
+  const performActualUpload = async (uploadFile: UploadFile, jobId: string) => {
     const updateProgress = (progress: number) => {
       setUploadFiles(prev => prev.map(file => 
         file.id === uploadFile.id 
@@ -149,16 +124,34 @@ export default function EditorUploads() {
       ));
     };
 
+    let reservedOrderNumber: string | null = null;
+
     try {
       updateStatus('uploading');
+      
+      // Get current user for order reservation
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      // Reserve an order number for this upload
+      console.log(`Reserving order number for ${uploadFile.file.name}...`);
+      const reservation = await reserveOrderNumber(user.uid, jobId);
+      reservedOrderNumber = reservation.orderNumber;
+      console.log(`Reserved order number ${reservedOrderNumber} until ${reservation.expiresAt}`);
       
       // Upload file to Firebase and create database record
       const result = await uploadCompletedFileToFirebase(
         uploadFile.file,
         jobId,
-        orderNumber,
+        reservedOrderNumber,
         (progress: UploadProgress) => updateProgress(progress.progress)
       );
+      
+      // Confirm the reservation after successful upload
+      await confirmReservation(reservedOrderNumber);
+      console.log(`Confirmed reservation for order number: ${reservedOrderNumber}`);
       
       console.log(`Upload completed for ${uploadFile.file.name}:`, result);
       updateStatus('completed');
@@ -179,16 +172,26 @@ export default function EditorUploads() {
       console.error('Selected job not found');
       return;
     }
+    
+    console.log('[DEBUG] Selected job data:', {
+      selectedJob,
+      selectedJobData: {
+        id: selectedJobData.id,
+        jobId: selectedJobData.jobId,
+        customerName: selectedJobData.customerName
+      }
+    });
 
     setIsUploading(true);
     
     try {
       // Upload all files sequentially to avoid overwhelming the server
       for (const file of uploadFiles) {
-        await performActualUpload(file, selectedJobData.jobId, '1'); // Using order number 1 for now
+        console.log(`[DEBUG] Uploading file ${file.file.name} for job UUID: ${selectedJobData.id}`);
+        await performActualUpload(file, selectedJobData.id); // Use job.id (UUID) instead of job.jobId (display string)
       }
       
-      console.log('All uploads completed for job:', selectedJobData.jobId);
+      console.log('All uploads completed for job:', selectedJobData.id);
       
       // Reset form after successful upload
       setTimeout(() => {
@@ -258,15 +261,15 @@ export default function EditorUploads() {
                     </div>
                     <div>
                       <span className="font-medium text-blue-900">Service:</span>
-                      <p className="text-blue-800">{selectedJobData.service}</p>
+                      <p className="text-blue-800">{selectedJobData.services?.[0]?.name || 'Unknown Service'}</p>
                     </div>
                     <div>
                       <span className="font-medium text-blue-900">Original Files:</span>
-                      <p className="text-blue-800">{selectedJobData.originalFiles}</p>
+                      <p className="text-blue-800">{selectedJobData.originalFiles?.length || 0}</p>
                     </div>
                     <div>
                       <span className="font-medium text-blue-900">Expected Deliverables:</span>
-                      <p className="text-blue-800">{selectedJobData.deliverables}</p>
+                      <p className="text-blue-800">{selectedJobData.services?.[0]?.quantity || 'N/A'}</p>
                     </div>
                   </div>
                 </div>

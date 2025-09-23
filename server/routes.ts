@@ -2921,16 +2921,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const editorId = user.uid;
 
-      // Find the job
+      // Find the job with detailed debugging
+      console.log(`[UPLOAD DEBUG] Looking for job with jobId: ${jobId}`);
+      
       let job = await storage.getJobByJobId(jobId);
+      console.log(`[UPLOAD DEBUG] getJobByJobId result:`, job ? `Found job ${job.id}` : 'Not found');
+      
       if (!job) {
         const allJobs = await storage.getJobs();
+        console.log(`[UPLOAD DEBUG] Total jobs in system: ${allJobs.length}`);
+        console.log(`[UPLOAD DEBUG] Available job IDs:`, allJobs.map(j => ({ id: j.id, jobId: j.jobId || 'no-jobId' })));
+        
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+        console.log(`[UPLOAD DEBUG] Fallback search result:`, job ? `Found job ${job.id}` : 'Still not found');
       }
       
       if (!job) {
+        console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
         return res.status(404).json({ error: "Job not found" });
       }
+      
+      console.log(`[UPLOAD DEBUG] Successfully found job:`, { id: job.id, jobId: job.jobId, partnerId: job.partnerId });
 
       // Find the order by orderNumber first for proper validation
       const allOrders = await storage.getOrders();
