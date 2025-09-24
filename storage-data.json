@@ -1794,7 +1794,7 @@
       "createdAt": "2025-09-23T23:34:58.853Z"
     }
   },
-  "orderCounter": 15,
+  "orderCounter": 16,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1914,6 +1914,14 @@
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
       "reservedAt": "2025-09-24T13:34:28.492Z",
       "expiresAt": "2025-09-24T15:34:28.492Z",
+      "status": "reserved"
+    },
+    "#00015": {
+      "orderNumber": "#00015",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "AngIgN8qzyFuBWw7k1JP3",
+      "reservedAt": "2025-09-24T13:39:21.921Z",
+      "expiresAt": "2025-09-24T15:39:21.921Z",
       "status": "reserved"
     }
   }
