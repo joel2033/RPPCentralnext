@@ -59,6 +59,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [viewMode, setViewMode] = useState<'folders' | 'orders'>('folders');
   const [parentFolderPath, setParentFolderPath] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+  const [showFolderContent, setShowFolderContent] = useState(false);
+  const [selectedFolderData, setSelectedFolderData] = useState<FolderData | null>(null);
   // Partner upload functionality
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedUploadFolder, setSelectedUploadFolder] = useState<string>('');
@@ -149,17 +151,29 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   };
 
   const handleEnterFolder = (folderPath: string) => {
-    setCurrentFolderPath(folderPath);
+    const folder = foldersData?.find(f => f.folderPath === folderPath);
+    if (folder) {
+      setSelectedFolderData(folder);
+      setShowFolderContent(true);
+    } else {
+      setCurrentFolderPath(folderPath);
+    }
   };
 
   const handleBackToParent = () => {
-    if (currentFolderPath) {
+    if (showFolderContent) {
+      setShowFolderContent(false);
+      setSelectedFolderData(null);
+    } else if (currentFolderPath) {
       const parentPath = currentFolderPath.split('/').slice(0, -1).join('/');
       setCurrentFolderPath(parentPath || null);
     }
   };
 
   const getBreadcrumbs = () => {
+    if (showFolderContent && selectedFolderData) {
+      return ['All Folders', selectedFolderData.partnerFolderName || selectedFolderData.editorFolderName];
+    }
     if (!currentFolderPath) return ['All Folders'];
     return ['All Folders', ...currentFolderPath.split('/')];
   };
@@ -425,7 +439,11 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             <div key={index} className="flex items-center space-x-2">
               {index === 0 ? (
                 <button
-                  onClick={() => setCurrentFolderPath(null)}
+                  onClick={() => {
+                    setCurrentFolderPath(null);
+                    setShowFolderContent(false);
+                    setSelectedFolderData(null);
+                  }}
                   className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                   data-testid="breadcrumb-root"
                 >
@@ -437,8 +455,17 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <span className="text-gray-400">/</span>
                   <button
                     onClick={() => {
-                      const path = getBreadcrumbs().slice(1, index + 1).join('/');
-                      setCurrentFolderPath(path);
+                      if (showFolderContent && index === getBreadcrumbs().length - 1) {
+                        // Already at the folder content, do nothing
+                        return;
+                      } else if (showFolderContent) {
+                        // Go back to folder list
+                        setShowFolderContent(false);
+                        setSelectedFolderData(null);
+                      } else {
+                        const path = getBreadcrumbs().slice(1, index + 1).join('/');
+                        setCurrentFolderPath(path);
+                      }
                     }}
                     className="hover:text-blue-600 transition-colors font-medium"
                     data-testid={`breadcrumb-${index}`}
@@ -453,105 +480,222 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       )}
 
       {viewMode === 'folders' ? (
-        <div className="space-y-6">
-          {foldersToShow.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-              <Folder className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {currentFolderPath ? 'No subfolders yet' : 'No folders yet'}
-              </h3>
-              <p className="text-gray-500 mb-6">
-                {currentFolderPath 
-                  ? 'Create subfolders to organize files within this folder.'
-                  : 'Create folders to organize your completed files from editors.'
-                }
-              </p>
-              <Button 
-                onClick={() => handleCreateFolder(currentFolderPath || undefined)} 
-                className="mb-4"
-                data-testid="button-add-folder-empty"
-              >
-                <FolderPlus className="h-4 w-4 mr-2" />
-                Create {currentFolderPath ? 'Subfolder' : 'First Folder'}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {foldersToShow.map((folder) => (
-                <Card 
-                  key={folder.folderPath} 
-                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+        showFolderContent && selectedFolderData ? (
+          // Folder Content View
+          <div className="space-y-6">
+            {/* Folder Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Folder className="h-6 w-6 text-blue-600" />
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {selectedFolderData.partnerFolderName || selectedFolderData.editorFolderName}
+                  </h2>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>{selectedFolderData.fileCount} {selectedFolderData.fileCount === 1 ? 'file' : 'files'}</span>
+                    {selectedFolderData.orderNumber && (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedFolderData.orderNumber}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={() => setShowUploadModal(true)}
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  size="sm"
+                  data-testid="button-upload-to-folder"
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div 
-                        className="flex items-center space-x-3 flex-1 cursor-pointer"
-                        onClick={() => handleEnterFolder(folder.folderPath)}
-                        data-testid={`folder-card-${folder.folderPath}`}
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </Button>
+              </div>
+            </div>
+
+            {/* Subfolders Section */}
+            {foldersData && foldersData.some(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/')) && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-gray-700">Folders</h3>
+                  <span className="text-xs text-gray-500">
+                    {foldersData.filter(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/')).length} folders
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {foldersData
+                    .filter(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/') && 
+                                f.folderPath.split('/').length === selectedFolderData.folderPath.split('/').length + 1)
+                    .map((subfolder) => (
+                      <div
+                        key={subfolder.folderPath}
+                        className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border cursor-pointer hover:bg-blue-100 transition-colors"
+                        onClick={() => handleEnterFolder(subfolder.folderPath)}
                       >
-                        <Folder className="h-6 w-6 text-blue-600" />
+                        <Folder className="h-5 w-5 text-blue-600" />
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-medium text-gray-900">
-                            {folder.partnerFolderName || folder.editorFolderName}
-                          </h3>
-                          {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
-                            <p className="text-sm text-gray-500 truncate">
-                              Originally: {folder.editorFolderName}
-                            </p>
-                          )}
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
+                          </p>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-4">
-                        {folder.orderNumber && (
-                          <Badge variant="outline" className="text-xs">
-                            {folder.orderNumber}
-                          </Badge>
-                        )}
-                        
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <ImageIcon className="h-4 w-4" />
-                          <span>{folder.fileCount === 1 ? 'file' : 'files'}</span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-1">
-                          <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                            <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                    ))}
+                  <Button
+                    variant="outline"
+                    className="h-full min-h-[70px] border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                    onClick={() => handleCreateFolder(selectedFolderData.folderPath)}
+                  >
+                    <div className="text-center">
+                      <Plus className="h-5 w-5 mx-auto mb-1 text-gray-400" />
+                      <span className="text-xs text-gray-500">New Folder</span>
+                    </div>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Files Section */}
+            <div className="space-y-3">
+              {selectedFolderData.files.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-gray-700">Files</h3>
+                    <span className="text-xs text-gray-500">
+                      {selectedFolderData.files.length} {selectedFolderData.files.length === 1 ? 'file' : 'files'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {selectedFolderData.files.map(renderFileCard)}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-gray-700">Upload files</h3>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center bg-gray-50">
+                    <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <p className="text-lg font-medium text-gray-700 mb-2">
+                      Drop your image(s) here, or browse
+                    </p>
+                    <p className="text-sm text-gray-500 mb-4">
+                      JPG, PNG types. Max. 50MB each
+                    </p>
+                    <Button
+                      onClick={() => setShowUploadModal(true)}
+                      className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                    >
+                      Browse Files
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Folder List View
+          <div className="space-y-6">
+            {foldersToShow.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                <Folder className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {currentFolderPath ? 'No subfolders yet' : 'No folders yet'}
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  {currentFolderPath 
+                    ? 'Create subfolders to organize files within this folder.'
+                    : 'Create folders to organize your completed files from editors.'
+                  }
+                </p>
+                <Button 
+                  onClick={() => handleCreateFolder(currentFolderPath || undefined)} 
+                  className="mb-4"
+                  data-testid="button-add-folder-empty"
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Create {currentFolderPath ? 'Subfolder' : 'First Folder'}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {foldersToShow.map((folder) => (
+                  <Card 
+                    key={folder.folderPath} 
+                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div 
+                          className="flex items-center space-x-3 flex-1 cursor-pointer"
+                          onClick={() => handleEnterFolder(folder.folderPath)}
+                          data-testid={`folder-card-${folder.folderPath}`}
+                        >
+                          <Folder className="h-6 w-6 text-blue-600" />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-medium text-gray-900">
+                              {folder.partnerFolderName || folder.editorFolderName}
+                            </h3>
+                            {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
+                              <p className="text-sm text-gray-500 truncate">
+                                Originally: {folder.editorFolderName}
+                              </p>
+                            )}
                           </div>
                         </div>
                         
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCreateFolder(folder.folderPath);
-                            }}
-                            data-testid={`button-add-subfolder-${folder.folderPath}`}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRenameFolder(folder);
-                            }}
-                            data-testid={`button-rename-folder-${folder.folderPath}`}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center space-x-4">
+                          {folder.orderNumber && (
+                            <Badge variant="outline" className="text-xs">
+                              {folder.orderNumber}
+                            </Badge>
+                          )}
+                          
+                          <div className="flex items-center space-x-2 text-sm text-gray-500">
+                            <ImageIcon className="h-4 w-4" />
+                            <span>{folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}</span>
+                          </div>
+                          
+                          <div className="flex items-center space-x-1">
+                            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                              <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateFolder(folder.folderPath);
+                              }}
+                              data-testid={`button-add-subfolder-${folder.folderPath}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRenameFolder(folder);
+                              }}
+                              data-testid={`button-rename-folder-${folder.folderPath}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )
       ) : (
         <div className="space-y-8">
           {completedFiles.map((group) => (
