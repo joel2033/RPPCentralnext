@@ -555,7 +555,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 </Card>
               ))}
             </div>
-          )
+          )}
+        </div>
       ) : (
         <div className="space-y-8">
           {completedFiles.map((group) => (
