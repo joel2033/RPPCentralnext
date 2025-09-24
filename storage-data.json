@@ -1307,6 +1307,36 @@
       "status": "completed",
       "notes": "Completed deliverable uploaded by editor",
       "uploadedAt": "2025-09-23T23:34:58.851Z"
+    },
+    "26361895-a9fd-499b-8f43-cc5d83b94656": {
+      "id": "26361895-a9fd-499b-8f43-cc5d83b94656",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "uploadedAt": "2025-09-24T12:08:20.192Z",
+      "folderPath": "Test Photos",
+      "editorFolderName": "Test Photos",
+      "partnerFolderName": "Test Photos",
+      "notes": "Folder: Test Photos"
+    },
+    "3b09e4f0-da0d-4a51-9515-add02d522f65": {
+      "id": "3b09e4f0-da0d-4a51-9515-add02d522f65",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "uploadedAt": "2025-09-24T12:08:41.613Z",
+      "folderPath": "High Resolution Images",
+      "editorFolderName": "High Resolution Images",
+      "partnerFolderName": "High Resolution Images",
+      "notes": "Folder: High Resolution Images"
     }
   },
   "notifications": {
