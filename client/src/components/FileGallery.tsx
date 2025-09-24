@@ -476,96 +476,76 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {foldersToShow.map((folder) => (
                 <Card 
                   key={folder.folderPath} 
                   className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between">
                       <div 
                         className="flex items-center space-x-3 flex-1 cursor-pointer"
                         onClick={() => handleEnterFolder(folder.folderPath)}
                         data-testid={`folder-card-${folder.folderPath}`}
                       >
-                        <Folder className="h-8 w-8 text-blue-600" />
+                        <Folder className="h-6 w-6 text-blue-600" />
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-medium text-gray-900 truncate">
+                          <h3 className="text-base font-medium text-gray-900">
                             {folder.partnerFolderName || folder.editorFolderName}
-                            {folder.orderNumber && (
-                              <span className="ml-2 text-sm font-normal text-blue-600">
-                                - Order {folder.orderNumber}
-                              </span>
-                            )}
                           </h3>
                           {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
                             <p className="text-sm text-gray-500 truncate">
                               Originally: {folder.editorFolderName}
                             </p>
                           )}
-                          <Badge variant="secondary" className="text-xs mt-1">
-                            {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
-                          </Badge>
                         </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateFolder(folder.folderPath);
-                          }}
-                          data-testid={`button-add-subfolder-${folder.folderPath}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRenameFolder(folder);
-                          }}
-                          data-testid={`button-rename-folder-${folder.folderPath}`}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
+                      
+                      <div className="flex items-center space-x-4">
+                        {folder.orderNumber && (
+                          <Badge variant="outline" className="text-xs">
+                            {folder.orderNumber}
+                          </Badge>
+                        )}
+                        
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <ImageIcon className="h-4 w-4" />
+                          <span>{folder.fileCount === 1 ? 'file' : 'files'}</span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-1">
+                          <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                            <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateFolder(folder.folderPath);
+                            }}
+                            data-testid={`button-add-subfolder-${folder.folderPath}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRenameFolder(folder);
+                            }}
+                            data-testid={`button-rename-folder-${folder.folderPath}`}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-
-                    {folder.files.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {folder.files.slice(0, 3).map((file) => (
-                          <div key={file.id} className="aspect-square bg-gray-100 rounded overflow-hidden">
-                            {isImage(file.mimeType) ? (
-                              <img
-                                src={file.downloadUrl}
-                                alt={file.originalName}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                            ) : isVideo(file.mimeType) ? (
-                              <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-                                <Video className="h-6 w-6 text-white" />
-                              </div>
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                {getFileTypeIcon(file.mimeType, 24)}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                        {folder.files.length > 3 && (
-                          <div className="aspect-square bg-gray-200 rounded flex items-center justify-center">
-                            <span className="text-sm text-gray-600 font-medium">
-                              +{folder.files.length - 3}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))}
