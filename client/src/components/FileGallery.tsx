@@ -502,6 +502,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <Upload className="h-4 w-4 mr-2" />
                   Upload
                 </Button>
+                <Button 
+                  onClick={() => handleCreateFolder(selectedFolderData.folderPath)}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-create-subfolder"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Subfolder
+                </Button>
               </div>
             </div>
 
