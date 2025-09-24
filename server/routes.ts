@@ -2547,7 +2547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { userId, jobId, orderNumber } = req.body;
+      const { userId, jobId, orderNumber, uploadType } = req.body;
       
       if (!userId || !jobId || !orderNumber) {
         return res.status(400).json({ 
@@ -2784,6 +2784,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             // Also create an editor upload record with complete validation context
             if (job && orderEntity) {
+              console.log(`[DEBUG] Creating editor upload for job ${job.id}, order ${orderEntity.id}`);
+              console.log(`[DEBUG] Upload details:`, {
+                fileName: req.file.originalname,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype,
+                uploadType,
+                status: uploadType === 'client' ? 'completed' : 'uploaded'
+              });
+              
               await storage.createEditorUpload({
                 jobId: job.id,
                 orderId: orderEntity.id,
@@ -2795,9 +2804,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 firebaseUrl: publicUrl,
                 downloadUrl: publicUrl,
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-                status: 'uploaded',
-                notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}`
+                status: uploadType === 'client' ? 'completed' : 'uploaded',
+                notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}`
               });
+              
+              console.log(`[DEBUG] Editor upload created successfully`);
+            } else {
+              console.log(`[DEBUG] Failed to create editor upload - job:`, !!job, 'orderEntity:', !!orderEntity);
             }
           }
         }
@@ -3101,7 +3114,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all editor uploads for this job with completed status
       const allUploads = await storage.getEditorUploads(job.id);
-      const completedFiles = allUploads.filter(upload => upload.status === 'completed');
+      console.log(`[DEBUG] Total uploads for job ${job.id}:`, allUploads.length);
+      console.log(`[DEBUG] Upload details:`, allUploads.map(u => ({ 
+        id: u.id, 
+        fileName: u.fileName, 
+        status: u.status || 'no status',
+        mimeType: u.mimeType 
+      })));
+      
+      const completedFiles = allUploads.filter(upload => 
+        upload.status === 'completed' && 
+        upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
+      );
+      
+      console.log(`[DEBUG] Completed files after filtering:`, completedFiles.length);
+      console.log(`[DEBUG] Completed file details:`, completedFiles.map(f => ({ 
+        id: f.id, 
+        fileName: f.fileName, 
+        status: f.status 
+      })));
 
       // Group files by order and enrich with order information
       const filesByOrder = completedFiles.reduce((acc, file) => {
@@ -3296,7 +3327,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all editor uploads for this job with completed status
       const allUploads = await storage.getEditorUploads(job.id);
-      const completedFiles = allUploads.filter(upload => upload.status === 'completed');
+      const completedFiles = allUploads.filter(upload => 
+        upload.status === 'completed' && 
+        upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
+      );
 
       // Group files by order and enrich with order information
       const filesByOrder = completedFiles.reduce((acc, file) => {

@@ -1386,7 +1386,7 @@
       "editorFolderName": "High Resolution Images/Web",
       "partnerFolderName": "High Resolution Images/Web",
       "notes": "Folder: High Resolution Images/Web",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     }
   },
   "notifications": {
@@ -1794,7 +1794,7 @@
       "createdAt": "2025-09-23T23:34:58.853Z"
     }
   },
-  "orderCounter": 5,
+  "orderCounter": 14,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1890,6 +1890,22 @@
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
       "reservedAt": "2025-09-24T13:14:16.178Z",
       "expiresAt": "2025-09-24T15:14:16.178Z",
+      "status": "reserved"
+    },
+    "#00012": {
+      "orderNumber": "#00012",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-24T13:21:27.419Z",
+      "expiresAt": "2025-09-24T15:21:27.419Z",
+      "status": "reserved"
+    },
+    "#00013": {
+      "orderNumber": "#00013",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-24T13:28:51.025Z",
+      "expiresAt": "2025-09-24T15:28:51.025Z",
       "status": "reserved"
     }
   }
