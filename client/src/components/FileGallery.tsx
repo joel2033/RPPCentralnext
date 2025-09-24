@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -195,6 +195,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     return mimeType.startsWith('image/');
   };
 
+  const isVideo = (mimeType: string) => {
+    return mimeType.startsWith('video/');
+  };
+
+  const getFileTypeIcon = (mimeType: string, size = 12) => {
+    if (isImage(mimeType)) return <ImageIcon className={`h-${size/4} w-${size/4} text-blue-500`} />;
+    if (isVideo(mimeType)) return <Video className={`h-${size/4} w-${size/4} text-purple-500`} />;
+    if (mimeType.includes('pdf')) return <FileText className={`h-${size/4} w-${size/4} text-red-500`} />;
+    if (mimeType.includes('floor') || mimeType.includes('plan')) return <Map className={`h-${size/4} w-${size/4} text-green-500`} />;
+    return <File className={`h-${size/4} w-${size/4} text-gray-500`} />;
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -236,9 +248,33 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
+        ) : isVideo(file.mimeType) ? (
+          <div 
+            className="relative aspect-square bg-gray-900"
+            onClick={() => window.open(file.downloadUrl, '_blank')}
+          >
+            <video
+              src={file.downloadUrl}
+              className="w-full h-full object-cover"
+              muted
+              preload="metadata"
+            />
+            <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+              <Play className="h-12 w-12 text-white drop-shadow-lg" />
+            </div>
+            <div className="absolute top-2 right-2">
+              <Badge variant="secondary" className="text-xs">
+                <Video className="h-3 w-3 mr-1" />
+                Video
+              </Badge>
+            </div>
+          </div>
         ) : (
-          <div className="aspect-square bg-gray-100 flex items-center justify-center">
-            <File className="h-12 w-12 text-gray-400" />
+          <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center space-y-2">
+            {getFileTypeIcon(file.mimeType, 48)}
+            <span className="text-xs text-gray-500 font-medium">
+              {file.mimeType.split('/')[1]?.toUpperCase() || 'FILE'}
+            </span>
           </div>
         )}
         
