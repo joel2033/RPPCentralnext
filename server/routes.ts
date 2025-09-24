@@ -2711,6 +2711,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
 
+      // Note: job and orderEntity variables are already available from earlier in the function
+
       // ENHANCED LOGGING: Comprehensive activity tracking with validation results
       try {
         const authHeader = req.headers.authorization;
@@ -2720,10 +2722,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userDoc = await getUserDocument(decodedToken.uid);
           
           if (userDoc?.partnerId) {
-            // Get comprehensive job and order information
-            const job = await storage.getJobByJobId(jobId);
-            const orderEntity = orderNumber ? await storage.getOrders().then(orders => 
-              orders.find(o => o.orderNumber === orderNumber)) : null;
 
             // Get validation information for logging
             const jobValidation = job ? await storage.validateJobIntegrity(job.id) : null;
