@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -126,6 +126,28 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     },
   });
 
+  // Mutation for deleting folders
+  const deleteFolderMutation = useMutation({
+    mutationFn: async ({ folderPath }: { folderPath: string }) => {
+      return apiRequest(`/api/jobs/${jobId}/folders`, 'DELETE', { folderPath });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+      toast({
+        title: "Folder deleted successfully",
+        description: "The folder and its contents have been removed.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to delete folder",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -197,6 +219,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setSelectedFolder(folder);
     setNewFolderName(folder.partnerFolderName || folder.editorFolderName);
     setShowRenameFolderModal(true);
+  };
+
+  const handleDeleteFolder = (folderPath: string, folderName: string) => {
+    if (confirm(`Are you sure you want to delete the folder "${folderName}"? This will permanently remove all files in this folder.`)) {
+      deleteFolderMutation.mutate({ folderPath });
+    }
   };
 
   const organizeFoldersByType = () => {
@@ -530,11 +558,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                     .map((subfolder) => (
                       <div
                         key={subfolder.folderPath}
-                        className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border cursor-pointer hover:bg-blue-100 transition-colors"
-                        onClick={() => handleEnterFolder(subfolder.folderPath)}
+                        className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border hover:bg-blue-100 transition-colors group"
                       >
                         <Folder className="h-5 w-5 text-blue-600" />
-                        <div className="flex-1 min-w-0">
+                        <div 
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => handleEnterFolder(subfolder.folderPath)}
+                        >
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
                           </p>
@@ -542,6 +572,21 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
                           </p>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(
+                              subfolder.folderPath,
+                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()
+                            );
+                          }}
+                          data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   <Button
