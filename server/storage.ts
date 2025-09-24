@@ -112,7 +112,7 @@ export interface IStorage {
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
   
   // Folder Management
-  getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string}[]>;
+  getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}[]>;
   updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void>;
 
   // Team Assignment System
@@ -954,23 +954,48 @@ export class MemStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string}[]> {
+  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}[]> {
     const allUploads = Array.from(this.editorUploads.values());
     const jobUploads = allUploads.filter(upload => upload.jobId === jobId);
     
-    // Group uploads by folder path and get unique folders
-    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string}>();
+    // Group uploads by folder path and get unique folders with order information
+    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}>();
     
     for (const upload of jobUploads) {
       if (upload.folderPath && upload.editorFolderName) {
         const key = upload.folderPath;
-        if (!foldersMap.has(key)) {
-          foldersMap.set(key, {
+        let folderData = foldersMap.get(key);
+        
+        if (!folderData) {
+          // Get order information
+          const order = this.orders.get(upload.orderId);
+          
+          folderData = {
             folderPath: upload.folderPath,
             editorFolderName: upload.editorFolderName,
-            partnerFolderName: upload.partnerFolderName || undefined
-          });
+            partnerFolderName: upload.partnerFolderName || undefined,
+            orderNumber: order?.orderNumber || undefined,
+            fileCount: 0,
+            files: []
+          };
+          foldersMap.set(key, folderData);
         }
+        
+        // Add file to folder data
+        folderData.fileCount++;
+        folderData.files.push({
+          id: upload.id,
+          fileName: upload.fileName,
+          originalName: upload.originalName,
+          fileSize: upload.fileSize,
+          mimeType: upload.mimeType,
+          downloadUrl: upload.downloadUrl,
+          uploadedAt: upload.uploadedAt,
+          notes: upload.notes,
+          folderPath: upload.folderPath,
+          editorFolderName: upload.editorFolderName,
+          partnerFolderName: upload.partnerFolderName
+        });
       }
     }
     

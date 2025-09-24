@@ -2852,6 +2852,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { jobId, orderNumber, folderPath, editorFolderName } = req.body;
       
+      // Validate that completed files require folder organization
+      if (!folderPath || !editorFolderName) {
+        return res.status(400).json({
+          error: "Folder path and folder name are required for completed file uploads",
+          details: "All completed files must be organized in folders"
+        });
+      }
+      
       if (!jobId) {
         return res.status(400).json({ 
           error: "Missing required parameter: jobId is required" 

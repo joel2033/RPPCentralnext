@@ -36,6 +36,7 @@ interface FolderData {
   folderPath: string;
   editorFolderName: string;
   partnerFolderName?: string;
+  orderNumber?: string;
   fileCount: number;
   files: CompletedFile[];
 }
@@ -363,6 +364,11 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                           <div>
                             <h3 className="text-lg font-medium text-gray-900">
                               {folder.partnerFolderName || folder.editorFolderName}
+                              {folder.orderNumber && (
+                                <span className="ml-2 text-sm font-normal text-blue-600">
+                                  - Order {folder.orderNumber}
+                                </span>
+                              )}
                             </h3>
                             {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
                               <p className="text-sm text-gray-500">

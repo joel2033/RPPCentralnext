@@ -46,8 +46,8 @@ export function FileUploadModal({
   const [isUrlConfirmed, setIsUrlConfirmed] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string | null>(providedOrderNumber || null);
   const [reservationExpiry, setReservationExpiry] = useState<Date | null>(null);
-  // Folder functionality
-  const [useFolder, setUseFolder] = useState(false);
+  // Folder functionality - mandatory for completed uploads
+  const [useFolder, setUseFolder] = useState(uploadType === 'completed');
   const [folderName, setFolderName] = useState('');
 
   const handleDrop = (e: React.DragEvent) => {
@@ -246,7 +246,8 @@ export function FileUploadModal({
     onClose();
   };
 
-  const canSubmit = uploadItems.length > 0 && uploadItems.every(item => item.status === 'completed');
+  const canSubmit = uploadItems.length > 0 && uploadItems.every(item => item.status === 'completed') && 
+    (uploadType !== 'completed' || (useFolder && folderName.trim().length > 0));
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -265,39 +266,26 @@ export function FileUploadModal({
             }
           </p>
 
-          {/* Folder Options - Only for completed uploads */}
+          {/* Folder Options - Mandatory for completed uploads */}
           {uploadType === 'completed' && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="use-folder"
-                  checked={useFolder}
-                  onCheckedChange={(checked) => setUseFolder(checked as boolean)}
-                  data-testid="checkbox-use-folder"
-                />
-                <label htmlFor="use-folder" className="text-sm font-medium text-blue-900">
-                  Organize files in a folder
+              <div className="space-y-2">
+                <label htmlFor="folder-name" className="text-sm font-medium text-blue-900">
+                  Folder Name *
                 </label>
+                <Input
+                  id="folder-name"
+                  placeholder="Enter folder name (e.g., 'High Resolution', 'Web Ready')"
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  className="text-sm"
+                  data-testid="input-folder-name"
+                  required
+                />
+                <p className="text-xs text-blue-700">
+                  All files must be organized in a folder for proper client delivery
+                </p>
               </div>
-              
-              {useFolder && (
-                <div className="space-y-2">
-                  <label htmlFor="folder-name" className="text-sm font-medium text-blue-900">
-                    Folder Name
-                  </label>
-                  <Input
-                    id="folder-name"
-                    placeholder="Enter folder name (e.g., 'High Resolution', 'Web Ready')"
-                    value={folderName}
-                    onChange={(e) => setFolderName(e.target.value)}
-                    className="text-sm"
-                    data-testid="input-folder-name"
-                  />
-                  <p className="text-xs text-blue-700">
-                    Files will be organized in this folder for easier client browsing
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
