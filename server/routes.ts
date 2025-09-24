@@ -2707,9 +2707,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the public URL
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      console.log(`[DEBUG] Firebase upload completed. PublicUrl: ${publicUrl}`);
 
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
+      console.log(`[DEBUG] Temporary file cleaned up. About to start activity logging...`);
 
       // Note: job and orderEntity variables are already available from earlier in the function
       console.log(`[DEBUG] Starting activity logging section. Job exists:`, !!job, 'OrderEntity exists:', !!orderEntity);
