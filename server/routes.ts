@@ -2712,6 +2712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fs.unlinkSync(req.file.path);
 
       // Note: job and orderEntity variables are already available from earlier in the function
+      console.log(`[DEBUG] Starting activity logging section. Job exists:`, !!job, 'OrderEntity exists:', !!orderEntity);
 
       // ENHANCED LOGGING: Comprehensive activity tracking with validation results
       try {
