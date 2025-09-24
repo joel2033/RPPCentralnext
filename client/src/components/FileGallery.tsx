@@ -451,8 +451,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     if (foldersData && Array.isArray(foldersData)) {
       const initialVisibility: Record<string, boolean> = {};
       foldersData.forEach(folder => {
-        // Default to visible (true) for existing folders, or use stored visibility
-        initialVisibility[folder.folderPath] = folder.isVisible !== undefined ? folder.isVisible : true;
+        // Default to visible (true) for all folders
+        initialVisibility[folder.folderPath] = true;
       });
       setFolderVisibility(initialVisibility);
     }
@@ -623,7 +623,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             e.stopPropagation();
                             handleDeleteFolder(
                               subfolder.folderPath,
-                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()
+                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder'
                             );
                           }}
                           data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
