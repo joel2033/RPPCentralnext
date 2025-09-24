@@ -1354,7 +1354,7 @@
       "editorFolderName": "Test Photos/2250x1500",
       "partnerFolderName": "Test Photos/2250x1500",
       "notes": "Folder: Test Photos/2250x1500",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     }
   },
   "notifications": {
@@ -1762,7 +1762,7 @@
       "createdAt": "2025-09-23T23:34:58.853Z"
     }
   },
-  "orderCounter": 8,
+  "orderCounter": 4,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1842,6 +1842,14 @@
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
       "reservedAt": "2025-09-24T12:23:37.554Z",
       "expiresAt": "2025-09-24T14:23:37.554Z",
+      "status": "reserved"
+    },
+    "#00003": {
+      "orderNumber": "#00003",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-24T12:28:47.401Z",
+      "expiresAt": "2025-09-24T14:28:47.401Z",
       "status": "reserved"
     }
   }
