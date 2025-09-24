@@ -418,7 +418,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             data-testid="button-add-folder"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add {currentFolderPath ? 'Subfolder' : 'Folder'}
+            Add Content
           </Button>
         </div>
       </div>
