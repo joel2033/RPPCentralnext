@@ -610,20 +610,28 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       <Dialog open={showCreateFolderModal} onOpenChange={setShowCreateFolderModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogTitle>Create New {parentFolderPath ? 'Subfolder' : 'Folder'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="new-folder-name">Folder Name</Label>
               <Input
                 id="new-folder-name"
-                placeholder="Enter folder name (e.g., 'High Resolution Photos', 'Web Ready Images')"
+                placeholder={parentFolderPath 
+                  ? "Enter subfolder name (e.g., 'High Res', 'Web Ready')"
+                  : "Enter folder name (e.g., 'High Resolution Photos', 'Web Ready Images')"
+                }
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 data-testid="input-new-folder-name"
               />
+              {parentFolderPath && (
+                <p className="text-sm text-blue-600">
+                  Creating subfolder in: {parentFolderPath}
+                </p>
+              )}
               <p className="text-sm text-gray-600">
-                This will create a new folder for organizing uploaded files.
+                This will create a new {parentFolderPath ? 'subfolder' : 'folder'} for organizing uploaded files.
               </p>
             </div>
           </div>
@@ -633,6 +641,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               onClick={() => {
                 setShowCreateFolderModal(false);
                 setNewFolderName('');
+                setParentFolderPath(null);
               }}
               data-testid="button-cancel-create-folder"
             >
@@ -654,7 +663,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               ) : (
                 <>
                   <FolderPlus className="h-4 w-4 mr-2" />
-                  Create Folder
+                  Create {parentFolderPath ? 'Subfolder' : 'Folder'}
                 </>
               )}
             </Button>
