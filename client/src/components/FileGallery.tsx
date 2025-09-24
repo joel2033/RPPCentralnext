@@ -52,6 +52,15 @@ interface FileGalleryProps {
 }
 
 export default function FileGallery({ completedFiles, jobId, isLoading }: FileGalleryProps) {
+  // Debug logging to see what data is being passed to FileGallery
+  console.log('[FileGallery] Received data:', {
+    completedFiles,
+    jobId,
+    isLoading,
+    completedFilesLength: completedFiles?.length,
+    totalFiles: completedFiles?.reduce((acc, group) => acc + group.files.length, 0)
+  });
+
   // Early return for loading state - must be before any hooks
   if (isLoading) {
     return (
@@ -338,11 +347,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     link.click();
   };
 
-  const renderFileCard = (file: CompletedFile) => (
-    <Card 
-      key={file.id} 
-      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-    >
+  const renderFileCard = (file: CompletedFile) => {
+    console.log('[FileGallery] Rendering file card for:', file.fileName, 'URL:', file.downloadUrl);
+    return (
+      <Card 
+        key={file.id} 
+        className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+      >
       <CardContent className="p-0">
         {isImage(file.mimeType) ? (
           <div 
@@ -442,7 +453,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         </div>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   const organizedFolders = organizeFoldersByType();
   const foldersToShow = getFoldersToShow();
