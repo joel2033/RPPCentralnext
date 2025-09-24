@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -720,17 +721,66 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRenameFolder(folder);
-                              }}
-                              data-testid={`button-rename-folder-${folder.folderPath}`}
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                  data-testid={`button-folder-menu-${folder.folderPath}`}
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // TODO: Implement download all functionality
+                                  }}
+                                  data-testid={`menu-download-all-${folder.folderPath}`}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download All
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRenameFolder(folder);
+                                  }}
+                                  data-testid={`menu-rename-section-${folder.folderPath}`}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Rename section
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // TODO: Implement collapse functionality
+                                  }}
+                                  data-testid={`menu-collapse-section-${folder.folderPath}`}
+                                >
+                                  <Folder className="h-4 w-4 mr-2" />
+                                  Collapse section
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteFolder(
+                                      folder.folderPath,
+                                      folder.partnerFolderName || folder.editorFolderName
+                                    );
+                                  }}
+                                  className="text-red-600"
+                                  data-testid={`menu-delete-section-${folder.folderPath}`}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete section
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       </div>
