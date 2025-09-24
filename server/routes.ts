@@ -3171,7 +3171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for this job
       const folders = await storage.getUploadFolders(job.id);
       
-      res.json({ folders });
+      res.json(folders);
     } catch (error: any) {
       console.error("Error fetching upload folders:", error);
       res.status(500).json({ 
