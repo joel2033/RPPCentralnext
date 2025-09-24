@@ -412,15 +412,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         
         <div className="flex space-x-2">
           <Button 
-            onClick={() => setShowUploadModal(true)}
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-            size="sm"
-            data-testid="button-upload-files"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Files
-          </Button>
-          <Button 
             onClick={() => handleCreateFolder(currentFolderPath || undefined)}
             variant="outline"
             size="sm"
