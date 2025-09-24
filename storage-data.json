@@ -1321,7 +1321,8 @@
       "folderPath": "Test Photos",
       "editorFolderName": "Test Photos",
       "partnerFolderName": "Test Photos",
-      "notes": "Folder: Test Photos"
+      "notes": "Folder: Test Photos",
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     },
     "3b09e4f0-da0d-4a51-9515-add02d522f65": {
       "id": "3b09e4f0-da0d-4a51-9515-add02d522f65",
@@ -1336,7 +1337,24 @@
       "folderPath": "High Resolution Images",
       "editorFolderName": "High Resolution Images",
       "partnerFolderName": "High Resolution Images",
-      "notes": "Folder: High Resolution Images"
+      "notes": "Folder: High Resolution Images",
+      "expiresAt": "1970-01-01T00:00:00.000Z"
+    },
+    "b8786635-02f9-45a0-8a91-0f960d465322": {
+      "id": "b8786635-02f9-45a0-8a91-0f960d465322",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "uploadedAt": "2025-09-24T12:11:11.774Z",
+      "folderPath": "Test Photos/2250x1500",
+      "editorFolderName": "Test Photos/2250x1500",
+      "partnerFolderName": "Test Photos/2250x1500",
+      "notes": "Folder: Test Photos/2250x1500",
+      "expiresAt": null
     }
   },
   "notifications": {
@@ -1744,7 +1762,7 @@
       "createdAt": "2025-09-23T23:34:58.853Z"
     }
   },
-  "orderCounter": 7,
+  "orderCounter": 8,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1769,14 +1787,6 @@
       "reservedAt": "2025-09-22T08:18:13.861Z",
       "expiresAt": "2025-09-22T10:18:13.861Z",
       "status": "confirmed"
-    },
-    "#00004": {
-      "orderNumber": "#00004",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "reservedAt": "2025-09-23T12:34:30.661Z",
-      "expiresAt": "2025-09-23T14:34:30.661Z",
-      "status": "reserved"
     },
     "#12350": {
       "orderNumber": "#12350",
@@ -1826,36 +1836,12 @@
       "expiresAt": "2025-09-23T10:44:33.937Z",
       "status": "confirmed"
     },
-    "#00017": {
-      "orderNumber": "#00017",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+    "#00007": {
+      "orderNumber": "#00007",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "reservedAt": "2025-09-23T11:45:02.384Z",
-      "expiresAt": "2025-09-23T13:45:02.384Z",
-      "status": "reserved"
-    },
-    "#00018": {
-      "orderNumber": "#00018",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
-      "reservedAt": "2025-09-23T11:46:16.028Z",
-      "expiresAt": "2025-09-23T13:46:16.028Z",
-      "status": "reserved"
-    },
-    "#00003": {
-      "orderNumber": "#00003",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "reservedAt": "2025-09-23T12:28:28.218Z",
-      "expiresAt": "2025-09-23T14:28:28.218Z",
-      "status": "reserved"
-    },
-    "#00005": {
-      "orderNumber": "#00005",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "reservedAt": "2025-09-23T12:34:36.377Z",
-      "expiresAt": "2025-09-23T14:34:36.377Z",
+      "reservedAt": "2025-09-24T12:23:37.554Z",
+      "expiresAt": "2025-09-24T14:23:37.554Z",
       "status": "reserved"
     }
   }

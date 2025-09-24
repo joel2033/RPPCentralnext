@@ -6,11 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { FileUploadModal } from "@/components/FileUploadModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CompletedFile {
   id: string;
@@ -57,9 +59,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [viewMode, setViewMode] = useState<'folders' | 'orders'>('folders');
   const [parentFolderPath, setParentFolderPath] = useState<string | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+  // Partner upload functionality
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedUploadFolder, setSelectedUploadFolder] = useState<string>('');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { userData: user } = useAuth();
 
   // Fetch folders for this job
   const { data: foldersData, isLoading: isFoldersLoading } = useQuery<FolderData[]>({
@@ -391,6 +397,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         </Tabs>
         
         <div className="flex space-x-2">
+          <Button 
+            onClick={() => setShowUploadModal(true)}
+            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+            size="sm"
+            data-testid="button-upload-files"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Files
+          </Button>
           <Button 
             onClick={() => handleCreateFolder(currentFolderPath || undefined)}
             variant="outline"
@@ -731,6 +746,31 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Partner File Upload Modal */}
+      {showUploadModal && user && (
+        <FileUploadModal
+          isOpen={showUploadModal}
+          onClose={() => {
+            setShowUploadModal(false);
+            setSelectedUploadFolder('');
+          }}
+          serviceName="Job Files"
+          serviceId="general"
+          userId={user.uid}
+          jobId={jobId}
+          uploadType="client"
+          onFilesUpload={(serviceId, files, orderNumber) => {
+            // Refresh the files and folders after upload
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+            queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+            toast({
+              title: "Files uploaded successfully",
+              description: `${files.length} file(s) uploaded to the job.`,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

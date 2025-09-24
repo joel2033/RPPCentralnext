@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 // Removed unused Checkbox import - folders are now mandatory
 import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { uploadFileToFirebase, uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
 
 interface FileUploadModalProps {
