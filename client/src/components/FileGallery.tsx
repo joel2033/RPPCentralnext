@@ -55,6 +55,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedFolder, setSelectedFolder] = useState<FolderData | null>(null);
   const [viewMode, setViewMode] = useState<'folders' | 'orders'>('folders');
+  const [parentFolderPath, setParentFolderPath] = useState<string | null>(null);
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -68,7 +70,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // Mutation for creating folders
   const createFolderMutation = useMutation({
     mutationFn: async ({ partnerFolderName }: { partnerFolderName: string }) => {
-      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', { partnerFolderName });
+      const folderPath = parentFolderPath ? `${parentFolderPath}/${partnerFolderName}` : partnerFolderName;
+      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', { partnerFolderName: folderPath });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
@@ -79,6 +82,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       });
       setShowCreateFolderModal(false);
       setNewFolderName('');
+      setParentFolderPath(null);
     },
     onError: (error) => {
       toast({
@@ -132,8 +136,41 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   }
 
   // Helper functions
-  const handleCreateFolder = () => {
+  const handleCreateFolder = (parentPath?: string) => {
+    setParentFolderPath(parentPath || null);
+    setNewFolderName('');
     setShowCreateFolderModal(true);
+  };
+
+  const handleEnterFolder = (folderPath: string) => {
+    setCurrentFolderPath(folderPath);
+  };
+
+  const handleBackToParent = () => {
+    if (currentFolderPath) {
+      const parentPath = currentFolderPath.split('/').slice(0, -1).join('/');
+      setCurrentFolderPath(parentPath || null);
+    }
+  };
+
+  const getBreadcrumbs = () => {
+    if (!currentFolderPath) return ['All Folders'];
+    return ['All Folders', ...currentFolderPath.split('/')];
+  };
+
+  const getFoldersToShow = () => {
+    if (!Array.isArray(foldersData)) return [];
+    
+    if (!currentFolderPath) {
+      // Show root level folders only
+      return foldersData.filter(folder => !folder.folderPath.includes('/'));
+    } else {
+      // Show subfolders of current path
+      return foldersData.filter(folder => 
+        folder.folderPath.startsWith(currentFolderPath + '/') &&
+        folder.folderPath.split('/').length === currentFolderPath.split('/').length + 1
+      );
+    }
   };
 
   const handleRenameFolder = (folder: FolderData) => {
@@ -334,6 +371,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   );
 
   const organizedFolders = organizeFoldersByType();
+  const foldersToShow = getFoldersToShow();
 
   return (
     <div className="space-y-6">
@@ -352,91 +390,172 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           </TabsList>
         </Tabs>
         
-        <Button 
-          onClick={handleCreateFolder}
-          variant="outline"
-          size="sm"
-          data-testid="button-add-folder"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Folder
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            onClick={() => handleCreateFolder(currentFolderPath || undefined)}
+            variant="outline"
+            size="sm"
+            data-testid="button-add-folder"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add {currentFolderPath ? 'Subfolder' : 'Folder'}
+          </Button>
+        </div>
       </div>
 
-      {viewMode === 'folders' ? (
-        <Tabs defaultValue="Photos" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="Photos">Photos</TabsTrigger>
-            <TabsTrigger value="Floor Plans">Floor Plans</TabsTrigger>
-            <TabsTrigger value="Videos">Videos</TabsTrigger>
-            <TabsTrigger value="Virtual Tours">Virtual Tours</TabsTrigger>
-            <TabsTrigger value="Other">Other</TabsTrigger>
-          </TabsList>
-          
-          {Object.entries(organizedFolders).map(([category, folders]) => (
-            <TabsContent key={category} value={category} className="mt-6">
-              {folders.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <Folder className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                  <p className="text-gray-500 text-sm">No {category.toLowerCase()} folders yet</p>
-                  <Button 
-                    onClick={handleCreateFolder} 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-2"
-                    data-testid={`button-add-${category.toLowerCase().replace(' ', '-')}-folder`}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add {category} Folder
-                  </Button>
-                </div>
+      {/* Breadcrumb Navigation */}
+      {viewMode === 'folders' && (
+        <div className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+          {getBreadcrumbs().map((crumb, index) => (
+            <div key={index} className="flex items-center space-x-2">
+              {index === 0 ? (
+                <button
+                  onClick={() => setCurrentFolderPath(null)}
+                  className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
+                  data-testid="breadcrumb-root"
+                >
+                  <Folder className="h-4 w-4" />
+                  <span>{crumb}</span>
+                </button>
               ) : (
-                <div className="space-y-6">
-                  {folders.map((folder) => (
-                    <div key={folder.folderPath} className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Folder className="h-5 w-5 text-blue-600" />
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {folder.partnerFolderName || folder.editorFolderName}
-                              {folder.orderNumber && (
-                                <span className="ml-2 text-sm font-normal text-blue-600">
-                                  - Order {folder.orderNumber}
-                                </span>
-                              )}
-                            </h3>
-                            {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
-                              <p className="text-sm text-gray-500">
-                                Originally: {folder.editorFolderName}
-                              </p>
+                <>
+                  <span className="text-gray-400">/</span>
+                  <button
+                    onClick={() => {
+                      const path = getBreadcrumbs().slice(1, index + 1).join('/');
+                      setCurrentFolderPath(path);
+                    }}
+                    className="hover:text-blue-600 transition-colors font-medium"
+                    data-testid={`breadcrumb-${index}`}
+                  >
+                    {crumb}
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {viewMode === 'folders' ? (
+        <div className="space-y-6">
+          {foldersToShow.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+              <Folder className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {currentFolderPath ? 'No subfolders yet' : 'No folders yet'}
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {currentFolderPath 
+                  ? 'Create subfolders to organize files within this folder.'
+                  : 'Create folders to organize your completed files from editors.'
+                }
+              </p>
+              <Button 
+                onClick={() => handleCreateFolder(currentFolderPath || undefined)} 
+                className="mb-4"
+                data-testid="button-add-folder-empty"
+              >
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Create {currentFolderPath ? 'Subfolder' : 'First Folder'}
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {foldersToShow.map((folder) => (
+                <Card 
+                  key={folder.folderPath} 
+                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div 
+                        className="flex items-center space-x-3 flex-1 cursor-pointer"
+                        onClick={() => handleEnterFolder(folder.folderPath)}
+                        data-testid={`folder-card-${folder.folderPath}`}
+                      >
+                        <Folder className="h-8 w-8 text-blue-600" />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-medium text-gray-900 truncate">
+                            {folder.partnerFolderName || folder.editorFolderName}
+                            {folder.orderNumber && (
+                              <span className="ml-2 text-sm font-normal text-blue-600">
+                                - Order {folder.orderNumber}
+                              </span>
                             )}
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
+                          </h3>
+                          {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
+                            <p className="text-sm text-gray-500 truncate">
+                              Originally: {folder.editorFolderName}
+                            </p>
+                          )}
+                          <Badge variant="secondary" className="text-xs mt-1">
                             {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
                           </Badge>
                         </div>
+                      </div>
+                      <div className="flex space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleRenameFolder(folder)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCreateFolder(folder.folderPath);
+                          }}
+                          data-testid={`button-add-subfolder-${folder.folderPath}`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRenameFolder(folder);
+                          }}
                           data-testid={`button-rename-folder-${folder.folderPath}`}
                         >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Rename
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {folder.files.map(renderFileCard)}
-                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+
+                    {folder.files.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {folder.files.slice(0, 3).map((file) => (
+                          <div key={file.id} className="aspect-square bg-gray-100 rounded overflow-hidden">
+                            {isImage(file.mimeType) ? (
+                              <img
+                                src={file.downloadUrl}
+                                alt={file.originalName}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : isVideo(file.mimeType) ? (
+                              <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                                <Video className="h-6 w-6 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                {getFileTypeIcon(file.mimeType, 24)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {folder.files.length > 3 && (
+                          <div className="aspect-square bg-gray-200 rounded flex items-center justify-center">
+                            <span className="text-sm text-gray-600 font-medium">
+                              +{folder.files.length - 3}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
       ) : (
         <div className="space-y-8">
           {completedFiles.map((group) => (
