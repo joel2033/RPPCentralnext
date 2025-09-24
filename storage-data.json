@@ -1370,7 +1370,7 @@
       "editorFolderName": "Floor plan",
       "partnerFolderName": "Floor plan",
       "notes": "Folder: Floor plan",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     },
     "08b88e3d-a09d-4786-bd53-db341eaf0999": {
       "id": "08b88e3d-a09d-4786-bd53-db341eaf0999",
@@ -1385,7 +1385,8 @@
       "folderPath": "High Resolution Images/Web",
       "editorFolderName": "High Resolution Images/Web",
       "partnerFolderName": "High Resolution Images/Web",
-      "notes": "Folder: High Resolution Images/Web"
+      "notes": "Folder: High Resolution Images/Web",
+      "expiresAt": null
     }
   },
   "notifications": {
@@ -1793,7 +1794,7 @@
       "createdAt": "2025-09-23T23:34:58.853Z"
     }
   },
-  "orderCounter": 4,
+  "orderCounter": 5,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -1881,6 +1882,14 @@
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
       "reservedAt": "2025-09-24T12:28:47.401Z",
       "expiresAt": "2025-09-24T14:28:47.401Z",
+      "status": "reserved"
+    },
+    "#00004": {
+      "orderNumber": "#00004",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-09-24T13:14:16.178Z",
+      "expiresAt": "2025-09-24T15:14:16.178Z",
       "status": "reserved"
     }
   }
