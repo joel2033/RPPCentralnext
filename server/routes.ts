@@ -3211,11 +3211,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      // Create folder placeholder - folder will be created when files are uploaded
+      // Actually create the folder in storage
+      const createdFolder = await storage.createFolder(job.id, partnerFolderName);
+      
       res.json({ 
         success: true, 
-        message: "Folder template created",
-        folderName: partnerFolderName 
+        message: "Folder created successfully",
+        folder: createdFolder
       });
     } catch (error: any) {
       console.error("Error creating folder template:", error);

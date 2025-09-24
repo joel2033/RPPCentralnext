@@ -113,6 +113,7 @@ export interface IStorage {
   
   // Folder Management
   getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}[]>;
+  createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string): Promise<{folderPath: string; partnerFolderName: string}>;
   updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void>;
 
   // Team Assignment System
@@ -761,7 +762,7 @@ export class MemStorage implements IStorage {
     }
     
     // Validate status transition
-    const validation = this.validateOrderStatusTransition(order.status, status);
+    const validation = this.validateOrderStatusTransition(order.status || 'pending', status);
     if (!validation.valid) {
       console.error(`Order ${order.orderNumber} status update failed: ${validation.error}`);
       throw new Error(validation.error);
@@ -783,7 +784,7 @@ export class MemStorage implements IStorage {
     }
     
     // Validate status transition
-    const validation = this.validateOrderStatusTransition(order.status, status);
+    const validation = this.validateOrderStatusTransition(order.status || 'pending', status);
     if (!validation.valid) {
       console.error(`Order ${order.orderNumber} status update failed: ${validation.error} (${actionType})`);
       throw new Error(validation.error);
@@ -1017,6 +1018,44 @@ export class MemStorage implements IStorage {
     this.saveToFile();
   }
 
+  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string): Promise<{folderPath: string; partnerFolderName: string}> {
+    // Generate folder path
+    const folderPath = parentFolderPath 
+      ? `${parentFolderPath}/${partnerFolderName}`
+      : partnerFolderName;
+    
+    // Check if folder already exists
+    const existingUploads = Array.from(this.editorUploads.values());
+    const folderExists = existingUploads.some(upload => 
+      upload.jobId === jobId && upload.folderPath === folderPath
+    );
+    
+    if (!folderExists) {
+      // Create a placeholder upload to represent the folder
+      const folderId = randomUUID();
+      const folderPlaceholder: EditorUpload = {
+        id: folderId,
+        jobId,
+        orderId: null, // Folder placeholders don't belong to specific orders
+        fileName: '.folder_placeholder',
+        originalName: '.folder_placeholder',
+        fileSize: 0,
+        mimeType: 'application/x-folder-placeholder',
+        downloadUrl: '',
+        uploadedAt: new Date(),
+        folderPath,
+        editorFolderName: partnerFolderName, // Use partner name as base
+        partnerFolderName,
+        notes: `Folder: ${partnerFolderName}`
+      };
+      
+      this.editorUploads.set(folderId, folderPlaceholder);
+      this.saveToFile();
+    }
+    
+    return { folderPath, partnerFolderName };
+  }
+
   async getUsers(partnerId?: string): Promise<User[]> {
     const allUsers = Array.from(this.users.values());
     return partnerId ? allUsers.filter(user => user.partnerId === partnerId) : allUsers;
@@ -1184,15 +1223,6 @@ export class MemStorage implements IStorage {
     return jobs;
   }
 
-  async updateOrderStatus(orderId: string, status: string, editorId: string): Promise<Order | undefined> {
-    const order = this.orders.get(orderId);
-    if (!order || order.assignedTo !== editorId) return undefined;
-    
-    const updated = { ...order, status };
-    this.orders.set(orderId, updated);
-    this.saveToFile();
-    return updated;
-  }
 
   // Team Assignment System Implementation
   async getPendingOrders(partnerId: string): Promise<Order[]> {
