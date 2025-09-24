@@ -143,7 +143,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   };
 
   const organizeFoldersByType = () => {
-    if (!foldersData) return { Photos: [], 'Floor Plans': [], Videos: [], 'Virtual Tours': [], Other: [] };
+    if (!foldersData || !Array.isArray(foldersData)) return { Photos: [], 'Floor Plans': [], Videos: [], 'Virtual Tours': [], Other: [] };
     
     const organized = {
       Photos: [] as FolderData[],
@@ -171,7 +171,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     return organized;
   };
 
-  if (!completedFiles || (completedFiles.length === 0 && (!foldersData || foldersData.length === 0))) {
+  if (!completedFiles || (completedFiles.length === 0 && (!foldersData || !Array.isArray(foldersData) || foldersData.length === 0))) {
     return (
       <div className="text-center py-12">
         <FileImage className="h-12 w-12 mx-auto text-gray-400 mb-4" />
