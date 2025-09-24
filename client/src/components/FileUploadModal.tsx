@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
+// Removed unused Checkbox import - folders are now mandatory
 import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
 import { uploadFileToFirebase, uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
 
