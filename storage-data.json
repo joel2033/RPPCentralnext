@@ -1355,6 +1355,21 @@
       "partnerFolderName": "Test Photos/2250x1500",
       "notes": "Folder: Test Photos/2250x1500",
       "expiresAt": "1970-01-01T00:00:00.000Z"
+    },
+    "875cc180-fda9-439f-ad12-928d212d1091": {
+      "id": "875cc180-fda9-439f-ad12-928d212d1091",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "uploadedAt": "2025-09-24T12:50:28.763Z",
+      "folderPath": "Floor plan",
+      "editorFolderName": "Floor plan",
+      "partnerFolderName": "Floor plan",
+      "notes": "Folder: Floor plan"
     }
   },
   "notifications": {
