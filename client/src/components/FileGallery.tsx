@@ -217,7 +217,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           Completed files from editors will appear here once uploaded.
         </p>
         <Button 
-          onClick={handleCreateFolder} 
+          onClick={() => handleCreateFolder()} 
           className="mb-4"
           data-testid="button-add-folder-empty"
         >
@@ -555,7 +555,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 </Card>
               ))}
             </div>
-          )}
+          )
       ) : (
         <div className="space-y-8">
           {completedFiles.map((group) => (
