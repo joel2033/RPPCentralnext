@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -65,6 +66,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // Partner upload functionality
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedUploadFolder, setSelectedUploadFolder] = useState<string>('');
+  // Folder visibility state
+  const [folderVisibility, setFolderVisibility] = useState<Record<string, boolean>>({});
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -143,6 +146,27 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     onError: (error) => {
       toast({
         title: "Failed to delete folder",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for updating folder visibility
+  const updateFolderVisibilityMutation = useMutation({
+    mutationFn: async ({ folderPath, isVisible }: { folderPath: string; isVisible: boolean }) => {
+      return apiRequest(`/api/jobs/${jobId}/folders/visibility`, 'PATCH', { folderPath, isVisible });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      toast({
+        title: "Folder visibility updated",
+        description: "The folder visibility has been changed.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update folder visibility",
         description: "Please try again.",
         variant: "destructive",
       });
@@ -421,6 +445,24 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   const organizedFolders = organizeFoldersByType();
   const foldersToShow = getFoldersToShow();
+
+  // Initialize folder visibility state
+  React.useEffect(() => {
+    if (foldersData && Array.isArray(foldersData)) {
+      const initialVisibility: Record<string, boolean> = {};
+      foldersData.forEach(folder => {
+        // Default to visible (true) for existing folders, or use stored visibility
+        initialVisibility[folder.folderPath] = folder.isVisible !== undefined ? folder.isVisible : true;
+      });
+      setFolderVisibility(initialVisibility);
+    }
+  }, [foldersData]);
+
+  const handleToggleVisibility = (folderPath: string, currentVisibility: boolean) => {
+    const newVisibility = !currentVisibility;
+    setFolderVisibility(prev => ({ ...prev, [folderPath]: newVisibility }));
+    updateFolderVisibilityMutation.mutate({ folderPath, isVisible: newVisibility });
+  };
 
   return (
     <div className="space-y-6">
@@ -703,10 +745,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             <span>{folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}</span>
                           </div>
                           
-                          <div className="flex items-center space-x-1">
-                            <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                            </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs text-gray-600">Visible on delivery:</span>
+                            <Switch
+                              checked={folderVisibility[folder.folderPath] ?? true}
+                              onCheckedChange={(checked) => handleToggleVisibility(folder.folderPath, folderVisibility[folder.folderPath] ?? true)}
+                              data-testid={`switch-visibility-${folder.folderPath}`}
+                            />
                           </div>
                           
                           <div className="flex space-x-2">
