@@ -142,7 +142,9 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-preview"
+              disabled={!jobData.jobId}
               onClick={() => {
+                if (!jobData.jobId) return;
                 const newWindow = window.open(`/delivery/${jobData.jobId}`, '_blank', 'noopener,noreferrer');
                 if (newWindow) newWindow.opener = null;
               }}
@@ -154,7 +156,9 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-share"
+              disabled={!jobData.jobId}
               onClick={async () => {
+                if (!jobData.jobId) return;
                 try {
                   const deliveryUrl = `${window.location.origin}/delivery/${jobData.jobId}`;
                   await navigator.clipboard.writeText(deliveryUrl);
@@ -177,7 +181,11 @@ export default function JobCard() {
             <Button 
               size="sm"
               data-testid="button-delivery"
-              onClick={() => setLocation(`/delivery/${jobData.jobId}`)}
+              disabled={!jobData.jobId}
+              onClick={() => {
+                if (!jobData.jobId) return;
+                setLocation(`/delivery/${jobData.jobId}`);
+              }}
             >
               <DollarSign className="h-4 w-4 mr-2" />
               Delivery
@@ -215,11 +223,17 @@ export default function JobCard() {
               <p className="text-sm text-gray-600">View and download completed files from editors</p>
             </CardHeader>
             <CardContent>
-              <FileGallery 
-                completedFiles={completedFilesData?.completedFiles || []} 
-                jobId={jobId}
-                isLoading={isFilesLoading}
-              />
+              {jobId ? (
+                <FileGallery 
+                  completedFiles={completedFilesData?.completedFiles || []} 
+                  jobId={jobId}
+                  isLoading={isFilesLoading}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Invalid job ID</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -78,6 +78,13 @@ function Router() {
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
+      <Route path="/editor/jobs/:jobId">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <JobCard />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
       <Route path="/editor/downloads">
         <EditorProtectedRoute>
           <EditorLayout>
