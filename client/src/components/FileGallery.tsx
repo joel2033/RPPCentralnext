@@ -660,40 +660,45 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             )}
 
             {/* Files Section */}
-            <div className="space-y-3">
-              {selectedFolderData.files.length > 0 ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-gray-700">Files</h3>
-                    <span className="text-xs text-gray-500">
-                      {selectedFolderData.files.length} {selectedFolderData.files.length === 1 ? 'file' : 'files'}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {selectedFolderData.files.map(renderFileCard)}
-                  </div>
-                </>
-              ) : (
+            {(() => {
+              const visibleFiles = selectedFolderData.files.filter(file => !file.fileName.startsWith('.') && file.downloadUrl);
+              return (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-medium text-gray-700">Upload files</h3>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center bg-gray-50">
-                    <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <p className="text-lg font-medium text-gray-700 mb-2">
-                      Drop your image(s) here, or browse
-                    </p>
-                    <p className="text-sm text-gray-500 mb-4">
-                      JPG, PNG types. Max. 50MB each
-                    </p>
-                    <Button
-                      onClick={() => setShowUploadModal(true)}
-                      className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-                    >
-                      Browse Files
-                    </Button>
-                  </div>
+                  {visibleFiles.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-medium text-gray-700">Files</h3>
+                        <span className="text-xs text-gray-500">
+                          {visibleFiles.length} {visibleFiles.length === 1 ? 'file' : 'files'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {visibleFiles.map(renderFileCard)}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-medium text-gray-700">Upload files</h3>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center bg-gray-50">
+                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                        <p className="text-lg font-medium text-gray-700 mb-2">
+                          Drop your image(s) here, or browse
+                        </p>
+                        <p className="text-sm text-gray-500 mb-4">
+                          JPG, PNG types. Max. 50MB each
+                        </p>
+                        <Button
+                          onClick={() => setShowUploadModal(true)}
+                          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                        >
+                          Browse Files
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         ) : (
           // Folder List View
@@ -865,7 +870,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {group.files.map(renderFileCard)}
+                {group.files
+                  .filter(file => !file.fileName.startsWith('.') && file.downloadUrl)
+                  .map(renderFileCard)}
               </div>
             </div>
           ))}
