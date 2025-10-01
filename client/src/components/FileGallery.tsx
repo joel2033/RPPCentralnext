@@ -611,66 +611,40 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   {foldersData
                     .filter(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/') && 
                                 f.folderPath.split('/').length === selectedFolderData.folderPath.split('/').length + 1)
-                    .map((subfolder) => {
-                      const firstImage = subfolder.files.find(f => isImage(f.mimeType) && f.downloadUrl);
-                      return (
-                        <div
-                          key={subfolder.folderPath}
-                          className="flex flex-col bg-blue-50 rounded-lg border hover:bg-blue-100 transition-colors group overflow-hidden"
+                    .map((subfolder) => (
+                      <div
+                        key={subfolder.folderPath}
+                        className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border hover:bg-blue-100 transition-colors group"
+                      >
+                        <Folder className="h-5 w-5 text-blue-600" />
+                        <div 
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => handleEnterFolder(subfolder.folderPath)}
                         >
-                          {firstImage ? (
-                            <div 
-                              className="relative aspect-video cursor-pointer"
-                              onClick={() => handleEnterFolder(subfolder.folderPath)}
-                            >
-                              <img
-                                src={firstImage.downloadUrl}
-                                alt={subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200" />
-                            </div>
-                          ) : (
-                            <div 
-                              className="relative aspect-video bg-blue-100 flex items-center justify-center cursor-pointer"
-                              onClick={() => handleEnterFolder(subfolder.folderPath)}
-                            >
-                              <Folder className="h-12 w-12 text-blue-400" />
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-2 p-3">
-                            <Folder className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                            <div 
-                              className="flex-1 min-w-0 cursor-pointer"
-                              onClick={() => handleEnterFolder(subfolder.folderPath)}
-                            >
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFolder(
-                                  subfolder.folderPath,
-                                  subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder'
-                                );
-                              }}
-                              data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
+                          </p>
                         </div>
-                      );
-                    })}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(
+                              subfolder.folderPath,
+                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder'
+                            );
+                          }}
+                          data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   <Button
                     variant="outline"
                     className="h-full min-h-[70px] border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
