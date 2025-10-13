@@ -2818,7 +2818,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 status: uploadType === 'client' ? 'completed' : 'uploaded'
               });
               
-              await storage.createEditorUpload({
+              const uploadData = {
                 jobId: job.id,
                 orderId: orderEntity?.id || null, // Optional for standalone folders
                 editorId: userId,
@@ -2829,11 +2829,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 firebaseUrl: publicUrl,
                 downloadUrl: publicUrl,
                 folderPath: folderPath || null,
+                editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
                 folderToken: folderToken || null,
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
                 status: uploadType === 'client' ? 'completed' : 'uploaded',
                 notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
-              });
+              };
+              
+              console.log('[DEBUG] About to create EditorUpload with data:', JSON.stringify(uploadData, null, 2));
+              await storage.createEditorUpload(uploadData);
               
               console.log(`[DEBUG] Editor upload created successfully`);
             } else {
