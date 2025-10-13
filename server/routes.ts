@@ -3211,7 +3211,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for this job
       const folders = await storage.getUploadFolders(job.id);
       
-      res.json(folders);
+      // Replace Firebase Storage URLs with proxy URLs in each folder's files
+      const foldersWithProxyUrls = folders.map(folder => ({
+        ...folder,
+        files: folder.files.map(file => ({
+          ...file,
+          downloadUrl: `/api/files/proxy/${file.id}` // Use proxy endpoint
+        }))
+      }));
+      
+      res.json(foldersWithProxyUrls);
     } catch (error: any) {
       console.error("Error fetching upload folders:", error);
       res.status(500).json({ 
