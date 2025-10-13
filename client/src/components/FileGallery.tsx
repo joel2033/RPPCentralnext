@@ -900,52 +900,22 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
       {/* Image Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-6xl w-full max-h-[95vh] p-0 bg-black">
-          <div className="relative flex items-center justify-center min-h-[80vh]">
-            {/* Previous Button */}
-            {galleryImages.length > 1 && (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => navigateImage('prev')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
-                data-testid="button-prev-image"
-              >
-                <ChevronLeft className="h-6 w-6" />
-              </Button>
-            )}
-
-            {/* Image */}
-            <img
-              src={selectedImage || ''}
-              alt={selectedImageName}
-              className="w-full h-auto max-h-[85vh] object-contain"
-            />
-
-            {/* Next Button */}
-            {galleryImages.length > 1 && (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => navigateImage('next')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
-                data-testid="button-next-image"
-              >
-                <ChevronRight className="h-6 w-6" />
-              </Button>
-            )}
-
+        <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 bg-transparent border-0 shadow-none">
+          {/* Dark Overlay Background */}
+          <div className="absolute inset-0 bg-black/95" onClick={() => setSelectedImage(null)} />
+          
+          <div className="relative h-full flex flex-col items-center justify-center p-8 z-10">
             {/* Top Controls */}
-            <div className="absolute top-4 right-4 flex items-center space-x-2">
+            <div className="absolute top-6 right-6 flex items-center space-x-3 z-20">
               {galleryImages.length > 1 && (
-                <div className="bg-black/50 text-white px-3 py-1 rounded text-sm">
+                <div className="bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
                   {currentImageIndex + 1} / {galleryImages.length}
                 </div>
               )}
               <Button
                 size="sm"
                 onClick={() => selectedImage && handleDownload(selectedImage, selectedImageName)}
-                className="bg-black/50 hover:bg-black/70 text-white"
+                className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white border-0 rounded-full"
                 data-testid="button-modal-download"
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -953,10 +923,88 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               </Button>
             </div>
 
-            {/* Bottom Info */}
-            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm max-w-md truncate">
-              {selectedImageName}
+            {/* Main Image Container - Floating Effect */}
+            <div className="relative flex-1 flex items-center justify-center w-full max-h-[calc(100%-180px)] mb-4">
+              {/* Previous Arrow - Small */}
+              {galleryImages.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateImage('prev');
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-prev-image"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              )}
+
+              {/* Floating Image */}
+              <div className="relative max-w-full max-h-full">
+                <img
+                  src={selectedImage || ''}
+                  alt={selectedImageName}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl shadow-black/50"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {/* Image Name Overlay */}
+                <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm max-w-md truncate">
+                  {selectedImageName}
+                </div>
+              </div>
+
+              {/* Next Arrow - Small */}
+              {galleryImages.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateImage('next');
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-next-image"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              )}
             </div>
+
+            {/* Thumbnail Carousel */}
+            {galleryImages.length > 1 && (
+              <div className="w-full max-w-5xl px-4">
+                <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  {galleryImages.map((img, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(index);
+                        setSelectedImage(img.url);
+                        setSelectedImageName(img.name);
+                      }}
+                      className={`flex-shrink-0 relative group transition-all ${
+                        index === currentImageIndex 
+                          ? 'ring-2 ring-white scale-110' 
+                          : 'opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
+                      data-testid={`thumbnail-${index}`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={img.name}
+                        className="w-20 h-20 object-cover rounded-lg"
+                      />
+                      {index === currentImageIndex && (
+                        <div className="absolute inset-0 bg-white/20 rounded-lg" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
