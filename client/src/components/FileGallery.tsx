@@ -782,6 +782,41 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             {/* Files Section */}
             {(() => {
               const visibleFiles = selectedFolderData.files.filter(file => !file.fileName.startsWith('.') && file.downloadUrl);
+              const [isDragging, setIsDragging] = React.useState(false);
+
+              const handleDragEnter = (e: React.DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+              };
+
+              const handleDragLeave = (e: React.DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+              };
+
+              const handleDragOver = (e: React.DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+              };
+
+              const handleDrop = (e: React.DragEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                
+                const files = Array.from(e.dataTransfer.files).filter(file => 
+                  file.type.startsWith('image/') || 
+                  file.name.toLowerCase().endsWith('.dng') ||
+                  file.type === 'image/x-adobe-dng'
+                );
+                
+                if (files.length > 0) {
+                  setShowUploadModal(true);
+                }
+              };
+
               return (
                 <div className="space-y-3">
                   {visibleFiles.length > 0 ? (
@@ -799,8 +834,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   ) : (
                     <div className="space-y-3">
                       <h3 className="text-sm font-medium text-gray-700">Upload files</h3>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center bg-gray-50">
-                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <div 
+                        className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+                          isDragging 
+                            ? 'border-rpp-red-main bg-red-50' 
+                            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+                        }`}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDragOver={handleDragOver}
+                        onDrop={handleDrop}
+                      >
+                        <Upload className={`h-12 w-12 mx-auto mb-4 ${isDragging ? 'text-rpp-red-main' : 'text-gray-400'}`} />
                         <p className="text-lg font-medium text-gray-700 mb-2">
                           Drop your image(s) here, or browse
                         </p>
