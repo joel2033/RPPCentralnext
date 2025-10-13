@@ -3339,6 +3339,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete folder (for partners to delete standalone folders)
+  app.delete("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folderPath } = req.body;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!folderPath) {
+        return res.status(400).json({ error: "folderPath is required" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get all uploads for this folder
+      const allUploads = Array.from((storage as any).editorUploads.values());
+      const folderUploads = allUploads.filter((upload: any) => 
+        upload.jobId === job!.id && upload.folderPath === folderPath
+      );
+
+      if (folderUploads.length === 0) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+
+      // Check if folder has an order (prevent deletion of order-attached folders)
+      const hasOrder = folderUploads.some((upload: any) => upload.orderId);
+      if (hasOrder) {
+        return res.status(400).json({ error: "Cannot delete folder attached to an order" });
+      }
+
+      // Get folderToken from any upload in the folder (they all share the same token)
+      const uploadWithToken = folderUploads.find((upload: any) => (upload as any).folderToken);
+      const folderToken = uploadWithToken ? (uploadWithToken as any).folderToken : (folderUploads[0] as any)?.folderToken;
+
+      // Delete Firebase files if folderToken exists
+      if (folderToken) {
+        try {
+          const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+          if (bucketName) {
+            const bucket = getStorage().bucket(bucketName);
+            
+            // Sanitize folder path for Firebase deletion
+            const sanitizedFolderPath = folderPath.split('/').map(segment => {
+              return segment
+                .replace(/\.\./g, '')
+                .replace(/[^a-zA-Z0-9 _-]/g, '_')
+                .trim()
+                .substring(0, 50);
+            }).filter(segment => segment.length > 0).join('/');
+            
+            // Delete all files in the Firebase folder
+            const folderPrefix = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/`;
+            const [files] = await bucket.getFiles({ prefix: folderPrefix });
+            
+            await Promise.all(files.map(file => file.delete()));
+            console.log(`Deleted ${files.length} files from Firebase for folder: ${folderPath}`);
+          }
+        } catch (firebaseError) {
+          console.error("Error deleting Firebase files:", firebaseError);
+          // Continue with database deletion even if Firebase deletion fails
+        }
+      }
+
+      // Delete all upload records for this folder
+      for (const upload of folderUploads) {
+        (storage as any).editorUploads.delete(upload.id);
+      }
+
+      // Save changes
+      await (storage as any).saveToFile();
+
+      res.json({ 
+        success: true, 
+        message: `Folder deleted successfully. Removed ${folderUploads.length} upload(s).`,
+        deletedCount: folderUploads.length
+      });
+    } catch (error: any) {
+      console.error("Error deleting folder:", error);
+      res.status(500).json({ 
+        error: "Failed to delete folder", 
+        details: error.message 
+      });
+    }
+  });
+
   // Update folder name (for partners to rename folders)  
   app.patch("/api/jobs/:jobId/folders/rename", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {

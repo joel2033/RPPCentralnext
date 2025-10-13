@@ -1521,7 +1521,7 @@
       "editorFolderName": "folder-ejao2nsm",
       "partnerFolderName": "folder-ejao2nsm",
       "notes": "Folder: folder-ejao2nsm (Token: 3Mceh8bhkx)",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     },
     "baf58c6f-959d-40a6-843d-fcd004277238": {
       "id": "baf58c6f-959d-40a6-843d-fcd004277238",
@@ -1537,7 +1537,24 @@
       "folderPath": "e2e-iyN2ajY7vF",
       "editorFolderName": "e2e-iyN2ajY7vF",
       "partnerFolderName": "e2e-iyN2ajY7vF",
-      "notes": "Folder: e2e-iyN2ajY7vF (Token: g3FQxersE0)"
+      "notes": "Folder: e2e-iyN2ajY7vF (Token: g3FQxersE0)",
+      "expiresAt": null
+    },
+    "a51166ff-32ef-436d-b9ef-9a64ee92327d": {
+      "id": "a51166ff-32ef-436d-b9ef-9a64ee92327d",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "5yLvM4JqJl",
+      "uploadedAt": "2025-10-13T10:59:31.378Z",
+      "folderPath": "Floor plans 1",
+      "editorFolderName": "Floor plans 1",
+      "partnerFolderName": "Floor plans 1",
+      "notes": "Folder: Floor plans 1 (Token: 5yLvM4JqJl)"
     }
   },
   "notifications": {
