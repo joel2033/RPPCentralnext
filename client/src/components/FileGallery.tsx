@@ -97,6 +97,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [selectedUploadFolder, setSelectedUploadFolder] = useState<string>('');
   // Folder visibility state
   const [folderVisibility, setFolderVisibility] = useState<Record<string, boolean>>({});
+  // New content section creation
+  const [showNewContentSection, setShowNewContentSection] = useState(false);
+  const [newContentSectionName, setNewContentSectionName] = useState('');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -552,7 +555,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         
         <div className="flex space-x-2">
           <Button 
-            onClick={() => handleCreateFolder(currentFolderPath || undefined)}
+            onClick={() => setShowNewContentSection(true)}
             variant="outline"
             size="sm"
             data-testid="button-add-folder"
@@ -562,6 +565,69 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           </Button>
         </div>
       </div>
+
+      {/* New Content Section Form */}
+      {showNewContentSection && (
+        <Card className="border-2 border-blue-500 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-900">Create New Content Section</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowNewContentSection(false);
+                    setNewContentSectionName('');
+                  }}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-content-name">Section Name</Label>
+                <Input
+                  id="new-content-name"
+                  placeholder="Enter section name (e.g., 'Photos', 'Videos', 'Floor Plans')"
+                  value={newContentSectionName}
+                  onChange={(e) => setNewContentSectionName(e.target.value)}
+                  data-testid="input-new-content-section-name"
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowNewContentSection(false);
+                    setNewContentSectionName('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (newContentSectionName.trim()) {
+                      createFolderMutation.mutate({
+                        partnerFolderName: newContentSectionName.trim(),
+                      });
+                      setShowNewContentSection(false);
+                      setNewContentSectionName('');
+                    }
+                  }}
+                  disabled={!newContentSectionName.trim() || createFolderMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  data-testid="button-create-content-section"
+                >
+                  {createFolderMutation.isPending ? 'Creating...' : 'Create Section'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Breadcrumb Navigation */}
       <div className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
