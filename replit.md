@@ -18,7 +18,7 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
-## 2025-10-13: Standalone Folder Creation Without Order Requirement - COMPLETED
+## 2025-10-13: Standalone Folder File Upload System - COMPLETED
 - **Removed Order Requirement**: Folders created via "Add Content" button no longer require order selection
 - **Tokenized Folder System**: Standalone folders use unique nanoid(10) tokens for Firebase organization
 - **Firebase Path Structure**: `completed/{jobId}/folders/{token}/{folderPath}/` for order-independent folders
@@ -27,6 +27,12 @@ Preferred communication style: Simple, everyday language.
 - **API Response**: GET /api/jobs/:jobId/folders now returns folderToken for each folder
 - **UI Simplification**: Removed order dropdown from "Add Content" form - only folder name required
 - **Path Sanitization**: Consistent sanitization between placeholder creation and file uploads using shared regex patterns
+- **Schema Updates**: Made editorUploads.orderId nullable and added folderToken field to support order-independent uploads
+- **Upload Flow Fixed**: FileUploadModal now accepts folderToken, skips order reservation when uploading to standalone folders
+- **Backend Upload Logic**: POST /api/upload-firebase creates EditorUpload records with folderToken for standalone folder uploads
+- **Storage Query Updated**: getUploadFolders() handles uploads with null orderId and uses folderToken field for retrieval
+- **Database Migration**: Pushed schema changes to PostgreSQL database - orderId nullable, folderToken added
+- **Complete Integration**: Files successfully upload to Firebase and display in frontend gallery for standalone folders
 
 ## 2025-08-03: Job Card + Google Maps Integration - COMPLETED
 - **Jobs Management System**: Complete job creation, listing, and management with multi-tenant data isolation

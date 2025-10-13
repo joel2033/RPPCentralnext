@@ -2567,8 +2567,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ENHANCED SECURITY: Comprehensive validation before processing upload
       
       // Step 1: Verify the reservation exists and is valid (skip for standalone folders with folderToken)
+      let reservation = null;
       if (!folderToken) {
-        const reservation = await storage.getReservation(orderNumber);
+        reservation = await storage.getReservation(orderNumber);
         if (!reservation || reservation.status !== 'reserved') {
           return res.status(400).json({ error: "Invalid or expired order reservation" });
         }
@@ -2795,7 +2796,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ],
                 
                 // Security context
-                reservationOrderNumber: reservation.orderNumber,
+                reservationOrderNumber: reservation?.orderNumber || null,
+                folderToken: folderToken || null,
                 uploadTimestamp: timestamp,
                 securityLevel: 'enhanced_validation'
               }),
@@ -2804,19 +2806,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
 
             // Also create an editor upload record with complete validation context
-            if (job && orderEntity) {
-              console.log(`[DEBUG] Creating editor upload for job ${job.id}, order ${orderEntity.id}`);
+            if (job) {
+              console.log(`[DEBUG] Creating editor upload for job ${job.id}${orderEntity ? `, order ${orderEntity.id}` : ' (standalone folder)'}`);
               console.log(`[DEBUG] Upload details:`, {
                 fileName: req.file.originalname,
                 fileSize: req.file.size,
                 mimeType: req.file.mimetype,
                 uploadType,
+                folderToken,
+                folderPath,
                 status: uploadType === 'client' ? 'completed' : 'uploaded'
               });
               
               await storage.createEditorUpload({
                 jobId: job.id,
-                orderId: orderEntity.id,
+                orderId: orderEntity?.id || null, // Optional for standalone folders
                 editorId: userId,
                 fileName: req.file.originalname,
                 originalName: req.file.originalname,
@@ -2824,14 +2828,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 mimeType: req.file.mimetype,
                 firebaseUrl: publicUrl,
                 downloadUrl: publicUrl,
+                folderPath: folderPath || null,
+                folderToken: folderToken || null,
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
                 status: uploadType === 'client' ? 'completed' : 'uploaded',
-                notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}`
+                notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
               });
               
               console.log(`[DEBUG] Editor upload created successfully`);
             } else {
-              console.log(`[DEBUG] Failed to create editor upload - job:`, !!job, 'orderEntity:', !!orderEntity);
+              console.log(`[DEBUG] Failed to create editor upload - job:`, !!job);
             }
           }
         }

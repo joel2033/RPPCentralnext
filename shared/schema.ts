@@ -134,7 +134,7 @@ export const editorServices = pgTable("editor_services", {
 // Editor uploads (tracks deliverable files uploaded by editors)
 export const editorUploads = pgTable("editor_uploads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  orderId: varchar("order_id").references(() => orders.id), // Made optional for standalone folders with folderToken
   jobId: varchar("job_id").references(() => jobs.id).notNull(),
   editorId: text("editor_id").notNull(), // Firebase UID of editor
   fileName: text("file_name").notNull(),
@@ -147,6 +147,7 @@ export const editorUploads = pgTable("editor_uploads", {
   folderPath: text("folder_path"), // Complete folder path (e.g., "Edited Photos/High Res")
   editorFolderName: text("editor_folder_name"), // Original name given by editor
   partnerFolderName: text("partner_folder_name"), // Optional renamed version by partner
+  folderToken: text("folder_token"), // Token for standalone folders (when no order is associated)
   status: text("status").default("uploaded"), // "uploaded", "processing", "delivered"
   notes: text("notes"), // Optional notes from editor about the deliverable
   uploadedAt: timestamp("uploaded_at").defaultNow(),

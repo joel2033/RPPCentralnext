@@ -968,11 +968,11 @@ export class MemStorage implements IStorage {
         let folderData = foldersMap.get(key);
         
         if (!folderData) {
-          // Get order information
-          const order = this.orders.get(upload.orderId);
+          // Get order information (if orderId exists)
+          const order = upload.orderId ? this.orders.get(upload.orderId) : undefined;
           
-          // Extract folderToken from firebaseUrl if it exists (for tokenized folders)
-          const folderToken = upload.fileName === '.folder_placeholder' ? upload.firebaseUrl : undefined;
+          // Use the folderToken from upload record (new field added for standalone folders)
+          const folderToken = upload.folderToken || (upload.fileName === '.folder_placeholder' ? upload.firebaseUrl : undefined);
           
           folderData = {
             folderPath: upload.folderPath,
