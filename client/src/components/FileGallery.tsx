@@ -263,7 +263,17 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setShowRenameFolderModal(true);
   };
 
-  const handleDeleteFolder = (folderPath: string, folderName: string) => {
+  const handleDeleteFolder = (folderPath: string, folderName: string, orderNumber?: string) => {
+    // Prevent deletion if folder has an order attached
+    if (orderNumber) {
+      toast({
+        title: "Cannot delete folder",
+        description: `This folder is attached to ${orderNumber} and cannot be deleted.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (confirm(`Are you sure you want to delete the folder "${folderName}"? This will permanently remove all files in this folder.`)) {
       deleteFolderMutation.mutate({ folderPath });
     }
@@ -679,7 +689,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             e.stopPropagation();
                             handleDeleteFolder(
                               subfolder.folderPath,
-                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder'
+                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder',
+                              subfolder.orderNumber
                             );
                           }}
                           data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
@@ -876,7 +887,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                     e.stopPropagation();
                                     handleDeleteFolder(
                                       folder.folderPath,
-                                      folder.partnerFolderName || folder.editorFolderName
+                                      folder.partnerFolderName || folder.editorFolderName,
+                                      folder.orderNumber
                                     );
                                   }}
                                   className="text-red-600"
