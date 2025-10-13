@@ -61,24 +61,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     totalFiles: completedFiles?.reduce((acc, group) => acc + group.files.length, 0)
   });
 
-  // Early return for loading state - must be before any hooks
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="h-32 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string>('');
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
@@ -104,6 +87,24 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData: user } = useAuth();
+
+  // Early return for loading state - must be AFTER all hooks
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="animate-pulse">
+            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((j) => (
+                <div key={j} className="h-32 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Fetch folders for this job
   const { data: foldersData, isLoading: isFoldersLoading } = useQuery<FolderData[]>({
