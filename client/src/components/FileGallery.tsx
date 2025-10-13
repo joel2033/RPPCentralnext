@@ -100,7 +100,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // New content section creation
   const [showNewContentSection, setShowNewContentSection] = useState(false);
   const [newContentSectionName, setNewContentSectionName] = useState('');
-  const [selectedOrderForFolder, setSelectedOrderForFolder] = useState<string>('');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -119,9 +118,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   // Mutation for creating folders
   const createFolderMutation = useMutation({
-    mutationFn: async ({ partnerFolderName, orderNumber }: { partnerFolderName: string; orderNumber?: string }) => {
+    mutationFn: async ({ partnerFolderName }: { partnerFolderName: string }) => {
       const folderPath = parentFolderPath ? `${parentFolderPath}/${partnerFolderName}` : partnerFolderName;
-      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', { partnerFolderName: folderPath, orderNumber });
+      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', { partnerFolderName: folderPath });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
@@ -580,7 +579,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   onClick={() => {
                     setShowNewContentSection(false);
                     setNewContentSectionName('');
-                    setSelectedOrderForFolder('');
                   }}
                   className="h-8 w-8 p-0"
                 >
@@ -597,24 +595,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   data-testid="input-new-content-section-name"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="order-select">Select Order *</Label>
-                <select
-                  id="order-select"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={selectedOrderForFolder}
-                  onChange={(e) => setSelectedOrderForFolder(e.target.value)}
-                  data-testid="select-order-for-folder"
-                >
-                  <option value="">-- Select an order --</option>
-                  {completedFiles.map((orderData) => (
-                    <option key={orderData.orderId} value={orderData.orderNumber}>
-                      {orderData.orderNumber}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500">Folders must be associated with an order</p>
-              </div>
               <div className="flex justify-end space-x-2">
                 <Button
                   variant="outline"
@@ -622,7 +602,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   onClick={() => {
                     setShowNewContentSection(false);
                     setNewContentSectionName('');
-                    setSelectedOrderForFolder('');
                   }}
                 >
                   Cancel
@@ -630,17 +609,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 <Button
                   size="sm"
                   onClick={() => {
-                    if (newContentSectionName.trim() && selectedOrderForFolder) {
+                    if (newContentSectionName.trim()) {
                       createFolderMutation.mutate({
                         partnerFolderName: newContentSectionName.trim(),
-                        orderNumber: selectedOrderForFolder,
                       });
                       setShowNewContentSection(false);
                       setNewContentSectionName('');
-                      setSelectedOrderForFolder('');
                     }
                   }}
-                  disabled={!newContentSectionName.trim() || !selectedOrderForFolder || createFolderMutation.isPending}
+                  disabled={!newContentSectionName.trim() || createFolderMutation.isPending}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   data-testid="button-create-content-section"
                 >

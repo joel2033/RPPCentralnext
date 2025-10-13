@@ -955,12 +955,12 @@ export class MemStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}[]> {
+  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; fileCount: number; files: any[]}[]> {
     const allUploads = Array.from(this.editorUploads.values());
     const jobUploads = allUploads.filter(upload => upload.jobId === jobId);
     
     // Group uploads by folder path and get unique folders with order information
-    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}>();
+    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; fileCount: number; files: any[]}>();
     
     for (const upload of jobUploads) {
       if (upload.folderPath && upload.editorFolderName) {
@@ -971,11 +971,15 @@ export class MemStorage implements IStorage {
           // Get order information
           const order = this.orders.get(upload.orderId);
           
+          // Extract folderToken from firebaseUrl if it exists (for tokenized folders)
+          const folderToken = upload.fileName === '.folder_placeholder' ? upload.firebaseUrl : undefined;
+          
           folderData = {
             folderPath: upload.folderPath,
             editorFolderName: upload.editorFolderName,
             partnerFolderName: upload.partnerFolderName || undefined,
             orderNumber: order?.orderNumber || undefined,
+            folderToken: folderToken || undefined,
             fileCount: 0,
             files: []
           };
@@ -1018,7 +1022,7 @@ export class MemStorage implements IStorage {
     this.saveToFile();
   }
 
-  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string): Promise<{folderPath: string; partnerFolderName: string}> {
+  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string, folderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken?: string}> {
     // Generate folder path
     const folderPath = parentFolderPath 
       ? `${parentFolderPath}/${partnerFolderName}`
@@ -1033,6 +1037,7 @@ export class MemStorage implements IStorage {
     if (!folderExists) {
       // Create a placeholder upload to represent the folder
       const folderId = randomUUID();
+      // Store folderToken in firebaseUrl field for retrieval (hack but works with current schema)
       const folderPlaceholder: EditorUpload = {
         id: folderId,
         jobId,
@@ -1042,18 +1047,19 @@ export class MemStorage implements IStorage {
         fileSize: 0,
         mimeType: 'application/x-folder-placeholder',
         downloadUrl: '',
+        firebaseUrl: folderToken || '', // Store token here for retrieval
         uploadedAt: new Date(),
         folderPath,
         editorFolderName: partnerFolderName, // Use partner name as base
         partnerFolderName,
-        notes: `Folder: ${partnerFolderName}`
+        notes: folderToken ? `Folder: ${partnerFolderName} (Token: ${folderToken})` : `Folder: ${partnerFolderName}`
       };
       
       this.editorUploads.set(folderId, folderPlaceholder);
       this.saveToFile();
     }
     
-    return { folderPath, partnerFolderName };
+    return { folderPath, partnerFolderName, folderToken };
   }
 
   async getUsers(partnerId?: string): Promise<User[]> {

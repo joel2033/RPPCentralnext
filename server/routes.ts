@@ -3234,7 +3234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      const { partnerFolderName, orderNumber } = req.body;
+      const { partnerFolderName } = req.body;
       
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
@@ -3242,10 +3242,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!partnerFolderName) {
         return res.status(400).json({ error: "partnerFolderName is required" });
-      }
-
-      if (!orderNumber) {
-        return res.status(400).json({ error: "orderNumber is required - folders must be associated with an order" });
       }
 
       // Find the job
@@ -3264,21 +3260,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      // Find the order
-      const allOrders = await storage.getOrders();
-      const order = allOrders.find(o => o.orderNumber === orderNumber && (o.jobId === job.id || o.jobId === job.jobId));
-      
-      if (!order) {
-        return res.status(404).json({ error: "Order not found for this job" });
-      }
+      // Generate unique standalone token for this folder
+      const folderToken = nanoid(10);
 
-      // Verify order belongs to the same organization
-      if (order.partnerId !== req.user.partnerId) {
-        return res.status(403).json({ error: "Access denied: Order belongs to different organization" });
-      }
-
-      // Create the folder in storage (in-memory)
-      const createdFolder = await storage.createFolder(job.id, partnerFolderName, undefined, order.id);
+      // Create the folder in storage (in-memory) without order association
+      const createdFolder = await storage.createFolder(job.id, partnerFolderName, undefined, undefined, folderToken);
       
       // Create a Firebase placeholder to establish the folder in Firebase Storage
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
@@ -3288,17 +3274,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const bucket = getStorage().bucket(bucketName);
       
-      // Use EXACT SAME sanitization as upload-completed-files endpoint (lines 2981-2992)
-      const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+      // Sanitize folder path with same logic as upload endpoint
       const sanitizedFolderPath = partnerFolderName.split('/').map(segment => {
         return segment
           .replace(/\.\./g, '') // Remove path traversal attempts
-          .replace(/[^a-zA-Z0-9 _-]/g, '_') // Safe character whitelist - SAME as upload
+          .replace(/[^a-zA-Z0-9 _-]/g, '_') // Safe character whitelist
           .trim() // Remove leading/trailing spaces
           .substring(0, 50); // Limit length
       }).filter(segment => segment.length > 0).join('/');
       
-      const placeholderPath = `completed/${job.jobId || job.id}/${sanitizedOrderNumber}/${sanitizedFolderPath}/.keep`;
+      // Use standalone folder path structure: completed/{jobId}/folders/{token}/{folderPath}
+      const placeholderPath = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/.keep`;
       const placeholderFile = bucket.file(placeholderPath);
       
       // Upload empty placeholder file
@@ -3311,7 +3297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         message: "Folder created successfully in Firebase",
-        folder: createdFolder,
+        folder: { ...createdFolder, folderToken },
         firebasePath: placeholderPath
       });
     } catch (error: any) {

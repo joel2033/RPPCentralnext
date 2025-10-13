@@ -18,6 +18,16 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+## 2025-10-13: Standalone Folder Creation Without Order Requirement - COMPLETED
+- **Removed Order Requirement**: Folders created via "Add Content" button no longer require order selection
+- **Tokenized Folder System**: Standalone folders use unique nanoid(10) tokens for Firebase organization
+- **Firebase Path Structure**: `completed/{jobId}/folders/{token}/{folderPath}/` for order-independent folders
+- **Backend Updates**: POST /api/jobs/:jobId/folders generates folderToken, creates Firebase placeholder at tokenized path
+- **Storage Enhancement**: folderToken stored in firebaseUrl field of placeholder for retrieval
+- **API Response**: GET /api/jobs/:jobId/folders now returns folderToken for each folder
+- **UI Simplification**: Removed order dropdown from "Add Content" form - only folder name required
+- **Path Sanitization**: Consistent sanitization between placeholder creation and file uploads using shared regex patterns
+
 ## 2025-08-03: Job Card + Google Maps Integration - COMPLETED
 - **Jobs Management System**: Complete job creation, listing, and management with multi-tenant data isolation
 - **Customer Management System**: Full customer creation modal matching mockup design with profile upload capability, search/filter functionality, and professional card-based layout
