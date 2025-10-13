@@ -90,24 +90,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const queryClient = useQueryClient();
   const { userData: user } = useAuth();
 
-  // Early return for loading state - must be AFTER all hooks
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="h-32 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   // Fetch folders for this job
   const { data: foldersData, isLoading: isFoldersLoading } = useQuery<FolderData[]>({
     queryKey: ['/api/jobs', jobId, 'folders'],
@@ -212,6 +194,56 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       });
     },
   });
+
+  // useEffect for keyboard navigation - Must be before any early returns
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedImage) return;
+      
+      if (e.key === 'ArrowRight') {
+        navigateImage('next');
+      } else if (e.key === 'ArrowLeft') {
+        navigateImage('prev');
+      } else if (e.key === 'Escape') {
+        setSelectedImage(null);
+      }
+    };
+
+    if (selectedImage) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [selectedImage, currentImageIndex, galleryImages]);
+
+  // Initialize folder visibility state - Must be before any early returns
+  React.useEffect(() => {
+    if (foldersData && Array.isArray(foldersData)) {
+      const initialVisibility: Record<string, boolean> = {};
+      foldersData.forEach(folder => {
+        // Default to visible (true) for all folders
+        initialVisibility[folder.folderPath] = true;
+      });
+      setFolderVisibility(initialVisibility);
+    }
+  }, [foldersData]);
+
+  // Early return for loading state - must be AFTER all hooks
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="animate-pulse">
+            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((j) => (
+                <div key={j} className="h-32 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Helper functions
   const handleCreateFolder = (parentPath?: string) => {
@@ -392,27 +424,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setSelectedImageName(galleryImages[newIndex].name);
   };
 
-  // Keyboard navigation
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!selectedImage) return;
-    
-    if (e.key === 'ArrowRight') {
-      navigateImage('next');
-    } else if (e.key === 'ArrowLeft') {
-      navigateImage('prev');
-    } else if (e.key === 'Escape') {
-      setSelectedImage(null);
-    }
-  };
-
-  // Add keyboard event listener
-  React.useEffect(() => {
-    if (selectedImage) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [selectedImage, currentImageIndex, galleryImages]);
-
   const handleDownload = (url: string, fileName: string) => {
     const link = document.createElement('a');
     link.href = url;
@@ -531,18 +542,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   const organizedFolders = organizeFoldersByType();
   const foldersToShow = getFoldersToShow();
-
-  // Initialize folder visibility state
-  React.useEffect(() => {
-    if (foldersData && Array.isArray(foldersData)) {
-      const initialVisibility: Record<string, boolean> = {};
-      foldersData.forEach(folder => {
-        // Default to visible (true) for all folders
-        initialVisibility[folder.folderPath] = true;
-      });
-      setFolderVisibility(initialVisibility);
-    }
-  }, [foldersData]);
 
   const handleToggleVisibility = (folderPath: string, currentVisibility: boolean) => {
     const newVisibility = !currentVisibility;
