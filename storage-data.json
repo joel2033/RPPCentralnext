@@ -1572,6 +1572,38 @@
       "editorFolderName": "Photos 2",
       "partnerFolderName": "Photos 2",
       "notes": "Folder: Photos 2 (Token: SMkJIB1d2m)"
+    },
+    "59895efc-612d-4325-8252-aeb411cb1ac7": {
+      "id": "59895efc-612d-4325-8252-aeb411cb1ac7",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "HgTNMQi-af",
+      "uploadedAt": "2025-10-13T11:38:07.124Z",
+      "folderPath": "Photos 3",
+      "editorFolderName": "Photos 3",
+      "partnerFolderName": "Photos 3",
+      "notes": "Folder: Photos 3 (Token: HgTNMQi-af)"
+    },
+    "9e61d2c9-3b1e-49c6-a343-b2f4e7b9bc23": {
+      "id": "9e61d2c9-3b1e-49c6-a343-b2f4e7b9bc23",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "Rh7fHR5o3m",
+      "uploadedAt": "2025-10-13T11:43:44.078Z",
+      "folderPath": "Floor plan 3",
+      "editorFolderName": "Floor plan 3",
+      "partnerFolderName": "Floor plan 3",
+      "notes": "Folder: Floor plan 3 (Token: Rh7fHR5o3m)"
     }
   },
   "notifications": {
