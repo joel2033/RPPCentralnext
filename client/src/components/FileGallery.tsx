@@ -83,6 +83,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // New content section creation
   const [showNewContentSection, setShowNewContentSection] = useState(false);
   const [newContentSectionName, setNewContentSectionName] = useState('');
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -783,7 +785,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             {/* Files Section */}
             {(() => {
               const visibleFiles = selectedFolderData.files.filter(file => !file.fileName.startsWith('.') && file.downloadUrl);
-              const [isDragging, setIsDragging] = React.useState(false);
 
               const handleDragEnter = (e: React.DragEvent) => {
                 e.preventDefault();
