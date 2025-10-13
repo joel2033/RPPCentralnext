@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -900,13 +900,24 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
       {/* Image Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-[95vw] w-full h-[95vh] p-0 bg-transparent border-0 shadow-none">
+        <DialogContent className="max-w-full w-screen h-screen p-0 bg-black border-0 shadow-none m-0">
           {/* Dark Overlay Background */}
-          <div className="absolute inset-0 bg-black/95" onClick={() => setSelectedImage(null)} />
+          <div className="absolute inset-0 bg-black" onClick={() => setSelectedImage(null)} />
           
           <div className="relative h-full flex flex-col items-center justify-center p-8 z-10">
+            {/* Close Button */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-6 right-6 z-30 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10"
+              data-testid="button-close-gallery"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+
             {/* Top Controls */}
-            <div className="absolute top-6 right-6 flex items-center space-x-3 z-20">
+            <div className="absolute top-6 left-6 flex items-center space-x-3 z-20">
               {galleryImages.length > 1 && (
                 <div className="bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
                   {currentImageIndex + 1} / {galleryImages.length}
