@@ -104,7 +104,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const { data: foldersData, isLoading: isFoldersLoading } = useQuery<FolderData[]>({
     queryKey: ['/api/jobs', jobId, 'folders'],
     enabled: !!jobId,
+    staleTime: 0, // Always consider data stale to force refetch
+    cacheTime: 0, // Don't cache the data
   });
+
+  // Debug: Log folders data when it changes
+  console.log('[FileGallery] Folders data:', foldersData);
 
   // Mutation for creating folders
   const createFolderMutation = useMutation({
@@ -481,18 +486,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     <div className="space-y-6">
       {/* Header with view toggle and add folder button */}
       <div className="flex items-center justify-between">
-        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'folders' | 'orders')}>
-          <TabsList>
-            <TabsTrigger value="folders" data-testid="tab-folders">
-              <Folder className="h-4 w-4 mr-2" />
-              Folders
-            </TabsTrigger>
-            <TabsTrigger value="orders" data-testid="tab-orders">
-              <FileImage className="h-4 w-4 mr-2" />
-              By Order
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <h3 className="text-lg font-semibold text-gray-900">Folders</h3>
         
         <div className="flex space-x-2">
           <Button 
@@ -508,8 +502,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       </div>
 
       {/* Breadcrumb Navigation */}
-      {viewMode === 'folders' && (
-        <div className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+      <div className="flex items-center space-x-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
           {getBreadcrumbs().map((crumb, index) => (
             <div key={index} className="flex items-center space-x-2">
               {index === 0 ? (
@@ -551,11 +544,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               )}
             </div>
           ))}
-        </div>
-      )}
+      </div>
 
-      {viewMode === 'folders' ? (
-        showFolderContent && selectedFolderData ? (
+      {showFolderContent && selectedFolderData ? (
           // Folder Content View
           <div className="space-y-6">
             {/* Folder Header */}
@@ -853,31 +844,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               </div>
             )}
           </div>
-        )
-      ) : (
-        <div className="space-y-8">
-          {completedFiles.map((group) => (
-            <div key={group.orderId} className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Order {group.orderNumber}
-                  </h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {group.files.length} {group.files.length === 1 ? 'file' : 'files'}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {group.files
-                  .filter(file => !file.fileName.startsWith('.') && file.downloadUrl)
-                  .map(renderFileCard)}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        )}
 
       {/* Image Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
