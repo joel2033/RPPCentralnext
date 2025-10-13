@@ -43,6 +43,7 @@ interface FolderData {
   orderNumber?: string;
   fileCount: number;
   files: CompletedFile[];
+  folderToken?: string; // Token for standalone folders (created via "Add Content")
 }
 
 interface FileGalleryProps {
@@ -1282,6 +1283,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           userId={user.uid}
           jobId={jobId}
           uploadType="client"
+          folderToken={selectedFolderData?.folderToken} // Pass folder token for standalone folders
+          folderPath={selectedFolderData?.folderPath} // Pass folder path
           onFilesUpload={(serviceId, files, orderNumber) => {
             // Refresh the files and folders after upload
             queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });

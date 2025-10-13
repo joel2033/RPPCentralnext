@@ -18,6 +18,8 @@ interface FileUploadModalProps {
   onFilesUpload: (serviceId: string, files: { file: File; url: string; path: string }[], orderNumber: string) => void;
   uploadType?: 'client' | 'completed'; // New prop to determine upload type
   orderNumber?: string; // For completed files, we already know the order number
+  folderToken?: string; // For standalone folders created via "Add Content"
+  folderPath?: string; // The folder path for context
 }
 
 interface FileUploadItem {
@@ -38,7 +40,9 @@ export function FileUploadModal({
   jobId,
   onFilesUpload,
   uploadType = 'client',
-  orderNumber: providedOrderNumber
+  orderNumber: providedOrderNumber,
+  folderToken,
+  folderPath
 }: FileUploadModalProps) {
   const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -176,7 +180,9 @@ export function FileUploadModal({
                       url: progress.url
                     } : uploadItem
                   ));
-                }
+                },
+                folderToken, // Pass folder token for standalone folders
+                folderPath // Pass folder path
               );
           
           // Set timeout for large files (5 minutes for files over 10MB)

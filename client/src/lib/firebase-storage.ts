@@ -22,7 +22,9 @@ export const uploadFileToFirebase = async (
   userId: string,
   jobId: string,
   orderNumber: string,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
+  folderToken?: string,
+  folderPath?: string
 ): Promise<{ url: string; path: string }> => {
   try {
     console.log(`Starting server-side Firebase upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
@@ -41,6 +43,14 @@ export const uploadFileToFirebase = async (
     formData.append('userId', userId);
     formData.append('jobId', jobId);
     formData.append('orderNumber', orderNumber);
+    
+    // Add folder token and path if provided (for standalone folders)
+    if (folderToken) {
+      formData.append('folderToken', folderToken);
+    }
+    if (folderPath) {
+      formData.append('folderPath', folderPath);
+    }
 
     // Upload via server to avoid CORS issues
     const response = await fetch('/api/upload-firebase', {
