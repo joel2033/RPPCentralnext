@@ -1538,7 +1538,7 @@
       "editorFolderName": "e2e-iyN2ajY7vF",
       "partnerFolderName": "e2e-iyN2ajY7vF",
       "notes": "Folder: e2e-iyN2ajY7vF (Token: g3FQxersE0)",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     },
     "a51166ff-32ef-436d-b9ef-9a64ee92327d": {
       "id": "a51166ff-32ef-436d-b9ef-9a64ee92327d",
@@ -1554,7 +1554,24 @@
       "folderPath": "Floor plans 1",
       "editorFolderName": "Floor plans 1",
       "partnerFolderName": "Floor plans 1",
-      "notes": "Folder: Floor plans 1 (Token: 5yLvM4JqJl)"
+      "notes": "Folder: Floor plans 1 (Token: 5yLvM4JqJl)",
+      "expiresAt": null
+    },
+    "126d5706-d85f-4419-a05f-64fa186c2a31": {
+      "id": "126d5706-d85f-4419-a05f-64fa186c2a31",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "SMkJIB1d2m",
+      "uploadedAt": "2025-10-13T11:25:42.017Z",
+      "folderPath": "Photos 2",
+      "editorFolderName": "Photos 2",
+      "partnerFolderName": "Photos 2",
+      "notes": "Folder: Photos 2 (Token: SMkJIB1d2m)"
     }
   },
   "notifications": {
@@ -1996,7 +2013,7 @@
       "createdAt": "2025-09-24T20:59:11.264Z"
     }
   },
-  "orderCounter": 3,
+  "orderCounter": 4,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -2070,20 +2087,12 @@
       "expiresAt": "2025-09-23T10:44:33.937Z",
       "status": "confirmed"
     },
-    "#00004": {
-      "orderNumber": "#00004",
+    "#00003": {
+      "orderNumber": "#00003",
       "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
       "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "reservedAt": "2025-10-13T08:48:33.571Z",
-      "expiresAt": "2025-10-13T10:48:33.571Z",
-      "status": "reserved"
-    },
-    "#00005": {
-      "orderNumber": "#00005",
-      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
-      "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "reservedAt": "2025-10-13T08:56:46.032Z",
-      "expiresAt": "2025-10-13T10:56:46.032Z",
+      "reservedAt": "2025-10-13T11:30:27.925Z",
+      "expiresAt": "2025-10-13T13:30:27.925Z",
       "status": "reserved"
     }
   }

@@ -2740,10 +2740,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ENHANCED LOGGING: Comprehensive activity tracking with validation results
       try {
         const authHeader = req.headers.authorization;
+        console.log('[DEBUG UPLOAD] Has authHeader:', !!authHeader);
         if (authHeader) {
           const idToken = authHeader.replace('Bearer ', '');
           const decodedToken = await adminAuth.verifyIdToken(idToken);
           const userDoc = await getUserDocument(decodedToken.uid);
+          console.log('[DEBUG UPLOAD] UserDoc partnerId:', userDoc?.partnerId);
           
           if (userDoc?.partnerId) {
 
