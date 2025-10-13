@@ -3234,7 +3234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      const { partnerFolderName } = req.body;
+      const { partnerFolderName, orderNumber } = req.body;
       
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
@@ -3242,6 +3242,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!partnerFolderName) {
         return res.status(400).json({ error: "partnerFolderName is required" });
+      }
+
+      if (!orderNumber) {
+        return res.status(400).json({ error: "orderNumber is required - folders must be associated with an order" });
       }
 
       // Find the job
@@ -3260,13 +3264,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      // Actually create the folder in storage
-      const createdFolder = await storage.createFolder(job.id, partnerFolderName);
+      // Find the order
+      const allOrders = await storage.getOrders();
+      const order = allOrders.find(o => o.orderNumber === orderNumber && (o.jobId === job.id || o.jobId === job.jobId));
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found for this job" });
+      }
+
+      // Verify order belongs to the same organization
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Order belongs to different organization" });
+      }
+
+      // Create the folder in storage (in-memory)
+      const createdFolder = await storage.createFolder(job.id, partnerFolderName, undefined, order.id);
+      
+      // Create a Firebase placeholder to establish the folder in Firebase Storage
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+      
+      const bucket = getStorage().bucket(bucketName);
+      
+      // Use EXACT SAME sanitization as upload-completed-files endpoint (lines 2981-2992)
+      const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+      const sanitizedFolderPath = partnerFolderName.split('/').map(segment => {
+        return segment
+          .replace(/\.\./g, '') // Remove path traversal attempts
+          .replace(/[^a-zA-Z0-9 _-]/g, '_') // Safe character whitelist - SAME as upload
+          .trim() // Remove leading/trailing spaces
+          .substring(0, 50); // Limit length
+      }).filter(segment => segment.length > 0).join('/');
+      
+      const placeholderPath = `completed/${job.jobId || job.id}/${sanitizedOrderNumber}/${sanitizedFolderPath}/.keep`;
+      const placeholderFile = bucket.file(placeholderPath);
+      
+      // Upload empty placeholder file
+      await placeholderFile.save('', {
+        metadata: {
+          contentType: 'application/octet-stream',
+        },
+      });
       
       res.json({ 
         success: true, 
-        message: "Folder created successfully",
-        folder: createdFolder
+        message: "Folder created successfully in Firebase",
+        folder: createdFolder,
+        firebasePath: placeholderPath
       });
     } catch (error: any) {
       console.error("Error creating folder template:", error);

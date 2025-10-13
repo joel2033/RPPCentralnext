@@ -1018,7 +1018,7 @@ export class MemStorage implements IStorage {
     this.saveToFile();
   }
 
-  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string): Promise<{folderPath: string; partnerFolderName: string}> {
+  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string): Promise<{folderPath: string; partnerFolderName: string}> {
     // Generate folder path
     const folderPath = parentFolderPath 
       ? `${parentFolderPath}/${partnerFolderName}`
@@ -1036,7 +1036,7 @@ export class MemStorage implements IStorage {
       const folderPlaceholder: EditorUpload = {
         id: folderId,
         jobId,
-        orderId: null, // Folder placeholders don't belong to specific orders
+        orderId: orderId || null, // Use provided orderId or null
         fileName: '.folder_placeholder',
         originalName: '.folder_placeholder',
         fileSize: 0,
