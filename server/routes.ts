@@ -2548,29 +2548,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { userId, jobId, orderNumber, uploadType } = req.body;
+      const { userId, jobId, orderNumber, uploadType, folderToken, folderPath } = req.body;
       
-      if (!userId || !jobId || !orderNumber) {
+      // For standalone folders (with folderToken), orderNumber is not required
+      if (!userId || !jobId) {
         return res.status(400).json({ 
-          error: "Missing required parameters: userId, jobId, and orderNumber are required" 
+          error: "Missing required parameters: userId and jobId are required" 
+        });
+      }
+      
+      // If no folderToken, orderNumber is required
+      if (!folderToken && !orderNumber) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: orderNumber or folderToken is required" 
         });
       }
 
       // ENHANCED SECURITY: Comprehensive validation before processing upload
       
-      // Step 1: Verify the reservation exists and is valid
-      const reservation = await storage.getReservation(orderNumber);
-      if (!reservation || reservation.status !== 'reserved') {
-        return res.status(400).json({ error: "Invalid or expired order reservation" });
-      }
+      // Step 1: Verify the reservation exists and is valid (skip for standalone folders with folderToken)
+      if (!folderToken) {
+        const reservation = await storage.getReservation(orderNumber);
+        if (!reservation || reservation.status !== 'reserved') {
+          return res.status(400).json({ error: "Invalid or expired order reservation" });
+        }
 
-      if (reservation.userId !== userId || reservation.jobId !== jobId) {
-        return res.status(400).json({ error: "Order reservation does not match provided userId and jobId" });
-      }
+        if (reservation.userId !== userId || reservation.jobId !== jobId) {
+          return res.status(400).json({ error: "Order reservation does not match provided userId and jobId" });
+        }
 
-      // Check if reservation has expired
-      if (new Date() > reservation.expiresAt) {
-        return res.status(400).json({ error: "Order reservation has expired" });
+        // Check if reservation has expired
+        if (new Date() > reservation.expiresAt) {
+          return res.status(400).json({ error: "Order reservation has expired" });
+        }
       }
 
       // Step 2: Get user information and validate access based on role
@@ -2680,10 +2690,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
       const sanitizedUserId = userId.replace(/[^a-zA-Z0-9-]/g, '');
       const sanitizedJobId = jobId.replace(/[^a-zA-Z0-9-]/g, '');
-      const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
       
-      // New organized file path: orders/userID/jobID/orderNumber/timestamp_filename
-      const filePath = `orders/${sanitizedUserId}/${sanitizedJobId}/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
+      let filePath: string;
+      
+      if (folderToken && folderPath) {
+        // Standalone folder upload: use tokenized path
+        const sanitizedFolderPath = folderPath.replace(/[^a-zA-Z0-9/-]/g, '_');
+        const sanitizedFolderToken = folderToken.replace(/[^a-zA-Z0-9-]/g, '');
+        filePath = `completed/${sanitizedJobId}/folders/${sanitizedFolderToken}/${sanitizedFolderPath}/${timestamp}_${sanitizedFileName}`;
+      } else {
+        // Order-based upload: use order number path
+        const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
+        filePath = `orders/${sanitizedUserId}/${sanitizedJobId}/${sanitizedOrderNumber}/${timestamp}_${sanitizedFileName}`;
+      }
 
       // Get Firebase Admin Storage with explicit bucket name
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
