@@ -2728,64 +2728,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get the public URL
       const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-      console.log(`[DEBUG] Firebase upload completed. PublicUrl: ${publicUrl}`);
 
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
-      console.log(`[DEBUG] Temporary file cleaned up.`);
 
       // CRITICAL: Create EditorUpload record IMMEDIATELY after successful Firebase upload
       // This must happen BEFORE activity logging to ensure data persistence regardless of auth issues
-      if (job) {
-        console.log(`[DEBUG] Creating editor upload for job ${job.id}${orderEntity ? `, order ${orderEntity.id}` : ' (standalone folder)'}`);
-        console.log(`[DEBUG] Upload details:`, {
-          fileName: req.file.originalname,
-          fileSize: req.file.size,
-          mimeType: req.file.mimetype,
-          uploadType,
-          folderToken,
-          folderPath,
-          status: uploadType === 'client' ? 'completed' : 'uploaded'
-        });
-        
-        const uploadData = {
-          jobId: job.id,
-          orderId: orderEntity?.id || null, // Optional for standalone folders
-          editorId: userId,
-          fileName: req.file.originalname,
-          originalName: req.file.originalname,
-          fileSize: req.file.size,
-          mimeType: req.file.mimetype,
-          firebaseUrl: publicUrl,
-          downloadUrl: publicUrl,
-          folderPath: folderPath || null,
-          editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
-          folderToken: folderToken || null,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          status: uploadType === 'client' ? 'completed' : 'uploaded',
-          notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
-        };
-        
-        console.log('[DEBUG] About to create EditorUpload with data:', JSON.stringify(uploadData, null, 2));
-        await storage.createEditorUpload(uploadData);
-        
-        console.log(`[DEBUG] Editor upload created successfully`);
-      } else {
-        console.log(`[DEBUG] Failed to create editor upload - job not found`);
-      }
-
-      // Note: job and orderEntity variables are already available from earlier in the function
-      console.log(`[DEBUG] Starting activity logging section. Job exists:`, !!job, 'OrderEntity exists:', !!orderEntity);
+      // Note: job is guaranteed to exist here due to validation at line 2602-2606
+      const uploadData = {
+        jobId: job.id,
+        orderId: orderEntity?.id || null, // Optional for standalone folders
+        editorId: userId,
+        fileName: req.file.originalname,
+        originalName: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        firebaseUrl: publicUrl,
+        downloadUrl: publicUrl,
+        folderPath: folderPath || null,
+        editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
+        folderToken: folderToken || null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        status: uploadType === 'client' ? 'completed' : 'uploaded',
+        notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
+      };
+      
+      await storage.createEditorUpload(uploadData);
 
       // ENHANCED LOGGING: Comprehensive activity tracking with validation results
       try {
         const authHeader = req.headers.authorization;
-        console.log('[DEBUG UPLOAD] Has authHeader:', !!authHeader);
         if (authHeader) {
           const idToken = authHeader.replace('Bearer ', '');
           const decodedToken = await adminAuth.verifyIdToken(idToken);
           const userDoc = await getUserDocument(decodedToken.uid);
-          console.log('[DEBUG UPLOAD] UserDoc partnerId:', userDoc?.partnerId);
           
           if (userDoc?.partnerId) {
 

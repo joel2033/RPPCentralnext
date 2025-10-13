@@ -33,6 +33,12 @@ Preferred communication style: Simple, everyday language.
 - **Storage Query Updated**: getUploadFolders() handles uploads with null orderId and uses folderToken field for retrieval
 - **Database Migration**: Pushed schema changes to PostgreSQL database - orderId nullable, folderToken added
 - **Complete Integration**: Files successfully upload to Firebase and display in frontend gallery for standalone folders
+- **CRITICAL BUG FIX**: Fixed database persistence issue where EditorUpload records were not created after successful Firebase uploads
+  - Root cause: createEditorUpload() was nested inside activity logging try-catch block with conditional checks (authHeader, partnerId)
+  - Solution: Moved createEditorUpload() to execute immediately after successful Firebase upload (line 2741-2759 in routes.ts)
+  - Ensures database records are ALWAYS created after successful uploads, regardless of activity logging authentication issues
+  - Removed redundant `if (job)` guard since job existence is validated earlier (returns 404 if not found)
+  - End-to-end testing confirms files now persist to database and display correctly in gallery
 
 ## 2025-08-03: Job Card + Google Maps Integration - COMPLETED
 - **Jobs Management System**: Complete job creation, listing, and management with multi-tenant data isolation
