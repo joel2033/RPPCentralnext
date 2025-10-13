@@ -112,9 +112,9 @@ export function FileUploadModal({
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
-      // Reserve order number first if not already reserved (only for client uploads)
+      // Reserve order number first if not already reserved (only for client uploads without folderToken)
       let currentOrderNumber = orderNumber;
-      if (uploadType === 'client' && !currentOrderNumber) {
+      if (uploadType === 'client' && !currentOrderNumber && !folderToken) {
         const reservation = await reserveOrderNumber(userId, jobId);
         currentOrderNumber = reservation.orderNumber;
         setOrderNumber(reservation.orderNumber);
@@ -122,8 +122,8 @@ export function FileUploadModal({
         console.log(`Reserved order number ${reservation.orderNumber} until ${reservation.expiresAt}`);
       }
 
-      // Check if we have a valid order number (only required for client uploads)
-      if (uploadType === 'client' && !currentOrderNumber) {
+      // Check if we have a valid order number OR folderToken (for client uploads)
+      if (uploadType === 'client' && !currentOrderNumber && !folderToken) {
         throw new Error('Failed to reserve order number');
       }
       
@@ -224,9 +224,9 @@ export function FileUploadModal({
         }
       }
       
-      // Call the callback with completed uploads
-      if (completedUploads.length > 0 && currentOrderNumber) {
-        onFilesUpload(serviceId, completedUploads, currentOrderNumber);
+      // Call the callback with completed uploads (for order-based uploads or standalone folders)
+      if (completedUploads.length > 0 && (currentOrderNumber || folderToken)) {
+        onFilesUpload(serviceId, completedUploads, currentOrderNumber || '');
       }
       
     } finally {

@@ -1419,7 +1419,23 @@
       "editorFolderName": "Video",
       "partnerFolderName": "Video",
       "notes": "Folder: Video (Token: q808AUPopN)",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
+    },
+    "59283c9d-2549-4b4e-bd67-4ef5d57f9f7c": {
+      "id": "59283c9d-2549-4b4e-bd67-4ef5d57f9f7c",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "4Ggnzs9Zy2",
+      "uploadedAt": "2025-10-13T09:09:17.418Z",
+      "folderPath": "Test Upload Folder-Jj5s7g",
+      "editorFolderName": "Test Upload Folder-Jj5s7g",
+      "partnerFolderName": "Test Upload Folder-Jj5s7g",
+      "notes": "Folder: Test Upload Folder-Jj5s7g (Token: 4Ggnzs9Zy2)"
     }
   },
   "notifications": {
@@ -1861,7 +1877,7 @@
       "createdAt": "2025-09-24T20:59:11.264Z"
     }
   },
-  "orderCounter": 6,
+  "orderCounter": 3,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",

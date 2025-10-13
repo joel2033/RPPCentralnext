@@ -42,7 +42,11 @@ export const uploadFileToFirebase = async (
     formData.append('file', file);
     formData.append('userId', userId);
     formData.append('jobId', jobId);
-    formData.append('orderNumber', orderNumber);
+    
+    // Only append orderNumber if it's provided (not needed for standalone folders with folderToken)
+    if (orderNumber) {
+      formData.append('orderNumber', orderNumber);
+    }
     
     // Add folder token and path if provided (for standalone folders)
     if (folderToken) {
