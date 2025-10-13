@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2 } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -81,6 +81,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string>('');
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [galleryImages, setGalleryImages] = useState<Array<{ url: string; name: string }>>([]);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -340,10 +342,60 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const handleImageClick = (url: string, name: string) => {
+  const handleImageClick = (url: string, name: string, folderFiles?: any[]) => {
+    // Build gallery from folder files if provided
+    if (folderFiles) {
+      const imageFiles = folderFiles
+        .filter(file => !file.fileName.startsWith('.') && file.downloadUrl && isImage(file.mimeType))
+        .map(file => ({ url: file.downloadUrl, name: file.originalName }));
+      
+      setGalleryImages(imageFiles);
+      const clickedIndex = imageFiles.findIndex(img => img.url === url);
+      setCurrentImageIndex(clickedIndex >= 0 ? clickedIndex : 0);
+    } else {
+      setGalleryImages([{ url, name }]);
+      setCurrentImageIndex(0);
+    }
+    
     setSelectedImage(url);
     setSelectedImageName(name);
   };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    if (galleryImages.length === 0) return;
+    
+    let newIndex = currentImageIndex;
+    if (direction === 'next') {
+      newIndex = (currentImageIndex + 1) % galleryImages.length;
+    } else {
+      newIndex = currentImageIndex - 1 < 0 ? galleryImages.length - 1 : currentImageIndex - 1;
+    }
+    
+    setCurrentImageIndex(newIndex);
+    setSelectedImage(galleryImages[newIndex].url);
+    setSelectedImageName(galleryImages[newIndex].name);
+  };
+
+  // Keyboard navigation
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!selectedImage) return;
+    
+    if (e.key === 'ArrowRight') {
+      navigateImage('next');
+    } else if (e.key === 'ArrowLeft') {
+      navigateImage('prev');
+    } else if (e.key === 'Escape') {
+      setSelectedImage(null);
+    }
+  };
+
+  // Add keyboard event listener
+  React.useEffect(() => {
+    if (selectedImage) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [selectedImage, currentImageIndex, galleryImages]);
 
   const handleDownload = (url: string, fileName: string) => {
     const link = document.createElement('a');
@@ -352,7 +404,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     link.click();
   };
 
-  const renderFileCard = (file: CompletedFile) => {
+  const renderFileCard = (file: CompletedFile, folderFiles?: any[]) => {
     console.log('[FileGallery] Rendering file card for:', file.fileName, 'URL:', file.downloadUrl);
     return (
       <Card 
@@ -363,7 +415,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         {isImage(file.mimeType) ? (
           <div 
             className="relative aspect-square"
-            onClick={() => handleImageClick(file.downloadUrl, file.originalName)}
+            onClick={() => handleImageClick(file.downloadUrl, file.originalName, folderFiles)}
           >
             <img
               src={file.downloadUrl}
@@ -426,7 +478,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               onClick={(e) => {
                 e.stopPropagation();
                 if (isImage(file.mimeType)) {
-                  handleImageClick(file.downloadUrl, file.originalName);
+                  handleImageClick(file.downloadUrl, file.originalName, folderFiles);
                 }
               }}
               data-testid={`button-view-${file.id}`}
@@ -664,7 +716,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         </span>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {visibleFiles.map(renderFileCard)}
+                        {visibleFiles.map(file => renderFileCard(file, selectedFolderData.files))}
                       </div>
                     </>
                   ) : (
@@ -848,14 +900,48 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
       {/* Image Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-4xl w-full max-h-[90vh] p-0">
-          <div className="relative">
+        <DialogContent className="max-w-6xl w-full max-h-[95vh] p-0 bg-black">
+          <div className="relative flex items-center justify-center min-h-[80vh]">
+            {/* Previous Button */}
+            {galleryImages.length > 1 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => navigateImage('prev')}
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
+                data-testid="button-prev-image"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+            )}
+
+            {/* Image */}
             <img
               src={selectedImage || ''}
               alt={selectedImageName}
               className="w-full h-auto max-h-[85vh] object-contain"
             />
-            <div className="absolute top-4 right-4 flex space-x-2">
+
+            {/* Next Button */}
+            {galleryImages.length > 1 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => navigateImage('next')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full h-12 w-12"
+                data-testid="button-next-image"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </Button>
+            )}
+
+            {/* Top Controls */}
+            <div className="absolute top-4 right-4 flex items-center space-x-2">
+              {galleryImages.length > 1 && (
+                <div className="bg-black/50 text-white px-3 py-1 rounded text-sm">
+                  {currentImageIndex + 1} / {galleryImages.length}
+                </div>
+              )}
               <Button
                 size="sm"
                 onClick={() => selectedImage && handleDownload(selectedImage, selectedImageName)}
@@ -866,7 +952,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 Download
               </Button>
             </div>
-            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm">
+
+            {/* Bottom Info */}
+            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm max-w-md truncate">
               {selectedImageName}
             </div>
           </div>
