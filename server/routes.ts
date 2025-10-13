@@ -37,6 +37,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import fs from 'fs';
 import JSZip from 'jszip';
+import { nanoid } from 'nanoid';
 
 // Initialize Firebase Admin if not already done
 if (getApps().length === 0) {
