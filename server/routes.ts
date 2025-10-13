@@ -2977,7 +2977,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
       
       // Build file path with optional folder structure
-      let filePath = `completed/${jobId}/${orderEntity.orderNumber}`;
+      // Sanitize order number to remove special characters like #
+      const sanitizedOrderNumber = orderEntity.orderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
+      let filePath = `completed/${jobId}/${sanitizedOrderNumber}`;
       if (folderPath) {
         // Safely sanitize folder path by segments
         const segments = folderPath.split('/').map(segment => {
@@ -3006,11 +3008,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Make the file publicly accessible
-      await file.makePublic();
+      // Generate a signed URL that works for 7 days (more secure than makePublic)
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
 
-      // Get the public URL
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      const publicUrl = signedUrl;
 
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
@@ -3144,23 +3148,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, typeof completedFiles>);
 
-      // Get order information for each group
+      // Get order information for each group and use proxy URLs
       const enrichedFiles = await Promise.all(
         Object.entries(filesByOrder).map(async ([orderId, files]) => {
           const order = await storage.getOrder(orderId);
+          
+          // Use proxy URLs instead of direct Firebase URLs
+          const filesWithProxyUrls = files.map((file) => ({
+            id: file.id,
+            fileName: file.fileName,
+            originalName: file.originalName,
+            fileSize: file.fileSize,
+            mimeType: file.mimeType,
+            downloadUrl: `/api/files/proxy/${file.id}`, // Use proxy endpoint
+            uploadedAt: file.uploadedAt,
+            notes: file.notes
+          }));
+          
           return {
             orderId,
             orderNumber: order?.orderNumber || 'Unknown',
-            files: files.map(file => ({
-              id: file.id,
-              fileName: file.fileName,
-              originalName: file.originalName,
-              fileSize: file.fileSize,
-              mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl,
-              uploadedAt: file.uploadedAt,
-              notes: file.notes
-            }))
+            files: filesWithProxyUrls
           };
         })
       );
@@ -3300,6 +3308,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to rename folder", 
         details: error.message 
       });
+    }
+  });
+
+  // Proxy endpoint to serve files from Firebase Storage
+  // This bypasses browser issues with # character in URLs
+  app.get("/api/files/proxy/:fileId", async (req, res) => {
+    try {
+      const { fileId } = req.params;
+      
+      // Search through all jobs to find the file
+      const allJobs = await storage.getJobs();
+      let file: EditorUpload | undefined;
+      
+      for (const job of allJobs) {
+        const uploads = await storage.getEditorUploads(job.id);
+        file = uploads.find(u => u.id === fileId);
+        if (file) break;
+      }
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      // Extract file path from the stored URL
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+      
+      const urlPattern = new RegExp(`https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/(.+)`);
+      const match = file.downloadUrl.match(urlPattern);
+      
+      if (!match || !match[1]) {
+        return res.status(400).json({ error: "Invalid file URL" });
+      }
+      
+      const filePath = decodeURIComponent(match[1]);
+      console.log(`[PROXY] Streaming file: ${filePath}`);
+      
+      const bucket = getStorage().bucket(bucketName);
+      const storageFile = bucket.file(filePath);
+      
+      // Check if file exists first
+      const [exists] = await storageFile.exists();
+      if (!exists) {
+        console.error(`[PROXY] File does not exist in Firebase Storage: ${filePath}`);
+        return res.status(404).json({ error: 'File not found in storage' });
+      }
+      
+      // Get file metadata to set proper Content-Length
+      const [metadata] = await storageFile.getMetadata();
+      const fileSize = metadata.size;
+      
+      console.log(`[PROXY] File exists, size: ${fileSize} bytes, mimeType: ${file.mimeType}`);
+      
+      // Set headers before streaming
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('Content-Length', fileSize);
+      res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Accept-Ranges', 'bytes');
+      
+      // Stream the file from Firebase Storage to the client
+      const stream = storageFile.createReadStream();
+      
+      stream.on('error', (error) => {
+        console.error('[PROXY] Error streaming file:', error);
+        if (!res.headersSent) {
+          res.status(500).send('Failed to stream file');
+        } else {
+          res.end();
+        }
+      });
+      
+      stream.on('end', () => {
+        console.log(`[PROXY] Successfully streamed file: ${file.fileName}`);
+      });
+      
+      stream.pipe(res);
+    } catch (error: any) {
+      console.error('Error in file proxy:', error);
+      res.status(500).json({ error: 'Failed to proxy file', details: error.message });
     }
   });
 
