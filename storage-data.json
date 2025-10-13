@@ -1401,7 +1401,24 @@
       "folderPath": "Floor plan",
       "editorFolderName": "Floor plan",
       "partnerFolderName": "Floor plan",
-      "notes": "Folder: Floor plan"
+      "notes": "Folder: Floor plan",
+      "expiresAt": null
+    },
+    "6a822302-8593-48c6-b6e7-55771bf2935f": {
+      "id": "6a822302-8593-48c6-b6e7-55771bf2935f",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "q808AUPopN",
+      "uploadedAt": "2025-10-13T08:32:16.539Z",
+      "folderPath": "Video",
+      "editorFolderName": "Video",
+      "partnerFolderName": "Video",
+      "notes": "Folder: Video (Token: q808AUPopN)"
     }
   },
   "notifications": {
