@@ -1292,10 +1292,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           uploadType="client"
           folderToken={selectedFolderData?.folderToken} // Pass folder token for standalone folders
           folderPath={selectedFolderData?.folderPath} // Pass folder path
-          onFilesUpload={(serviceId, files, orderNumber) => {
-            // Refresh the files and folders after upload
-            queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
-            queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+          onFilesUpload={async (serviceId, files, orderNumber) => {
+            // Immediately refetch folders and files to show new uploads
+            await Promise.all([
+              queryClient.refetchQueries({ queryKey: ['/api/jobs', jobId, 'folders'] }),
+              queryClient.refetchQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] })
+            ]);
             toast({
               title: "Files uploaded successfully",
               description: `${files.length} file(s) uploaded to the job.`,
