@@ -146,7 +146,7 @@
   left: -12px;
   top: 0;
   bottom: 0;
-  width: 4px;
-  background-color: var(--support-blue);
+  width: 3px;
+  background-color: var(--rpp-red-main);
   border-radius: 0 2px 2px 0;
 }

@@ -100,7 +100,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="collapsible-menu">
             <button
               onClick={() => toggleMenu(item.title)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-rpp-grey-medium transition-colors text-white"
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-rpp-grey-bg transition-colors text-rpp-grey-dark"
             >
               <div className="flex items-center">
                 <Icon className="w-5 h-5 mr-3" />
@@ -121,8 +121,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <Link
                       href={child.path!}
                       onClick={onClose}
-                      className={`nav-item block px-3 py-2 text-sm rounded hover:bg-rpp-grey-medium transition-colors ${
-                        isActive(child.path!) ? 'active' : 'text-white'
+                      className={`nav-item block px-3 py-2 text-sm rounded hover:bg-rpp-grey-bg transition-colors ${
+                        isActive(child.path!) ? 'active' : 'text-rpp-grey-dark'
                       }`}
                     >
                       {child.title}
@@ -141,8 +141,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <Link
           href={item.path!}
           onClick={onClose}
-          className={`nav-item flex items-center px-3 py-2 rounded-lg hover:bg-rpp-grey-medium transition-colors ${
-            isActive(item.path!) ? 'active' : 'text-white'
+          className={`nav-item flex items-center px-3 py-2 rounded-lg hover:bg-rpp-grey-bg transition-colors ${
+            isActive(item.path!) ? 'active' : 'text-rpp-grey-dark'
           }`}
         >
           <Icon className="w-5 h-5 mr-3" />
@@ -153,19 +153,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   return (
-    <div className={`fixed left-0 top-0 h-full w-64 bg-rpp-grey-dark text-white z-50 transform ${
+    <div className={`fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-50 transform ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     } lg:translate-x-0 sidebar-transition`}>
       <div className="flex flex-col h-full">
         {/* Logo Header */}
-        <div className="p-6 border-b border-rpp-grey-medium">
+        <div className="p-6 border-b border-rpp-grey-border">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
               <Camera className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold">RPP</h1>
-              <p className="text-xs text-rpp-grey-lighter">Photography</p>
+              <h1 className="text-lg font-semibold text-rpp-grey-dark">RPP</h1>
+              <p className="text-xs text-rpp-grey-light">Photography</p>
             </div>
           </div>
         </div>
@@ -178,10 +178,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* Sign Out */}
-        <div className="p-4 border-t border-rpp-grey-medium">
+        <div className="p-4 border-t border-rpp-grey-border">
           <button 
             onClick={handleSignOut}
-            className="w-full flex items-center px-3 py-2 text-left rounded-lg hover:bg-rpp-grey-medium transition-colors text-white"
+            className="w-full flex items-center px-3 py-2 text-left rounded-lg hover:bg-rpp-grey-bg transition-colors text-rpp-grey-dark"
           >
             <LogOut className="w-5 h-5 mr-3" />
             <span>Sign Out</span>
