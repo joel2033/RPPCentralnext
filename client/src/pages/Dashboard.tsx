@@ -187,8 +187,8 @@ export default function Dashboard() {
 
         {/* Main Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Needs Your Attention - Left Column (1/3 width) */}
-          <div className="lg:col-span-1">
+          {/* Needs Your Attention - Left Column (2/3 width) */}
+          <div className="lg:col-span-2">
             <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-needs-attention">
               <CardContent className="p-7">
                 <div className="flex items-center justify-between mb-6">
@@ -273,8 +273,8 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Revenue Overview - Right Column (2/3 width) */}
-          <div className="lg:col-span-2">
+          {/* Revenue Overview - Right Column (1/3 width) */}
+          <div>
             <Card className="bg-white border-0 rounded-3xl shadow-rpp-card h-full" data-testid="card-revenue-overview">
               <CardContent className="p-7">
                 <div className="space-y-6">
