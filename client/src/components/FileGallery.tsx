@@ -92,11 +92,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const { userData: user } = useAuth();
 
   // Fetch folders for this job
-  const { data: foldersData, isLoading: isFoldersLoading } = useQuery<FolderData[]>({
+  const { data: foldersData, isLoading: isFoldersLoading, refetch: refetchFolders } = useQuery<FolderData[]>({
     queryKey: ['/api/jobs', jobId, 'folders'],
     enabled: !!jobId,
     staleTime: 0, // Always consider data stale to force refetch
     gcTime: 0, // Don't cache the data (gcTime replaces cacheTime in v5)
+    refetchOnMount: 'always', // Always refetch when component mounts
   });
 
   // Debug: Log folders data when it changes
