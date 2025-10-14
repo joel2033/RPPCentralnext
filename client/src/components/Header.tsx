@@ -91,10 +91,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'partner': return 'bg-purple-100 text-purple-800';
-      case 'admin': return 'bg-red-100 text-red-800';
-      case 'photographer': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'partner': return 'bg-rpp-red-lighter text-rpp-red-dark';
+      case 'admin': return 'bg-rpp-red-lighter text-rpp-red-dark';
+      case 'photographer': return 'bg-rpp-grey-bg text-rpp-grey-dark';
+      default: return 'bg-rpp-grey-bg text-rpp-grey-dark';
     }
   };
 
@@ -110,7 +110,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* Mobile Menu Button */}
           <button 
             onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
+            className="lg:hidden p-2 rounded-lg hover:bg-rpp-grey-bg"
           >
             <Menu className="w-5 h-5 text-rpp-grey-dark" />
           </button>
@@ -134,15 +134,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
             <DropdownMenuTrigger asChild>
               <button 
-                className="relative p-2 rounded-lg hover:bg-gray-100"
+                className="relative p-2 rounded-lg hover:bg-rpp-grey-bg"
                 data-testid="button-notifications"
                 aria-expanded={showNotifications}
               >
                 <Bell className="w-5 h-5 text-rpp-grey-dark" />
                 {unreadCount > 0 && (
                   <Badge 
-                    variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-rpp-red-main text-white"
                     data-testid="badge-unread-count"
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -168,30 +167,30 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </div>
               </div>
               {notifications.length === 0 ? (
-                <div className="px-3 py-4 text-center text-sm text-gray-500" data-testid="text-no-notifications">
+                <div className="px-3 py-4 text-center text-sm text-rpp-grey-light" data-testid="text-no-notifications">
                   No notifications yet
                 </div>
               ) : (
                 notifications.slice(0, 10).map((notification: any) => (
                   <DropdownMenuItem
                     key={notification.id}
-                    className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
+                    className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-rpp-red-lighter' : ''}`}
                     onClick={() => handleNotificationClick(notification)}
                     data-testid={`notification-item-${notification.id}`}
                   >
                     <div className="w-full">
                       <div className="flex items-center justify-between mb-1">
-                        <h5 className="text-sm font-medium text-gray-900" data-testid={`text-notification-title-${notification.id}`}>
+                        <h5 className="text-sm font-medium text-rpp-grey-dark" data-testid={`text-notification-title-${notification.id}`}>
                           {notification.title}
                         </h5>
                         {!notification.read && (
-                          <div className="w-2 h-2 bg-blue-500 rounded-full" data-testid={`indicator-unread-${notification.id}`}></div>
+                          <div className="w-2 h-2 bg-rpp-red-main rounded-full" data-testid={`indicator-unread-${notification.id}`}></div>
                         )}
                       </div>
-                      <p className="text-xs text-gray-600 mb-2" data-testid={`text-notification-body-${notification.id}`}>
+                      <p className="text-xs text-rpp-grey-medium mb-2" data-testid={`text-notification-body-${notification.id}`}>
                         {notification.body}
                       </p>
-                      <p className="text-xs text-gray-400" data-testid={`text-notification-time-${notification.id}`}>
+                      <p className="text-xs text-rpp-grey-light" data-testid={`text-notification-time-${notification.id}`}>
                         {new Date(notification.createdAt).toLocaleString()}
                       </p>
                     </div>
@@ -216,7 +215,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100">
+              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-rpp-grey-bg">
                 <div className="w-8 h-8 bg-rpp-red-main rounded-full flex items-center justify-center text-white text-sm font-medium">
                   {userData ? getUserInitials(userData.email) : 'U'}
                 </div>
@@ -225,8 +224,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     {userData?.email || 'User'}
                   </div>
                   <Badge 
-                    variant="secondary" 
-                    className={`text-xs mt-1 ${userData ? getRoleColor(userData.role) : 'bg-gray-100 text-gray-800'}`}
+                    className={`text-xs mt-1 ${userData ? getRoleColor(userData.role) : 'bg-rpp-grey-bg text-rpp-grey-dark'}`}
                   >
                     {userData?.role || 'Unknown'}
                   </Badge>
