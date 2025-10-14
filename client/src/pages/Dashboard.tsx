@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight } from "lucide-react";
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
@@ -366,28 +366,28 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart 
                     data={[
-                      { name: 'Photos', value: 45 },
-                      { name: 'Videos', value: 30 },
-                      { name: 'Virtual Tours', value: 15 },
-                      { name: 'Floor Plans', value: 10 },
+                      { name: 'Photography', value: 150, color: '#E87854' },
+                      { name: 'Video Tours', value: 85, color: '#EA9772' },
+                      { name: 'Drone', value: 65, color: '#F0B79D' },
+                      { name: '3D Tours', value: 50, color: '#F5D0C4' },
+                      { name: 'Editing', value: 140, color: '#F5D0C4' },
                     ]} 
-                    layout="vertical"
-                    margin={{ left: 20, right: 20 }}
+                    layout="horizontal"
+                    margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                     <XAxis 
-                      type="number"
-                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 500 }}
+                      dataKey="name" 
+                      tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 500 }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis 
-                      type="category"
-                      dataKey="name" 
-                      tick={{ fill: '#374151', fontSize: 14, fontWeight: 600 }}
+                      type="number"
+                      tick={{ fill: '#9CA3AF', fontSize: 12, fontWeight: 500 }}
                       axisLine={false}
                       tickLine={false}
-                      width={140}
+                      domain={[0, 160]}
                     />
                     <Tooltip 
                       contentStyle={{ 
@@ -402,10 +402,19 @@ export default function Dashboard() {
                     />
                     <Bar 
                       dataKey="value" 
-                      fill="#FF6B4A"
-                      radius={[0, 16, 16, 0]}
-                      barSize={40}
-                    />
+                      radius={[8, 8, 0, 0]}
+                      barSize={60}
+                    >
+                      {[
+                        { name: 'Photography', value: 150, color: '#E87854' },
+                        { name: 'Video Tours', value: 85, color: '#EA9772' },
+                        { name: 'Drone', value: 65, color: '#F0B79D' },
+                        { name: '3D Tours', value: 50, color: '#F5D0C4' },
+                        { name: 'Editing', value: 140, color: '#F5D0C4' },
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
