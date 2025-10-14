@@ -1,387 +1,256 @@
-import { useState } from "react";
-import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRoute } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
-import { 
-  ArrowLeft, 
-  Mail, 
-  Phone, 
-  Building, 
-  MapPin, 
-  Calendar, 
-  DollarSign,
-  Search,
-  Filter,
-  Plus,
-  MoreHorizontal
-} from "lucide-react";
-import { format } from "date-fns";
-
-interface CustomerProfileData {
-  customer: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    company?: string;
-    category?: string;
-    profileImage?: string;
-    totalValue: string;
-    averageJobValue: string;
-    jobsCompleted: number;
-    createdAt: string;
-  };
-  jobs: Array<{
-    id: string;
-    jobId: string;
-    address: string;
-    status: string;
-    appointmentDate?: string;
-    dueDate?: string;
-    totalValue: string;
-    createdAt: string;
-  }>;
-}
+import { ArrowLeft, Plus, Search, Phone, Mail, Building2, ChevronDown } from "lucide-react";
+import { useLocation } from "wouter";
+import { useState } from "react";
 
 export default function CustomerProfile() {
-  const { id } = useParams<{ id: string }>();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [, params] = useRoute("/customers/:id");
+  const [, setLocation] = useLocation();
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: profileData, isLoading } = useQuery<CustomerProfileData>({
-    queryKey: [`/api/customers/${id}/profile`],
-    enabled: !!id,
+  const { data: customer } = useQuery<any>({
+    queryKey: [`/api/customers/${params?.id}/profile`],
   });
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
-  };
-
-  const getAvatarColor = (name: string) => {
-    const colors = ['bg-support-green', 'bg-rpp-red-main', 'bg-support-blue', 'bg-support-yellow'];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-support-green text-white';
-      case 'in_progress':
-        return 'bg-support-blue text-white';
-      case 'scheduled':
-        return 'bg-support-yellow text-black';
-      case 'cancelled':
-        return 'bg-rpp-red-main text-white';
-      default:
-        return 'bg-rpp-grey-border text-rpp-grey-dark';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return '✓';
-      case 'in_progress':
-        return '→';
-      case 'scheduled':
-        return '○';
-      case 'cancelled':
-        return '×';
-      default:
-        return '○';
-    }
-  };
-
-  const filteredJobs = (profileData?.jobs || []).filter((job) => {
-    const matchesSearch = 
-      job.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.jobId?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-rpp-grey-border rounded w-1/4"></div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="h-64 bg-rpp-grey-border rounded-xl"></div>
-            </div>
-            <div className="h-64 bg-rpp-grey-border rounded-xl"></div>
-          </div>
-        </div>
-      </div>
-    );
+  if (!customer) {
+    return <div className="p-6">Loading...</div>;
   }
 
-  if (!profileData) {
-    return (
-      <div className="p-6">
-        <div className="text-center">
-          <p className="text-rpp-grey-light">Customer not found</p>
-          <Link href="/customers">
-            <Button variant="outline" className="mt-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Customers
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const stats = [
+    { label: "Total Sales", value: `$${customer.totalValue || 0}`, color: "text-rpp-red-main" },
+    { label: "Average Job Value", value: `$${customer.averageJobValue || 0}`, color: "text-rpp-red-main" },
+    { label: "Jobs Completed", value: customer.jobsCompleted || 0, color: "text-rpp-grey-dark" },
+  ];
 
-  const { customer, jobs } = profileData;
+  const jobsList = [
+    {
+      id: 1,
+      address: "16 Collins Street, Plumpton NSW 6018 2761",
+      date: "Aug 07, 2025",
+      dueDate: "Due Aug 09",
+      status: "Completed",
+      statusColor: "bg-green-50 text-support-green border-support-green",
+      price: "$380.00"
+    },
+    {
+      id: 2,
+      address: "42 Martin Place, Sydney NSW 2000",
+      date: "Aug 10, 2025",
+      dueDate: "Due Aug 12",
+      status: "In Progress",
+      statusColor: "bg-yellow-50 text-support-yellow border-support-yellow",
+      price: "$520.00"
+    },
+    {
+      id: 3,
+      address: "18 Beach Road, Bondi NSW 2026",
+      date: "Aug 14, 2025",
+      dueDate: "Due Aug 16",
+      status: "Scheduled",
+      statusColor: "bg-blue-50 text-support-blue border-support-blue",
+      price: "$450.00"
+    }
+  ];
+
+  const initials = customer.firstName && customer.lastName 
+    ? `${customer.firstName[0]}${customer.lastName[0]}`.toUpperCase()
+    : "NA";
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <Link href="/customers">
-            <Button variant="outline" size="sm" data-testid="button-back-customers">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Customers
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-[1400px] mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocation("/customers")}
+              className="text-rpp-grey-medium hover:text-rpp-grey-dark"
+            >
+              <ArrowLeft className="w-4 h-4" />
             </Button>
-          </Link>
-          <div>
-            <h2 className="text-2xl font-bold text-rpp-grey-dark" data-testid="text-customer-name">
-              {customer.firstName} {customer.lastName}
-            </h2>
-            <p className="text-rpp-grey-light">Customer Profile</p>
+            <div>
+              <h1 className="text-2xl font-bold text-rpp-grey-dark">
+                {customer.firstName} {customer.lastName}
+              </h1>
+              <p className="text-sm text-rpp-grey-medium">Customer Profile</p>
+            </div>
           </div>
+          <Button 
+            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-full px-6"
+            onClick={() => setLocation("/jobs/new")}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create new job
+          </Button>
         </div>
-        <Button className="bg-rpp-red-main hover:bg-rpp-red-dark text-white" data-testid="button-create-job">
-          <Plus className="w-4 h-4 mr-2" />
-          Create new job
-        </Button>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content - Jobs */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4">
-            <Card className="border-rpp-grey-border">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-rpp-red-main" data-testid="text-total-value">
-                  ${customer.totalValue}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {stats.map((stat, index) => (
+            <Card key={index} className="bg-white border-0 rounded-2xl shadow-sm">
+              <CardContent className="p-6 text-center">
+                <div className={`text-3xl font-bold ${stat.color} mb-1`}>
+                  {stat.value}
                 </div>
-                <div className="text-sm text-rpp-grey-light">Total Sales</div>
+                <div className="text-sm text-rpp-grey-medium">{stat.label}</div>
               </CardContent>
             </Card>
-            <Card className="border-rpp-grey-border">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-support-blue" data-testid="text-average-value">
-                  ${customer.averageJobValue}
-                </div>
-                <div className="text-sm text-rpp-grey-light">Average Job Value</div>
-              </CardContent>
-            </Card>
-            <Card className="border-rpp-grey-border">
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-support-green" data-testid="text-jobs-completed">
-                  {customer.jobsCompleted}
-                </div>
-                <div className="text-sm text-rpp-grey-light">Jobs Completed</div>
-              </CardContent>
-            </Card>
-          </div>
+          ))}
+        </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Jobs Section */}
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-semibold text-rpp-grey-dark">
-                  Jobs
-                </CardTitle>
-                <Button variant="outline" size="sm" data-testid="button-create-job-secondary">
-                  + Create new job
-                </Button>
-              </div>
-              <p className="text-sm text-rpp-grey-light">
-                Easily access and manage upcoming and delivered jobs for this customer.
-              </p>
-            </CardHeader>
-            <CardContent>
-              {/* Search and Filter */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-rpp-grey-light w-4 h-4" />
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="bg-white border-0 rounded-2xl shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-rpp-grey-dark">Jobs</h2>
+                    <p className="text-sm text-rpp-grey-medium">
+                      Easily access and manage upcoming and delivered jobs for this customer.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    className="text-rpp-red-main hover:bg-rpp-red-lighter text-sm font-semibold"
+                    onClick={() => setLocation("/jobs/new")}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Create new job
+                  </Button>
+                </div>
+
+                {/* Search and Filters */}
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-medium" />
                     <Input
+                      type="text"
                       placeholder="Search jobs by address..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
-                      data-testid="input-search-jobs"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 border-rpp-grey-border rounded-lg"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-32" data-testid="select-status-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="scheduled">Pending</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Button variant="outline" className="border-rpp-grey-border rounded-lg text-rpp-grey-dark">
+                    All Status
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                  <Button variant="outline" className="border-rpp-grey-border rounded-lg text-rpp-grey-dark">
+                    Filters
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" data-testid="button-filters">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filters
-                </Button>
-              </div>
 
-              {/* Jobs List */}
-              <div className="space-y-3">
-                {filteredJobs.length === 0 ? (
-                  <div className="text-center py-8 text-rpp-grey-light">
-                    {jobs.length === 0 ? "No jobs found for this customer." : "No jobs match your search criteria."}
-                  </div>
-                ) : (
-                  filteredJobs.map((job) => (
-                    <Link key={job.id} href={`/jobs/${job.jobId}`}>
-                      <div className="border border-rpp-grey-border rounded-lg p-4 hover:bg-rpp-grey-bg transition-colors cursor-pointer" data-testid={`job-card-${job.id}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${getStatusColor(job.status)}`}>
-                              {getStatusIcon(job.status)}
-                            </div>
-                            <div>
-                              <div className="font-medium text-rpp-grey-dark" data-testid={`text-job-address-${job.id}`}>
-                                {job.address}
-                              </div>
-                              <div className="text-sm text-rpp-grey-light">
-                                {job.appointmentDate ? format(new Date(job.appointmentDate), 'MMM dd, yyyy') : 'No appointment set'} • 
-                                {job.dueDate ? ` Due ${format(new Date(job.dueDate), 'MMM dd')}` : ' No due date'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <Badge variant="outline" className={getStatusColor(job.status)} data-testid={`badge-status-${job.id}`}>
-                              {job.status.charAt(0).toUpperCase() + job.status.slice(1).replace('_', ' ')}
-                            </Badge>
-                            <div className="text-right">
-                              <div className="font-medium text-rpp-grey-dark" data-testid={`text-job-value-${job.id}`}>
-                                ${job.totalValue}
-                              </div>
-                              <div className="text-sm text-rpp-grey-light">
-                                {format(new Date(job.createdAt), 'MMM dd')}
-                              </div>
-                            </div>
-                            <Button variant="ghost" size="sm" data-testid={`button-job-actions-${job.id}`}>
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
+                {/* Jobs List */}
+                <div className="space-y-3">
+                  {jobsList.map((job) => (
+                    <div
+                      key={job.id}
+                      className="flex items-center gap-4 p-4 rounded-xl border border-rpp-grey-border hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-rpp-red-lighter flex items-center justify-center flex-shrink-0">
+                        <div className="w-5 h-5 rounded-full bg-rpp-red-main"></div>
                       </div>
-                    </Link>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar - Customer Details */}
-        <div className="space-y-6">
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-rpp-grey-dark">
-                Customer Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Profile Section */}
-              <div className="text-center">
-                <div className="relative inline-block">
-                  <Avatar className="w-20 h-20">
-                    <AvatarImage src={customer.profileImage} alt={`${customer.firstName} ${customer.lastName}`} />
-                    <AvatarFallback className={`${getAvatarColor(customer.firstName)} text-white text-xl font-semibold`}>
-                      {getInitials(customer.firstName, customer.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-support-green rounded-full border-2 border-white"></div>
-                </div>
-                <h3 className="mt-3 font-semibold text-rpp-grey-dark" data-testid="text-sidebar-customer-name">
-                  {customer.firstName} {customer.lastName}
-                </h3>
-                {customer.company && (
-                  <p className="text-sm text-rpp-grey-light" data-testid="text-customer-company">
-                    {customer.company}
-                  </p>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Contact Information */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Mail className="w-4 h-4 text-rpp-grey-light" />
-                  <span className="text-sm text-rpp-grey-dark" data-testid="text-customer-email">
-                    {customer.email}
-                  </span>
-                </div>
-                {customer.phone && (
-                  <div className="flex items-center space-x-3">
-                    <Phone className="w-4 h-4 text-rpp-grey-light" />
-                    <span className="text-sm text-rpp-grey-dark" data-testid="text-customer-phone">
-                      {customer.phone}
-                    </span>
-                  </div>
-                )}
-                {customer.company && (
-                  <div className="flex items-center space-x-3">
-                    <Building className="w-4 h-4 text-rpp-grey-light" />
-                    <span className="text-sm text-rpp-grey-dark" data-testid="text-sidebar-customer-company">
-                      {customer.company}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Category */}
-              {customer.category && (
-                <>
-                  <div>
-                    <label className="text-sm font-medium text-rpp-grey-dark">Category</label>
-                    <div className="mt-1">
-                      <Badge variant="outline" data-testid="badge-customer-category">
-                        {customer.category}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-rpp-grey-dark mb-1">{job.address}</p>
+                        <p className="text-sm text-rpp-grey-medium">
+                          {job.date} • {job.dueDate}
+                        </p>
+                      </div>
+                      <Badge className={`${job.statusColor} border rounded-full px-3 py-1 text-xs font-semibold`}>
+                        {job.status}
                       </Badge>
+                      <div className="text-lg font-bold text-rpp-grey-dark">
+                        {job.price}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Customer Details Sidebar */}
+          <div className="space-y-6">
+            <Card className="bg-white border-0 rounded-2xl shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold text-rpp-grey-dark mb-6">Customer Details</h3>
+
+                {/* Avatar and Name */}
+                <div className="flex flex-col items-center mb-6">
+                  <div className="w-20 h-20 rounded-full bg-rpp-red-main flex items-center justify-center mb-3">
+                    <span className="text-2xl font-bold text-white">{initials}</span>
+                  </div>
+                  <h4 className="text-lg font-bold text-rpp-grey-dark">
+                    {customer.firstName} {customer.lastName}
+                  </h4>
+                  <p className="text-sm text-rpp-grey-medium">{customer.company || 'Wilson Photography Co.'}</p>
+                </div>
+
+                {/* Contact Information */}
+                <div className="space-y-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <Mail className="w-4 h-4 text-rpp-grey-medium mt-1" />
+                    <div>
+                      <p className="text-xs text-rpp-grey-medium mb-1">Email</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.email || 'emma.wilson@example.com'}</p>
                     </div>
                   </div>
-                  <Separator />
-                </>
-              )}
-
-              {/* Customer Notes */}
-              <div>
-                <label className="text-sm font-medium text-rpp-grey-dark">Customer notes</label>
-                <div className="mt-2 text-sm text-rpp-grey-light">
-                  No category
+                  <div className="flex items-start gap-3">
+                    <Phone className="w-4 h-4 text-rpp-grey-medium mt-1" />
+                    <div>
+                      <p className="text-xs text-rpp-grey-medium mb-1">Phone</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.phone || '+61 488 765 432'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Building2 className="w-4 h-4 text-rpp-grey-medium mt-1" />
+                    <div>
+                      <p className="text-xs text-rpp-grey-medium mb-1">Company</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.company || 'Wilson Photography Co.'}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                {/* Category */}
+                <div className="mb-6">
+                  <p className="text-xs text-rpp-grey-medium mb-2">Category</p>
+                  <Badge className="bg-rpp-grey-bg text-rpp-grey-dark border-0 rounded-lg px-3 py-1">
+                    residential
+                  </Badge>
+                </div>
+
+                {/* Customer Notes */}
+                <div className="mb-6">
+                  <p className="text-xs text-rpp-grey-medium mb-2">Customer notes</p>
+                  <p className="text-sm text-rpp-grey-light italic">No category</p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-rpp-grey-border text-rpp-grey-dark hover:bg-rpp-grey-bg rounded-lg"
+                  >
+                    Edit Customer
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-rpp-grey-border text-rpp-grey-dark hover:bg-rpp-grey-bg rounded-lg"
+                  >
+                    Delete Customer
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
