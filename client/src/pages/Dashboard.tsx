@@ -98,21 +98,21 @@ export default function Dashboard() {
             className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
             data-testid="card-active-projects"
           >
-            <CardContent className="p-7">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center shadow-lg">
-                    <FolderOpen className="w-6 h-6 text-rpp-red-main" />
+            <CardContent className="p-6">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center">
+                    <FolderOpen className="w-5 h-5 text-rpp-red-main" />
                   </div>
-                  <span className="text-xs font-semibold text-rpp-grey-medium uppercase tracking-[0.08em]">Active Projects</span>
+                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
+                    <TrendingUp className="w-3 h-3" />
+                    <span>+12%</span>
+                  </div>
                 </div>
-                <div className="h-1 w-16 bg-gradient-to-r from-rpp-red-main to-rpp-red-light rounded-full"></div>
-                <div>
-                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight mb-2">{activeProjects}</p>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-4 h-4" />
-                    <span>+4 last month</span>
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Active Projects</p>
+                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{activeProjects}</p>
+                  <p className="text-xs text-rpp-grey-light">vs last month</p>
                 </div>
               </div>
             </CardContent>
@@ -123,21 +123,21 @@ export default function Dashboard() {
             className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
             data-testid="card-leads"
           >
-            <CardContent className="p-7">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Users className="w-6 h-6 text-support-green" />
+            <CardContent className="p-6">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-support-green" />
                   </div>
-                  <span className="text-xs font-semibold text-rpp-grey-medium uppercase tracking-[0.08em]">Leads</span>
-                </div>
-                <div className="h-1 w-16 bg-gradient-to-r from-support-green to-green-400 rounded-full"></div>
-                <div>
-                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight mb-2">{totalLeads}</p>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-4 h-4" />
+                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
+                    <TrendingUp className="w-3 h-3" />
                     <span>+23%</span>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Media Assets</p>
+                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{totalLeads}</p>
+                  <p className="text-xs text-rpp-grey-light">vs last month</p>
                 </div>
               </div>
             </CardContent>
@@ -148,21 +148,21 @@ export default function Dashboard() {
             className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
             data-testid="card-revenue"
           >
-            <CardContent className="p-7">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center shadow-lg">
-                    <DollarSign className="w-6 h-6 text-rpp-red-main" />
+            <CardContent className="p-6">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-rpp-red-main" />
                   </div>
-                  <span className="text-xs font-semibold text-rpp-grey-medium uppercase tracking-[0.08em]">Monthly Revenue</span>
-                </div>
-                <div className="h-1 w-16 bg-gradient-to-r from-rpp-red-main to-rpp-red-light rounded-full"></div>
-                <div>
-                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight mb-2">${monthlyRevenue}k</p>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-4 h-4" />
+                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
+                    <TrendingUp className="w-3 h-3" />
                     <span>+8%</span>
                   </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Monthly Revenue</p>
+                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">${monthlyRevenue}k</p>
+                  <p className="text-xs text-rpp-grey-light">vs last month</p>
                 </div>
               </div>
             </CardContent>
@@ -173,21 +173,21 @@ export default function Dashboard() {
             className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
             data-testid="card-clients"
           >
-            <CardContent className="p-7">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center shadow-lg">
-                    <UserCheck className="w-6 h-6 text-support-green" />
+            <CardContent className="p-6">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center">
+                    <UserCheck className="w-5 h-5 text-support-green" />
                   </div>
-                  <span className="text-xs font-semibold text-rpp-grey-medium uppercase tracking-[0.08em]">Active Clients</span>
+                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
+                    <TrendingUp className="w-3 h-3" />
+                    <span>+5%</span>
+                  </div>
                 </div>
-                <div className="h-1 w-16 bg-gradient-to-r from-support-green to-green-400 rounded-full"></div>
-                <div>
-                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight mb-2">{activeClients}</p>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-4 h-4" />
-                    <span>+5 last month</span>
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Active Clients</p>
+                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{activeClients}</p>
+                  <p className="text-xs text-rpp-grey-light">vs last month</p>
                 </div>
               </div>
             </CardContent>
