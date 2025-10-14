@@ -191,3 +191,35 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     </div>
   );
 }
+
+/* Global Styles */
+/* You would typically put this in a global CSS file or a styled-components setup */
+/* For this example, we'll assume it's available in the scope */
+/* This is a placeholder for where your CSS would be applied */
+/* In a real React app, you'd use CSS Modules, Tailwind classes, or styled-components */
+
+/* Example CSS for active navigation items */
+/* NOTE: This is not directly in the React component but would be in your CSS */
+
+/* .nav-item.active {
+  background-color: var(--rpp-red-main) !important;
+  color: white !important;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(232, 120, 84, 0.25);
+}
+
+.nav-item.active .lucide {
+  color: white !important;
+} */
+
+/* Applying the gradient to the active state */
+.nav-item.active {
+  background: linear-gradient(135deg, var(--rpp-red-main) 0%, var(--rpp-red-light) 100%) !important;
+  color: white !important;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(232, 120, 84, 0.25);
+}
+
+.nav-item.active .lucide {
+  color: white !important;
+}
