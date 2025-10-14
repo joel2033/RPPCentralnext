@@ -194,157 +194,152 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Main Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Needs Your Attention - Left Column (1/3 width) */}
-          <div className="lg:col-span-1">
-            <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-needs-attention">
-              <CardContent className="p-7">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-rpp-grey-dark">Needs Your Attention</h2>
-                    <div className="w-7 h-7 bg-rpp-red-main rounded-full flex items-center justify-center shadow-md">
-                      <span className="text-xs font-bold text-white">{needsAttentionItems.length}</span>
+        {/* Needs Your Attention */}
+        <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-needs-attention">
+          <CardContent className="p-7">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-rpp-grey-dark">Needs Your Attention</h2>
+                <div className="w-7 h-7 bg-rpp-red-main rounded-full flex items-center justify-center shadow-md">
+                  <span className="text-xs font-bold text-white">{needsAttentionItems.length}</span>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-sm font-semibold text-rpp-red-main hover:bg-rpp-red-lighter"
+                data-testid="button-view-all"
+              >
+                View All
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {needsAttentionItems.map((item, index) => (
+                <div 
+                  key={item.id} 
+                  className={`group relative flex items-start gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer ${
+                    index < needsAttentionItems.length - 1 ? 'after:absolute after:inset-x-5 after:bottom-0 after:h-px after:bg-rpp-grey-border after:opacity-50' : ''
+                  }`}
+                  data-testid={`attention-item-${item.id}`}
+                >
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                    item.type === 'urgent' 
+                      ? 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light' 
+                      : 'bg-gradient-to-br from-green-50 to-green-100'
+                  }`}>
+                    <item.icon className={`w-6 h-6 ${
+                      item.type === 'urgent' ? 'text-rpp-red-main' : 'text-support-green'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-rpp-grey-dark text-base">{item.title}</p>
+                        {item.type === 'urgent' && (
+                          <Badge className="bg-rpp-red-lighter text-rpp-red-main text-xs px-2.5 py-0.5 font-bold border-0 rounded-full">
+                            Urgent
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm text-rpp-grey-medium font-medium mb-3">{item.description}</p>
+                    <div className="flex items-center gap-5 text-xs text-rpp-grey-light font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {item.time}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Circle className="w-1.5 h-1.5 fill-current" />
+                        {item.client}
+                      </span>
                     </div>
                   </div>
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="text-sm font-semibold text-rpp-red-main hover:bg-rpp-red-lighter"
-                    data-testid="button-view-all"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-rpp-red-main hover:bg-rpp-red-lighter font-bold text-sm px-5 rounded-xl"
+                    data-testid={`button-view-${item.id}`}
                   >
-                    View All
+                    View
+                    <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
+              ))}
+            </div>
 
-                <div className="space-y-4">
-                  {needsAttentionItems.map((item, index) => (
-                    <div 
-                      key={item.id} 
-                      className={`group relative flex items-start gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer ${
-                        index < needsAttentionItems.length - 1 ? 'after:absolute after:inset-x-5 after:bottom-0 after:h-px after:bg-rpp-grey-border after:opacity-50' : ''
-                      }`}
-                      data-testid={`attention-item-${item.id}`}
-                    >
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
-                        item.type === 'urgent' 
-                          ? 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light' 
-                          : 'bg-gradient-to-br from-green-50 to-green-100'
-                      }`}>
-                        <item.icon className={`w-6 h-6 ${
-                          item.type === 'urgent' ? 'text-rpp-red-main' : 'text-support-green'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3 mb-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-bold text-rpp-grey-dark text-base">{item.title}</p>
-                            {item.type === 'urgent' && (
-                              <Badge className="bg-rpp-red-lighter text-rpp-red-main text-xs px-2.5 py-0.5 font-bold border-0 rounded-full">
-                                Urgent
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-sm text-rpp-grey-medium font-medium mb-3">{item.description}</p>
-                        <div className="flex items-center gap-5 text-xs text-rpp-grey-light font-semibold">
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" />
-                            {item.time}
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <Circle className="w-1.5 h-1.5 fill-current" />
-                            {item.client}
-                          </span>
-                        </div>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-rpp-red-main hover:bg-rpp-red-lighter font-bold text-sm px-5 rounded-xl"
-                        data-testid={`button-view-${item.id}`}
-                      >
-                        View
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Button>
-                    </div>
-                  ))}
+            <Button 
+              variant="link" 
+              className="w-full mt-6 text-rpp-grey-medium hover:text-rpp-grey-dark text-sm font-bold"
+              data-testid="button-mark-all-read"
+            >
+              Mark All As Read
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Revenue Overview - Full Width */}
+        <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-revenue-overview">
+          <CardContent className="p-7">
+            <div className="space-y-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Revenue Overview</h2>
+                  <p className="text-sm text-rpp-grey-medium font-medium">Monthly performance result</p>
                 </div>
-
-                <Button 
-                  variant="link" 
-                  className="w-full mt-6 text-rpp-grey-medium hover:text-rpp-grey-dark text-sm font-bold"
-                  data-testid="button-mark-all-read"
-                >
-                  Mark All As Read
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Revenue Overview - Right Column (2/3 width) */}
-          <div className="lg:col-span-2">
-            <Card className="bg-white border-0 rounded-3xl shadow-rpp-card h-full" data-testid="card-revenue-overview">
-              <CardContent className="p-7">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Revenue Overview</h2>
-                    <p className="text-sm text-rpp-grey-medium font-medium">Monthly performance result</p>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight">${monthlyRevenue}k</p>
-                    <p className="text-xs text-rpp-grey-light font-semibold uppercase tracking-wider">This month</p>
-                  </div>
-
-                  <div className="h-56 -mx-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={revenueData}>
-                        <defs>
-                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#FF6B4A" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#FF6B4A" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                        <XAxis 
-                          dataKey="month" 
-                          tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'white', 
-                            border: 'none',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#FF6B4A"
-                          strokeWidth={3}
-                          fill="url(#colorRevenue)"
-                          dot={false}
-                          activeDot={{ r: 6, fill: '#FF6B4A', strokeWidth: 3, stroke: '#fff' }}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                
+                <div className="space-y-1 text-right">
+                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight">${monthlyRevenue}k</p>
+                  <p className="text-xs text-rpp-grey-light font-semibold uppercase tracking-wider">This month</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+              </div>
+
+              <div className="h-56 -mx-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueData}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FF6B4A" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#FF6B4A" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#FF6B4A"
+                      strokeWidth={3}
+                      fill="url(#colorRevenue)"
+                      dot={false}
+                      activeDot={{ r: 6, fill: '#FF6B4A', strokeWidth: 3, stroke: '#fff' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Services This Month */}
         <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-services">
