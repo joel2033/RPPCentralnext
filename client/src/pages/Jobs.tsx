@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Calendar, User, MoreVertical } from "lucide-react";
+import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 
 export default function Jobs() {
@@ -82,13 +82,15 @@ export default function Jobs() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-white rounded-xl border border-gray-200"></div>
-            ))}
+      <div className="min-h-screen bg-rpp-grey-surface p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-rpp-grey-bg rounded w-1/4"></div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-white rounded-2xl shadow-sm"></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -96,61 +98,67 @@ export default function Jobs() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-rpp-grey-surface">
       <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">Jobs</h1>
-            <p className="text-sm text-gray-600">
-              on time · ({successfulJobsCount}) successful
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              Find any job you've ever booked, delivered or completed.
-            </p>
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-2xl font-bold text-rpp-grey-dark">
+                Jobs <span className="text-sm font-medium text-rpp-grey-medium">on time - ({successfulJobsCount}) successful</span>
+              </h1>
+              <p className="text-sm text-rpp-grey-medium mt-1">
+                Find any job you've ever booked, delivered or completed.
+              </p>
+            </div>
+            <Button 
+              onClick={() => setShowCreateModal(true)}
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl font-semibold"
+              data-testid="button-create-job"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create new job
+            </Button>
           </div>
-          <Button 
-            onClick={() => setShowCreateModal(true)}
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-lg"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create new job
-          </Button>
         </div>
 
         {/* Search and Filter Bar */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
             <Input
               placeholder="Search for jobs, people, orders or products"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-gray-200 bg-white rounded-lg"
+              className="pl-10 border-rpp-grey-border bg-white rounded-lg h-11"
+              data-testid="input-search-jobs"
             />
           </div>
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
+          <div className="flex items-center gap-2">
             <Button
-              variant={statusFilter === "on_time" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setStatusFilter("on_time")}
-              className={statusFilter === "on_time" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+              className={statusFilter === "on_time" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
+              data-testid="filter-on-time"
             >
               On time
             </Button>
             <Button
-              variant={statusFilter === "all" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setStatusFilter("all")}
-              className={statusFilter === "all" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+              className={statusFilter === "all" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
+              data-testid="filter-all"
             >
               All
             </Button>
             <Button
-              variant={statusFilter === "overdue" ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => setStatusFilter("overdue")}
-              className={statusFilter === "overdue" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+              className={statusFilter === "overdue" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
+              data-testid="filter-overdue"
             >
               Overdue
             </Button>
@@ -158,22 +166,23 @@ export default function Jobs() {
         </div>
 
         {/* Jobs List */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {filteredJobs.map((job: any) => (
             <Card 
               key={job.id} 
-              className="border border-gray-200 hover:shadow-md transition-shadow cursor-pointer bg-white rounded-xl"
+              className="border-0 hover:shadow-lg transition-shadow cursor-pointer bg-white rounded-2xl shadow-sm"
               onClick={() => {
                 const navigationId = job.jobId || job.id;
                 if (navigationId) {
                   setLocation(`/jobs/${navigationId}`);
                 }
               }}
+              data-testid={`card-job-${job.id}`}
             >
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-5">
                   {/* Property thumbnail */}
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="w-24 h-24 bg-rpp-grey-bg rounded-xl overflow-hidden flex-shrink-0">
                     {job.propertyImage ? (
                       <img 
                         src={job.propertyImage} 
@@ -181,29 +190,30 @@ export default function Jobs() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
-                        <span className="text-2xl">🏠</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
+                        <span className="text-3xl">🏠</span>
                       </div>
                     )}
                   </div>
 
                   {/* Job details */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 mb-2 text-base">
+                    <h3 className="font-semibold text-rpp-grey-dark mb-2 text-base">
                       {job.address}
                     </h3>
                     
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>{formatDate(job.appointmentDate)}</span>
+                    <div className="flex items-center gap-4 text-sm text-rpp-grey-medium">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span className="font-medium">{formatDate(job.appointmentDate)}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span>{formatTime(job.appointmentDate)} ({calculateDuration(job.appointmentDate)})</span>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span className="font-medium">{formatTime(job.appointmentDate)} ({calculateDuration(job.appointmentDate)})</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        <span>{getCustomerName(job.customerId)}</span>
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5" />
+                        <span className="font-medium">{getCustomerName(job.customerId)}</span>
                       </div>
                     </div>
                   </div>
@@ -212,18 +222,18 @@ export default function Jobs() {
                   <div className="flex items-center gap-4 flex-shrink-0">
                     <Badge 
                       variant="outline" 
-                      className={`${getStatusColor(job.status || 'booked')} border rounded-full px-3 py-1 text-xs font-medium`}
+                      className={`${getStatusColor(job.status || 'booked')} border-0 rounded-lg px-3 py-1.5 text-xs font-semibold`}
                     >
                       {job.status === 'completed' ? 'Delivered' : job.status === 'scheduled' ? 'Booked' : job.status || 'Booked'}
                     </Badge>
                     
-                    <div className="text-lg font-bold text-gray-900">
+                    <div className="text-lg font-bold text-rpp-grey-dark min-w-[90px] text-right">
                       ${(job.totalAmount || 350).toFixed(2)}
                     </div>
 
                     {/* Team member avatars */}
                     <div className="flex -space-x-2">
-                      <div className="w-8 h-8 rounded-full bg-orange-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
+                      <div className="w-8 h-8 rounded-full bg-rpp-red-main border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
                         {getCustomerName(job.customerId).split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
@@ -231,8 +241,22 @@ export default function Jobs() {
                       </div>
                     </div>
 
-                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-rpp-grey-light hover:text-rpp-grey-dark h-8 w-8 p-0"
+                      data-testid={`button-menu-${job.id}`}
+                    >
                       <MoreVertical className="w-5 h-5" />
+                    </Button>
+
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-rpp-grey-light hover:text-rpp-grey-dark h-8 w-8 p-0"
+                      data-testid={`button-expand-${job.id}`}
+                    >
+                      <ChevronDown className="w-5 h-5" />
                     </Button>
                   </div>
                 </div>
@@ -243,13 +267,14 @@ export default function Jobs() {
 
         {/* Empty State */}
         {filteredJobs.length === 0 && jobs.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+          <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
             <div className="text-6xl mb-4">📸</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No jobs yet</h3>
-            <p className="text-gray-500 mb-6">Create your first photography job to get started</p>
+            <h3 className="text-xl font-semibold text-rpp-grey-dark mb-2">No jobs yet</h3>
+            <p className="text-rpp-grey-medium mb-6">Create your first photography job to get started</p>
             <Button 
               onClick={() => setShowCreateModal(true)}
-              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl font-semibold"
+              data-testid="button-create-first-job"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create First Job
@@ -259,10 +284,10 @@ export default function Jobs() {
 
         {/* No search results */}
         {filteredJobs.length === 0 && jobs.length > 0 && (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+          <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
             <div className="text-4xl mb-4">🔍</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs found</h3>
-            <p className="text-gray-500">Try adjusting your search terms</p>
+            <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">No jobs found</h3>
+            <p className="text-rpp-grey-medium">Try adjusting your search terms</p>
           </div>
         )}
 
