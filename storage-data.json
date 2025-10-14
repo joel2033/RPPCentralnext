@@ -1475,7 +1475,8 @@
       "folderPath": "Photos/Web",
       "editorFolderName": "Photos/Web",
       "partnerFolderName": "Photos/Web",
-      "notes": "Folder: Photos/Web (Token: JmSHeaFIV9)"
+      "notes": "Folder: Photos/Web (Token: JmSHeaFIV9)",
+      "expiresAt": null
     },
     "43c93dae-848f-48ba-bc60-506f407fa802": {
       "id": "43c93dae-848f-48ba-bc60-506f407fa802",
@@ -1552,6 +1553,22 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified, Folder Token: JmSHeaFIV9",
       "uploadedAt": "2025-10-14T00:15:44.865Z"
+    },
+    "bc1b1eb6-24cc-4c3b-8ea1-5622e6be1a6b": {
+      "id": "bc1b1eb6-24cc-4c3b-8ea1-5622e6be1a6b",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "orderId": null,
+      "fileName": ".folder_placeholder",
+      "originalName": ".folder_placeholder",
+      "fileSize": 0,
+      "mimeType": "application/x-folder-placeholder",
+      "downloadUrl": "",
+      "firebaseUrl": "fJtdwLScKQ",
+      "uploadedAt": "2025-10-14T01:41:15.178Z",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "partnerFolderName": "Photos",
+      "notes": "Folder: Photos (Token: fJtdwLScKQ)"
     }
   },
   "notifications": {
@@ -2010,7 +2027,7 @@
       "createdAt": "2025-10-13T22:50:44.733Z"
     }
   },
-  "orderCounter": 7,
+  "orderCounter": 8,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -2084,20 +2101,12 @@
       "expiresAt": "2025-09-23T10:44:33.937Z",
       "status": "confirmed"
     },
-    "#00003": {
-      "orderNumber": "#00003",
-      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
-      "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "reservedAt": "2025-10-13T11:30:27.925Z",
-      "expiresAt": "2025-10-13T13:30:27.925Z",
-      "status": "reserved"
-    },
-    "#00004": {
-      "orderNumber": "#00004",
-      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
-      "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "reservedAt": "2025-10-13T11:48:16.255Z",
-      "expiresAt": "2025-10-13T13:48:16.255Z",
+    "#00007": {
+      "orderNumber": "#00007",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "reservedAt": "2025-10-14T01:43:48.850Z",
+      "expiresAt": "2025-10-14T03:43:48.850Z",
       "status": "reserved"
     }
   }
