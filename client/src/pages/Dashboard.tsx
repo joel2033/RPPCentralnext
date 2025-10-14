@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Dashboard() {
@@ -290,7 +290,7 @@ export default function Dashboard() {
 
                   <div className="h-56 -mx-2">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={revenueData}>
+                      <AreaChart data={revenueData}>
                         <defs>
                           <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#FF6B4A" stopOpacity={0.1}/>
@@ -319,16 +319,16 @@ export default function Dashboard() {
                             boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                           }}
                         />
-                        <Line 
-                          type="monotone" 
-                          dataKey="value" 
-                          stroke="#FF6B4A" 
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#FF6B4A"
                           strokeWidth={3}
                           fill="url(#colorRevenue)"
                           dot={false}
                           activeDot={{ r: 6, fill: '#FF6B4A', strokeWidth: 3, stroke: '#fff' }}
                         />
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
