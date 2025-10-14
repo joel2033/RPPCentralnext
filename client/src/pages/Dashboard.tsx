@@ -81,7 +81,7 @@ export default function Dashboard() {
   const activeClients = customers.length || 42;
 
   return (
-    <div className="min-h-screen bg-rpp-cream p-8">
+    <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Welcome Section */}
         <div className="space-y-2">
