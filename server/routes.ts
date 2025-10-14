@@ -2643,14 +2643,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           accessReason = "Job/order does not belong to your organization";
         }
       } else if (user.role === 'editor') {
-        // Editors can upload to:
-        // 1. Standalone folders (with folderToken) for any job
-        // 2. Orders they're assigned to (when order exists)
-        if (folderToken) {
-          // Allow editor uploads to standalone folders regardless of order status
-          hasUploadAccess = true;
-          accessReason = "Editor access to standalone folder";
-        } else if (orderEntity && orderEntity.assignedTo === userId && ['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
+        // Editors can only upload to orders they're assigned to
+        if (orderEntity && orderEntity.assignedTo === userId && ['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
           hasUploadAccess = true;
           accessReason = "Editor access to assigned order";
         } else if (!orderEntity) {

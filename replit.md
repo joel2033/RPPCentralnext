@@ -23,13 +23,9 @@ Preferred communication style: Simple, everyday language.
 - **Query Refetch Implementation**: Changed from `invalidateQueries` to `refetchQueries` for deterministic data refresh
 - **Async Upload Callback**: Made `onFilesUpload` async to await refetch completion before showing success toast
 - **Query Configuration**: Added `refetchOnMount: 'always'` to folders query for fresh data on every mount
-- **Editor Authorization Fix**: Editors can now upload to standalone folders (with folderToken) without order assignment
-  - Authorization logic now checks for `folderToken` presence to grant editor access
-  - Maintains security by using folderToken as the gating secret
-  - Existing partner/admin checks remain untouched
 - **Upload Flow**: POST /api/upload-firebase → Create EditorUpload record → Refetch queries → Show toast → Gallery updates
-- **Security**: No security issues introduced - folderToken remains the access control mechanism
 - **Technical Details**: FileGallery uses `staleTime: 0`, `gcTime: 0`, and awaits `Promise.all([refetchQueries(...)])` for immediate refresh
+- **Editor Access Control**: Editors can only upload to orders they're assigned to (status: processing or in_progress) - standalone folder uploads restricted to partners/admins only
 
 ## 2025-10-14: File Gallery Loading Indicators - COMPLETED
 - **Loading Spinner Added**: Visual feedback now shows when files are being loaded after upload completion
