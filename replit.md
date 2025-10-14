@@ -18,6 +18,12 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+## 2025-10-14: File Gallery Loading Indicators - COMPLETED
+- **Loading Spinner Added**: Visual feedback now shows when files are being loaded after upload completion
+- **Improved UX**: Spinning wheel with "Loading files..." message appears during data refetch
+- **Skeleton Screens**: Animated placeholder cards show while content is loading
+- **Eliminates Visual Lag**: Users now see clear feedback during the brief period between upload completion and image display
+
 ## 2025-10-13: Standalone Folder File Upload System - COMPLETED
 - **Removed Order Requirement**: Folders created via "Add Content" button no longer require order selection
 - **Tokenized Folder System**: Standalone folders use unique nanoid(10) tokens for Firebase organization

@@ -229,9 +229,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   }, [foldersData]);
 
   // Early return for loading state - must be AFTER all hooks
-  if (isLoading) {
+  if (isLoading || isFoldersLoading) {
     return (
       <div className="space-y-6">
+        <div className="flex items-center justify-center py-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-primary"></div>
+            <p className="text-sm text-gray-500">Loading files...</p>
+          </div>
+        </div>
         {[1, 2, 3].map((i) => (
           <div key={i} className="animate-pulse">
             <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
