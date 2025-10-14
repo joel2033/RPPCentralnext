@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   Calendar as CalendarIcon, 
@@ -13,9 +14,8 @@ import {
   ChevronRight, 
   ChevronDown, 
   Plus,
-  MoreHorizontal,
-  Clock,
-  MapPin
+  Search,
+  Clock
 } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import CreateEventModal from "@/components/modals/CreateEventModal";
@@ -41,6 +41,7 @@ type ViewMode = 'month' | 'week' | 'day';
 
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [miniCalendarDate, setMiniCalendarDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
@@ -48,13 +49,10 @@ export default function Calendar() {
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const [eventTypes, setEventTypes] = useState<EventType[]>([
-    { id: 'job', label: 'Job', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true },
-    { id: 'unavailable', label: 'Unavailable', color: 'text-red-600', bgColor: 'bg-red-100', checked: true },
-    { id: 'lunch', label: 'Lunch', color: 'text-green-600', bgColor: 'bg-green-100', checked: true },
-    { id: 'meeting', label: 'Meeting', color: 'text-purple-600', bgColor: 'bg-purple-100', checked: true },
-    { id: 'training', label: 'Training', color: 'text-yellow-600', bgColor: 'bg-yellow-100', checked: true },
-    { id: 'other', label: 'Other', color: 'text-gray-600', bgColor: 'bg-gray-100', checked: true },
-    { id: 'external', label: 'External Google', color: 'text-indigo-600', bgColor: 'bg-indigo-100', checked: true }
+    { id: 'photo', label: 'Photo Shoots', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true },
+    { id: 'delivery', label: 'Deliveries', color: 'text-green-600', bgColor: 'bg-green-100', checked: true },
+    { id: 'consultation', label: 'Consultations', color: 'text-purple-600', bgColor: 'bg-purple-100', checked: true },
+    { id: 'editing', label: 'Editing', color: 'text-yellow-600', bgColor: 'bg-yellow-100', checked: true },
   ]);
 
   const { data: jobs = [] } = useQuery({
@@ -91,6 +89,14 @@ export default function Calendar() {
     }
   };
 
+  const navigateMiniCalendar = (direction: 'prev' | 'next') => {
+    setMiniCalendarDate(new Date(
+      miniCalendarDate.getFullYear(),
+      miniCalendarDate.getMonth() + (direction === 'next' ? 1 : -1),
+      1
+    ));
+  };
+
   const getJobsForDate = (targetDate: Date) => {
     return (jobs as any[]).filter((job: any) => {
       const jobDate = new Date(job.appointmentDate || job.createdAt);
@@ -99,7 +105,7 @@ export default function Calendar() {
       ...job,
       id: job.jobId,
       title: job.address,
-      type: 'job',
+      type: 'photo',
       time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
@@ -110,13 +116,23 @@ export default function Calendar() {
   };
 
   const getEventsForDate = (targetDate: Date) => {
-    // Mock events for demonstration - in real app this would come from API
     const mockEvents = [
-      { id: 'e1', title: 'EXTERNAL GOOGLE Ellie 5 Edna', type: 'external', time: '08:00-09:00', date: new Date(2025, 8, 5), address: '5 Edna Street' },
-      { id: 'e2', title: 'EXTERNAL GOOGLE Reilly 101 Reid', type: 'external', time: '09:00-10:00', date: new Date(2025, 8, 5), address: '101 Reid Avenue' },
-      { id: 'e3', title: 'EXTERNAL GOOGLE Ellie and another', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 12), address: '12 Ellie Place' },
-      { id: 'e4', title: 'EXTERNAL GOOGLE 105 Elam Place', type: 'external', time: '06:00-08:00', date: new Date(2025, 8, 19), address: '105 Elam Place' },
-      { id: 'e5', title: 'EXTERNAL GOOGLE Glenview', type: 'external', time: '10:00-12:00', date: new Date(2025, 8, 26), address: 'Glenview Terrace' },
+      { id: 'e1', title: 'RESIDENTIAL ...', type: 'photo', time: '09:00', date: new Date(2025, 9, 1), address: '42 Martin Place', allDay: false },
+      { id: 'e2', title: 'All day EXTER...', type: 'editing', time: '', date: new Date(2025, 9, 2), address: 'Matt on Terr...', allDay: true },
+      { id: 'e3', title: 'COMMERCIAL ...', type: 'photo', time: '08:00', date: new Date(2025, 9, 3), address: '18 Beach Road', allDay: false },
+      { id: 'e4', title: 'EDITING SESSI...', type: 'editing', time: '14:00', date: new Date(2025, 9, 3), address: '', allDay: false },
+      { id: 'e5', title: 'DELIVERY', type: 'delivery', time: '10:00', date: new Date(2025, 9, 7), address: '', allDay: false },
+      { id: 'e6', title: 'All day EXTER...', type: 'editing', time: '', date: new Date(2025, 9, 8), address: 'City Office', allDay: true },
+      { id: 'e7', title: 'RESIDENTIAL ...', type: 'photo', time: '09:30', date: new Date(2025, 9, 9), address: '16 Collins Str...', allDay: false },
+      { id: 'e8', title: 'EDITING SESSI...', type: 'editing', time: '13:00', date: new Date(2025, 9, 9), address: '', allDay: false },
+      { id: 'e9', title: 'COMMERCIAL ...', type: 'photo', time: '08:00', date: new Date(2025, 9, 14), address: '25 King Stree...', allDay: false },
+      { id: 'e10', title: 'ADMIN DAY', type: 'consultation', time: '', date: new Date(2025, 9, 15), address: '', allDay: true },
+      { id: 'e11', title: 'DELIVERY', type: 'delivery', time: '11:00', date: new Date(2025, 9, 16), address: '', allDay: false },
+      { id: 'e12', title: 'RESIDENTIAL ...', type: 'photo', time: '10:00', date: new Date(2025, 9, 21), address: '88 Harbour B...', allDay: false },
+      { id: 'e13', title: 'EDITING SESSI...', type: 'editing', time: '09:00', date: new Date(2025, 9, 22), address: '', allDay: false },
+      { id: 'e14', title: 'DELIVERY', type: 'delivery', time: '10:30', date: new Date(2025, 9, 23), address: '', allDay: false },
+      { id: 'e15', title: 'COMMERCIAL ...', type: 'photo', time: '08:00', date: new Date(2025, 9, 28), address: '', allDay: false },
+      { id: 'e16', title: 'CONSULTATION', type: 'consultation', time: '14:00', date: new Date(2025, 9, 29), address: '', allDay: false },
     ];
 
     if (!targetDate || typeof targetDate.toDateString !== 'function') {
@@ -166,76 +182,52 @@ export default function Calendar() {
     return colors[index];
   };
 
-  const getWeekDates = (date: Date) => {
-    const startOfWeek = new Date(date);
-    const day = startOfWeek.getDay();
-    const diff = startOfWeek.getDate() - day;
-    startOfWeek.setDate(diff);
-
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const weekDate = new Date(startOfWeek);
-      weekDate.setDate(startOfWeek.getDate() + i);
-      weekDates.push(weekDate);
-    }
-    return weekDates;
-  };
-
   const getViewTitle = () => {
     const monthNames = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
+    return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+  };
 
-    if (viewMode === 'month') {
-      return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-    } else if (viewMode === 'week') {
-      const weekDates = getWeekDates(currentDate);
-      const startMonth = monthNames[weekDates[0].getMonth()];
-      const endMonth = monthNames[weekDates[6].getMonth()];
-      const startDay = weekDates[0].getDate();
-      const endDay = weekDates[6].getDate();
-      const year = weekDates[0].getFullYear();
-
-      if (startMonth === endMonth) {
-        return `${startMonth} ${startDay} - ${endDay}, ${year}`;
-      } else {
-        return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
-      }
-    } else {
-      return `${monthNames[currentDate.getMonth()]} ${currentDate.getDate()}, ${currentDate.getFullYear()}`;
-    }
+  const getMiniCalendarTitle = () => {
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    return `${monthNames[miniCalendarDate.getMonth()]} ${miniCalendarDate.getFullYear()}`;
   };
 
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDayOfMonth = getFirstDayOfMonth(currentDate);
+  const miniDaysInMonth = getDaysInMonth(miniCalendarDate);
+  const miniFirstDayOfMonth = getFirstDayOfMonth(miniCalendarDate);
   const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const miniDayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   const renderMonthView = () => {
     const days = [];
 
-    // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="p-2 min-h-[120px] border-r border-b border-rpp-grey-border bg-gray-50"></div>);
+      days.push(<div key={`empty-${i}`} className="p-3 min-h-[100px] border-r border-b border-rpp-grey-border bg-gray-50"></div>);
     }
 
-    // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const dayJobs = getJobsForDate(targetDate);
       const dayEvents = getEventsForDate(targetDate);
       const isToday = new Date().toDateString() === targetDate.toDateString();
-      const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
+      const allEvents = [...dayJobs, ...dayEvents];
 
       days.push(
         <div
           key={day}
-          className={`p-2 min-h-[120px] border-r border-b border-rpp-grey-border bg-white hover:bg-gray-50 ${
+          className={`p-3 min-h-[100px] border-r border-b border-rpp-grey-border bg-white hover:bg-gray-50 ${
             isToday ? 'bg-rpp-red-lighter' : ''
           }`}
           data-testid={`calendar-day-${day}`}
         >
-          <div className={`text-sm font-medium mb-2 ${isToday ? 'text-rpp-red-dark' : 'text-gray-700'}`}>
+          <div className={`text-sm font-semibold mb-2 ${isToday ? 'text-rpp-red-dark' : 'text-rpp-grey-dark'}`}>
             {day}
           </div>
           <div className="space-y-1">
@@ -246,16 +238,19 @@ export default function Calendar() {
               return (
                 <div
                   key={event.id || `event-${index}`}
-                  className={`text-xs p-1 rounded text-left cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
+                  className={`text-xs p-1.5 rounded text-left cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
                   title={event.title || event.address}
                   data-testid={`event-${event.id || index}`}
                   onClick={(e) => handleAppointmentClick(event, e)}
                 >
-                  <div className="font-medium truncate">
-                    {event.time && <span className="mr-1">{event.time}</span>}
-                    {(event.title || event.address)?.substring(0, 20)}
-                    {(event.title || event.address)?.length > 20 && '...'}
+                  <div className="font-medium">
+                    {event.allDay && <Clock className="w-3 h-3 inline mr-1" />}
+                    {!event.allDay && event.time && <span className="mr-1">{event.time}</span>}
+                    {event.allDay ? 'All day ' : ''}{event.title}
                   </div>
+                  {event.address && (
+                    <div className="text-xs opacity-75 truncate">+ {event.address}</div>
+                  )}
                 </div>
               );
             })}
@@ -274,7 +269,7 @@ export default function Calendar() {
         {dayNames.map((dayName) => (
           <div
             key={dayName}
-            className="p-4 bg-gray-50 text-center text-sm font-medium text-gray-600 border-r border-b border-gray-200 last:border-r-0"
+            className="p-3 bg-white text-left text-xs font-semibold text-rpp-grey-medium border-r border-b border-rpp-grey-border"
           >
             {dayName}
           </div>
@@ -284,185 +279,108 @@ export default function Calendar() {
     );
   };
 
-  const renderWeekView = () => {
-    const weekDates = getWeekDates(currentDate);
+  const renderMiniCalendar = () => {
+    const days = [];
 
-    return (
-      <div className="grid grid-cols-7">
-        {dayNames.map((dayName, index) => (
-          <div
-            key={dayName}
-            className="p-4 bg-gray-50 text-center text-sm font-medium text-gray-600 border-r border-b border-gray-200 last:border-r-0"
-          >
-            <div>{dayName}</div>
-            <div className="text-lg font-bold text-gray-900">{weekDates[index].getDate()}</div>
-          </div>
-        ))}
-        {weekDates.map((date, index) => {
-          const dayJobs = getJobsForDate(date);
-          const dayEvents = getEventsForDate(date);
-          const isToday = new Date().toDateString() === date.toDateString();
-          const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
+    for (let i = 0; i < miniFirstDayOfMonth; i++) {
+      const prevMonthDays = new Date(miniCalendarDate.getFullYear(), miniCalendarDate.getMonth(), 0).getDate();
+      const day = prevMonthDays - miniFirstDayOfMonth + i + 1;
+      days.push(
+        <div key={`prev-${i}`} className="text-center py-1 text-sm text-gray-400">
+          {day}
+        </div>
+      );
+    }
 
-          return (
-            <div
-              key={index}
-              className={`p-2 min-h-[200px] border-r border-b border-rpp-grey-border bg-white hover:bg-gray-50 ${
-                isToday ? 'bg-rpp-red-lighter' : ''
-              }`}
-              data-testid={`week-day-${index}`}
-            >
-              <div className="space-y-1">
-                {allEvents.map((event: any, eventIndex: number) => {
-                  const eventType = eventTypes.find(type => type.id === event.type);
-                  if (!eventType?.checked) return null;
+    for (let day = 1; day <= miniDaysInMonth; day++) {
+      const targetDate = new Date(miniCalendarDate.getFullYear(), miniCalendarDate.getMonth(), day);
+      const isToday = new Date().toDateString() === targetDate.toDateString();
 
-                  return (
-                    <div
-                      key={event.id || `event-${eventIndex}`}
-                      className={`text-xs p-2 rounded text-left cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
-                      title={event.title || event.address}
-                      data-testid={`week-event-${event.id || eventIndex}`}
-                      onClick={(e) => handleAppointmentClick(event, e)}
-                    >
-                      <div className="font-medium">
-                        {event.time && <div className="text-xs opacity-75">{event.time}</div>}
-                        <div className="truncate">{event.title || event.address}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+      days.push(
+        <div
+          key={day}
+          className={`text-center py-1 text-sm cursor-pointer rounded hover:bg-gray-100 ${
+            isToday ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : 'text-rpp-grey-dark'
+          }`}
+          onClick={() => setCurrentDate(targetDate)}
+        >
+          {day}
+        </div>
+      );
+    }
 
-  const renderDayView = () => {
-    const dayJobs = getJobsForDate(currentDate);
-    const dayEvents = getEventsForDate(currentDate);
-    const isToday = new Date().toDateString() === currentDate.toDateString();
-    const allEvents = [...dayJobs.map((job: any) => ({ ...job, type: 'job', title: job.address, time: job.appointmentDate ? new Date(job.appointmentDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '' })), ...dayEvents];
-
-    // Create hourly time slots
-    const timeSlots = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const timeString = `${hour.toString().padStart(2, '0')}:00`;
-      const hourEvents = allEvents.filter(event => event.time?.startsWith(hour.toString().padStart(2, '0')));
-
-      timeSlots.push(
-        <div key={hour} className="border-b border-gray-200 p-2 min-h-[60px] flex" data-testid={`day-hour-${hour}`}>
-          <div className="w-16 text-sm text-gray-500 pr-4">{timeString}</div>
-          <div className="flex-1 space-y-1">
-            {hourEvents.map((event: any, index: number) => {
-              const eventType = eventTypes.find(type => type.id === event.type);
-              if (!eventType?.checked) return null;
-
-              return (
-                <div
-                  key={event.id || `event-${index}`}
-                  className={`text-sm p-2 rounded cursor-pointer hover:opacity-80 transition-opacity ${eventType?.bgColor || 'bg-gray-100'} ${eventType?.color || 'text-gray-700'}`}
-                  title={event.title || event.address}
-                  data-testid={`day-event-${event.id || index}`}
-                  onClick={(e) => handleAppointmentClick(event, e)}
-                >
-                  <div className="font-medium">
-                    {event.time && <span className="mr-2">{event.time}</span>}
-                    {event.title || event.address}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+    const totalCells = miniFirstDayOfMonth + miniDaysInMonth;
+    const remainingCells = 42 - totalCells;
+    for (let i = 1; i <= remainingCells; i++) {
+      days.push(
+        <div key={`next-${i}`} className="text-center py-1 text-sm text-gray-400">
+          {i}
         </div>
       );
     }
 
     return (
-      <div className="bg-white">
-        <div className={`p-4 border-b border-gray-200 ${isToday ? 'bg-rpp-red-lighter' : 'bg-gray-50'}`}>
-          <div className={`text-lg font-semibold ${isToday ? 'text-rpp-red-dark' : 'text-gray-900'}`}>
-            {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+      <div className="grid grid-cols-7 gap-1">
+        {miniDayNames.map((dayName) => (
+          <div key={dayName} className="text-center text-xs font-medium text-rpp-grey-medium py-1">
+            {dayName}
           </div>
-        </div>
-        <div className="max-h-[600px] overflow-y-auto">
-          {timeSlots}
-        </div>
+        ))}
+        {days}
       </div>
     );
   };
 
+  const totalAppointments = jobs.length;
+
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+    <div className="flex h-screen bg-rpp-grey-surface">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-white border-r border-rpp-grey-border p-4 overflow-y-auto">
+        {/* Mini Calendar */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-            <Button variant="outline" size="sm" className="text-xs" data-testid="today-button">
-              Today
+          <div className="flex items-center justify-between mb-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0"
+              onClick={() => navigateMiniCalendar('prev')}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h3 className="text-sm font-semibold text-rpp-grey-dark">{getMiniCalendarTitle()}</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0"
+              onClick={() => navigateMiniCalendar('next')}
+            >
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white" data-testid="create-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Create
-                <ChevronDown className="w-4 h-4 ml-auto" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48">
-              <DropdownMenuItem onClick={() => setShowCreateJobModal(true)}>
-                New Job
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowCreateEventModal(true)}>
-                Add Event
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Tomorrow Section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-700">Tomorrow</h3>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </div>
-          <div className="text-xs text-gray-500 mb-2">
-            (UTC+10:00) Canberra, Melbourne, Sydney
-          </div>
-          <div className="text-xs text-rpp-red-main mb-2">All day EXTERNAL GOOGLE Ella</div>
+          {renderMiniCalendar()}
         </div>
 
         <Separator className="my-4" />
 
-        {/* Team Section */}
+        {/* Teams Section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-700">Team</h3>
-            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0">
+            <h3 className="text-sm font-semibold text-rpp-grey-dark">Teams</h3>
+            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0 hover:text-rpp-red-dark">
               Clear
             </Button>
           </div>
           <div className="space-y-2">
-            {users.map((user) => (
+            {users.slice(0, 2).map((user) => (
               <div key={user.id} className="flex items-center space-x-3" data-testid={`team-member-${user.id}`}>
                 <Checkbox
                   checked={selectedTeamMembers.includes(user.id)}
                   onCheckedChange={() => toggleTeamMember(user.id)}
+                  className="border-rpp-grey-border data-[state=checked]:bg-rpp-red-main data-[state=checked]:border-rpp-red-main"
                 />
-                <Avatar className="w-6 h-6">
-                  <AvatarFallback className={`${getAvatarColor(user.firstName)} text-white text-xs`}>
-                    {getInitials(user.firstName, user.lastName)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-gray-700">
-                  {user.firstName} {user.lastName}
+                <span className="text-sm text-rpp-grey-dark">
+                  {user.firstName} {user.lastName?.[0] || ''}
                 </span>
               </div>
             ))}
@@ -474,8 +392,8 @@ export default function Calendar() {
         {/* Event Type Section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-700">Event Type</h3>
-            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0">
+            <h3 className="text-sm font-semibold text-rpp-grey-dark">Event Type</h3>
+            <Button variant="link" size="sm" className="text-xs text-rpp-red-main h-auto p-0 hover:text-rpp-red-dark">
               Clear
             </Button>
           </div>
@@ -485,9 +403,9 @@ export default function Calendar() {
                 <Checkbox
                   checked={eventType.checked}
                   onCheckedChange={() => toggleEventType(eventType.id)}
+                  className="border-rpp-grey-border data-[state=checked]:bg-rpp-red-main data-[state=checked]:border-rpp-red-main"
                 />
-                <div className={`w-3 h-3 rounded ${eventType.bgColor}`}></div>
-                <span className={`text-sm ${eventType.color}`}>
+                <span className="text-sm text-rpp-grey-dark">
                   {eventType.label}
                 </span>
               </div>
@@ -497,76 +415,85 @@ export default function Calendar() {
       </div>
 
       {/* Main Calendar Area */}
-      <div className="flex-1 p-6 overflow-hidden">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
-            <div className="flex items-center space-x-4">
-              {/* View Toggle Buttons */}
-              <div className="flex items-center space-x-1 border border-gray-300 rounded-lg p-1">
-                <Button
-                  variant={viewMode === 'month' ? 'ghost' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('month')}
-                  className={`text-xs px-3 py-1 ${viewMode === 'month' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
-                  data-testid="view-month"
-                >
-                  Month
-                </Button>
-                <Button
-                  variant={viewMode === 'week' ? 'ghost' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('week')}
-                  className={`text-xs px-3 py-1 ${viewMode === 'week' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
-                  data-testid="view-week"
-                >
-                  Week
-                </Button>
-                <Button
-                  variant={viewMode === 'day' ? 'ghost' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('day')}
-                  className={`text-xs px-3 py-1 ${viewMode === 'day' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
-                  data-testid="view-day"
-                >
-                  Day
-                </Button>
-              </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-white border-b border-rpp-grey-border p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-rpp-grey-dark mb-1">Calendar</h1>
+              <p className="text-sm text-rpp-grey-medium">Manage your shoots, appointments and schedule</p>
+            </div>
+            <Button 
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+              onClick={() => setShowCreateJobModal(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create
+            </Button>
+          </div>
 
-              {/* Navigation */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+                <Input
+                  placeholder="Search for jobs, orders, clients or properti"
+                  className="pl-10 w-80 border-rpp-grey-border"
+                />
+              </div>
+              <Button variant="outline" className="border-rpp-grey-border">
+                <CalendarIcon className="w-4 h-4 mr-2" />
+                Today
+              </Button>
               <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm" data-testid="nav-prev" onClick={() => navigate('prev')}>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('prev')}
+                  className="border-rpp-grey-border"
+                >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <h2 className="text-lg font-semibold text-gray-700 min-w-[200px] text-center">
+                <h2 className="text-base font-semibold text-rpp-grey-dark min-w-[140px] text-center">
                   {getViewTitle()}
                 </h2>
-                <Button variant="outline" size="sm" data-testid="nav-next" onClick={() => navigate('next')}>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('next')}
+                  className="border-rpp-grey-border"
+                >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-4 text-sm text-gray-500">
-            <div className="flex items-center space-x-1">
-              <Clock className="w-4 h-4" />
-              <span>70 Appointments</span>
+
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-rpp-grey-medium">
+                {totalAppointments} Appointments · <span className="text-rpp-red-main">Google Calendar</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="border-rpp-grey-border">
+                    Month
+                    <ChevronDown className="w-4 h-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setViewMode('month')}>Month</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setViewMode('week')}>Week</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setViewMode('day')}>Day</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <div className="flex items-center space-x-1">
-              <CalendarIcon className="w-4 h-4" />
-              <span>Google Calendar</span>
-            </div>
-            <Button variant="ghost" size="sm" className="h-auto p-0">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
           </div>
         </div>
 
         {/* Calendar Grid */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {viewMode === 'month' && renderMonthView()}
-          {viewMode === 'week' && renderWeekView()}
-          {viewMode === 'day' && renderDayView()}
+        <div className="flex-1 overflow-auto bg-rpp-grey-surface p-6">
+          <div className="bg-white rounded-lg border border-rpp-grey-border overflow-hidden shadow-sm">
+            {renderMonthView()}
+          </div>
         </div>
       </div>
 
