@@ -98,10 +98,10 @@ export default function Jobs() {
   }
 
   return (
-    <div className="min-h-screen bg-rpp-grey-surface p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-rpp-grey-surface">
+      <div className="max-w-[1400px] mx-auto p-8">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-2xl font-bold text-rpp-grey-dark">
@@ -123,7 +123,7 @@ export default function Jobs() {
         </div>
 
         {/* Search and Filter Bar */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-8">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
             <Input
