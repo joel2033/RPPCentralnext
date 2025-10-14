@@ -185,9 +185,19 @@ export default function CustomerProfile() {
 
                 {/* Avatar and Name */}
                 <div className="flex flex-col items-center mb-6">
-                  <div className="w-20 h-20 rounded-full bg-rpp-red-main flex items-center justify-center mb-3">
-                    <span className="text-2xl font-bold text-white">{initials}</span>
-                  </div>
+                  {customer.coverImage ? (
+                    <div className="w-20 h-20 rounded-full overflow-hidden mb-3 border-2 border-rpp-red-main">
+                      <img 
+                        src={customer.coverImage} 
+                        alt={`${customer.firstName} ${customer.lastName}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-rpp-red-main flex items-center justify-center mb-3">
+                      <span className="text-2xl font-bold text-white">{initials}</span>
+                    </div>
+                  )}
                   <h4 className="text-lg font-bold text-rpp-grey-dark">
                     {customer.firstName} {customer.lastName}
                   </h4>
