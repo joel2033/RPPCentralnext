@@ -1533,6 +1533,25 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified, Folder Token: JmSHeaFIV9",
       "uploadedAt": "2025-10-14T00:10:52.559Z"
+    },
+    "710d21e4-6164-492b-a34d-efcccbd6df6b": {
+      "id": "710d21e4-6164-492b-a34d-efcccbd6df6b",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": "e6bc3330-6886-4593-a9d2-15c43cc73b5b",
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC04816.jpg",
+      "originalName": "DSC04816.jpg",
+      "fileSize": 10831823,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/AngIgN8qzyFuBWw7k1JP3/folders/JmSHeaFIV9/Photos/Web/1760400938767_DSC04816.jpg",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/AngIgN8qzyFuBWw7k1JP3/folders/JmSHeaFIV9/Photos/Web/1760400938767_DSC04816.jpg",
+      "folderPath": "Photos/Web",
+      "editorFolderName": "Photos/Web",
+      "folderToken": "JmSHeaFIV9",
+      "expiresAt": "2025-10-15T00:15:44.865Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified, Folder Token: JmSHeaFIV9",
+      "uploadedAt": "2025-10-14T00:15:44.865Z"
     }
   },
   "notifications": {
