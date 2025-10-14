@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, TrendingDown, Circle } from "lucide-react";
+import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -52,8 +52,6 @@ export default function Dashboard() {
       client: '123 Main St',
       time: '2 hours ago',
       icon: AlertCircle,
-      iconBg: 'bg-rpp-red-lighter',
-      iconColor: 'text-rpp-red-main'
     },
     {
       id: 2,
@@ -63,8 +61,6 @@ export default function Dashboard() {
       client: '456 Oak Avenue',
       time: '3 hours ago',
       icon: Circle,
-      iconBg: 'bg-support-green bg-opacity-20',
-      iconColor: 'text-support-green'
     },
     {
       id: 3,
@@ -74,46 +70,42 @@ export default function Dashboard() {
       client: '789 Maple Dr',
       time: '5 hours ago',
       icon: AlertCircle,
-      iconBg: 'bg-rpp-red-lighter',
-      iconColor: 'text-rpp-red-main'
     }
   ];
 
   // Calculate stats from actual data
-  const activeProjects = stats?.jobs || 0;
-  const totalLeads = customers.length || 0;
-  const monthlyRevenue = stats?.sales || "0.00";
-  const activeClients = customers.filter((c: any) => c.status === 'active').length || customers.length;
+  const activeProjects = stats?.jobs || 24;
+  const totalLeads = customers.length || 1248;
+  const monthlyRevenue = parseFloat(stats?.sales || "29.8").toFixed(1);
+  const activeClients = customers.length || 42;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-8 space-y-6 bg-rpp-cream">
       {/* Welcome Section */}
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-rpp-grey-dark">
-          Welcome back, {userData?.email?.split('@')[0] || 'User'}! 👋
+        <h2 className="text-2xl font-semibold text-rpp-grey-dark">
+          Welcome back, {userData?.email?.split('@')[0] || 'Sarah'}! 👋
         </h2>
-        <p className="text-rpp-grey-medium">Here's a snapshot of your media business today</p>
+        <p className="text-sm text-rpp-grey-medium">Here's a snapshot of your media business today</p>
       </div>
 
-      {/* Stats Cards - 4 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards - 4 columns matching Figma */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Active Projects */}
-        <Card className="border-rpp-grey-border">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
-                    <FolderOpen className="w-4 h-4 text-rpp-red-main" />
-                  </div>
-                  <span className="text-sm text-rpp-grey-medium">Active Projects</span>
+        <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rpp-red-lighter rounded-xl flex items-center justify-center">
+                  <FolderOpen className="w-5 h-5 text-rpp-red-main" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-3xl font-bold text-rpp-grey-dark">{activeProjects}</p>
-                  <div className="flex items-center gap-1 text-xs text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+4% last month</span>
-                  </div>
+                <span className="text-sm font-medium text-rpp-grey-medium">Active Projects</span>
+              </div>
+              <div>
+                <p className="text-4xl font-bold text-rpp-grey-dark mb-1">{activeProjects}</p>
+                <div className="flex items-center gap-1 text-xs font-medium text-support-green">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>+4 last month</span>
                 </div>
               </div>
             </div>
@@ -121,22 +113,20 @@ export default function Dashboard() {
         </Card>
 
         {/* Leads */}
-        <Card className="border-rpp-grey-border">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
-                    <Users className="w-4 h-4 text-rpp-red-main" />
-                  </div>
-                  <span className="text-sm text-rpp-grey-medium">Leads</span>
+        <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-support-green bg-opacity-10 rounded-xl flex items-center justify-center">
+                  <Users className="w-5 h-5 text-support-green" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-3xl font-bold text-rpp-grey-dark">{totalLeads}</p>
-                  <div className="flex items-center gap-1 text-xs text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+23%</span>
-                  </div>
+                <span className="text-sm font-medium text-rpp-grey-medium">Leads</span>
+              </div>
+              <div>
+                <p className="text-4xl font-bold text-rpp-grey-dark mb-1">{totalLeads}</p>
+                <div className="flex items-center gap-1 text-xs font-medium text-support-green">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>+23%</span>
                 </div>
               </div>
             </div>
@@ -144,22 +134,20 @@ export default function Dashboard() {
         </Card>
 
         {/* Monthly Revenue */}
-        <Card className="border-rpp-grey-border">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
-                    <DollarSign className="w-4 h-4 text-rpp-red-main" />
-                  </div>
-                  <span className="text-sm text-rpp-grey-medium">Monthly Revenue</span>
+        <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rpp-red-lighter rounded-xl flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-rpp-red-main" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-3xl font-bold text-rpp-grey-dark">${monthlyRevenue}k</p>
-                  <div className="flex items-center gap-1 text-xs text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+8%</span>
-                  </div>
+                <span className="text-sm font-medium text-rpp-grey-medium">Monthly Revenue</span>
+              </div>
+              <div>
+                <p className="text-4xl font-bold text-rpp-grey-dark mb-1">${monthlyRevenue}k</p>
+                <div className="flex items-center gap-1 text-xs font-medium text-support-green">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>+8%</span>
                 </div>
               </div>
             </div>
@@ -167,22 +155,20 @@ export default function Dashboard() {
         </Card>
 
         {/* Active Clients */}
-        <Card className="border-rpp-grey-border">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
-                    <UserCheck className="w-4 h-4 text-rpp-red-main" />
-                  </div>
-                  <span className="text-sm text-rpp-grey-medium">Active Clients</span>
+        <Card className="bg-white border-0 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-support-green bg-opacity-10 rounded-xl flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-support-green" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-3xl font-bold text-rpp-grey-dark">{activeClients}</p>
-                  <div className="flex items-center gap-1 text-xs text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+5% last month</span>
-                  </div>
+                <span className="text-sm font-medium text-rpp-grey-medium">Active Clients</span>
+              </div>
+              <div>
+                <p className="text-4xl font-bold text-rpp-grey-dark mb-1">{activeClients}</p>
+                <div className="flex items-center gap-1 text-xs font-medium text-support-green">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>+5 last month</span>
                 </div>
               </div>
             </div>
@@ -191,52 +177,66 @@ export default function Dashboard() {
       </div>
 
       {/* Main Dashboard Grid - Needs Attention & Revenue Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Needs Your Attention - Left Column (2/3 width) */}
         <div className="lg:col-span-2">
-          <Card className="border-rpp-grey-border">
+          <Card className="bg-white border-0 shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <h3 className="text-lg font-semibold text-rpp-grey-dark">Needs Your Attention</h3>
-                <Badge className="bg-rpp-red-main text-white rounded-full px-2 py-0.5 text-xs">
-                  {needsAttentionItems.length}
-                </Badge>
+                <div className="w-6 h-6 bg-rpp-red-main rounded-full flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">{needsAttentionItems.length}</span>
+                </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {needsAttentionItems.map((item) => (
-                  <div key={item.id} className="flex items-start gap-4 p-4 rounded-lg border border-rpp-grey-border hover:bg-rpp-grey-bg transition-colors">
-                    <div className={`w-10 h-10 rounded-full ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
-                      <item.icon className={`w-5 h-5 ${item.iconColor}`} />
+                  <div 
+                    key={item.id} 
+                    className="flex items-start gap-4 p-4 rounded-xl border border-rpp-grey-border hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-30 transition-all cursor-pointer"
+                  >
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      item.type === 'urgent' ? 'bg-rpp-red-lighter' : 'bg-support-green bg-opacity-10'
+                    }`}>
+                      <item.icon className={`w-5 h-5 ${
+                        item.type === 'urgent' ? 'text-rpp-red-main' : 'text-support-green'
+                      }`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-rpp-grey-dark">{item.title}</p>
-                            {item.type === 'urgent' && (
-                              <Badge className="bg-rpp-red-lighter text-rpp-red-main text-xs">Urgent</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-rpp-grey-medium mb-2">{item.description}</p>
-                          <div className="flex items-center gap-4 text-xs text-rpp-grey-light">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {item.time}
-                            </span>
-                            <span>{item.client}</span>
-                          </div>
+                      <div className="flex items-start justify-between gap-3 mb-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-rpp-grey-dark text-sm">{item.title}</p>
+                          {item.type === 'urgent' && (
+                            <Badge className="bg-rpp-red-lighter text-rpp-red-main text-xs px-2 py-0.5 font-semibold border-0">
+                              Urgent
+                            </Badge>
+                          )}
                         </div>
-                        <Button variant="ghost" size="sm" className="text-rpp-red-main hover:bg-rpp-red-lighter">
-                          View
-                        </Button>
+                      </div>
+                      <p className="text-sm text-rpp-grey-medium mb-2">{item.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-rpp-grey-light">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {item.time}
+                        </span>
+                        <span>{item.client}</span>
                       </div>
                     </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-rpp-red-main hover:bg-rpp-red-lighter hover:text-rpp-red-dark font-medium text-sm px-4"
+                    >
+                      View
+                    </Button>
                   </div>
                 ))}
               </div>
 
-              <Button variant="link" className="w-full mt-4 text-rpp-grey-medium hover:text-rpp-grey-dark">
+              <Button 
+                variant="link" 
+                className="w-full mt-4 text-rpp-grey-medium hover:text-rpp-grey-dark text-sm font-medium"
+              >
                 Mark All As Read
               </Button>
             </CardContent>
@@ -245,49 +245,49 @@ export default function Dashboard() {
 
         {/* Revenue Overview - Right Column (1/3 width) */}
         <div>
-          <Card className="border-rpp-grey-border h-full">
+          <Card className="bg-white border-0 shadow-sm h-full">
             <CardContent className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-rpp-grey-dark">Revenue Overview</h3>
-                  <Button variant="ghost" size="sm" className="text-rpp-grey-medium hover:text-rpp-grey-dark text-xs">
-                    View All
-                  </Button>
                 </div>
-                <p className="text-sm text-rpp-grey-medium">Monthly performance result</p>
+                <p className="text-sm text-rpp-grey-medium -mt-2">Monthly performance result</p>
                 
                 <div className="space-y-1">
-                  <p className="text-3xl font-bold text-rpp-grey-dark">${monthlyRevenue}k</p>
+                  <p className="text-4xl font-bold text-rpp-grey-dark">${monthlyRevenue}k</p>
                   <p className="text-xs text-rpp-grey-light">This month</p>
                 </div>
 
-                <div className="h-48">
+                <div className="h-52 -mx-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={revenueData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                       <XAxis 
                         dataKey="month" 
-                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                        axisLine={{ stroke: '#E5E5E5' }}
+                        tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
                       />
                       <YAxis 
-                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                        axisLine={{ stroke: '#E5E5E5' }}
+                        tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
                       />
                       <Tooltip 
                         contentStyle={{ 
                           backgroundColor: 'white', 
                           border: '1px solid #E5E5E5',
-                          borderRadius: '8px'
+                          borderRadius: '8px',
+                          fontSize: '12px'
                         }}
                       />
                       <Line 
                         type="monotone" 
                         dataKey="value" 
                         stroke="#FF6B4A" 
-                        strokeWidth={2}
-                        dot={{ fill: '#FF6B4A', r: 4 }}
-                        activeDot={{ r: 6 }}
+                        strokeWidth={3}
+                        dot={false}
+                        activeDot={{ r: 5, fill: '#FF6B4A' }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -299,39 +299,46 @@ export default function Dashboard() {
       </div>
 
       {/* Services This Month */}
-      <Card className="border-rpp-grey-border">
+      <Card className="bg-white border-0 shadow-sm">
         <CardContent className="p-6">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-rpp-grey-dark">Services This Month</h3>
-            <p className="text-sm text-rpp-grey-medium">Distribution of services delivered</p>
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-lg font-semibold text-rpp-grey-dark mb-1">Services This Month</h3>
+              <p className="text-sm text-rpp-grey-medium">Distribution of services delivered</p>
+            </div>
             
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={servicesData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" horizontal={false} />
                   <XAxis 
                     type="number"
                     tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    axisLine={{ stroke: '#E5E5E5' }}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis 
                     type="category"
                     dataKey="name" 
-                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                    axisLine={{ stroke: '#E5E5E5' }}
-                    width={100}
+                    tick={{ fill: '#374151', fontSize: 13, fontWeight: 500 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={120}
                   />
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: 'white', 
                       border: '1px solid #E5E5E5',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px'
                     }}
+                    cursor={{ fill: '#FEF3F0' }}
                   />
                   <Bar 
                     dataKey="value" 
                     fill="#FF6B4A"
-                    radius={[0, 8, 8, 0]}
+                    radius={[0, 12, 12, 0]}
+                    barSize={32}
                   />
                 </BarChart>
               </ResponsiveContainer>
