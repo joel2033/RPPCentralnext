@@ -155,15 +155,9 @@
   background-color: var(--rpp-red-main) !important;
   color: white !important;
   position: relative;
+  box-shadow: 0 4px 12px rgba(232, 120, 84, 0.25);
 }
 
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background-color: var(--rpp-red-main);
-  border-radius: 0 2px 2px 0;
+.nav-item.active .lucide {
+  color: white !important;
 }

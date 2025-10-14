@@ -100,11 +100,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="collapsible-menu">
             <button
               onClick={() => toggleMenu(item.title)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-rpp-grey-bg transition-colors text-rpp-grey-dark"
+              className="w-full flex items-center justify-between px-4 py-3 rounded-full hover:bg-rpp-grey-bg transition-all duration-200 text-rpp-grey-dark"
             >
               <div className="flex items-center">
                 <Icon className="w-5 h-5 mr-3" />
-                <span>{item.title}</span>
+                <span className="font-medium">{item.title}</span>
               </div>
               <ChevronDown 
                 className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
@@ -121,8 +121,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <Link
                       href={child.path!}
                       onClick={onClose}
-                      className={`nav-item block px-3 py-2 text-sm rounded hover:bg-rpp-grey-bg transition-colors ${
-                        isActive(child.path!) ? 'active' : 'text-rpp-grey-dark'
+                      className={`nav-item block px-4 py-3 text-sm rounded-full transition-all duration-200 ${
+                        isActive(child.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-rpp-grey-bg'
                       }`}
                     >
                       {child.title}
@@ -141,12 +141,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <Link
           href={item.path!}
           onClick={onClose}
-          className={`nav-item flex items-center px-3 py-2 rounded-lg hover:bg-rpp-grey-bg transition-colors ${
-            isActive(item.path!) ? 'active' : 'text-rpp-grey-dark'
+          className={`nav-item flex items-center px-4 py-3 rounded-full transition-all duration-200 ${
+            isActive(item.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-rpp-grey-bg'
           }`}
         >
           <Icon className="w-5 h-5 mr-3" />
-          <span>{item.title}</span>
+          <span className="font-medium">{item.title}</span>
         </Link>
       </li>
     );
