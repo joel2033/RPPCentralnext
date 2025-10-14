@@ -96,6 +96,14 @@
   .bg-support-green { background-color: var(--support-green); }
   .bg-support-blue { background-color: var(--support-blue); }
   
+  .text-support-yellow { color: var(--support-yellow); }
+  .text-support-green { color: var(--support-green); }
+  .text-support-blue { color: var(--support-blue); }
+  
+  .border-support-yellow { border-color: var(--support-yellow); }
+  .border-support-green { border-color: var(--support-green); }
+  .border-support-blue { border-color: var(--support-blue); }
+  
   .text-rpp-grey-dark { color: var(--rpp-grey-dark); }
   .text-rpp-grey-medium { color: var(--rpp-grey-medium); }
   .text-rpp-grey-light { color: var(--rpp-grey-light); }

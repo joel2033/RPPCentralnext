@@ -34,13 +34,13 @@ export default function Dashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-support-green bg-opacity-10 text-support-green border-support-green border-opacity-20';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-rpp-red-lighter text-rpp-red-dark border-rpp-red-main border-opacity-20';
       case 'scheduled':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-support-yellow bg-opacity-10 text-support-yellow border-support-yellow border-opacity-20';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-rpp-grey-bg text-rpp-grey-dark border-rpp-grey-border';
     }
   };
 
@@ -64,8 +64,8 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Camera className="w-5 h-5 text-purple-600" />
+                <div className="w-10 h-10 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
+                  <Camera className="w-5 h-5 text-rpp-red-main" />
                 </div>
                 <span className="font-medium text-rpp-grey-dark">Jobs</span>
               </div>
@@ -78,8 +78,8 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-green-600" />
+                <div className="w-10 h-10 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-rpp-red-main" />
                 </div>
                 <span className="font-medium text-rpp-grey-dark">Sales</span>
               </div>
@@ -92,8 +92,8 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-rpp-red-lighter rounded-lg flex items-center justify-center">
+                  <ShoppingCart className="w-5 h-5 text-rpp-red-main" />
                 </div>
                 <span className="font-medium text-rpp-grey-dark">Orders</span>
               </div>
@@ -123,12 +123,12 @@ export default function Dashboard() {
               {/* Appointments List */}
               <div className="space-y-4">
                 {upcomingJobs.length > 0 ? upcomingJobs.map((job: any) => (
-                  <div key={job.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors">
+                  <div key={job.id} className="flex items-center justify-between p-4 hover:bg-rpp-grey-bg rounded-lg transition-colors">
                     <div className="flex items-center space-x-4">
                       {/* Status Circle */}
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
-                        job.status === 'completed' ? 'bg-green-500' :
-                        job.status === 'in_progress' ? 'bg-blue-500' : 'bg-yellow-500'
+                        job.status === 'completed' ? 'bg-support-green' :
+                        job.status === 'in_progress' ? 'bg-rpp-red-main' : 'bg-support-yellow'
                       }`}>
                         {job.address?.[0]?.toUpperCase() || 'J'}
                       </div>
