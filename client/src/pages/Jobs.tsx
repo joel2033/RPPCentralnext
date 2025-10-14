@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -5,13 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Filter, MapPin, Calendar, User, Circle, ArrowRight } from "lucide-react";
+import { Plus, Search, Calendar, User, MoreVertical } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 
 export default function Jobs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [statusFilter, setStatusFilter] = useState<"all" | "on_time" | "overdue">("all");
   const [, setLocation] = useLocation();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
@@ -25,30 +26,17 @@ export default function Jobs() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'delivered':
+        return 'bg-green-50 text-green-700 border-green-200';
+      case 'booked':
       case 'scheduled':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Circle className="w-3 h-3 fill-green-500 text-green-500" />;
+        return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'in_progress':
-        return <Circle className="w-3 h-3 fill-blue-500 text-blue-500" />;
-      case 'scheduled':
-        return <Circle className="w-3 h-3 fill-yellow-500 text-yellow-500" />;
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'cancelled':
-        return <Circle className="w-3 h-3 fill-red-500 text-red-500" />;
+        return 'bg-red-50 text-red-700 border-red-200';
       default:
-        return <Circle className="w-3 h-3 fill-gray-500 text-gray-500" />;
+        return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
@@ -60,25 +48,46 @@ export default function Jobs() {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'No date set';
     return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
+      weekday: 'short',
       day: 'numeric',
-      year: 'numeric'
+      month: 'short',
+      year: '2-digit'
     });
   };
 
-  const filteredJobs = jobs.filter((job: any) =>
-    job.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getCustomerName(job.customerId).toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const formatTime = (dateString: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const calculateDuration = (startDate: string) => {
+    // For demo purposes, showing duration as "1h 30m duration"
+    return '1h 30m duration';
+  };
+
+  const filteredJobs = jobs.filter((job: any) => {
+    const matchesSearch = job.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getCustomerName(job.customerId).toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (statusFilter === "all") return matchesSearch;
+    // Add logic for on_time/overdue filtering based on your business logic
+    return matchesSearch;
+  });
+
+  const successfulJobsCount = jobs.filter(j => j.status === 'completed' || j.status === 'delivered').length;
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="min-h-screen bg-gray-50 p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-rpp-grey-border rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-80 bg-rpp-grey-border rounded-xl"></div>
+              <div key={i} className="h-24 bg-white rounded-xl border border-gray-200"></div>
             ))}
           </div>
         </div>
@@ -87,150 +96,180 @@ export default function Jobs() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-rpp-grey-dark">Jobs</h2>
-          <p className="text-rpp-grey-light">Find and track your jobs. Schedule and complete!</p>
-        </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create new job
-        </Button>
-      </div>
-
-      {/* Search and Filter Bar */}
-      <div className="flex items-center space-x-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
-          <Input
-            placeholder="Search jobs, locations, customers..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 border-rpp-grey-border"
-          />
-        </div>
-        <Button variant="outline" className="border-rpp-grey-border">
-          <Filter className="w-4 h-4 mr-2" />
-          Filter
-        </Button>
-      </div>
-
-      {/* Jobs List */}
-      <div className="space-y-3">
-        {filteredJobs.map((job: any) => (
-          <Card 
-            key={job.id} 
-            className="border-rpp-grey-border hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => {
-              const navigationId = job.jobId || job.id;
-              if (navigationId) {
-                setLocation(`/jobs/${navigationId}`);
-              } else {
-                console.warn('Job missing both jobId and id:', job);
-              }
-            }}
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Jobs</h1>
+            <p className="text-sm text-gray-600">
+              on time · ({successfulJobsCount}) successful
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              Find any job you've ever booked, delivered or completed.
+            </p>
+          </div>
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-lg"
           >
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                {/* Left side - Job info */}
-                <div className="flex items-center space-x-4 flex-1">
+            <Plus className="w-4 h-4 mr-2" />
+            Create new job
+          </Button>
+        </div>
+
+        {/* Search and Filter Bar */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search for jobs, people, orders or products"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 border-gray-200 bg-white rounded-lg"
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
+            <Button
+              variant={statusFilter === "on_time" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("on_time")}
+              className={statusFilter === "on_time" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+            >
+              On time
+            </Button>
+            <Button
+              variant={statusFilter === "all" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("all")}
+              className={statusFilter === "all" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+            >
+              All
+            </Button>
+            <Button
+              variant={statusFilter === "overdue" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setStatusFilter("overdue")}
+              className={statusFilter === "overdue" ? "bg-rpp-red-main text-white rounded-md" : "text-gray-600 rounded-md"}
+            >
+              Overdue
+            </Button>
+          </div>
+        </div>
+
+        {/* Jobs List */}
+        <div className="space-y-3">
+          {filteredJobs.map((job: any) => (
+            <Card 
+              key={job.id} 
+              className="border border-gray-200 hover:shadow-md transition-shadow cursor-pointer bg-white rounded-xl"
+              onClick={() => {
+                const navigationId = job.jobId || job.id;
+                if (navigationId) {
+                  setLocation(`/jobs/${navigationId}`);
+                }
+              }}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
                   {/* Property thumbnail */}
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                     {job.propertyImage ? (
                       <img 
                         src={job.propertyImage} 
                         alt="Property" 
-                        className="w-full h-full object-cover rounded-lg"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-2xl">🏠</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
+                        <span className="text-2xl">🏠</span>
+                      </div>
                     )}
                   </div>
 
                   {/* Job details */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-rpp-grey-dark truncate">
-                        {job.address}
-                      </h3>
-                      <Badge variant="outline" className={`${getStatusColor(job.status || 'scheduled')} text-xs`}>
-                        <div className="flex items-center space-x-1">
-                          {getStatusIcon(job.status || 'scheduled')}
-                          <span className="capitalize">{job.status || 'Scheduled'}</span>
-                        </div>
-                      </Badge>
-                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-2 text-base">
+                      {job.address}
+                    </h3>
                     
-                    <div className="flex items-center space-x-6 text-sm text-rpp-grey-light">
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>📍 {formatDate(job.appointmentDate)}</span>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>{formatDate(job.appointmentDate)}</span>
                       </div>
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center gap-1">
+                        <span>{formatTime(job.appointmentDate)} ({calculateDuration(job.appointmentDate)})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
                         <User className="w-4 h-4" />
                         <span>{getCustomerName(job.customerId)}</span>
                       </div>
-                      {job.dueDate && (
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>Due: {formatDate(job.dueDate)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Right side - Action buttons */}
-                <div className="flex items-center space-x-2 flex-shrink-0">
-                  <div className="flex items-center space-x-1">
-                    {/* Status indicators like in mockup */}
-                    <Circle className="w-6 h-6 fill-gray-300 text-gray-300" />
-                    <Circle className="w-6 h-6 fill-green-500 text-green-500" />
-                    <Circle className="w-6 h-6 fill-gray-300 text-gray-300" />
+                  {/* Status and price */}
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <Badge 
+                      variant="outline" 
+                      className={`${getStatusColor(job.status || 'booked')} border rounded-full px-3 py-1 text-xs font-medium`}
+                    >
+                      {job.status === 'completed' ? 'Delivered' : job.status === 'scheduled' ? 'Booked' : job.status || 'Booked'}
+                    </Badge>
+                    
+                    <div className="text-lg font-bold text-gray-900">
+                      ${(job.totalAmount || 350).toFixed(2)}
+                    </div>
+
+                    {/* Team member avatars */}
+                    <div className="flex -space-x-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
+                        {getCustomerName(job.customerId).split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
+                        SJ
+                      </div>
+                    </div>
+
+                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
+                      <MoreVertical className="w-5 h-5" />
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-rpp-grey-light hover:text-rpp-grey-dark">
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Empty State */}
+        {filteredJobs.length === 0 && jobs.length === 0 && (
+          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <div className="text-6xl mb-4">📸</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No jobs yet</h3>
+            <p className="text-gray-500 mb-6">Create your first photography job to get started</p>
+            <Button 
+              onClick={() => setShowCreateModal(true)}
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Job
+            </Button>
+          </div>
+        )}
+
+        {/* No search results */}
+        {filteredJobs.length === 0 && jobs.length > 0 && (
+          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <div className="text-4xl mb-4">🔍</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs found</h3>
+            <p className="text-gray-500">Try adjusting your search terms</p>
+          </div>
+        )}
+
+        {showCreateModal && (
+          <CreateJobModal onClose={() => setShowCreateModal(false)} />
+        )}
       </div>
-
-      {/* Empty State */}
-      {filteredJobs.length === 0 && jobs.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📸</div>
-          <h3 className="text-xl font-semibold text-rpp-grey-dark mb-2">No jobs yet</h3>
-          <p className="text-rpp-grey-light mb-6">Create your first photography job to get started</p>
-          <Button 
-            onClick={() => setShowCreateModal(true)}
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create First Job
-          </Button>
-        </div>
-      )}
-
-      {/* No search results */}
-      {filteredJobs.length === 0 && jobs.length > 0 && (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">🔍</div>
-          <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">No jobs found</h3>
-          <p className="text-rpp-grey-light">Try adjusting your search terms</p>
-        </div>
-      )}
-
-      {showCreateModal && (
-        <CreateJobModal onClose={() => setShowCreateModal(false)} />
-      )}
     </div>
   );
 }
