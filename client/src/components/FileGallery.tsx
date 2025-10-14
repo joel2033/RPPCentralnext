@@ -1294,10 +1294,21 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           folderPath={selectedFolderData?.folderPath} // Pass folder path
           onFilesUpload={async (serviceId, files, orderNumber) => {
             // Immediately refetch folders and files to show new uploads
-            await Promise.all([
+            const [foldersResponse] = await Promise.all([
               queryClient.refetchQueries({ queryKey: ['/api/jobs', jobId, 'folders'] }),
               queryClient.refetchQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] })
             ]);
+            
+            // If we were uploading to a specific folder, open it to show the new files
+            if (selectedFolderData) {
+              // Refetch to get the latest folder data with new files
+              const updatedFolders = queryClient.getQueryData<FolderData[]>(['/api/jobs', jobId, 'folders']);
+              const updatedFolder = updatedFolders?.find(f => f.folderPath === selectedFolderData.folderPath);
+              if (updatedFolder) {
+                setSelectedFolderData(updatedFolder);
+              }
+            }
+            
             toast({
               title: "Files uploaded successfully",
               description: `${files.length} file(s) uploaded to the job.`,

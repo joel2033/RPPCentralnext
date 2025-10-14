@@ -1476,7 +1476,7 @@
       "editorFolderName": "Photos/Web",
       "partnerFolderName": "Photos/Web",
       "notes": "Folder: Photos/Web (Token: JmSHeaFIV9)",
-      "expiresAt": null
+      "expiresAt": "1970-01-01T00:00:00.000Z"
     },
     "43c93dae-848f-48ba-bc60-506f407fa802": {
       "id": "43c93dae-848f-48ba-bc60-506f407fa802",
@@ -1568,7 +1568,27 @@
       "folderPath": "Photos",
       "editorFolderName": "Photos",
       "partnerFolderName": "Photos",
-      "notes": "Folder: Photos (Token: fJtdwLScKQ)"
+      "notes": "Folder: Photos (Token: fJtdwLScKQ)",
+      "expiresAt": null
+    },
+    "df9240b6-ebe2-42a8-b153-7cdc3829afab": {
+      "id": "df9240b6-ebe2-42a8-b153-7cdc3829afab",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "orderId": "e6bc3330-6886-4593-a9d2-15c43cc73b5b",
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC04828.jpg",
+      "originalName": "DSC04828.jpg",
+      "fileSize": 9979233,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/AngIgN8qzyFuBWw7k1JP3/00003/1760413739255_DSC04828.jpg",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/AngIgN8qzyFuBWw7k1JP3/00003/1760413739255_DSC04828.jpg",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "folderToken": null,
+      "expiresAt": "2025-10-15T03:49:05.571Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-14T03:49:05.572Z"
     }
   },
   "notifications": {
@@ -2027,7 +2047,7 @@
       "createdAt": "2025-10-13T22:50:44.733Z"
     }
   },
-  "orderCounter": 8,
+  "orderCounter": 4,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -2101,12 +2121,12 @@
       "expiresAt": "2025-09-23T10:44:33.937Z",
       "status": "confirmed"
     },
-    "#00007": {
-      "orderNumber": "#00007",
-      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
-      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "reservedAt": "2025-10-14T01:43:48.850Z",
-      "expiresAt": "2025-10-14T03:43:48.850Z",
+    "#00003": {
+      "orderNumber": "#00003",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "AngIgN8qzyFuBWw7k1JP3",
+      "reservedAt": "2025-10-14T03:48:56.675Z",
+      "expiresAt": "2025-10-14T05:48:56.675Z",
       "status": "reserved"
     }
   }
