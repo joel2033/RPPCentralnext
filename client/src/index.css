@@ -3,45 +3,45 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(0, 0%, 100%);
-  --foreground: hsl(240, 10%, 3.9%);
-  --muted: hsl(240, 4.8%, 95.9%);
-  --muted-foreground: hsl(240, 3.8%, 46.1%);
+  --background: hsl(30, 30%, 98%);
+  --foreground: hsl(220, 15%, 20%);
+  --muted: hsl(30, 20%, 96%);
+  --muted-foreground: hsl(220, 10%, 50%);
   --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(220, 15%, 20%);
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(240, 10%, 3.9%);
-  --border: hsl(240, 5.9%, 90%);
-  --input: hsl(240, 5.9%, 90%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(210, 40%, 98%);
-  --secondary: hsl(240, 4.8%, 95.9%);
-  --secondary-foreground: hsl(240, 5.9%, 10%);
-  --accent: hsl(240, 4.8%, 95.9%);
-  --accent-foreground: hsl(240, 5.9%, 10%);
+  --card-foreground: hsl(220, 15%, 20%);
+  --border: hsl(30, 15%, 90%);
+  --input: hsl(30, 15%, 92%);
+  --primary: hsl(13, 88%, 56%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(30, 20%, 96%);
+  --secondary-foreground: hsl(220, 15%, 20%);
+  --accent: hsl(13, 88%, 96%);
+  --accent-foreground: hsl(13, 88%, 56%);
   --destructive: hsl(0, 84.2%, 60.2%);
-  --destructive-foreground: hsl(60, 9.1%, 97.8%);
-  --ring: hsl(240, 10%, 3.9%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --ring: hsl(13, 88%, 56%);
   --radius: 0.5rem;
 
-  /* RPP Brand Colors */
-  --rpp-grey-dark: hsl(210, 18%, 22%);
-  --rpp-grey-medium: hsl(210, 12%, 37%);
-  --rpp-grey-light: hsl(210, 8%, 54%);
-  --rpp-grey-lighter: hsl(210, 6%, 69%);
-  --rpp-grey-border: hsl(210, 8%, 84%);
-  --rpp-grey-bg: hsl(210, 6%, 92%);
-  --rpp-grey-surface: hsl(210, 20%, 96%);
+  /* RPP Brand Colors - Updated to match Figma */
+  --rpp-grey-dark: hsl(220, 15%, 25%);
+  --rpp-grey-medium: hsl(220, 12%, 45%);
+  --rpp-grey-light: hsl(220, 8%, 60%);
+  --rpp-grey-lighter: hsl(220, 6%, 75%);
+  --rpp-grey-border: hsl(30, 15%, 88%);
+  --rpp-grey-bg: hsl(30, 25%, 96%);
+  --rpp-grey-surface: hsl(30, 30%, 98%);
   --rpp-grey-white: hsl(0, 0%, 100%);
   
-  --rpp-red-dark: hsl(13, 70%, 44%);
+  --rpp-red-dark: hsl(13, 82%, 48%);
   --rpp-red-main: hsl(13, 88%, 56%);
   --rpp-red-light: hsl(13, 88%, 66%);
-  --rpp-red-lighter: hsl(13, 88%, 75%);
+  --rpp-red-lighter: hsl(13, 88%, 92%);
   
-  --support-yellow: hsl(45, 84%, 56%);
-  --support-green: hsl(84, 69%, 58%);
-  --support-blue: hsl(200, 80%, 60%);
+  --support-yellow: hsl(45, 90%, 60%);
+  --support-green: hsl(145, 70%, 50%);
+  --support-blue: hsl(210, 90%, 60%);
 }
 
 .dark {
