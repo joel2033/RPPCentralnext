@@ -331,7 +331,7 @@ export default function Dashboard() {
                       stroke="#FF6B4A"
                       strokeWidth={3}
                       fill="url(#colorRevenue)"
-                      dot={false}
+                      dot={{ r: 4, fill: '#FF6B4A', strokeWidth: 2, stroke: '#fff' }}
                       activeDot={{ r: 6, fill: '#FF6B4A', strokeWidth: 3, stroke: '#fff' }}
                     />
                   </AreaChart>
