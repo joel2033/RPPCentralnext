@@ -157,6 +157,9 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
 
     const phoneValue = customerData.phone ? `${customerData.phoneCountryCode} ${customerData.phone}` : null;
     
+    // Remove UI-only 'id' field from team members before saving
+    const cleanedTeamMembers = teamMembers.map(({ id, ...member }) => member);
+    
     const customerPayload = {
       partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha",
       firstName: customerData.firstName,
@@ -175,8 +178,8 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
       postcode: customerData.postcode || null,
       paymentTerms: customerData.paymentTerms || null,
       taxId: customerData.taxId || null,
-      // Team members as JSON string
-      teamMembers: teamMembers.length > 0 ? JSON.stringify(teamMembers) : null,
+      // Team members as JSON string (without UI-only id field)
+      teamMembers: cleanedTeamMembers.length > 0 ? JSON.stringify(cleanedTeamMembers) : null,
     };
 
     createCustomerMutation.mutate(customerPayload);
