@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Mail, Phone, Search, Filter } from "lucide-react";
+import { Plus, Mail, Phone, Search, Building2, Filter } from "lucide-react";
 import CreateCustomerModal from "@/components/modals/CreateCustomerModal";
 
 export default function Customers() {
@@ -22,7 +22,14 @@ export default function Customers() {
   };
 
   const getAvatarColor = (name: string) => {
-    const colors = ['bg-support-green', 'bg-rpp-red-main', 'bg-support-blue', 'bg-support-yellow'];
+    const colors = [
+      'bg-orange-500',
+      'bg-blue-500', 
+      'bg-amber-500',
+      'bg-emerald-500',
+      'bg-purple-500',
+      'bg-pink-500'
+    ];
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
   };
@@ -41,12 +48,12 @@ export default function Customers() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-rpp-grey-border rounded w-1/4"></div>
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-64 bg-rpp-grey-border rounded-xl"></div>
+              <div key={i} className="h-64 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
             ))}
           </div>
         </div>
@@ -55,15 +62,17 @@ export default function Customers() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-rpp-grey-dark">Customers</h2>
-          <p className="text-rpp-grey-light">Manage your customer relationships and contact information</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Manage your customer relationships and contact information</p>
         </div>
         <Button 
           onClick={() => setShowCreateModal(true)}
-          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-full px-6"
+          data-testid="button-new-customer"
         >
           <Plus className="w-4 h-4 mr-2" />
           New Customer
@@ -71,22 +80,25 @@ export default function Customers() {
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+      <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+        <div className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
               placeholder="Search customers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-80 border-rpp-grey-border"
+              className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              data-testid="input-search-customers"
             />
           </div>
           
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-48 border-rpp-grey-border">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue />
+            <SelectTrigger className="w-48 border-gray-200 dark:border-gray-700" data-testid="select-category-filter">
+              <div className="flex items-center">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </div>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
@@ -100,7 +112,7 @@ export default function Customers() {
           </Select>
         </div>
         
-        <div className="text-sm text-rpp-grey-light">
+        <div className="text-sm text-gray-500 dark:text-gray-400 ml-4" data-testid="text-customers-count">
           {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} found
         </div>
       </div>
@@ -108,80 +120,87 @@ export default function Customers() {
       {/* Customer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCustomers.map((customer: any) => (
-          <Link key={customer.id} href={`/customers/${customer.id}`}>
-            <Card className="border-rpp-grey-border hover:shadow-md transition-shadow cursor-pointer" data-testid={`customer-card-${customer.id}`}>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className={`w-12 h-12 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-medium`}>
-                    {getInitials(customer.firstName, customer.lastName)}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-rpp-grey-dark" data-testid={`text-customer-name-${customer.id}`}>
-                      {customer.firstName} {customer.lastName}
-                    </h3>
-                    <p className="text-sm text-rpp-grey-light" data-testid={`text-customer-company-${customer.id}`}>
-                      {customer.company || 'No company'}
-                    </p>
-                  </div>
+          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800" data-testid={`customer-card-${customer.id}`}>
+            <CardContent className="p-6">
+              {/* Customer Info */}
+              <div className="flex items-start gap-4 mb-6">
+                <div className={`w-14 h-14 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0`}>
+                  {getInitials(customer.firstName, customer.lastName)}
                 </div>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-sm text-rpp-grey-light">
-                    <Mail className="w-4 h-4 mr-2" />
-                    <span className="truncate" data-testid={`text-customer-email-${customer.id}`}>
-                      {customer.email}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg" data-testid={`text-customer-name-${customer.id}`}>
+                    {customer.firstName} {customer.lastName}
+                  </h3>
+                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <Building2 className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                    <span className="truncate" data-testid={`text-customer-company-${customer.id}`}>
+                      {customer.company || 'No company'}
                     </span>
                   </div>
-                  {customer.phone && (
-                    <div className="flex items-center text-sm text-rpp-grey-light">
-                      <Phone className="w-4 h-4 mr-2" />
-                      <span data-testid={`text-customer-phone-${customer.id}`}>
-                        {customer.phone}
-                      </span>
-                    </div>
-                  )}
                 </div>
-
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-total-value-${customer.id}`}>
-                      ${customer.totalValue || '0.00'}
-                    </p>
-                    <p className="text-xs text-rpp-grey-light">Total Value</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-avg-value-${customer.id}`}>
-                      ${customer.averageJobValue || '0.00'}
-                    </p>
-                    <p className="text-xs text-rpp-grey-light">Average Job Value</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-rpp-grey-dark" data-testid={`text-customer-jobs-completed-${customer.id}`}>
-                      {customer.jobsCompleted || 0}
-                    </p>
-                    <p className="text-xs text-rpp-grey-light">Jobs Completed</p>
-                  </div>
+              </div>
+              
+              {/* Contact Info */}
+              <div className="space-y-2.5 mb-6">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                  <Mail className="w-4 h-4 mr-2.5 flex-shrink-0 text-gray-400" />
+                  <span className="truncate" data-testid={`text-customer-email-${customer.id}`}>
+                    {customer.email}
+                  </span>
                 </div>
+                {customer.phone && (
+                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                    <Phone className="w-4 h-4 mr-2.5 flex-shrink-0 text-gray-400" />
+                    <span data-testid={`text-customer-phone-${customer.id}`}>
+                      {customer.phone}
+                    </span>
+                  </div>
+                )}
+              </div>
 
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 pb-6 border-b border-gray-100 dark:border-gray-700 mb-6">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Value</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-total-value-${customer.id}`}>
+                    ${customer.totalValue || '0'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Average Job Value</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-avg-value-${customer.id}`}>
+                    ${customer.averageJobValue || '0'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Jobs Completed</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-jobs-completed-${customer.id}`}>
+                    {customer.jobsCompleted || 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* View Profile Button */}
+              <Link href={`/customers/${customer.id}`}>
                 <Button 
                   variant="outline" 
-                  className="w-full border-rpp-grey-border hover:bg-rpp-grey-surface"
+                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                   data-testid={`button-view-profile-${customer.id}`}
                 >
                   View Profile
                 </Button>
-              </CardContent>
-            </Card>
-          </Link>
+              </Link>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
       {/* Empty States */}
       {customers.length === 0 && (
         <div className="col-span-full text-center py-12">
-          <div className="text-rpp-grey-light">
+          <div className="text-gray-400 dark:text-gray-500">
             <div className="text-6xl mb-4">👥</div>
-            <h3 className="text-lg font-medium mb-2">No customers yet</h3>
+            <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">No customers yet</h3>
             <p className="text-sm">Add your first customer to get started</p>
             <Button 
               onClick={() => setShowCreateModal(true)}
@@ -196,9 +215,9 @@ export default function Customers() {
 
       {customers.length > 0 && filteredCustomers.length === 0 && (
         <div className="col-span-full text-center py-12">
-          <div className="text-rpp-grey-light">
+          <div className="text-gray-400 dark:text-gray-500">
             <div className="text-4xl mb-4">🔍</div>
-            <h3 className="text-lg font-medium mb-2">No customers found</h3>
+            <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-white">No customers found</h3>
             <p className="text-sm">Try adjusting your search or filter criteria</p>
           </div>
         </div>
