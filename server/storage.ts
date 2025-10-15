@@ -379,7 +379,28 @@ export class MemStorage implements IStorage {
           });
         }
         
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities`);
+        // Restore editing options
+        if (data.editingOptions) {
+          Object.entries(data.editingOptions).forEach(([id, option]: [string, any]) => {
+            this.editingOptions.set(id, {
+              ...option,
+              createdAt: new Date(option.createdAt)
+            });
+          });
+        }
+        
+        // Restore customer editing preferences
+        if (data.customerEditingPreferences) {
+          Object.entries(data.customerEditingPreferences).forEach(([id, pref]: [string, any]) => {
+            this.customerEditingPreferences.set(id, {
+              ...pref,
+              createdAt: new Date(pref.createdAt),
+              updatedAt: new Date(pref.updatedAt)
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -401,6 +422,8 @@ export class MemStorage implements IStorage {
         editorUploads: Object.fromEntries(this.editorUploads.entries()),
         notifications: Object.fromEntries(this.notifications.entries()),
         activities: Object.fromEntries(this.activities.entries()),
+        editingOptions: Object.fromEntries(this.editingOptions.entries()),
+        customerEditingPreferences: Object.fromEntries(this.customerEditingPreferences.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
