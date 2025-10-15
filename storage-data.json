@@ -2047,6 +2047,18 @@
       "createdAt": "2025-10-13T22:50:44.733Z"
     }
   },
+  "editingOptions": {
+    "ae845187-2b28-4eaf-9de3-5b9eba923f48": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Grass Replacement",
+      "description": "",
+      "icon": "Trees",
+      "iconColor": "bg-green-100 text-green-600",
+      "id": "ae845187-2b28-4eaf-9de3-5b9eba923f48",
+      "createdAt": "2025-10-15T02:55:58.724Z"
+    }
+  },
+  "customerEditingPreferences": {},
   "orderCounter": 4,
   "orderReservations": {
     "#12347": {

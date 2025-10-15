@@ -1970,6 +1970,8 @@ export class MemStorage implements IStorage {
     const newOption: EditingOption = {
       ...option,
       id,
+      isActive: option.isActive ?? true,
+      displayOrder: option.displayOrder ?? 0,
       createdAt: new Date(),
     };
     this.editingOptions.set(id, newOption);
