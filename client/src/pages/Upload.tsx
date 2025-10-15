@@ -355,7 +355,7 @@ export default function Upload() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
                 <MapPin className="w-5 h-5 text-orange-500" />
-                <label className="text-sm font-medium text-gray-900">
+                <label className="font-medium text-gray-900 text-[20px]">
                   Job
                 </label>
               </div>
@@ -392,7 +392,7 @@ export default function Upload() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
                 <Building2 className="w-5 h-5 text-orange-500" />
-                <label className="text-sm font-medium text-gray-900">
+                <label className="font-medium text-gray-900 text-[20px]">
                   Supplier
                 </label>
               </div>
