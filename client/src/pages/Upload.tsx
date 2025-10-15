@@ -359,15 +359,23 @@ export default function Upload() {
             <CardContent className="space-y-4">
               {/* Job Dropdown */}
               <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Job
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Choose a job for your respective order statement</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 rounded bg-orange-100 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <label className="text-sm font-medium text-gray-900">
+                    Job
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">Choose a job for your finished asset placement</p>
                 <Select 
                   value={orderDetails.jobId} 
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
                 >
-                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
+                  <SelectTrigger className="border-gray-300 bg-gray-50" data-testid="select-job">
                     <SelectValue placeholder="Select a job..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -376,7 +384,16 @@ export default function Upload() {
                         key={job.id} 
                         value={job.jobId || job.id}
                       >
-                        {job.address || `Job ${job.jobId || job.id}`}
+                        <div className="flex items-start gap-2">
+                          <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <div>
+                            <div className="font-medium text-gray-900">{job.address?.split(',')[0] || `Job ${job.jobId || job.id}`}</div>
+                            <div className="text-xs text-gray-500">{job.address || `Job ${job.jobId || job.id}`}</div>
+                          </div>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -385,10 +402,17 @@ export default function Upload() {
               
               {/* Supplier/Editor Dropdown */}
               <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Supplier
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Select the supplier who are responsible for this order. Learn more about assigning suppliers here</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 rounded bg-orange-100 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <label className="text-sm font-medium text-gray-900">
+                    Supplier
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">Select the supplier who will be responsible for this order</p>
                 <Select 
                   value={selectedEditor} 
                   onValueChange={(value) => {
@@ -396,7 +420,7 @@ export default function Upload() {
                     setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
                   }}
                 >
-                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-supplier">
+                  <SelectTrigger className="border-gray-300 bg-gray-50" data-testid="select-supplier">
                     <SelectValue placeholder="Select a supplier..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -411,7 +435,15 @@ export default function Upload() {
                     ) : (
                       suppliers.map((supplier: any) => (
                         <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.studioName} ({supplier.email})
+                          <div className="flex items-start gap-2">
+                            <svg className="w-4 h-4 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <div>
+                              <div className="font-medium text-gray-900">{supplier.studioName}</div>
+                              <div className="text-xs text-gray-500">{supplier.studioName}</div>
+                            </div>
+                          </div>
                         </SelectItem>
                       ))
                     )}
