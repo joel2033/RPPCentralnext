@@ -544,6 +544,9 @@ export default function Upload() {
                 {/* Service Configuration */}
                 {selectedServices.map((selectedService, serviceIndex) => (
                   <div key={selectedService.id} className="border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
+                    {/* Service Name Heading */}
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">{selectedService.service.name}</h4>
+                    
                     {/* Upload Files Section */}
                     <div className="mb-6">
                       <label className="block text-sm font-medium text-gray-900 mb-3">Upload Files</label>
@@ -726,7 +729,7 @@ export default function Upload() {
         <div>
           <Card className="border-rpp-grey-border sticky top-24">
             <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">Order Summary</CardTitle>
+              <CardTitle className="text-2xl leading-none tracking-tight text-rpp-grey-dark font-medium">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
