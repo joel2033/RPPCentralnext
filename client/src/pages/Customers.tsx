@@ -78,7 +78,6 @@ export default function Customers() {
           New Customer
         </Button>
       </div>
-
       {/* Search and Filter Bar */}
       <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-4 flex-1">
@@ -116,7 +115,6 @@ export default function Customers() {
           {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} found
         </div>
       </div>
-
       {/* Customer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCustomers.map((customer: any) => (
@@ -128,7 +126,7 @@ export default function Customers() {
                   {getInitials(customer.firstName, customer.lastName)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-lg" data-testid={`text-customer-name-${customer.id}`}>
+                  <h3 className="text-gray-900 dark:text-white font-medium text-[20px]" data-testid={`text-customer-name-${customer.id}`}>
                     {customer.firstName} {customer.lastName}
                   </h3>
                   <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -194,7 +192,6 @@ export default function Customers() {
           </Card>
         ))}
       </div>
-
       {/* Empty States */}
       {customers.length === 0 && (
         <div className="col-span-full text-center py-12">
@@ -212,7 +209,6 @@ export default function Customers() {
           </div>
         </div>
       )}
-
       {customers.length > 0 && filteredCustomers.length === 0 && (
         <div className="col-span-full text-center py-12">
           <div className="text-gray-400 dark:text-gray-500">
@@ -222,7 +218,6 @@ export default function Customers() {
           </div>
         </div>
       )}
-
       {showCreateModal && (
         <CreateCustomerModal onClose={() => setShowCreateModal(false)} />
       )}
