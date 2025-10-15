@@ -46,7 +46,8 @@ Preferred communication style: Simple, everyday language.
 - **Multi-Tenancy**: Implemented `partnerId`-based data isolation across all core business objects (customers, jobs, orders, products) to support multiple independent businesses.
 - **Job Management**: Complete job creation, listing, and detailed management with unique NanoIDs for tracking.
 - **Order-Independent File Uploads**: Standalone folder creation and file uploads are supported, not requiring an associated order.
-- **Accounting Integration Foundation**: UI and database schema updates in place to support future integration with accounting software like Xero.
+- **Accounting Integration Foundation**: UI and database schema updates in place to support future integration with accounting software like Xero. The Create Customer modal includes dropdowns for selecting accounting integration (Xero) and matching contacts.
+- **Multi-Step Order Creation**: "Upload to Editors" modal redesigned with Figma-based 3-step wizard flow: Job/Supplier selection → Service selection grid → Per-service configuration (files, quantity, instructions, export types). Includes Order Summary sidebar with live cost calculations and terms acceptance. Note: File uploads currently send filenames only - actual binary file upload requires backend FormData API endpoint and Firebase Storage integration.
 
 # External Dependencies
 
