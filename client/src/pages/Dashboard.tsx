@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight } from "lucide-react";
+import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight, CheckCircle, RefreshCw, Package } from "lucide-react";
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -34,44 +34,62 @@ export default function Dashboard() {
     { month: 'Oct', value: 29 },
   ];
 
-  // Mock needs attention items
-  const needsAttentionItems = [
+  // Mock attention metrics
+  const attentionMetrics = [
     {
       id: 1,
-      type: 'urgent',
-      title: 'Revision Request - Kitchen Photo',
-      description: 'Client requested brightness adjustment on image #4',
-      client: '123 Main St',
-      time: '2 hours ago',
-      icon: AlertCircle,
+      label: 'Ready to Deliver',
+      count: 8,
+      icon: Package,
+      color: 'bg-gradient-to-br from-green-50 to-green-100',
+      iconColor: 'text-support-green',
+      description: 'Orders ready for client',
     },
     {
       id: 2,
-      type: 'normal',
-      title: 'Photos Ready for Review',
-      description: '24 photos edited and ready for client approval',
-      client: '456 Oak Avenue',
-      time: '3 hours ago',
-      icon: Circle,
+      label: 'Requested Revisions',
+      count: 3,
+      icon: RefreshCw,
+      color: 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light',
+      iconColor: 'text-rpp-red-main',
+      description: 'Client revision requests',
     },
     {
       id: 3,
-      type: 'urgent',
-      title: 'Revision Request - Living Room',
-      description: 'Client wants to tone down countertop reflection',
-      client: '789 Pine Road',
-      time: '5 hours ago',
-      icon: AlertCircle,
+      label: 'Pending Review',
+      count: 5,
+      icon: Clock,
+      color: 'bg-gradient-to-br from-amber-50 to-amber-100',
+      iconColor: 'text-amber-500',
+      description: 'Awaiting client approval',
     },
     {
       id: 4,
-      type: 'normal',
-      title: 'Upcoming Deadline',
-      description: 'Drone shoot scheduled for tomorrow at 10 AM',
-      client: '321 Elm Street',
-      time: '1 day',
-      icon: Clock,
-    }
+      label: 'Urgent Tasks',
+      count: 2,
+      icon: AlertCircle,
+      color: 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light',
+      iconColor: 'text-rpp-red-main',
+      description: 'High priority items',
+    },
+    {
+      id: 5,
+      label: 'In Progress',
+      count: 12,
+      icon: Circle,
+      color: 'bg-gradient-to-br from-blue-50 to-blue-100',
+      iconColor: 'text-support-blue',
+      description: 'Currently being edited',
+    },
+    {
+      id: 6,
+      label: 'Completed Today',
+      count: 6,
+      icon: CheckCircle,
+      color: 'bg-gradient-to-br from-green-50 to-green-100',
+      iconColor: 'text-support-green',
+      description: 'Finished deliveries',
+    },
   ];
 
   // Calculate stats from actual data
@@ -194,14 +212,14 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Needs Your Attention */}
+        {/* Needs Your Attention - 3 Rows Layout */}
         <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-needs-attention">
           <CardContent className="p-7">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-bold text-rpp-grey-dark">Needs Your Attention</h2>
                 <div className="w-7 h-7 bg-rpp-red-main rounded-full flex items-center justify-center shadow-md">
-                  <span className="text-xs font-bold text-white">{needsAttentionItems.length}</span>
+                  <span className="text-xs font-bold text-white">{attentionMetrics.reduce((sum, item) => sum + item.count, 0)}</span>
                 </div>
               </div>
               <Button 
@@ -214,67 +232,68 @@ export default function Dashboard() {
               </Button>
             </div>
 
-            <div className="space-y-4">
-              {needsAttentionItems.map((item, index) => (
-                <div 
-                  key={item.id} 
-                  className={`group relative flex items-start gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer ${
-                    index < needsAttentionItems.length - 1 ? 'after:absolute after:inset-x-5 after:bottom-0 after:h-px after:bg-rpp-grey-border after:opacity-50' : ''
-                  }`}
-                  data-testid={`attention-item-${item.id}`}
+            {/* Row 1: Ready to Deliver & Requested Revisions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {attentionMetrics.slice(0, 2).map((metric) => (
+                <div
+                  key={metric.id}
+                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
+                  data-testid={`attention-metric-${metric.id}`}
                 >
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
-                    item.type === 'urgent' 
-                      ? 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light' 
-                      : 'bg-gradient-to-br from-green-50 to-green-100'
-                  }`}>
-                    <item.icon className={`w-6 h-6 ${
-                      item.type === 'urgent' ? 'text-rpp-red-main' : 'text-support-green'
-                    }`} />
+                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
+                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-rpp-grey-dark text-base">{item.title}</p>
-                        {item.type === 'urgent' && (
-                          <Badge className="bg-rpp-red-lighter text-rpp-red-main text-xs px-2.5 py-0.5 font-bold border-0 rounded-full">
-                            Urgent
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-sm text-rpp-grey-medium font-medium mb-3">{item.description}</p>
-                    <div className="flex items-center gap-5 text-xs text-rpp-grey-light font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {item.time}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Circle className="w-1.5 h-1.5 fill-current" />
-                        {item.client}
-                      </span>
-                    </div>
+                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
+                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
+                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-rpp-red-main hover:bg-rpp-red-lighter font-bold text-sm px-5 rounded-xl"
-                    data-testid={`button-view-${item.id}`}
-                  >
-                    View
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               ))}
             </div>
 
-            <Button 
-              variant="link" 
-              className="w-full mt-6 text-rpp-grey-medium hover:text-rpp-grey-dark text-sm font-bold"
-              data-testid="button-mark-all-read"
-            >
-              Mark All As Read
-            </Button>
+            {/* Row 2: Pending Review & Urgent Tasks */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {attentionMetrics.slice(2, 4).map((metric) => (
+                <div
+                  key={metric.id}
+                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
+                  data-testid={`attention-metric-${metric.id}`}
+                >
+                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
+                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
+                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
+                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              ))}
+            </div>
+
+            {/* Row 3: In Progress & Completed Today */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {attentionMetrics.slice(4, 6).map((metric) => (
+                <div
+                  key={metric.id}
+                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
+                  data-testid={`attention-metric-${metric.id}`}
+                >
+                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
+                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
+                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
+                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
