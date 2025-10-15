@@ -94,12 +94,12 @@ export default function CustomerProfile() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {stats.map((stat, index) => (
-            <Card key={index} className="bg-white border-0 rounded-2xl shadow-sm">
+            <Card key={index} className="bg-white border-0 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
               <CardContent className="p-6 text-center">
-                <div className={`text-3xl font-bold ${stat.color} mb-1`}>
+                <div className={`text-3xl font-semibold ${stat.color} mb-1`}>
                   {stat.value}
                 </div>
-                <div className="text-sm text-rpp-grey-medium">{stat.label}</div>
+                <div className="text-sm font-normal text-rpp-grey-medium">{stat.label}</div>
               </CardContent>
             </Card>
           ))}
