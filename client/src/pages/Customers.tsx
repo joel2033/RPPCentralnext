@@ -80,7 +80,7 @@ export default function Customers() {
       </div>
 
       {/* Search and Filter Bar */}
-      <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-4 flex-1">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -88,13 +88,13 @@ export default function Customers() {
               placeholder="Search customers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl"
               data-testid="input-search-customers"
             />
           </div>
           
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-48 border-gray-200 dark:border-gray-700" data-testid="select-category-filter">
+            <SelectTrigger className="w-48 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-category-filter">
               <div className="flex items-center">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />
@@ -120,7 +120,7 @@ export default function Customers() {
       {/* Customer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCustomers.map((customer: any) => (
-          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800" data-testid={`customer-card-${customer.id}`}>
+          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 rounded-3xl" data-testid={`customer-card-${customer.id}`}>
             <CardContent className="p-6">
               {/* Customer Info */}
               <div className="flex items-start gap-4 mb-6">
@@ -184,7 +184,7 @@ export default function Customers() {
               <Link href={`/customers/${customer.id}`}>
                 <Button 
                   variant="outline" 
-                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl"
                   data-testid={`button-view-profile-${customer.id}`}
                 >
                   View Profile
