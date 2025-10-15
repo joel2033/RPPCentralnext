@@ -454,7 +454,7 @@ export default function Upload() {
                 <div className="grid grid-cols-2 gap-3">
                   {Object.values(groupedServices).flat().map((service: any) => {
                     const isSelected = selectedServices.some(s => s.service.id === service.id);
-                    const iconProps = { className: "w-6 h-6" };
+                    const iconProps = { className: "w-5 h-5" };
                     
                     // Map service names to icons and colors
                     const getServiceIcon = (name: string) => {
@@ -494,7 +494,7 @@ export default function Upload() {
                             addService(service);
                           }
                         }}
-                        className={`relative p-3 rounded-lg border-2 transition-all text-left ${
+                        className={`relative p-2.5 rounded-lg border-2 transition-all text-left ${
                           isSelected 
                             ? 'border-orange-500 bg-orange-50' 
                             : 'border-gray-200 hover:border-gray-300 bg-white'
@@ -502,16 +502,16 @@ export default function Upload() {
                         data-testid={`service-card-${service.id}`}
                       >
                         {isSelected && (
-                          <div className="absolute top-2 right-2 bg-orange-500 rounded-full p-1">
-                            <Check className="w-3 h-3 text-white" />
+                          <div className="absolute top-1.5 right-1.5 bg-orange-500 rounded-full p-0.5">
+                            <Check className="w-2.5 h-2.5 text-white" />
                           </div>
                         )}
-                        <div className={`w-10 h-10 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-2`}>
+                        <div className={`w-8 h-8 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-1.5`}>
                           {getServiceIcon(service.name)}
                         </div>
-                        <div className="font-medium text-gray-900 text-sm mb-0.5">{service.name}</div>
-                        <div className="text-xs text-gray-500 mb-1.5">{service.description || service.pricePer}</div>
-                        <div className="text-orange-600 font-semibold text-sm">
+                        <div className="font-medium text-gray-900 text-xs mb-0.5">{service.name}</div>
+                        <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">{service.description || service.pricePer}</div>
+                        <div className="text-orange-600 font-semibold text-xs">
                           ${parseFloat(service.basePrice).toFixed(2)}
                         </div>
                       </button>
