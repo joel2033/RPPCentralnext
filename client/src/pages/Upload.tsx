@@ -351,92 +351,96 @@ export default function Upload() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Upload Area */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Order Information */}
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">New Order Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Job Dropdown */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-5 h-5 text-orange-500" />
-                  <label className="text-sm font-medium text-gray-900">
-                    Job
-                  </label>
-                </div>
-                <p className="text-sm text-gray-600 mb-3">Choose a job for your finished asset placement</p>
-                <Select 
-                  value={orderDetails.jobId} 
-                  onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
-                >
-                  <SelectTrigger className="border-gray-300" data-testid="select-job">
-                    <SelectValue placeholder="Select a job..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobs.map((job: any) => (
-                      <SelectItem 
-                        key={job.id} 
-                        value={job.jobId || job.id}
-                      >
+          {/* Job Card */}
+          <Card className="border-gray-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="w-5 h-5 text-orange-500" />
+                <label className="text-sm font-medium text-gray-900">
+                  Job
+                </label>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">Choose a job for your finished asset placement</p>
+              <Select 
+                value={orderDetails.jobId} 
+                onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
+              >
+                <SelectTrigger className="border-gray-300" data-testid="select-job">
+                  <SelectValue placeholder="Select a job..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobs.map((job: any) => (
+                    <SelectItem 
+                      key={job.id} 
+                      value={job.jobId || job.id}
+                    >
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                        <div>
+                          <div className="font-medium">{job.address?.split(',')[0] || job.address}</div>
+                          <div className="text-xs text-gray-500">{job.address}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+          
+          {/* Supplier Card */}
+          <Card className="border-gray-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 className="w-5 h-5 text-orange-500" />
+                <label className="text-sm font-medium text-gray-900">
+                  Supplier
+                </label>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">Select the supplier who will be responsible for this order</p>
+              <Select 
+                value={selectedEditor} 
+                onValueChange={(value) => {
+                  setSelectedEditor(value);
+                  setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
+                }}
+              >
+                <SelectTrigger className="border-gray-300" data-testid="select-supplier">
+                  <SelectValue placeholder="Select a supplier..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingSuppliers ? (
+                    <SelectItem value="loading" disabled>
+                      Loading editors...
+                    </SelectItem>
+                  ) : suppliers.length === 0 ? (
+                    <SelectItem value="no-editors" disabled>
+                      No partner editors available
+                    </SelectItem>
+                  ) : (
+                    suppliers.map((supplier: any) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
                         <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <Building2 className="w-4 h-4 text-gray-400 mt-0.5" />
                           <div>
-                            <div className="font-medium">{job.address?.split(',')[0] || job.address}</div>
-                            <div className="text-xs text-gray-500">{job.address}</div>
+                            <div className="font-medium">{supplier.studioName}</div>
+                            <div className="text-xs text-gray-500">{supplier.studioName}</div>
                           </div>
                         </div>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Supplier/Editor Dropdown */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="w-5 h-5 text-orange-500" />
-                  <label className="text-sm font-medium text-gray-900">
-                    Supplier
-                  </label>
-                </div>
-                <p className="text-sm text-gray-600 mb-3">Select the supplier who will be responsible for this order</p>
-                <Select 
-                  value={selectedEditor} 
-                  onValueChange={(value) => {
-                    setSelectedEditor(value);
-                    setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
-                  }}
-                >
-                  <SelectTrigger className="border-gray-300" data-testid="select-supplier">
-                    <SelectValue placeholder="Select a supplier..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingSuppliers ? (
-                      <SelectItem value="loading" disabled>
-                        Loading editors...
-                      </SelectItem>
-                    ) : suppliers.length === 0 ? (
-                      <SelectItem value="no-editors" disabled>
-                        No partner editors available
-                      </SelectItem>
-                    ) : (
-                      suppliers.map((supplier: any) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          <div className="flex items-start gap-2">
-                            <Building2 className="w-4 h-4 text-gray-400 mt-0.5" />
-                            <div>
-                              <div className="font-medium">{supplier.studioName}</div>
-                              <div className="text-xs text-gray-500">{supplier.studioName}</div>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
 
+          {/* Services Card */}
+          <Card className="border-rpp-grey-border">
+            <CardHeader>
+              <CardTitle className="text-rpp-grey-dark">Services</CardTitle>
+            </CardHeader>
+            <CardContent>
               {/* Services Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
