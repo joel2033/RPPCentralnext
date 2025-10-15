@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { X, Upload, Plus, Minus } from "lucide-react";
+import { X, Upload as UploadIcon, Plus, Minus, MapPin, Building2, Camera, FileText, Palette, Home, Cloud, Aperture, Video, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,33 +14,117 @@ interface CreateOrderModalProps {
   onClose: () => void;
 }
 
-export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
-  const [orderData, setOrderData] = useState({
-    orderNumber: `ORDER-${Date.now()}`,
-    jobId: "",
-    customerId: "",
-    assignedTo: "",
-    estimatedTotal: "",
-    notes: "",
-    specifications: [],
-    files: []
-  });
+interface SelectedService {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: any;
+  iconColor: string;
+  quantity: number;
+  instructions: Array<{ id: string; fileNaming: string; special: string }>;
+  exportTypes: Array<{ id: string; format: string; requirements: string }>;
+  files: File[];
+}
 
-  const [newSpecification, setNewSpecification] = useState("");
-  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
+export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
+  const [currentStep, setCurrentStep] = useState<'job' | 'services' | 'configure'>('job');
+  const [selectedJob, setSelectedJob] = useState("");
+  const [selectedSupplier, setSelectedSupplier] = useState("");
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { userData } = useAuth();
 
-  // Get jobs and customers for dropdowns
   const { data: jobs = [] } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [] } = useQuery<any[]>({
-    queryKey: ["/api/customers"],
-  });
+  // Mock services data - will be replaced with API
+  const availableServices = [
+    { 
+      id: '1', 
+      name: 'Image Enhancement', 
+      description: 'Day Photography', 
+      price: 0.61, 
+      icon: Camera, 
+      iconColor: 'bg-blue-100 text-blue-600',
+      iconBg: 'bg-blue-50',
+      borderColor: 'border-blue-200'
+    },
+    { 
+      id: '2', 
+      name: 'Floor Plan', 
+      description: '2D - Under 350sqm', 
+      price: 0.61, 
+      icon: FileText, 
+      iconColor: 'bg-purple-100 text-purple-600',
+      iconBg: 'bg-purple-50',
+      borderColor: 'border-purple-200'
+    },
+    { 
+      id: '3', 
+      name: 'Digital Edits', 
+      description: 'Raw To Dusk', 
+      price: 4.20, 
+      icon: Palette, 
+      iconColor: 'bg-yellow-100 text-yellow-600',
+      iconBg: 'bg-yellow-50',
+      borderColor: 'border-yellow-200'
+    },
+    { 
+      id: '4', 
+      name: 'Color Correction', 
+      description: 'Professional Grading', 
+      price: 3.50, 
+      icon: Aperture, 
+      iconColor: 'bg-pink-100 text-pink-600',
+      iconBg: 'bg-pink-50',
+      borderColor: 'border-pink-200'
+    },
+    { 
+      id: '5', 
+      name: 'Virtual Staging', 
+      description: 'Furniture & Decor', 
+      price: 25.00, 
+      icon: Home, 
+      iconColor: 'bg-green-100 text-green-600',
+      iconBg: 'bg-green-50',
+      borderColor: 'border-green-200'
+    },
+    { 
+      id: '6', 
+      name: 'Sky Replacement', 
+      description: 'Blue Sky Enhancement', 
+      price: 5.00, 
+      icon: Cloud, 
+      iconColor: 'bg-cyan-100 text-cyan-600',
+      iconBg: 'bg-cyan-50',
+      borderColor: 'border-cyan-200'
+    },
+    { 
+      id: '7', 
+      name: 'Drone Photography', 
+      description: 'Aerial Editing', 
+      price: 8.00, 
+      icon: Aperture, 
+      iconColor: 'bg-indigo-100 text-indigo-600',
+      iconBg: 'bg-indigo-50',
+      borderColor: 'border-indigo-200'
+    },
+    { 
+      id: '8', 
+      name: 'Video Editing', 
+      description: 'Walkthrough Videos', 
+      price: 15.00, 
+      icon: Video, 
+      iconColor: 'bg-orange-100 text-orange-600',
+      iconBg: 'bg-orange-50',
+      borderColor: 'border-orange-200'
+    },
+  ];
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -51,7 +135,7 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       toast({
         title: "Order Created",
-        description: "Order has been created successfully.",
+        description: "Order has been sent successfully.",
       });
       onClose();
     },
@@ -64,21 +148,106 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
     },
   });
 
-  const addSpecification = () => {
-    if (newSpecification.trim()) {
-      setOrderData(prev => ({
-        ...prev,
-        specifications: [...prev.specifications, newSpecification.trim()]
-      }));
-      setNewSpecification("");
+  const toggleService = (service: any) => {
+    const isSelected = selectedServices.find(s => s.id === service.id);
+    if (isSelected) {
+      setSelectedServices(selectedServices.filter(s => s.id !== service.id));
+    } else {
+      setSelectedServices([...selectedServices, {
+        ...service,
+        quantity: 1,
+        instructions: [],
+        exportTypes: [],
+        files: []
+      }]);
     }
   };
 
-  const removeSpecification = (index: number) => {
-    setOrderData(prev => ({
-      ...prev,
-      specifications: prev.specifications.filter((_, i) => i !== index)
-    }));
+  const updateServiceQuantity = (serviceId: string, delta: number) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { ...s, quantity: Math.max(1, s.quantity + delta) } : s
+    ));
+  };
+
+  const addInstruction = (serviceId: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        instructions: [...s.instructions, { id: Date.now().toString(), fileNaming: '', special: '' }] 
+      } : s
+    ));
+  };
+
+  const removeInstruction = (serviceId: string, instructionId: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        instructions: s.instructions.filter(i => i.id !== instructionId) 
+      } : s
+    ));
+  };
+
+  const updateInstruction = (serviceId: string, instructionId: string, field: 'fileNaming' | 'special', value: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        instructions: s.instructions.map(i => 
+          i.id === instructionId ? { ...i, [field]: value } : i
+        ) 
+      } : s
+    ));
+  };
+
+  const addExportType = (serviceId: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        exportTypes: [...s.exportTypes, { id: Date.now().toString(), format: '', requirements: '' }] 
+      } : s
+    ));
+  };
+
+  const removeExportType = (serviceId: string, exportId: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        exportTypes: s.exportTypes.filter(e => e.id !== exportId) 
+      } : s
+    ));
+  };
+
+  const updateExportType = (serviceId: string, exportId: string, field: 'format' | 'requirements', value: string) => {
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { 
+        ...s, 
+        exportTypes: s.exportTypes.map(e => 
+          e.id === exportId ? { ...e, [field]: value } : e
+        ) 
+      } : s
+    ));
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, serviceId: string) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { ...s, files: [...s.files, ...files] } : s
+    ));
+  };
+
+  const handleDrop = (e: React.DragEvent, serviceId: string) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    setSelectedServices(selectedServices.map(s => 
+      s.id === serviceId ? { ...s, files: [...s.files, ...files] } : s
+    ));
+  };
+
+  const calculateTotal = () => {
+    const serviceTotal = selectedServices.reduce((sum, service) => 
+      sum + (service.price * service.quantity), 0
+    );
+    const serviceFee = serviceTotal * 0.1; // 10% service fee
+    return { serviceTotal, serviceFee, total: serviceTotal + serviceFee };
   };
 
   const handleSubmit = () => {
@@ -91,315 +260,458 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
       return;
     }
 
+    if (!acceptTerms) {
+      toast({
+        title: "Terms Required",
+        description: "Please accept the terms of service to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { total } = calculateTotal();
     const orderPayload = {
       partnerId: userData.partnerId,
-      jobId: orderData.jobId || null,
-      customerId: orderData.customerId || null,
-      assignedTo: orderData.assignedTo || null,
+      jobId: selectedJob || null,
+      customerId: null,
+      assignedTo: selectedSupplier || null,
       createdBy: userData?.email || "admin",
-      estimatedTotal: orderData.estimatedTotal || "0.00",
-      status: "pending"
+      estimatedTotal: total.toFixed(2),
+      status: "pending",
+      // Include selected services configuration
+      services: selectedServices.map(service => ({
+        id: service.id,
+        name: service.name,
+        quantity: service.quantity,
+        price: service.price,
+        instructions: service.instructions,
+        exportTypes: service.exportTypes,
+        files: service.files.map(file => file.name)
+      }))
     };
 
     createOrderMutation.mutate(orderPayload);
   };
 
+  const { serviceTotal, serviceFee, total } = calculateTotal();
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-50 flex items-center justify-center px-1">
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-semibold text-rpp-grey-dark">New Order Information</h2>
-            <p className="text-sm text-rpp-grey-light mt-1">
-              All work (to your Freelancer and Suppliers)
+            <h2 className="text-xl font-semibold text-gray-900">Upload to Editors</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Send your media files to professional editors for post-production services
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5 text-rpp-grey-light" />
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            data-testid="button-close-modal"
+          >
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <div className="flex">
+        <div className="flex flex-1 overflow-hidden">
           {/* Main Content */}
-          <div className="flex-1 p-6">
-            {/* Order Information */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Order Information</h3>
-              
-              <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="flex-1 overflow-y-auto p-6">
+            {/* Step 1: Job Selection */}
+            {currentStep === 'job' && (
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Order Number
-                  </label>
-                  <Input
-                    value={orderData.orderNumber}
-                    onChange={(e) => setOrderData(prev => ({ ...prev, orderNumber: e.target.value }))}
-                    className="border-rpp-grey-border"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Assign to Job (Optional)
-                  </label>
-                  <Select value={orderData.jobId} onValueChange={(value) => setOrderData(prev => ({ ...prev, jobId: value }))}>
-                    <SelectTrigger className="border-rpp-grey-border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-orange-500" />
+                    <h3 className="text-lg font-semibold text-gray-900">Job</h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">Choose a job for your finished asset placement</p>
+                  
+                  <Select value={selectedJob} onValueChange={setSelectedJob}>
+                    <SelectTrigger className="border-gray-300" data-testid="select-job">
                       <SelectValue placeholder="Select a job" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No job assignment</SelectItem>
                       {jobs.map((job: any) => (
                         <SelectItem key={job.id} value={job.id}>
-                          {job.address}
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-gray-400" />
+                            <div>
+                              <div className="font-medium">{job.address?.split(',')[0] || job.address}</div>
+                              <div className="text-xs text-gray-500">{job.address}</div>
+                            </div>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Customer (Optional)
-                  </label>
-                  <Select value={orderData.customerId} onValueChange={(value) => setOrderData(prev => ({ ...prev, customerId: value }))}>
-                    <SelectTrigger className="border-rpp-grey-border">
-                      <SelectValue placeholder="Select a customer" />
+                  <div className="flex items-center gap-2 mb-4">
+                    <Building2 className="w-5 h-5 text-orange-500" />
+                    <h3 className="text-lg font-semibold text-gray-900">Supplier</h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">Select the supplier who will be responsible for this order</p>
+                  
+                  <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                    <SelectTrigger className="border-gray-300" data-testid="select-supplier">
+                      <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No customer</SelectItem>
-                      {customers.map((customer: any) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.firstName} {customer.lastName}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="pht_studio">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="font-medium">PHT Studio</div>
+                            <div className="text-xs text-gray-500">PHT Creative Studio</div>
+                          </div>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            )}
 
+            {/* Step 2: Service Selection */}
+            {currentStep === 'services' && (
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="w-5 h-5 text-orange-500" />
+                  <h3 className="text-lg font-semibold text-gray-900">Select Services</h3>
+                </div>
+                <p className="text-sm text-gray-500 mb-6">Click on services to add them to your order</p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {availableServices.map((service) => {
+                    const isSelected = selectedServices.find(s => s.id === service.id);
+                    const Icon = service.icon;
+                    
+                    return (
+                      <div
+                        key={service.id}
+                        onClick={() => toggleService(service)}
+                        className={`relative border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                          isSelected 
+                            ? `${service.borderColor} ${service.iconBg}` 
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        data-testid={`service-card-${service.id}`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-3 right-3 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                            <ChevronRight className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${service.iconColor}`}>
+                            <Icon className="w-6 h-6" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{service.name}</h4>
+                            <p className="text-sm text-gray-500">{service.description}</p>
+                            <p className="text-lg font-semibold text-orange-500 mt-2">${service.price.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Configure Services */}
+            {currentStep === 'configure' && (
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                    Estimated Total
-                  </label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 py-2 border border-r-0 border-rpp-grey-border bg-rpp-grey-surface rounded-l-lg text-sm text-rpp-grey-dark">
-                      $
-                    </span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={orderData.estimatedTotal}
-                      onChange={(e) => setOrderData(prev => ({ ...prev, estimatedTotal: e.target.value }))}
-                      className="flex-1 border-rpp-grey-border rounded-l-none"
-                    />
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Configure Services</h3>
+                  <p className="text-sm text-gray-500 mb-6">Upload files and set preferences for each service</p>
+                  
+                  {selectedServices.map((service) => {
+                    const Icon = service.icon;
+                    return (
+                      <div key={service.id} className="mb-6 border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${service.iconColor}`}>
+                              <Icon className="w-4 h-4" />
+                            </div>
+                            <span className="font-medium text-gray-900">{service.name}</span>
+                            <X 
+                              className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-pointer" 
+                              onClick={() => toggleService(service)}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="p-4 space-y-4">
+                          {/* Upload Files */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Upload Files</label>
+                            <div>
+                              <div
+                                onDrop={(e) => handleDrop(e, service.id)}
+                                onDragOver={(e) => e.preventDefault()}
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer"
+                              >
+                                <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                  <UploadIcon className="w-6 h-6 text-orange-500" />
+                                </div>
+                                <p className="text-sm text-gray-600 mb-1">Click to upload files or drag and drop</p>
+                                <p className="text-xs text-gray-500">JPG, PNG, RAW, or TIFF files</p>
+                                <input
+                                  type="file"
+                                  multiple
+                                  onChange={(e) => handleFileUpload(e, service.id)}
+                                  className="hidden"
+                                  id={`file-upload-${service.id}`}
+                                />
+                                <label htmlFor={`file-upload-${service.id}`} className="cursor-pointer inline-block mt-2">
+                                  <div className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
+                                    Browse Files
+                                  </div>
+                                </label>
+                              </div>
+                              {service.files.length > 0 && (
+                                <div className="mt-3 space-y-1">
+                                  {service.files.map((file, idx) => (
+                                    <div key={idx} className="text-xs text-gray-600 flex items-center gap-2">
+                                      <FileText className="w-3 h-3" />
+                                      <span>{file.name}</span>
+                                      <span className="text-gray-400">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quantity */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Quantity</label>
+                            <div className="flex items-center gap-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => updateServiceQuantity(service.id, -1)}
+                                disabled={service.quantity <= 1}
+                              >
+                                <Minus className="w-4 h-4" />
+                              </Button>
+                              <Input
+                                type="number"
+                                value={service.quantity}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 1;
+                                  setSelectedServices(selectedServices.map(s => 
+                                    s.id === service.id ? { ...s, quantity: Math.max(1, val) } : s
+                                  ));
+                                }}
+                                className="w-20 text-center"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => updateServiceQuantity(service.id, 1)}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                              <span className="text-sm text-gray-500">Expected files to be delivered</span>
+                            </div>
+                          </div>
+
+                          {/* Instructions */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Instructions</label>
+                            <p className="text-xs text-gray-500 mb-3">Provide detailed guidance to help your supplier deliver the expected results</p>
+                            
+                            {service.instructions.map((instruction) => (
+                              <div key={instruction.id} className="grid grid-cols-2 gap-2 mb-2">
+                                <Input
+                                  placeholder="File naming convention"
+                                  value={instruction.fileNaming}
+                                  onChange={(e) => updateInstruction(service.id, instruction.id, 'fileNaming', e.target.value)}
+                                  className="bg-gray-50"
+                                />
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Special instructions"
+                                    value={instruction.special}
+                                    onChange={(e) => updateInstruction(service.id, instruction.id, 'special', e.target.value)}
+                                    className="bg-gray-50 flex-1"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeInstruction(service.id, instruction.id)}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => addInstruction(service.id)}
+                              className="mt-2"
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add Instruction Row
+                            </Button>
+                          </div>
+
+                          {/* Export Types */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Export Types</label>
+                            <p className="text-xs text-gray-500 mb-3">Specify output format and quality requirements</p>
+                            
+                            {service.exportTypes.map((exportType) => (
+                              <div key={exportType.id} className="grid grid-cols-2 gap-2 mb-2">
+                                <Select
+                                  value={exportType.format}
+                                  onValueChange={(value) => updateExportType(service.id, exportType.id, 'format', value)}
+                                >
+                                  <SelectTrigger className="bg-gray-50">
+                                    <SelectValue placeholder="Choose Export Type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="jpeg_high">JPEG (High Quality)</SelectItem>
+                                    <SelectItem value="png">PNG</SelectItem>
+                                    <SelectItem value="tiff">TIFF</SelectItem>
+                                    <SelectItem value="raw">RAW</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Additional requirements"
+                                    value={exportType.requirements}
+                                    onChange={(e) => updateExportType(service.id, exportType.id, 'requirements', e.target.value)}
+                                    className="bg-gray-50 flex-1"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeExportType(service.id, exportType.id)}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => addExportType(service.id)}
+                              className="mt-2"
+                            >
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add Export Type
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Supplier Assignment */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Supplier</h3>
-              <p className="text-sm text-rpp-grey-light mb-4">
-                Choose your freelancer who will complete the edit. Learn more about creating suppliers here.
-              </p>
-              
-              <Select value={orderData.assignedTo} onValueChange={(value) => setOrderData(prev => ({ ...prev, assignedTo: value }))}>
-                <SelectTrigger className="border-rpp-grey-border">
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="photographer1">Photographer Team</SelectItem>
-                  <SelectItem value="editor1">Editing Team</SelectItem>
-                  <SelectItem value="external">External Editor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Services */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Services</h3>
-              <p className="text-sm text-rpp-grey-light mb-4">
-                Choose the service which applies to this order.
-              </p>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="border border-rpp-grey-border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-blue-600 text-sm">📷</span>
+          {/* Order Summary Sidebar */}
+          <div className="w-80 bg-gray-50 border-l border-gray-200 p-6 flex flex-col">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h3>
+            
+            <div className="flex-1 space-y-4 mb-6">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Service</p>
+                {selectedServices.length === 0 ? (
+                  <p className="text-sm text-gray-500">No services selected</p>
+                ) : (
+                  selectedServices.map((service) => (
+                    <div key={service.id} className="flex justify-between text-sm mb-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{service.name}</p>
+                        <p className="text-xs text-gray-500">Quantity: {service.quantity} x 1</p>
+                      </div>
+                      <p className="font-medium text-gray-900">${(service.price * service.quantity).toFixed(2)}</p>
                     </div>
-                    <div>
-                      <h4 className="font-medium">Image Enhancement - Real</h4>
-                      <p className="text-xs text-rpp-grey-light">$35.00</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="border border-rpp-grey-border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 text-sm">🏠</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Quantity X</h4>
-                      <p className="text-xs text-rpp-grey-light">24</p>
-                    </div>
-                  </div>
-                </div>
+                  ))
+                )}
               </div>
-            </div>
 
-            {/* Instructions */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Instructions</h3>
-              <p className="text-sm text-rpp-grey-light mb-4">
-                Any special requests or notes for the supplier should be captured here for this order.
-              </p>
-              
-              <Textarea
-                placeholder="Add notes here..."
-                value={orderData.notes}
-                onChange={(e) => setOrderData(prev => ({ ...prev, notes: e.target.value }))}
-                className="border-rpp-grey-border min-h-24"
-              />
-            </div>
-
-            {/* Expert Notes */}
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Expert Notes</h3>
-              <p className="text-sm text-rpp-grey-light mb-4">
-                Specify requirements or preferences about the supplier experience and competency.
-              </p>
-              
-              <div className="space-y-2 mb-4">
-                {orderData.specifications.map((spec, index) => (
-                  <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                    <span className="text-sm">{spec}</span>
-                    <button
-                      onClick={() => removeSpecification(index)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
+              {selectedServices.length > 0 && (
+                <>
+                  <div className="border-t border-gray-200 pt-3">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-600">Service fee</span>
+                      <span className="text-gray-900">${serviceFee.toFixed(2)}</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-              
-              <div className="flex space-x-2">
-                <Input
-                  placeholder="Add specification..."
-                  value={newSpecification}
-                  onChange={(e) => setNewSpecification(e.target.value)}
-                  className="flex-1 border-rpp-grey-border"
-                  onKeyPress={(e) => e.key === 'Enter' && addSpecification()}
+
+                  <div className="border-t border-gray-200 pt-3">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-gray-900">Total estimated cost</span>
+                      <span className="font-bold text-orange-500 text-lg">${total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="accept-terms"
+                  checked={acceptTerms}
+                  onCheckedChange={(checked) => setAcceptTerms(!!checked)}
+                  className="mt-0.5"
                 />
-                <Button
-                  onClick={addSpecification}
-                  variant="outline"
-                  className="border-rpp-grey-border"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
+                <label htmlFor="accept-terms" className="text-sm text-gray-600">
+                  I accept the <span className="text-orange-500">terms of service</span> and understand the{' '}
+                  <span className="text-orange-500">billing process</span>
+                </label>
               </div>
-            </div>
-          </div>
 
-          {/* Sidebar */}
-          <div className="w-80 bg-rpp-grey-surface p-6 border-l border-rpp-grey-border">
-            <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Supplier</h3>
-            
-            <div className="mb-6">
-              <div className="border border-rpp-grey-border bg-white rounded-lg p-4">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 text-sm">📷</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">PPT Studio</h4>
-                    <p className="text-xs text-rpp-grey-light">Live Support • 5AM - 9PM</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-rpp-grey-light">Avg Delivery</span>
-                    <span>6h 25m</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-rpp-grey-light">On-time Delivery</span>
-                    <span>98.4%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-rpp-grey-light">Satisfaction</span>
-                    <span>95.8%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <h3 className="text-lg font-medium text-rpp-grey-dark mb-4">Order Summary</h3>
-            
-            <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm">
-                <span>Service</span>
-                <span>Est. cost</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Image Enhancement - Real</span>
-                <span>$35.00</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Quantity X</span>
-                <span>24</span>
-              </div>
-              <div className="border-t border-rpp-grey-border pt-2">
-                <div className="flex justify-between font-medium">
-                  <span>Estimated total</span>
-                  <span>${orderData.estimatedTotal || "0.00"}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <p className="text-xs text-rpp-grey-light mb-2">
-                Your estimated total will be used for cost tracking and reporting.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="border-t border-rpp-grey-border p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="send-confirmation"
-                checked={sendConfirmationEmail}
-                onCheckedChange={(checked) => setSendConfirmationEmail(!!checked)}
-              />
-              <label htmlFor="send-confirmation" className="text-sm text-rpp-grey-dark">
-                Send customer confirmation email
-              </label>
-            </div>
-            
-            <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                onClick={onClose}
-                className="text-rpp-red-main border-rpp-red-main hover:bg-rpp-red-main hover:text-white"
+              <Button
+                onClick={() => {
+                  if (currentStep === 'job' && selectedJob && selectedSupplier) {
+                    setCurrentStep('services');
+                  } else if (currentStep === 'services' && selectedServices.length > 0) {
+                    setCurrentStep('configure');
+                  } else if (currentStep === 'configure') {
+                    handleSubmit();
+                  }
+                }}
+                disabled={
+                  (currentStep === 'job' && (!selectedJob || !selectedSupplier)) ||
+                  (currentStep === 'services' && selectedServices.length === 0) ||
+                  (currentStep === 'configure' && (!acceptTerms || createOrderMutation.isPending))
+                }
+                className="w-full bg-orange-400 hover:bg-orange-500 text-white"
+                data-testid="button-send-order"
               >
-                Cancel
+                {currentStep === 'configure' 
+                  ? (createOrderMutation.isPending ? "Sending..." : "Send order")
+                  : "Continue"
+                }
               </Button>
-              <Button 
-                onClick={handleSubmit}
-                disabled={createOrderMutation.isPending}
-                className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white"
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (currentStep === 'services') setCurrentStep('job');
+                  else if (currentStep === 'configure') setCurrentStep('services');
+                  else onClose();
+                }}
+                className="w-full border-orange-500 text-orange-500 hover:bg-orange-50"
+                data-testid="button-cancel"
               >
-                {createOrderMutation.isPending ? "Creating..." : "Continue"}
+                {currentStep === 'job' ? 'Cancel' : 'Back'}
               </Button>
             </div>
           </div>
