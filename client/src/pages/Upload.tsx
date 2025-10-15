@@ -493,11 +493,7 @@ export default function Upload() {
                             addService(service);
                           }
                         }}
-                        className={`relative p-2.5 rounded-lg border-2 transition-all text-left ${
-                          isSelected 
-                            ? 'border-orange-500 bg-orange-50' 
-                            : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
+                        className="relative p-2.5 rounded-lg border-2 transition-all text-left border-gray-200 hover:border-gray-300 bg-white ml-[0px] mr-[0px] mt-[0px] mb-[0px] pt-[14px] pb-[14px] pl-[14px] pr-[14px]"
                         data-testid={`service-card-${service.id}`}
                       >
                         {isSelected && (
