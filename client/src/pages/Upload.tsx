@@ -494,7 +494,7 @@ export default function Upload() {
                             addService(service);
                           }
                         }}
-                        className={`relative p-4 rounded-lg border-2 transition-all text-left ${
+                        className={`relative p-3 rounded-lg border-2 transition-all text-left ${
                           isSelected 
                             ? 'border-orange-500 bg-orange-50' 
                             : 'border-gray-200 hover:border-gray-300 bg-white'
@@ -506,11 +506,11 @@ export default function Upload() {
                             <Check className="w-3 h-3 text-white" />
                           </div>
                         )}
-                        <div className={`w-12 h-12 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-3`}>
+                        <div className={`w-10 h-10 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-2`}>
                           {getServiceIcon(service.name)}
                         </div>
-                        <div className="font-medium text-gray-900 text-sm mb-1">{service.name}</div>
-                        <div className="text-xs text-gray-500 mb-2">{service.description || service.pricePer}</div>
+                        <div className="font-medium text-gray-900 text-sm mb-0.5">{service.name}</div>
+                        <div className="text-xs text-gray-500 mb-1.5">{service.description || service.pricePer}</div>
                         <div className="text-orange-600 font-semibold text-sm">
                           ${parseFloat(service.basePrice).toFixed(2)}
                         </div>
