@@ -165,7 +165,7 @@ export default function Customers() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Average Job Value</p>
+                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Average Job Value</p>
                   <p className="text-base text-gray-900 dark:text-white font-medium" data-testid={`text-customer-avg-value-${customer.id}`}>
                     ${customer.averageJobValue || '0'}
                   </p>
