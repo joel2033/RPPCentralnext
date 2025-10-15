@@ -25,6 +25,17 @@ export const customers = pgTable("customers", {
   company: text("company"),
   category: text("category"),
   profileImage: text("profile_image"),
+  notes: text("notes"),
+  // Billing preferences
+  billingEmail: text("billing_email"),
+  billingAddress: text("billing_address"),
+  city: text("city"),
+  state: text("state"),
+  postcode: text("postcode"),
+  paymentTerms: text("payment_terms"),
+  taxId: text("tax_id"),
+  // Team members stored as JSON array
+  teamMembers: text("team_members"), // JSON array of {name, email, role}
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
   averageJobValue: decimal("average_job_value", { precision: 10, scale: 2 }).default("0"),
   jobsCompleted: integer("jobs_completed").default(0),
