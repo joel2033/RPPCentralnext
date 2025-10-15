@@ -123,7 +123,7 @@ export default function CustomerProfile() {
               <CardContent className="p-8">
                 <div className="flex items-start justify-between mb-6">
                   <div>
-                    <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Jobs</h2>
+                    <h2 className="text-rpp-grey-dark mb-1 font-medium text-[22px]">Jobs</h2>
                     <p className="text-sm text-rpp-grey-medium">
                       Easily access and manage upcoming and delivered jobs for this customer.
                     </p>
