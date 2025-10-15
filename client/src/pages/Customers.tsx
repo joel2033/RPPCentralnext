@@ -171,7 +171,7 @@ export default function Customers() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Jobs Completed</p>
+                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Jobs Completed</p>
                   <p className="text-base font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-jobs-completed-${customer.id}`}>
                     {customer.jobsCompleted || 0}
                   </p>
