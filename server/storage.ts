@@ -1961,7 +1961,7 @@ export class MemStorage implements IStorage {
   // Editing Options Implementation
   async getEditingOptions(partnerId: string): Promise<EditingOption[]> {
     return Array.from(this.editingOptions.values())
-      .filter(option => option.partnerId === partnerId && option.isActive)
+      .filter(option => option.partnerId === partnerId && (option.isActive ?? true))
       .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
   }
 
