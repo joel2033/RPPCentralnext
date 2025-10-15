@@ -545,7 +545,7 @@ export default function Upload() {
                 {selectedServices.map((selectedService, serviceIndex) => (
                   <div key={selectedService.id} className="border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
                     {/* Service Name Heading */}
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">{selectedService.service.name}</h4>
+                    <h4 className="text-gray-900 mb-4 font-medium text-[22px]">{selectedService.service.name}</h4>
                     
                     {/* Upload Files Section */}
                     <div className="mb-6">
