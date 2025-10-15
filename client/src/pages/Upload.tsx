@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
-import { Upload as UploadIcon, FileImage, X, Plus, Minus } from "lucide-react";
+import { Upload as UploadIcon, FileImage, X, Plus, Minus, MapPin, Building2 } from "lucide-react";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -359,15 +359,18 @@ export default function Upload() {
             <CardContent className="space-y-4">
               {/* Job Dropdown */}
               <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Job
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Choose a job for your respective order statement</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="w-5 h-5 text-orange-500" />
+                  <label className="text-sm font-medium text-gray-900">
+                    Job
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">Choose a job for your finished asset placement</p>
                 <Select 
                   value={orderDetails.jobId} 
                   onValueChange={(value) => setOrderDetails(prev => ({ ...prev, jobId: value }))}
                 >
-                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-job">
+                  <SelectTrigger className="border-gray-300" data-testid="select-job">
                     <SelectValue placeholder="Select a job..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -376,7 +379,13 @@ export default function Upload() {
                         key={job.id} 
                         value={job.jobId || job.id}
                       >
-                        {job.address || `Job ${job.jobId || job.id}`}
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <div className="font-medium">{job.address?.split(',')[0] || job.address}</div>
+                            <div className="text-xs text-gray-500">{job.address}</div>
+                          </div>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -385,10 +394,13 @@ export default function Upload() {
               
               {/* Supplier/Editor Dropdown */}
               <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Supplier
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Select the supplier who are responsible for this order. Learn more about assigning suppliers here</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="w-5 h-5 text-orange-500" />
+                  <label className="text-sm font-medium text-gray-900">
+                    Supplier
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">Select the supplier who will be responsible for this order</p>
                 <Select 
                   value={selectedEditor} 
                   onValueChange={(value) => {
@@ -396,7 +408,7 @@ export default function Upload() {
                     setOrderDetails(prev => ({ ...prev, supplier: value, service: "" }));
                   }}
                 >
-                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-supplier">
+                  <SelectTrigger className="border-gray-300" data-testid="select-supplier">
                     <SelectValue placeholder="Select a supplier..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -411,7 +423,13 @@ export default function Upload() {
                     ) : (
                       suppliers.map((supplier: any) => (
                         <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.studioName} ({supplier.email})
+                          <div className="flex items-start gap-2">
+                            <Building2 className="w-4 h-4 text-gray-400 mt-0.5" />
+                            <div>
+                              <div className="font-medium">{supplier.studioName}</div>
+                              <div className="text-xs text-gray-500">{supplier.studioName}</div>
+                            </div>
+                          </div>
                         </SelectItem>
                       ))
                     )}
