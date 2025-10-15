@@ -11,7 +11,9 @@ import {
   insertServiceCategorySchema,
   insertEditorServiceSchema,
   insertNotificationSchema,
-  insertActivitySchema
+  insertActivitySchema,
+  insertEditingOptionSchema,
+  insertCustomerEditingPreferenceSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -4305,6 +4307,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Upload validation failed", 
         details: error.message 
       });
+    }
+  });
+
+  // Editing Options Routes (Settings - Master List)
+  app.get("/api/editing-options", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+      const options = await storage.getEditingOptions(req.user.partnerId);
+      res.json(options);
+    } catch (error: any) {
+      console.error("Error fetching editing options:", error);
+      res.status(500).json({ error: "Failed to fetch editing options" });
+    }
+  });
+
+  app.post("/api/editing-options", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+      const validatedData = insertEditingOptionSchema.parse({
+        ...req.body,
+        partnerId: req.user.partnerId
+      });
+      const option = await storage.createEditingOption(validatedData);
+      res.status(201).json(option);
+    } catch (error: any) {
+      console.error("Error creating editing option:", error);
+      res.status(400).json({ error: "Invalid editing option data" });
+    }
+  });
+
+  app.patch("/api/editing-options/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+      const option = await storage.updateEditingOption(
+        req.params.id,
+        req.body,
+        req.user.partnerId
+      );
+      if (!option) {
+        return res.status(404).json({ error: "Editing option not found" });
+      }
+      res.json(option);
+    } catch (error: any) {
+      console.error("Error updating editing option:", error);
+      res.status(500).json({ error: "Failed to update editing option" });
+    }
+  });
+
+  app.delete("/api/editing-options/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+      await storage.deleteEditingOption(req.params.id, req.user.partnerId);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting editing option:", error);
+      res.status(500).json({ error: "Failed to delete editing option" });
+    }
+  });
+
+  // Customer Editing Preferences Routes
+  app.get("/api/customers/:customerId/editing-preferences", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Verify customer belongs to partner
+      const customer = await storage.getCustomer(req.params.customerId);
+      if (!customer || customer.partnerId !== req.user.partnerId) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      const preferences = await storage.getCustomerEditingPreferences(req.params.customerId);
+      res.json(preferences);
+    } catch (error: any) {
+      console.error("Error fetching customer preferences:", error);
+      res.status(500).json({ error: "Failed to fetch customer editing preferences" });
+    }
+  });
+
+  app.post("/api/customers/:customerId/editing-preferences", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Verify customer belongs to partner
+      const customer = await storage.getCustomer(req.params.customerId);
+      if (!customer || customer.partnerId !== req.user.partnerId) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      const { preferences } = req.body;
+      if (!Array.isArray(preferences)) {
+        return res.status(400).json({ error: "Preferences must be an array" });
+      }
+      await storage.saveCustomerPreferences(req.params.customerId, preferences);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      console.error("Error saving customer preferences:", error);
+      res.status(500).json({ error: "Failed to save customer preferences" });
+    }
+  });
+
+  // Get customer editing preferences with option details
+  app.get("/api/customers/:customerId/editing-preferences/detailed", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Verify customer belongs to partner
+      const customer = await storage.getCustomer(req.params.customerId);
+      if (!customer || customer.partnerId !== req.user.partnerId) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      
+      const [options, preferences] = await Promise.all([
+        storage.getEditingOptions(req.user.partnerId),
+        storage.getCustomerEditingPreferences(req.params.customerId)
+      ]);
+      
+      // Map preferences to options with enabled status
+      const detailedPreferences = options.map(option => {
+        const pref = preferences.find(p => p.editingOptionId === option.id);
+        return {
+          ...option,
+          isEnabled: pref?.isEnabled || false,
+          notes: pref?.notes || null,
+          preferenceId: pref?.id || null
+        };
+      });
+      
+      res.json(detailedPreferences);
+    } catch (error: any) {
+      console.error("Error fetching detailed preferences:", error);
+      res.status(500).json({ error: "Failed to fetch detailed preferences" });
     }
   });
 

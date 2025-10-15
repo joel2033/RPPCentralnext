@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Search, Phone, Mail, Building2, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState } from "react";
+import CustomerEditingPreferences from "@/components/CustomerEditingPreferences";
 
 export default function CustomerProfile() {
   const [, params] = useRoute("/customers/:id");
@@ -103,6 +104,11 @@ export default function CustomerProfile() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Editing Preferences Section */}
+        <div className="mb-8">
+          <CustomerEditingPreferences customerId={params?.id || ""} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

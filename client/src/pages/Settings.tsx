@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import EditingOptionsManager from "@/components/EditingOptionsManager";
 import { 
   Building2, 
   User, 
@@ -30,7 +31,10 @@ import {
   UserPlus,
   Send,
   Mail,
-  Handshake
+  Handshake,
+  Wand2,
+  Plus,
+  X
 } from "lucide-react";
 
 interface Partnership {
@@ -183,7 +187,7 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-10 lg:grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11 lg:grid-cols-11">
           <TabsTrigger value="business-profile" className="flex flex-col items-center gap-1 p-3">
             <Building2 className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Business</span>
@@ -215,6 +219,10 @@ export default function Settings() {
           <TabsTrigger value="availability" className="flex flex-col items-center gap-1 p-3">
             <SettingsIcon className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Availability</span>
+          </TabsTrigger>
+          <TabsTrigger value="editing-options" className="flex flex-col items-center gap-1 p-3">
+            <Wand2 className="w-4 h-4" />
+            <span className="text-xs hidden sm:block">Editing</span>
           </TabsTrigger>
           <TabsTrigger value="invite-editors" className="flex flex-col items-center gap-1 p-3">
             <UserPlus className="w-4 h-4" />
@@ -1153,6 +1161,24 @@ export default function Settings() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Editing Options Tab */}
+        <TabsContent value="editing-options" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5" />
+                Editing Options
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Define the editing options available for your customer preferences. These options will be available when setting up editing preferences for each customer.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <EditingOptionsManager />
             </CardContent>
           </Card>
         </TabsContent>

@@ -22,7 +22,11 @@ import {
   type Notification,
   type InsertNotification,
   type Activity,
-  type InsertActivity
+  type InsertActivity,
+  type EditingOption,
+  type InsertEditingOption,
+  type CustomerEditingPreference,
+  type InsertCustomerEditingPreference
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -158,6 +162,19 @@ export interface IStorage {
   validateJobCreation(insertJob: InsertJob): Promise<{ valid: boolean; errors: string[] }>;
   validateOrderCreation(insertOrder: InsertOrder): Promise<{ valid: boolean; errors: string[] }>;
   validateEditorUpload(insertUpload: InsertEditorUpload): Promise<{ valid: boolean; errors: string[] }>;
+
+  // Editing Options (master list for partners)
+  getEditingOptions(partnerId: string): Promise<EditingOption[]>;
+  createEditingOption(option: InsertEditingOption): Promise<EditingOption>;
+  updateEditingOption(id: string, option: Partial<EditingOption>, partnerId: string): Promise<EditingOption | undefined>;
+  deleteEditingOption(id: string, partnerId: string): Promise<void>;
+
+  // Customer Editing Preferences
+  getCustomerEditingPreferences(customerId: string): Promise<CustomerEditingPreference[]>;
+  setCustomerEditingPreference(preference: InsertCustomerEditingPreference): Promise<CustomerEditingPreference>;
+  updateCustomerEditingPreference(id: string, updates: Partial<CustomerEditingPreference>): Promise<CustomerEditingPreference | undefined>;
+  deleteCustomerEditingPreference(id: string): Promise<void>;
+  saveCustomerPreferences(customerId: string, preferences: { editingOptionId: string; isEnabled: boolean; notes?: string }[]): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -173,6 +190,8 @@ export class MemStorage implements IStorage {
   private editorUploads: Map<string, EditorUpload>;
   private notifications: Map<string, Notification>;
   private activities: Map<string, Activity>;
+  private editingOptions: Map<string, EditingOption>;
+  private customerEditingPreferences: Map<string, CustomerEditingPreference>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -190,6 +209,8 @@ export class MemStorage implements IStorage {
     this.editorUploads = new Map();
     this.notifications = new Map();
     this.activities = new Map();
+    this.editingOptions = new Map();
+    this.customerEditingPreferences = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -1912,6 +1933,110 @@ export class MemStorage implements IStorage {
     // Skip this check for initial uploads
 
     return { valid: errors.length === 0, errors };
+  }
+
+  // Editing Options Implementation
+  async getEditingOptions(partnerId: string): Promise<EditingOption[]> {
+    return Array.from(this.editingOptions.values())
+      .filter(option => option.partnerId === partnerId && option.isActive)
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  }
+
+  async createEditingOption(option: InsertEditingOption): Promise<EditingOption> {
+    const id = randomUUID();
+    const newOption: EditingOption = {
+      ...option,
+      id,
+      createdAt: new Date(),
+    };
+    this.editingOptions.set(id, newOption);
+    this.saveToFile();
+    return newOption;
+  }
+
+  async updateEditingOption(id: string, updates: Partial<EditingOption>, partnerId: string): Promise<EditingOption | undefined> {
+    const option = this.editingOptions.get(id);
+    if (!option || option.partnerId !== partnerId) {
+      return undefined;
+    }
+    const updatedOption = { ...option, ...updates };
+    this.editingOptions.set(id, updatedOption);
+    this.saveToFile();
+    return updatedOption;
+  }
+
+  async deleteEditingOption(id: string, partnerId: string): Promise<void> {
+    const option = this.editingOptions.get(id);
+    if (option && option.partnerId === partnerId) {
+      this.editingOptions.delete(id);
+      // Also delete all customer preferences for this option
+      Array.from(this.customerEditingPreferences.values())
+        .filter(pref => pref.editingOptionId === id)
+        .forEach(pref => this.customerEditingPreferences.delete(pref.id));
+      this.saveToFile();
+    }
+  }
+
+  // Customer Editing Preferences Implementation
+  async getCustomerEditingPreferences(customerId: string): Promise<CustomerEditingPreference[]> {
+    return Array.from(this.customerEditingPreferences.values())
+      .filter(pref => pref.customerId === customerId);
+  }
+
+  async setCustomerEditingPreference(preference: InsertCustomerEditingPreference): Promise<CustomerEditingPreference> {
+    const id = randomUUID();
+    const newPreference: CustomerEditingPreference = {
+      ...preference,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.customerEditingPreferences.set(id, newPreference);
+    this.saveToFile();
+    return newPreference;
+  }
+
+  async updateCustomerEditingPreference(id: string, updates: Partial<CustomerEditingPreference>): Promise<CustomerEditingPreference | undefined> {
+    const preference = this.customerEditingPreferences.get(id);
+    if (!preference) {
+      return undefined;
+    }
+    const updatedPreference = { ...preference, ...updates, updatedAt: new Date() };
+    this.customerEditingPreferences.set(id, updatedPreference);
+    this.saveToFile();
+    return updatedPreference;
+  }
+
+  async deleteCustomerEditingPreference(id: string): Promise<void> {
+    this.customerEditingPreferences.delete(id);
+    this.saveToFile();
+  }
+
+  async saveCustomerPreferences(customerId: string, preferences: { editingOptionId: string; isEnabled: boolean; notes?: string }[]): Promise<void> {
+    // Get all existing preferences for this customer
+    const existingPrefs = await this.getCustomerEditingPreferences(customerId);
+    
+    // Delete all existing preferences
+    for (const pref of existingPrefs) {
+      this.customerEditingPreferences.delete(pref.id);
+    }
+    
+    // Create new preferences
+    for (const pref of preferences) {
+      const id = randomUUID();
+      const newPreference: CustomerEditingPreference = {
+        id,
+        customerId,
+        editingOptionId: pref.editingOptionId,
+        isEnabled: pref.isEnabled,
+        notes: pref.notes || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.customerEditingPreferences.set(id, newPreference);
+    }
+    
+    this.saveToFile();
   }
 }
 

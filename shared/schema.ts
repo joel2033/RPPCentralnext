@@ -189,6 +189,30 @@ export const activities = pgTable("activities", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Editing options (master list of editing options that partners can define)
+export const editingOptions = pgTable("editing_options", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  name: text("name").notNull(), // e.g., "Grass Replacement", "Sky Replacement"
+  description: text("description"), // e.g., "Replace brown or patchy grass with lush green lawn"
+  icon: text("icon"), // Icon name from lucide-react or emoji
+  iconColor: text("icon_color"), // Color for the icon background
+  displayOrder: integer("display_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Customer editing preferences (which editing options are enabled for each customer)
+export const customerEditingPreferences = pgTable("customer_editing_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").references(() => customers.id).notNull(),
+  editingOptionId: varchar("editing_option_id").references(() => editingOptions.id).notNull(),
+  isEnabled: boolean("is_enabled").default(true),
+  notes: text("notes"), // Customer-specific notes/instructions for this editing option
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -284,6 +308,17 @@ export const insertActivitySchema = createInsertSchema(activities).omit({
   ]),
 });
 
+export const insertEditingOptionSchema = createInsertSchema(editingOptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomerEditingPreferenceSchema = createInsertSchema(customerEditingPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -320,3 +355,9 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
 export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
+
+export type EditingOption = typeof editingOptions.$inferSelect;
+export type InsertEditingOption = z.infer<typeof insertEditingOptionSchema>;
+
+export type CustomerEditingPreference = typeof customerEditingPreferences.$inferSelect;
+export type InsertCustomerEditingPreference = z.infer<typeof insertCustomerEditingPreferenceSchema>;
