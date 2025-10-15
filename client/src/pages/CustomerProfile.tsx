@@ -108,11 +108,11 @@ export default function CustomerProfile() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Jobs Section */}
           <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-white border-0 rounded-2xl shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
+            <Card className="bg-white border border-gray-100 rounded-3xl shadow-lg">
+              <CardContent className="p-8">
+                <div className="flex items-start justify-between mb-6">
                   <div>
-                    <h2 className="text-lg font-bold text-rpp-grey-dark">Jobs</h2>
+                    <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Jobs</h2>
                     <p className="text-sm text-rpp-grey-medium">
                       Easily access and manage upcoming and delivered jobs for this customer.
                     </p>
@@ -128,7 +128,7 @@ export default function CustomerProfile() {
                 </div>
 
                 {/* Search and Filters */}
-                <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center gap-3 mb-6">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-medium" />
                     <Input
@@ -136,14 +136,14 @@ export default function CustomerProfile() {
                       placeholder="Search jobs by address..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 border-rpp-grey-border rounded-lg"
+                      className="pl-10 border-gray-200 rounded-lg bg-gray-50 focus:bg-white"
                     />
                   </div>
-                  <Button variant="outline" className="border-rpp-grey-border rounded-lg text-rpp-grey-dark">
+                  <Button variant="outline" className="border-gray-200 rounded-lg text-rpp-grey-dark bg-white hover:bg-gray-50">
                     All Status
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
-                  <Button variant="outline" className="border-rpp-grey-border rounded-lg text-rpp-grey-dark">
+                  <Button variant="outline" className="border-gray-200 rounded-lg text-rpp-grey-dark bg-white hover:bg-gray-50">
                     Filters
                   </Button>
                 </div>
@@ -153,10 +153,10 @@ export default function CustomerProfile() {
                   {jobsList.map((job) => (
                     <div
                       key={job.id}
-                      className="flex items-center gap-4 p-4 rounded-xl border border-rpp-grey-border hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
+                      className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
                     >
-                      <div className="w-10 h-10 rounded-full bg-rpp-red-lighter flex items-center justify-center flex-shrink-0">
-                        <div className="w-5 h-5 rounded-full bg-rpp-red-main"></div>
+                      <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-rpp-grey-dark mb-1">{job.address}</p>
