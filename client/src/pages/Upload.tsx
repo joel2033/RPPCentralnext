@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
-import { Upload as UploadIcon, FileImage, X, Plus, Minus, MapPin, Building2 } from "lucide-react";
+import { Upload as UploadIcon, FileImage, X, Plus, Minus, MapPin, Building2, FileText, Camera, Sparkles, Palette, Home, Cloud, Plane, Video, Check } from "lucide-react";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -436,128 +436,140 @@ export default function Upload() {
           </Card>
 
           {/* Services Card */}
-          <Card className="border-rpp-grey-border">
-            <CardHeader>
-              <CardTitle className="text-rpp-grey-dark">Services</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Services Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                  Services
-                </label>
-                <p className="text-xs text-rpp-grey-light mb-2">Choose the services that the supplier will perform for this order.</p>
-                <Select 
-                  value=""
-                  onValueChange={(value) => {
-                    // Find the selected service object
-                    const allServices = Object.values(groupedServices).flat();
-                    const selectedService = allServices.find(service => service.name === value);
-                    if (selectedService) {
-                      addService(selectedService);
-                    }
-                  }}
-                  disabled={!selectedEditor || isLoadingServices || isLoadingCategories}
-                >
-                  <SelectTrigger className="border-rpp-grey-border" data-testid="select-service">
-                    <SelectValue placeholder={
-                      !selectedEditor 
-                        ? "Select a supplier first..."
-                        : (isLoadingServices || isLoadingCategories) 
-                        ? "Loading services..."
-                        : Object.keys(groupedServices).length === 0
-                        ? "No services available"
-                        : "Select services..."
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(groupedServices).length === 0 ? (
-                      <SelectItem value="no-services" disabled>
-                        No services available
-                      </SelectItem>
-                    ) : (
-                      Object.entries(groupedServices).map(([categoryId, services], categoryIndex) => {
-                        const category = serviceCategories?.find(cat => cat.id === categoryId);
-                        const categoryName = category ? category.name : 'Uncategorized';
-                        
-                        return (
-                          <SelectGroup key={`${categoryId}-${categoryIndex}`}>
-                            {categoryIndex > 0 && <SelectSeparator key={`separator-${categoryIndex}`} />}
-                            <SelectLabel key={`label-${categoryId}`} className="font-medium text-gray-900">
-                              {categoryName}
-                            </SelectLabel>
-                            {services.map((service, serviceIndex) => (
-                              <SelectItem key={`${service.id}-${serviceIndex}`} value={service.name}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{service.name}</span>
-                                  {service.basePrice && (
-                                    <span className="text-xs text-gray-500">
-                                      ${parseFloat(service.basePrice).toFixed(2)} per {service.pricePer || 'image'}
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        );
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
-
-                {/* Selected Services Display */}
-                {selectedServices.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {selectedServices.map((selectedService) => (
-                      <div key={selectedService.id} className="flex items-center bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">
-                        <span className="mr-2">{selectedService.service.name} - [{selectedService.service.pricePer === 'image' ? 'Day' : selectedService.service.pricePer}]</span>
-                        <span className="mr-2">${parseFloat(selectedService.service.basePrice).toFixed(2)}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeService(selectedService.id)}
-                          className="h-4 w-4 p-0 hover:bg-red-200"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <Card className="border-gray-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-5 h-5 text-orange-500" />
+                <h3 className="text-sm font-medium text-gray-900">Select Services</h3>
               </div>
+              <p className="text-sm text-gray-600 mb-4">Click on services to add them to your order</p>
+              
+              {!selectedEditor ? (
+                <p className="text-sm text-gray-500 text-center py-8">Select a supplier first to view available services</p>
+              ) : isLoadingServices || isLoadingCategories ? (
+                <p className="text-sm text-gray-500 text-center py-8">Loading services...</p>
+              ) : Object.keys(groupedServices).length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">No services available</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.values(groupedServices).flat().map((service: any) => {
+                    const isSelected = selectedServices.some(s => s.service.id === service.id);
+                    const iconProps = { className: "w-6 h-6" };
+                    
+                    // Map service names to icons and colors
+                    const getServiceIcon = (name: string) => {
+                      const lowerName = name.toLowerCase();
+                      if (lowerName.includes('enhancement') || lowerName.includes('photography')) return <Camera {...iconProps} />;
+                      if (lowerName.includes('floor')) return <FileText {...iconProps} />;
+                      if (lowerName.includes('edit') || lowerName.includes('dusk')) return <Sparkles {...iconProps} />;
+                      if (lowerName.includes('color') || lowerName.includes('correction')) return <Palette {...iconProps} />;
+                      if (lowerName.includes('staging') || lowerName.includes('virtual')) return <Home {...iconProps} />;
+                      if (lowerName.includes('sky') || lowerName.includes('replacement')) return <Cloud {...iconProps} />;
+                      if (lowerName.includes('drone') || lowerName.includes('aerial')) return <Plane {...iconProps} />;
+                      if (lowerName.includes('video')) return <Video {...iconProps} />;
+                      return <Camera {...iconProps} />;
+                    };
+                    
+                    const getServiceColor = (name: string) => {
+                      const lowerName = name.toLowerCase();
+                      if (lowerName.includes('enhancement') || lowerName.includes('photography')) return 'bg-blue-100 text-blue-600';
+                      if (lowerName.includes('floor')) return 'bg-purple-100 text-purple-600';
+                      if (lowerName.includes('edit') || lowerName.includes('dusk')) return 'bg-yellow-100 text-yellow-600';
+                      if (lowerName.includes('color') || lowerName.includes('correction')) return 'bg-pink-100 text-pink-600';
+                      if (lowerName.includes('staging') || lowerName.includes('virtual')) return 'bg-green-100 text-green-600';
+                      if (lowerName.includes('sky') || lowerName.includes('replacement')) return 'bg-cyan-100 text-cyan-600';
+                      if (lowerName.includes('drone') || lowerName.includes('aerial')) return 'bg-indigo-100 text-indigo-600';
+                      if (lowerName.includes('video')) return 'bg-orange-100 text-orange-600';
+                      return 'bg-gray-100 text-gray-600';
+                    };
+                    
+                    return (
+                      <button
+                        key={service.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            const selectedService = selectedServices.find(s => s.service.id === service.id);
+                            if (selectedService) removeService(selectedService.id);
+                          } else {
+                            addService(service);
+                          }
+                        }}
+                        className={`relative p-4 rounded-lg border-2 transition-all text-left ${
+                          isSelected 
+                            ? 'border-orange-500 bg-orange-50' 
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                        data-testid={`service-card-${service.id}`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 bg-orange-500 rounded-full p-1">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        )}
+                        <div className={`w-12 h-12 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-3`}>
+                          {getServiceIcon(service.name)}
+                        </div>
+                        <div className="font-medium text-gray-900 text-sm mb-1">{service.name}</div>
+                        <div className="text-xs text-gray-500 mb-2">{service.description || service.pricePer}</div>
+                        <div className="text-orange-600 font-semibold text-sm">
+                          ${parseFloat(service.basePrice).toFixed(2)}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              {/* Individual Service Sections */}
-              {selectedServices.map((selectedService, serviceIndex) => (
-                <Card key={selectedService.id} className="mt-6 border-rpp-grey-border">
-                  <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs text-blue-600 uppercase tracking-wider">SERVICE {serviceIndex + 1}</span>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+          {/* Configure Services Section */}
+          {selectedServices.length > 0 && (
+            <Card className="border-gray-200">
+              <CardContent className="pt-6">
+                <h3 className="text-base font-semibold text-gray-900 mb-1">Configure Services</h3>
+                <p className="text-sm text-gray-600 mb-4">Upload files and set preferences for each service</p>
+                
+                {/* Selected Services Pills */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {selectedServices.map((selectedService) => (
+                    <div key={selectedService.id} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg">
+                      <Camera className="w-4 h-4" />
+                      <span className="text-sm font-medium">{selectedService.service.name}</span>
+                      <button
+                        onClick={() => removeService(selectedService.id)}
+                        className="hover:bg-gray-200 rounded-full p-0.5"
+                        data-testid={`button-remove-service-${selectedService.id}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Service Configuration */}
+                {selectedServices.map((selectedService, serviceIndex) => (
+                  <div key={selectedService.id} className="border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
+                    {/* Upload Files Section */}
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-900 mb-3">Upload Files</label>
+                      <button
                         onClick={() => openUploadModal(selectedService)}
-                        className="border-gray-300"
+                        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-orange-400 hover:bg-orange-50 transition-colors"
                         data-testid={`button-upload-${selectedService.id}`}
                       >
-                        <UploadIcon className="w-4 h-4 mr-2" />
-                        Upload {selectedService.files.length > 0 && `(${selectedService.files.length})`}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeService(selectedService.id)}
-                        className="text-red-500 hover:text-red-700"
-                        data-testid={`button-delete-service-${selectedService.id}`}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                        <div className="flex flex-col items-center">
+                          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-3">
+                            <UploadIcon className="w-6 h-6 text-orange-600" />
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">
+                            {selectedService.files.length > 0 
+                              ? `${selectedService.files.length} file(s) selected - Click to change` 
+                              : 'Click to upload files or drag and drop'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">JPG, PNG, RAW, or TIFF files</p>
+                        </div>
+                      </button>
                     </div>
-                  </div>
-                  
-                  <div className="text-center mb-6">
-                    <div className="font-medium text-lg text-gray-900">{selectedService.service.name} - [{selectedService.service.pricePer === 'image' ? 'Day' : selectedService.service.pricePer}]</div>
-                  </div>
 
                   {/* Quantity Section */}
                   <div className="mb-6">
@@ -707,18 +719,11 @@ export default function Upload() {
                       </Button>
                     </div>
                   </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {/* END OF SERVICES */}
-              {selectedServices.length > 0 && (
-                <div className="mt-8 text-center">
-                  <span className="text-sm text-gray-500 uppercase tracking-wider">END OF SERVICES</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
         </div>
 
