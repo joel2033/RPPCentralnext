@@ -169,6 +169,7 @@ export default function CustomerProfile() {
                         key={job.id}
                         className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
                         data-testid={`job-item-${job.jobId || job.id}`}
+                        onClick={() => setLocation(`/jobs/${job.id}`)}
                       >
                         <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
                           <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
