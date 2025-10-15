@@ -616,7 +616,7 @@ export default function Upload() {
                               placeholder="File Name"
                               value={instruction.fileName}
                               onChange={(e) => updateServiceInstructions(selectedService.id, index, 'fileName', e.target.value)}
-                              className="border-gray-300 h-9"
+                              className="border-gray-300 h-9 pt-[2px] pb-[2px] pl-[12px] pr-[12px] ml-[0px] mr-[0px] mt-[0px] mb-[0px]"
                               data-testid={`input-file-name-${selectedService.id}-${index}`}
                             />
                             <Textarea
