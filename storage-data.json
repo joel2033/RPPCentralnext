@@ -2065,9 +2065,150 @@
       "iconColor": "bg-green-100 text-green-600",
       "id": "a369081f-5b79-475a-a5bd-72bebb92f677",
       "createdAt": "2025-10-15T02:59:59.094Z"
+    },
+    "1b465b75-7253-413e-b4d1-b123f43e7be0": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Grass Replacement",
+      "description": "Replace brown or patchy grass with lush green lawn",
+      "icon": "Trees",
+      "iconColor": "bg-green-100 text-green-600",
+      "id": "1b465b75-7253-413e-b4d1-b123f43e7be0",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:04:02.574Z"
+    },
+    "68d9945f-fb81-4aea-9293-a3cc6cf85b30": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Sky Replacement",
+      "description": "Replace the sky with a blue sky",
+      "icon": "Cloud",
+      "iconColor": "bg-blue-100 text-blue-600",
+      "id": "68d9945f-fb81-4aea-9293-a3cc6cf85b30",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:04:20.855Z"
+    },
+    "9526cb3c-2bb5-4a57-a5d8-713cfc1d2df4": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Make all water blue",
+      "description": "Make brown water or dark water blue",
+      "icon": "Droplets",
+      "iconColor": "bg-cyan-100 text-cyan-600",
+      "id": "9526cb3c-2bb5-4a57-a5d8-713cfc1d2df4",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:04:36.435Z"
+    },
+    "0fb7e1ec-70fa-4631-bced-6bd759203c34": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Add movement to the pool water",
+      "description": "Make the pool water appear to have movement",
+      "icon": "Droplets",
+      "iconColor": "bg-cyan-100 text-cyan-600",
+      "id": "0fb7e1ec-70fa-4631-bced-6bd759203c34",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:04:53.849Z"
+    },
+    "3eb10292-dbc1-49b4-98f5-c75daba8d111": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Bump brightness",
+      "description": "Lift the brightness of the images above the standard amount",
+      "icon": "Sun",
+      "iconColor": "bg-orange-100 text-orange-600",
+      "id": "3eb10292-dbc1-49b4-98f5-c75daba8d111",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:05:27.210Z"
+    },
+    "467c4929-9a3e-493a-b709-70fd3776f0e5": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Remove Small Objects",
+      "description": "Remove Bins, Cords, and other small clutter",
+      "icon": "Sparkles",
+      "iconColor": "bg-pink-100 text-pink-600",
+      "id": "467c4929-9a3e-493a-b709-70fd3776f0e5",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:06:12.679Z"
+    },
+    "bfab208f-1129-411e-bd5f-b3b1116df196": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Contrast Bump",
+      "description": "Lift the contrast of the images above the standard amount",
+      "icon": "Sun",
+      "iconColor": "bg-orange-100 text-orange-600",
+      "id": "bfab208f-1129-411e-bd5f-b3b1116df196",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-15T03:06:24.851Z"
     }
   },
-  "customerEditingPreferences": {},
+  "customerEditingPreferences": {
+    "b3718e9c-0094-498b-bdb5-d05f32721c20": {
+      "id": "b3718e9c-0094-498b-bdb5-d05f32721c20",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "1b465b75-7253-413e-b4d1-b123f43e7be0",
+      "isEnabled": true,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "5efc8f65-f3c2-4efe-8f96-68e1004408f4": {
+      "id": "5efc8f65-f3c2-4efe-8f96-68e1004408f4",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "68d9945f-fb81-4aea-9293-a3cc6cf85b30",
+      "isEnabled": true,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "40f7f621-da86-458e-b343-96ef7afb38c8": {
+      "id": "40f7f621-da86-458e-b343-96ef7afb38c8",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "9526cb3c-2bb5-4a57-a5d8-713cfc1d2df4",
+      "isEnabled": false,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "7bfdb513-0b47-48bb-b5c0-9b619b95e7a0": {
+      "id": "7bfdb513-0b47-48bb-b5c0-9b619b95e7a0",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "0fb7e1ec-70fa-4631-bced-6bd759203c34",
+      "isEnabled": true,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "8da7d160-0a54-45b0-bd24-c3243a50dd76": {
+      "id": "8da7d160-0a54-45b0-bd24-c3243a50dd76",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "3eb10292-dbc1-49b4-98f5-c75daba8d111",
+      "isEnabled": true,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "020df0e0-43bb-4f1e-b7d4-f20f250bd3c9": {
+      "id": "020df0e0-43bb-4f1e-b7d4-f20f250bd3c9",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "467c4929-9a3e-493a-b709-70fd3776f0e5",
+      "isEnabled": false,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    },
+    "ade9f14a-a5f5-4f0f-af34-24d1bfdb77e5": {
+      "id": "ade9f14a-a5f5-4f0f-af34-24d1bfdb77e5",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "editingOptionId": "bfab208f-1129-411e-bd5f-b3b1116df196",
+      "isEnabled": true,
+      "notes": null,
+      "createdAt": "2025-10-15T03:10:23.235Z",
+      "updatedAt": "2025-10-15T03:10:23.235Z"
+    }
+  },
   "orderCounter": 4,
   "orderReservations": {
     "#12347": {
