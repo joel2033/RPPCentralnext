@@ -347,7 +347,6 @@ export default function Upload() {
         <h2 className="text-2xl font-bold text-rpp-grey-dark">Upload to Editor</h2>
         <p className="text-rpp-grey-light">Upload your photos and provide editing instructions</p>
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Upload Area */}
         <div className="lg:col-span-2 space-y-6">
@@ -440,7 +439,7 @@ export default function Upload() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="w-5 h-5 text-orange-500" />
-                <h3 className="text-sm font-medium text-gray-900">Select Services</h3>
+                <h3 className="font-medium text-gray-900 text-[20px]">Select Services</h3>
               </div>
               <p className="text-sm text-gray-600 mb-4">Click on services to add them to your order</p>
               
@@ -809,7 +808,6 @@ export default function Upload() {
           </Card>
         </div>
       </div>
-
       {/* File Upload Modal */}
       {currentUploadService && user?.uid && orderDetails.jobId && (
         <FileUploadModal
