@@ -129,7 +129,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   // Handle address input change and fetch suggestions
   const handleAddressChange = (value: string) => {
     setAddress(value);
-    
+
     if (!value.trim() || !autocompleteService.current) {
       setAddressSuggestions([]);
       setShowSuggestions(false);
@@ -137,7 +137,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     }
 
     setIsLoadingPlaces(true);
-    
+
     const request = {
       input: value,
       componentRestrictions: { country: 'au' }, // Restrict to Australia
@@ -146,7 +146,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
     autocompleteService.current.getPlacePredictions(request, (predictions: any[], status: any) => {
       setIsLoadingPlaces(false);
-      
+
       if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
         setAddressSuggestions(predictions.slice(0, 5)); // Limit to 5 suggestions
         setShowSuggestions(true);
@@ -241,12 +241,12 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
         },
         body: JSON.stringify(jobData),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to create job");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -307,7 +307,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!address.trim()) {
       toast({
         title: "Error",
@@ -420,7 +420,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                     data-testid="input-address"
                     autoComplete="off"
                   />
-                  
+
                   {/* Address Suggestions Dropdown */}
                   {showSuggestions && (addressSuggestions.length > 0 || isLoadingPlaces) && (
                     <div className="address-suggestions absolute top-full left-0 right-0 bg-white border border-rpp-grey-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
@@ -457,7 +457,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                 <p className="text-xs text-rpp-grey-light">
                   Address won't show? <Button type="button" variant="link" className="h-auto p-0 text-xs">Enter manually</Button>
                 </p>
-                
+
                 {/* Google Maps Preview */}
                 {address && address.trim() && (
                   <div className="mt-3">
@@ -669,12 +669,12 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                     <span className="text-center">Tax</span>
                     <span className="text-right">Amount</span>
                   </div>
-                  
+
                   {selectedProducts.map((product) => {
                     const subtotal = product.price * product.quantity;
                     const tax = subtotal * (product.taxRate / 100);
                     const total = subtotal + tax;
-                    
+
                     return (
                       <div key={product.id} className="grid grid-cols-5 gap-2 text-sm items-center" data-testid={`product-row-${product.id}`}>
                         <span className="text-rpp-grey-dark">{product.title}</span>
@@ -707,7 +707,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                       </div>
                     );
                   })}
-                  
+
                   <div className="border-t pt-2 flex justify-between items-center font-semibold">
                     <span>Total</span>
                     <span data-testid="text-order-total">AUD ${calculateOrderTotal().toFixed(2)}</span>
@@ -735,7 +735,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
             <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel">
               Cancel
             </Button>
-            
+
             {currentStep !== 'order-summary' ? (
               <Button
                 type="button"
