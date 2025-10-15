@@ -174,7 +174,7 @@ export default function CustomerProfile() {
                           <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-rpp-grey-dark mb-1" data-testid={`text-job-address-${job.jobId || job.id}`}>{job.address}</p>
+                          <p className="text-rpp-grey-dark mb-1 font-medium" data-testid={`text-job-address-${job.jobId || job.id}`}>{job.address}</p>
                           <p className="text-sm text-rpp-grey-medium" data-testid={`text-job-dates-${job.jobId || job.id}`}>
                             {job.date} • {job.dueDate}
                           </p>
