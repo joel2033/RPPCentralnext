@@ -2048,24 +2048,6 @@
     }
   },
   "editingOptions": {
-    "ae845187-2b28-4eaf-9de3-5b9eba923f48": {
-      "partnerId": "partner_192l9bh1xmduwueha",
-      "name": "Grass Replacement",
-      "description": "",
-      "icon": "Trees",
-      "iconColor": "bg-green-100 text-green-600",
-      "id": "ae845187-2b28-4eaf-9de3-5b9eba923f48",
-      "createdAt": "2025-10-15T02:55:58.724Z"
-    },
-    "a369081f-5b79-475a-a5bd-72bebb92f677": {
-      "partnerId": "partner_192l9bh1xmduwueha",
-      "name": "Grass Replacement",
-      "description": "",
-      "icon": "Trees",
-      "iconColor": "bg-green-100 text-green-600",
-      "id": "a369081f-5b79-475a-a5bd-72bebb92f677",
-      "createdAt": "2025-10-15T02:59:59.094Z"
-    },
     "1b465b75-7253-413e-b4d1-b123f43e7be0": {
       "partnerId": "partner_192l9bh1xmduwueha",
       "name": "Grass Replacement",

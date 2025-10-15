@@ -14,13 +14,16 @@ export default function CustomerProfile() {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: customer } = useQuery<any>({
+  const { data: profileData } = useQuery<any>({
     queryKey: [`/api/customers/${params?.id}/profile`],
   });
 
-  if (!customer) {
+  if (!profileData) {
     return <div className="p-6">Loading...</div>;
   }
+
+  const customer = profileData.customer;
+  const jobs = profileData.jobs || [];
 
   const stats = [
     { label: "Total Sales", value: `$${customer.totalValue || 0}`, color: "text-rpp-red-main" },
@@ -28,35 +31,37 @@ export default function CustomerProfile() {
     { label: "Jobs Completed", value: customer.jobsCompleted || 0, color: "text-rpp-grey-dark" },
   ];
 
-  const jobsList = [
-    {
-      id: 1,
-      address: "16 Collins Street, Plumpton NSW 6018 2761",
-      date: "Aug 07, 2025",
-      dueDate: "Due Aug 09",
-      status: "Completed",
-      statusColor: "bg-green-50 text-support-green border-support-green",
-      price: "$380.00"
-    },
-    {
-      id: 2,
-      address: "42 Martin Place, Sydney NSW 2000",
-      date: "Aug 10, 2025",
-      dueDate: "Due Aug 12",
-      status: "In Progress",
-      statusColor: "bg-yellow-50 text-support-yellow border-support-yellow",
-      price: "$520.00"
-    },
-    {
-      id: 3,
-      address: "18 Beach Road, Bondi NSW 2026",
-      date: "Aug 14, 2025",
-      dueDate: "Due Aug 16",
-      status: "Scheduled",
-      statusColor: "bg-blue-50 text-support-blue border-support-blue",
-      price: "$450.00"
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return 'bg-green-50 text-support-green border-support-green';
+      case 'in_progress':
+      case 'in progress':
+        return 'bg-yellow-50 text-support-yellow border-support-yellow';
+      case 'scheduled':
+      case 'pending':
+        return 'bg-blue-50 text-support-blue border-support-blue';
+      default:
+        return 'bg-gray-50 text-gray-600 border-gray-300';
     }
-  ];
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  };
+
+  const jobsList = jobs.map((job: any) => ({
+    id: job.id,
+    jobId: job.jobId,
+    address: job.address,
+    date: formatDate(job.appointmentDate || job.createdAt),
+    dueDate: job.dueDate ? `Due ${formatDate(job.dueDate)}` : '',
+    status: job.status || 'Pending',
+    statusColor: getStatusColor(job.status),
+    price: job.totalPrice ? `$${parseFloat(job.totalPrice).toFixed(2)}` : '$0.00'
+  }));
 
   const initials = customer.firstName && customer.lastName 
     ? `${customer.firstName[0]}${customer.lastName[0]}`.toUpperCase()
@@ -156,28 +161,33 @@ export default function CustomerProfile() {
 
                 {/* Jobs List */}
                 <div className="space-y-3">
-                  {jobsList.map((job) => (
-                    <div
-                      key={job.id}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
-                    >
-                      <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                        <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
+                  {jobsList.length === 0 ? (
+                    <p className="text-sm text-rpp-grey-medium text-center py-8" data-testid="text-no-jobs">No jobs found for this customer</p>
+                  ) : (
+                    jobsList.map((job) => (
+                      <div
+                        key={job.id}
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
+                        data-testid={`job-item-${job.jobId || job.id}`}
+                      >
+                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-rpp-grey-dark mb-1" data-testid={`text-job-address-${job.jobId || job.id}`}>{job.address}</p>
+                          <p className="text-sm text-rpp-grey-medium" data-testid={`text-job-dates-${job.jobId || job.id}`}>
+                            {job.date} • {job.dueDate}
+                          </p>
+                        </div>
+                        <Badge className={`${job.statusColor} border rounded-full px-3 py-1 text-xs font-semibold`} data-testid={`badge-job-status-${job.jobId || job.id}`}>
+                          {job.status}
+                        </Badge>
+                        <div className="text-lg font-bold text-rpp-grey-dark" data-testid={`text-job-price-${job.jobId || job.id}`}>
+                          {job.price}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-rpp-grey-dark mb-1">{job.address}</p>
-                        <p className="text-sm text-rpp-grey-medium">
-                          {job.date} • {job.dueDate}
-                        </p>
-                      </div>
-                      <Badge className={`${job.statusColor} border rounded-full px-3 py-1 text-xs font-semibold`}>
-                        {job.status}
-                      </Badge>
-                      <div className="text-lg font-bold text-rpp-grey-dark">
-                        {job.price}
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -197,7 +207,7 @@ export default function CustomerProfile() {
                   <h4 className="text-lg font-bold text-rpp-grey-dark">
                     {customer.firstName} {customer.lastName}
                   </h4>
-                  <p className="text-sm text-rpp-grey-medium">{customer.company || 'Wilson Photography Co.'}</p>
+                  <p className="text-sm text-rpp-grey-medium">{customer.company || 'No company'}</p>
                 </div>
 
                 {/* Contact Information */}
@@ -206,21 +216,21 @@ export default function CustomerProfile() {
                     <Mail className="w-4 h-4 text-rpp-grey-medium mt-1" />
                     <div>
                       <p className="text-xs text-rpp-grey-medium mb-1">Email</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.email || 'emma.wilson@example.com'}</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.email || 'No email provided'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Phone className="w-4 h-4 text-rpp-grey-medium mt-1" />
                     <div>
                       <p className="text-xs text-rpp-grey-medium mb-1">Phone</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.phone || '+61 488 765 432'}</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.phone || 'No phone provided'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Building2 className="w-4 h-4 text-rpp-grey-medium mt-1" />
                     <div>
                       <p className="text-xs text-rpp-grey-medium mb-1">Company</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.company || 'Wilson Photography Co.'}</p>
+                      <p className="text-sm text-rpp-grey-dark">{customer.company || 'No company'}</p>
                     </div>
                   </div>
                 </div>
@@ -229,14 +239,14 @@ export default function CustomerProfile() {
                 <div className="mb-6">
                   <p className="text-xs text-rpp-grey-medium mb-2">Category</p>
                   <Badge className="bg-rpp-grey-bg text-rpp-grey-dark border-0 rounded-lg px-3 py-1">
-                    residential
+                    {customer.category || 'No category'}
                   </Badge>
                 </div>
 
                 {/* Customer Notes */}
                 <div className="mb-6">
                   <p className="text-xs text-rpp-grey-medium mb-2">Customer notes</p>
-                  <p className="text-sm text-rpp-grey-light italic">No category</p>
+                  <p className="text-sm text-rpp-grey-light italic">No notes available</p>
                 </div>
 
                 {/* Action Buttons */}
