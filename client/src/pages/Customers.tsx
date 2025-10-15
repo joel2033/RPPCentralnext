@@ -149,7 +149,9 @@ export default function Customers() {
                 {customer.phone && (
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                     <Phone className="w-4 h-4 mr-2.5 flex-shrink-0 text-gray-400" />
-                    <span data-testid={`text-customer-phone-${customer.id}`}>
+                    <span
+                      data-testid={`text-customer-phone-${customer.id}`}
+                      className="text-[15px]">
                       {customer.phone}
                     </span>
                   </div>
