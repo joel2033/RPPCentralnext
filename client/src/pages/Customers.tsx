@@ -159,7 +159,7 @@ export default function Customers() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 pb-6 border-b border-gray-100 dark:border-gray-700 mb-6">
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Value</p>
+                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Total Value</p>
                   <p className="text-base text-gray-900 dark:text-white font-medium" data-testid={`text-customer-total-value-${customer.id}`}>
                     ${customer.totalValue || '0'}
                   </p>
