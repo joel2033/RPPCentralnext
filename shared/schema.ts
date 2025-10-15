@@ -36,6 +36,9 @@ export const customers = pgTable("customers", {
   taxId: text("tax_id"),
   // Team members stored as JSON array
   teamMembers: text("team_members"), // JSON array of {name, email, role}
+  // Accounting integration (Xero, QuickBooks, etc.)
+  accountingIntegration: text("accounting_integration"), // e.g., "xero", "quickbooks", "myob"
+  accountingContactId: text("accounting_contact_id"), // Customer/Contact ID in the accounting software
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
   averageJobValue: decimal("average_job_value", { precision: 10, scale: 2 }).default("0"),
   jobsCompleted: integer("jobs_completed").default(0),

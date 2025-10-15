@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Upload, ChevronDown, ChevronUp, User, Receipt, Users, FileText, Trash2 } from "lucide-react";
+import { X, Upload, ChevronDown, ChevronUp, User, Receipt, Users, FileText, Trash2, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -37,6 +38,9 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
     postcode: "",
     paymentTerms: "",
     taxId: "",
+    // Accounting integration
+    accountingIntegration: "",
+    accountingContactId: "",
   });
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -178,6 +182,9 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
       postcode: customerData.postcode || null,
       paymentTerms: customerData.paymentTerms || null,
       taxId: customerData.taxId || null,
+      // Accounting integration
+      accountingIntegration: customerData.accountingIntegration || null,
+      accountingContactId: customerData.accountingContactId || null,
       // Team members as JSON string (without UI-only id field)
       teamMembers: cleanedTeamMembers.length > 0 ? JSON.stringify(cleanedTeamMembers) : null,
     };
@@ -494,6 +501,60 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
                     data-testid="input-tax-id"
                   />
                 </div>
+
+                {/* Accounting Integration */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Accounting Integration</label>
+                  <Select 
+                    value={customerData.accountingIntegration} 
+                    onValueChange={(value) => setCustomerData(prev => ({ ...prev, accountingIntegration: value }))}
+                  >
+                    <SelectTrigger className="border-gray-300" data-testid="select-accounting-integration">
+                      <div className="flex items-center justify-between w-full">
+                        <SelectValue placeholder="Select accounting integration" />
+                        {customerData.accountingIntegration && (
+                          <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">
+                            Connected
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="xero">Xero</SelectItem>
+                      <SelectItem value="quickbooks">QuickBooks</SelectItem>
+                      <SelectItem value="myob">MYOB</SelectItem>
+                      <SelectItem value="freshbooks">FreshBooks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Match or Create Billing Contact */}
+                {customerData.accountingIntegration && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-2">Match or Create Billing Contact</label>
+                    <Select 
+                      value={customerData.accountingContactId} 
+                      onValueChange={(value) => setCustomerData(prev => ({ ...prev, accountingContactId: value }))}
+                    >
+                      <SelectTrigger className="border-gray-300" data-testid="select-accounting-contact">
+                        <SelectValue placeholder="Select an existing contact or create a new one" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-blue-600 font-medium cursor-pointer hover:bg-gray-100">
+                          <Plus className="w-4 h-4" />
+                          Create
+                        </div>
+                        <div className="border-t my-1"></div>
+                        {/* Placeholder contacts - will be populated from API later */}
+                        <SelectItem value="contact_1">One Agency Coast And Country</SelectItem>
+                        <SelectItem value="contact_2">Danny Le</SelectItem>
+                        <SelectItem value="contact_3">Jenny Keane</SelectItem>
+                        <SelectItem value="contact_4">Paul Kemp</SelectItem>
+                        <SelectItem value="contact_5">XTO</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
           </div>
