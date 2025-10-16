@@ -623,7 +623,8 @@ export default function Upload() {
                               placeholder="Detail your instruction"
                               value={instruction.detail}
                               onChange={(e) => updateServiceInstructions(selectedService.id, index, 'detail', e.target.value)}
-                              className="border-gray-300 h-9 resize-none text-sm py-2"
+                              className="border-gray-300 h-9 resize-none text-sm py-1.5"
+                              rows={1}
                               data-testid={`textarea-instruction-${selectedService.id}-${index}`}
                             />
                           </div>
