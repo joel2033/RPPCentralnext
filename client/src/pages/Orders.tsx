@@ -32,7 +32,6 @@ export default function Orders() {
   const getEditorStudioName = (assignedToId: string) => {
     if (!assignedToId) return 'Unassigned';
     const partnership = partnerships.find((p: any) => p.editorId === assignedToId);
-    console.log('Looking for editor:', assignedToId, 'Found partnership:', partnership);
     return partnership?.editorStudioName || 'Unknown Editor';
   };
 
