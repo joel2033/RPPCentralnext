@@ -206,9 +206,41 @@ export default function EditorJobs() {
     }
   };
 
-  const handleStartJob = (jobId: string) => {
-    // This will update the job status to in_progress
-    console.log('Starting job:', jobId);
+  const handleAcceptOrder = async (orderId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/orders/${orderId}/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to accept order');
+      }
+
+      // Refresh the jobs list
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Order Accepted",
+        description: "You can now begin processing this order.",
+      });
+    } catch (error: any) {
+      console.error('Error accepting order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to accept order. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCompleteJob = (jobId: string) => {
@@ -571,11 +603,12 @@ export default function EditorJobs() {
                     {job.status === 'pending' && (
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => handleStartJob(job.jobId)}
-                        data-testid={`button-start-${job.id}`}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleAcceptOrder(job.orderId)}
+                        data-testid={`button-accept-${job.id}`}
                       >
-                        Start Job
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Accept Order
                       </Button>
                     )}
                     {job.status === 'processing' && (

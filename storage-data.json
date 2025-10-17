@@ -375,6 +375,34 @@
       "filesExpiryDate": "2025-10-31T10:57:03.819Z",
       "id": "057d26c4-c8ea-4678-ac33-86aae63ef5d9",
       "createdAt": "2025-10-17T10:57:03.819Z"
+    },
+    "619c2190-0e5c-4479-a790-c62665673dce": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "22ef71db-f278-47c1-882e-7b37ede403b0",
+      "customerId": null,
+      "status": "pending",
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "createdBy": "adamson652@gmail.com",
+      "estimatedTotal": "4.00",
+      "dateAccepted": null,
+      "orderNumber": "#00012",
+      "filesExpiryDate": "2025-10-31T11:07:50.357Z",
+      "id": "619c2190-0e5c-4479-a790-c62665673dce",
+      "createdAt": "2025-10-17T11:07:50.357Z"
+    },
+    "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "1.16",
+      "dateAccepted": null,
+      "orderNumber": "#00013",
+      "filesExpiryDate": "2025-10-31T11:09:00.188Z",
+      "id": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "createdAt": "2025-10-17T11:09:00.188Z"
     }
   },
   "orderServices": {
@@ -476,6 +504,15 @@
       "exportTypes": "[{\"type\":\"high-res\",\"description\":\"\"},{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
       "id": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
       "createdAt": "2025-10-17T10:15:08.657Z"
+    },
+    "f1d446fc-a3f1-4ba5-9657-46e1657996a2": {
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 1,
+      "instructions": "[{\"fileName\":\"\",\"detail\":\"\"}]",
+      "exportTypes": "[{\"type\":\"\",\"description\":\"\"}]",
+      "id": "f1d446fc-a3f1-4ba5-9657-46e1657996a2",
+      "createdAt": "2025-10-17T11:09:00.196Z"
     }
   },
   "orderFiles": {
@@ -933,6 +970,45 @@
       "expiresAt": "2025-10-31T10:15:08.714Z",
       "id": "dcd535a5-0930-419a-814d-9d70be6fad92",
       "uploadedAt": "2025-10-17T10:15:08.714Z"
+    },
+    "ada702c2-5f38-43b1-823c-4ccbee299212": {
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "serviceId": "f1d446fc-a3f1-4ba5-9657-46e1657996a2",
+      "fileName": "DSC05998.JPG",
+      "originalName": "DSC05998.JPG",
+      "fileSize": 12272942,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699292672_DSC05998.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699292672_DSC05998.JPG",
+      "expiresAt": "2025-10-31T11:09:00.198Z",
+      "id": "ada702c2-5f38-43b1-823c-4ccbee299212",
+      "uploadedAt": "2025-10-17T11:09:00.198Z"
+    },
+    "37e40204-71a6-45dc-b9b9-cf9c58d325e9": {
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "serviceId": "f1d446fc-a3f1-4ba5-9657-46e1657996a2",
+      "fileName": "DSC06005.JPG",
+      "originalName": "DSC06005.JPG",
+      "fileSize": 11833113,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699300966_DSC06005.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699300966_DSC06005.JPG",
+      "expiresAt": "2025-10-31T11:09:00.200Z",
+      "id": "37e40204-71a6-45dc-b9b9-cf9c58d325e9",
+      "uploadedAt": "2025-10-17T11:09:00.200Z"
+    },
+    "3c3ea1e8-6aef-4762-bf94-30a758ff0368": {
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "serviceId": "f1d446fc-a3f1-4ba5-9657-46e1657996a2",
+      "fileName": "DSC06010.JPG",
+      "originalName": "DSC06010.JPG",
+      "fileSize": 12801893,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699307574_DSC06010.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699307574_DSC06010.JPG",
+      "expiresAt": "2025-10-31T11:09:00.203Z",
+      "id": "3c3ea1e8-6aef-4762-bf94-30a758ff0368",
+      "uploadedAt": "2025-10-17T11:09:00.203Z"
     }
   },
   "serviceCategories": {
@@ -1758,6 +1834,63 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
       "uploadedAt": "2025-10-17T10:14:39.633Z"
+    },
+    "f626c1b6-9330-4265-b7b2-f4ad3b656c89": {
+      "id": "f626c1b6-9330-4265-b7b2-f4ad3b656c89",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC05998.JPG",
+      "originalName": "DSC05998.JPG",
+      "fileSize": 12272942,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699292672_DSC05998.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699292672_DSC05998.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T11:08:18.832Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T11:08:18.832Z"
+    },
+    "5371402e-f986-4a89-9a59-9294bd11f292": {
+      "id": "5371402e-f986-4a89-9a59-9294bd11f292",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC06005.JPG",
+      "originalName": "DSC06005.JPG",
+      "fileSize": 11833113,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699300966_DSC06005.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699300966_DSC06005.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T11:08:24.904Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T11:08:24.904Z"
+    },
+    "db57ba03-880c-4ad6-abd4-a0eccf8c6760": {
+      "id": "db57ba03-880c-4ad6-abd4-a0eccf8c6760",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC06010.JPG",
+      "originalName": "DSC06010.JPG",
+      "fileSize": 12801893,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699307574_DSC06010.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/f419b821-944b-46aa-bb52-094af317f499/00013/1760699307574_DSC06010.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T11:08:31.528Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T11:08:31.528Z"
     }
   },
   "notifications": {
@@ -1850,6 +1983,19 @@
       "read": false,
       "id": "4b4a5959-daef-4c32-b4b7-ec9cd83cc810",
       "createdAt": "2025-10-17T10:15:08.733Z",
+      "readAt": null
+    },
+    "72498e0b-1b00-49e3-9f92-b942d061e2ca": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##00013 has been assigned to you and is ready for processing.",
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "read": false,
+      "id": "72498e0b-1b00-49e3-9f92-b942d061e2ca",
+      "createdAt": "2025-10-17T11:09:00.221Z",
       "readAt": null
     }
   },
@@ -2261,6 +2407,23 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "7a20bedc-c6b5-4943-b0ea-1d5ad7f7041d",
       "createdAt": "2025-10-17T10:57:03.823Z"
+    },
+    "424f6c51-c9d0-42c6-8cef-e7ec079f0eb7": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderId": "619c2190-0e5c-4479-a790-c62665673dce",
+      "jobId": "22ef71db-f278-47c1-882e-7b37ede403b0",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "order",
+      "title": "Order Created",
+      "description": "New order ##00012 created",
+      "metadata": "{\"orderNumber\":\"#00012\",\"status\":\"pending\",\"estimatedTotal\":\"4.00\",\"jobId\":\"22ef71db-f278-47c1-882e-7b37ede403b0\",\"customerId\":null}",
+      "ipAddress": "172.31.84.98",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "424f6c51-c9d0-42c6-8cef-e7ec079f0eb7",
+      "createdAt": "2025-10-17T11:07:50.369Z"
     }
   },
   "editingOptions": {
@@ -2407,7 +2570,7 @@
       "updatedAt": "2025-10-15T03:10:23.235Z"
     }
   },
-  "orderCounter": 4,
+  "orderCounter": 14,
   "orderReservations": {
     "#00001": {
       "orderNumber": "#00001",
@@ -2463,6 +2626,14 @@
       "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
       "reservedAt": "2025-10-17T10:14:04.318Z",
       "expiresAt": "2025-10-17T12:14:04.318Z",
+      "status": "confirmed"
+    },
+    "#00013": {
+      "orderNumber": "#00013",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "f419b821-944b-46aa-bb52-094af317f499",
+      "reservedAt": "2025-10-17T11:08:09.220Z",
+      "expiresAt": "2025-10-17T13:08:09.220Z",
       "status": "confirmed"
     }
   }

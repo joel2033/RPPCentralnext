@@ -1606,6 +1606,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== EDITOR SERVICE MANAGEMENT ENDPOINTS =====
 
+  // Editor accepts an assigned order
+  app.post("/api/editor/orders/:orderId/accept", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can accept orders" });
+      }
+      
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      // Verify the order is assigned to this editor
+      if (order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+      
+      // Verify order is in pending status
+      if (order.status !== 'pending') {
+        return res.status(400).json({ error: `Order is already ${order.status}` });
+      }
+      
+      // Update order to processing status and set dateAccepted
+      const acceptedOrder = await storage.updateOrder(orderId, {
+        status: 'processing',
+        dateAccepted: new Date()
+      });
+      
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: order.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: uid,
+          userEmail: currentUser.email,
+          userName: currentUser.studioName || currentUser.email,
+          action: "acceptance",
+          category: "order",
+          title: "Order Accepted",
+          description: `Order #${order.orderNumber} accepted by editor`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            acceptedBy: currentUser.email,
+            acceptedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log order acceptance activity:", activityError);
+      }
+      
+      // Create notification for the partner
+      try {
+        await storage.createNotification({
+          partnerId: order.partnerId,
+          recipientId: order.partnerId,
+          type: 'order_accepted',
+          title: 'Order Accepted',
+          body: `Order #${order.orderNumber} has been accepted by ${currentUser.studioName || 'editor'} and is now being processed.`,
+          orderId: order.id,
+          jobId: order.jobId,
+          read: false
+        });
+      } catch (notificationError) {
+        console.error("Failed to create acceptance notification:", notificationError);
+      }
+      
+      res.json({
+        success: true,
+        message: "Order accepted successfully",
+        order: acceptedOrder
+      });
+    } catch (error: any) {
+      console.error("Error accepting order:", error);
+      res.status(500).json({ 
+        error: "Failed to accept order", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get all jobs assigned to an editor
   app.get("/api/editor/jobs", async (req, res) => {
     try {

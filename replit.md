@@ -48,6 +48,12 @@ Preferred communication style: Simple, everyday language.
 - **Order-Independent File Uploads**: Standalone folder creation and file uploads are supported, not requiring an associated order.
 - **Accounting Integration Foundation**: UI and database schema updates in place to support future integration with accounting software like Xero. The Create Customer modal includes dropdowns for selecting accounting integration (Xero) and matching contacts.
 - **Multi-Step Order Creation**: "Upload to Editors" modal redesigned with Figma-based 3-step wizard flow: Job/Supplier selection → Service selection grid → Per-service configuration (files, quantity, instructions, export types). Includes Order Summary sidebar with live cost calculations and terms acceptance. Note: File uploads currently send filenames only - actual binary file upload requires backend FormData API endpoint and Firebase Storage integration.
+- **Order Status Flow**: Orders follow a two-step acceptance workflow:
+  1. Partners create orders via "Upload to Editors" - initial status is "pending"
+  2. Assigned editors must "accept" the order before processing begins
+  3. Upon acceptance, status changes to "processing" and `dateAccepted` is set
+  4. This ensures editors explicitly confirm they can handle the work before beginning
+- **Order Numbering**: Sequential order numbers starting from #00001, automatically incremented based on the highest existing order (not gap-filling).
 
 # External Dependencies
 
