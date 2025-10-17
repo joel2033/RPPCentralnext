@@ -16,6 +16,10 @@ export default function Orders() {
     queryKey: ["/api/jobs"],
   });
 
+  const { data: partnerships = [] } = useQuery<any[]>({
+    queryKey: ["/api/partnerships"],
+  });
+
   const filteredOrders = (orders || []).filter((order: any) => {
     return order.status === activeTab;
   });
@@ -23,6 +27,12 @@ export default function Orders() {
   const getJobAddress = (jobId: string) => {
     const job = jobs.find((j: any) => j.jobId === jobId || j.id === jobId);
     return job?.address || 'No address available';
+  };
+
+  const getEditorStudioName = (editorId: string) => {
+    if (!editorId) return 'Unassigned';
+    const partnership = partnerships.find((p: any) => p.editorId === editorId);
+    return partnership?.editorStudioName || 'Unknown Editor';
   };
 
   const tabs = [
@@ -104,7 +114,7 @@ export default function Orders() {
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-2">
                       <User className="w-4 h-4 text-rpp-grey-light" />
-                      <span className="text-sm">{order.assignedTo || 'Unassigned'}</span>
+                      <span className="text-sm">{getEditorStudioName(order.assignedTo)}</span>
                     </div>
                   </td>
                   <td className="py-4 px-6">
