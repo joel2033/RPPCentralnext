@@ -209,6 +209,10 @@ export default function Upload() {
       return;
     }
 
+    // Calculate estimated total
+    const estimatedTotal = selectedServices.reduce((total, service) => 
+      total + (parseFloat(service.service.basePrice) * service.quantity), 0) + 0.25;
+
     // Prepare order data
     const orderData = {
       partnerId: user.partnerId,
@@ -217,6 +221,7 @@ export default function Upload() {
       createdBy: user.uid,
       assignedTo: selectedEditor, // Add selected editor assignment
       orderNumber: reservedOrderNumber, // Include reserved order number
+      estimatedTotal: estimatedTotal.toFixed(2),
       services: selectedServices.map(service => ({
         serviceId: service.service.id,
         quantity: service.quantity,

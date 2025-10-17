@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submit order with services and files
   app.post("/api/orders/submit", requireAuth, async (req, res) => {
     try {
-      const { jobId, customerId, services, createdBy, assignedTo } = req.body;
+      const { jobId, customerId, services, createdBy, assignedTo, estimatedTotal } = req.body;
       
       if (!services || !Array.isArray(services) || services.length === 0) {
         return res.status(400).json({ error: "Missing required fields: services" });
@@ -459,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         assignedTo: assignedTo || null,
         status: assignedTo ? "processing" : "pending", // Set to processing if assigned, pending if not
         createdBy: createdBy || null,
-        estimatedTotal: "0"
+        estimatedTotal: estimatedTotal || "0"
       }, orderNumber); // Pass the confirmed order number
 
       // Create order services and files
