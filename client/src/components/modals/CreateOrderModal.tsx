@@ -42,6 +42,10 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
     queryKey: ["/api/jobs"],
   });
 
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/partnerships/suppliers"],
+  });
+
   // Mock services data - will be replaced with API
   const availableServices = [
     { 
