@@ -78,6 +78,7 @@ export default function EditorJobs() {
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [declineReason, setDeclineReason] = useState("");
   
   const queryClient = useQueryClient();
@@ -305,7 +306,7 @@ export default function EditorJobs() {
       if (!user) throw new Error('User not authenticated');
 
       const token = await user.getIdToken();
-      const response = await fetch(`/api/editor/jobs/${selectedOrderId}/status`, {
+      const response = await fetch(`/api/editor/jobs/${selectedJobId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -329,7 +330,7 @@ export default function EditorJobs() {
       });
       
       setShowCompleteDialog(false);
-      setSelectedOrderId("");
+      setSelectedJobId("");
     } catch (error: any) {
       console.error('Error marking order complete:', error);
       toast({
@@ -709,7 +710,7 @@ export default function EditorJobs() {
                           size="sm"
                           className="bg-gray-600 hover:bg-gray-700 text-white"
                           onClick={() => {
-                            setSelectedOrderId(job.jobId);
+                            setSelectedJobId(job.jobId);
                             setShowCompleteDialog(true);
                           }}
                           data-testid={`button-complete-${job.id}`}
