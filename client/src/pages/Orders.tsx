@@ -16,8 +16,8 @@ export default function Orders() {
     queryKey: ["/api/jobs"],
   });
 
-  const { data: partnerships = [], isLoading: isLoadingPartnerships } = useQuery<any[]>({
-    queryKey: ["/api/partner/partnerships"],
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({
+    queryKey: ["/api/partnerships/suppliers"],
   });
 
   const filteredOrders = (orders || []).filter((order: any) => {
@@ -31,8 +31,8 @@ export default function Orders() {
 
   const getEditorStudioName = (assignedToId: string) => {
     if (!assignedToId) return 'Unassigned';
-    const partnership = partnerships.find((p: any) => p.editorId === assignedToId);
-    return partnership?.editorStudioName || 'Unknown Editor';
+    const supplier = suppliers.find((s: any) => s.id === assignedToId);
+    return supplier?.studioName || 'Unknown Editor';
   };
 
   const tabs = [
@@ -43,7 +43,7 @@ export default function Orders() {
     { id: "cancelled", label: "Cancelled", count: (orders || []).filter((o: any) => o.status === "cancelled").length },
   ];
 
-  if (isLoading || isLoadingPartnerships) {
+  if (isLoading || isLoadingSuppliers) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
