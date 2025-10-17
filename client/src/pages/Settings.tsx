@@ -69,6 +69,9 @@ export default function Settings() {
   const [personalProfile, setPersonalProfile] = useState({
     firstName: "",
     lastName: "",
+    email: "",
+    phone: "",
+    bio: ""
   });
 
   // State for business profile
@@ -101,7 +104,16 @@ export default function Settings() {
         setPersonalProfile({
           firstName: savedSettings.personalProfile.firstName || "",
           lastName: savedSettings.personalProfile.lastName || "",
+          email: savedSettings.personalProfile.email || userData?.email || "",
+          phone: savedSettings.personalProfile.phone || "",
+          bio: savedSettings.personalProfile.bio || ""
         });
+      } else if (userData?.email) {
+        // Initialize email from userData if no saved settings
+        setPersonalProfile(prev => ({
+          ...prev,
+          email: userData.email || ""
+        }));
       }
       if (savedSettings.businessProfile) {
         setBusinessProfile(savedSettings.businessProfile);
@@ -109,8 +121,14 @@ export default function Settings() {
       if (savedSettings.businessHours) {
         setBusinessHours(savedSettings.businessHours);
       }
+    } else if (userData?.email) {
+      // Initialize email from userData if no saved settings at all
+      setPersonalProfile(prev => ({
+        ...prev,
+        email: userData.email || ""
+      }));
     }
-  }, [savedSettings]);
+  }, [savedSettings, userData]);
 
   // Fetch active partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
@@ -356,7 +374,7 @@ export default function Settings() {
                     id="personalEmail"
                     type="email"
                     value={personalProfile.email}
-                    onChange={(e) => setBusinessProfile(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, email: e.target.value }))}
                     data-testid="input-personal-email"
                   />
                 </div>
@@ -365,7 +383,7 @@ export default function Settings() {
                   <Input
                     id="personalPhone"
                     value={personalProfile.phone}
-                    onChange={(e) => setBusinessProfile(prev => ({ ...prev, phone: e.target.value }))}
+                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, phone: e.target.value }))}
                     data-testid="input-personal-phone"
                   />
                 </div>
