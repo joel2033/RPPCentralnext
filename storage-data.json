@@ -417,6 +417,20 @@
       "filesExpiryDate": "2025-10-31T10:17:01.955Z",
       "id": "aaf65dc3-c45a-4255-8e79-9876db6c3aaa",
       "createdAt": "2025-10-17T10:17:01.955Z"
+    },
+    "057d26c4-c8ea-4678-ac33-86aae63ef5d9": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "customerId": null,
+      "status": "pending",
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "createdBy": "adamson652@gmail.com",
+      "estimatedTotal": "2.00",
+      "dateAccepted": null,
+      "orderNumber": "#00003",
+      "filesExpiryDate": "2025-10-31T10:57:03.819Z",
+      "id": "057d26c4-c8ea-4678-ac33-86aae63ef5d9",
+      "createdAt": "2025-10-17T10:57:03.819Z"
     }
   },
   "orderServices": {
@@ -2304,6 +2318,23 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "d291e8c9-4fc6-49c7-85f3-45cffcd789f5",
       "createdAt": "2025-10-17T10:17:01.957Z"
+    },
+    "7a20bedc-c6b5-4943-b0ea-1d5ad7f7041d": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderId": "057d26c4-c8ea-4678-ac33-86aae63ef5d9",
+      "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "order",
+      "title": "Order Created",
+      "description": "New order ##00003 created",
+      "metadata": "{\"orderNumber\":\"#00003\",\"status\":\"pending\",\"estimatedTotal\":\"2.00\",\"jobId\":\"4a04b9b0-3692-4682-baaa-9a1d5eacd9db\",\"customerId\":null}",
+      "ipAddress": "172.31.84.98",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "7a20bedc-c6b5-4943-b0ea-1d5ad7f7041d",
+      "createdAt": "2025-10-17T10:57:03.823Z"
     }
   },
   "editingOptions": {
@@ -2450,7 +2481,7 @@
       "updatedAt": "2025-10-15T03:10:23.235Z"
     }
   },
-  "orderCounter": 6,
+  "orderCounter": 4,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
