@@ -48,6 +48,9 @@ interface Partnership {
   isActive: boolean;
 }
 
+// Placeholder for userData, assuming it's fetched elsewhere and available
+const userData = { email: "user@example.com" }; // Replace with actual user data fetching
+
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("business-profile");
   const { toast } = useToast();
@@ -62,6 +65,13 @@ export default function Settings() {
     sunday: { enabled: false, start: "09:00", end: "17:00" },
   });
 
+  // State for personal profile
+  const [personalProfile, setPersonalProfile] = useState({
+    firstName: "",
+    lastName: "",
+  });
+
+  // State for business profile
   const [businessProfile, setBusinessProfile] = useState({
     businessName: "Real Property Photography",
     tagline: "Professional Real Estate Photography Services",
@@ -72,13 +82,6 @@ export default function Settings() {
     description: "We provide high-quality real estate photography services to help showcase properties in their best light."
   });
 
-  const [personalProfile, setPersonalProfile] = useState({
-    firstName: "John",
-    lastName: "Smith",
-    email: "john@realpropertyphoto.com",
-    phone: "(555) 123-4567",
-    bio: "Professional real estate photographer with over 10 years of experience capturing stunning property images."
-  });
 
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
@@ -94,11 +97,14 @@ export default function Settings() {
   // Update state when settings are loaded
   useEffect(() => {
     if (savedSettings) {
+      if (savedSettings.personalProfile) {
+        setPersonalProfile({
+          firstName: savedSettings.personalProfile.firstName || "",
+          lastName: savedSettings.personalProfile.lastName || "",
+        });
+      }
       if (savedSettings.businessProfile) {
         setBusinessProfile(savedSettings.businessProfile);
-      }
-      if (savedSettings.personalProfile) {
-        setPersonalProfile(savedSettings.personalProfile);
       }
       if (savedSettings.businessHours) {
         setBusinessHours(savedSettings.businessHours);
@@ -143,13 +149,13 @@ export default function Settings() {
         title: "Invitation Sent!",
         description: "The editor will receive an invitation to partner with you.",
       });
-      
+
       // Clear form
       setEditorFormData({
         editorEmail: "",
         editorStudioName: ""
       });
-      
+
       // Invalidate partnerships cache
       queryClient.invalidateQueries({ queryKey: ['/api/partnerships'] });
     },
@@ -164,15 +170,15 @@ export default function Settings() {
 
   const handleSaveSettings = () => {
     saveSettingsMutation.mutate({
-      businessProfile,
       personalProfile,
+      businessProfile,
       businessHours
     });
   };
 
   const handleEditorInviteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!editorFormData.editorEmail.trim() || !editorFormData.editorStudioName.trim()) {
       toast({
         title: "Missing Information",
@@ -288,6 +294,98 @@ export default function Settings() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Personal Profile Tab */}
+        <TabsContent value="profile" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Personal Profile
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Manage your personal information and account settings
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Profile Picture */}
+              <div className="flex items-center gap-4">
+                <Avatar className="w-20 h-20">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="text-lg">
+                    {personalProfile.firstName[0]}{personalProfile.lastName[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-2">
+                  <Label>Profile Picture</Label>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Change Photo
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={personalProfile.firstName}
+                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, firstName: e.target.value }))}
+                    data-testid="input-first-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={personalProfile.lastName}
+                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, lastName: e.target.value }))}
+                    data-testid="input-last-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="personalEmail">Email Address</Label>
+                  <Input
+                    id="personalEmail"
+                    type="email"
+                    value={personalProfile.email}
+                    onChange={(e) => setBusinessProfile(prev => ({ ...prev, email: e.target.value }))}
+                    data-testid="input-personal-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="personalPhone">Phone Number</Label>
+                  <Input
+                    id="personalPhone"
+                    value={personalProfile.phone}
+                    onChange={(e) => setBusinessProfile(prev => ({ ...prev, phone: e.target.value }))}
+                    data-testid="input-personal-phone"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bio">Account Description</Label>
+                <Textarea
+                  id="bio"
+                  rows={4}
+                  value={personalProfile.bio}
+                  onChange={(e) => setPersonalProfile(prev => ({ ...prev, bio: e.target.value }))}
+                  placeholder="Tell us about yourself and your experience..."
+                  data-testid="textarea-personal-bio"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Business Profile Tab */}
         <TabsContent value="business-profile" className="space-y-6">
           <Card>
@@ -401,98 +499,6 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Personal Profile Tab */}
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Personal Profile
-              </CardTitle>
-              <p className="text-sm text-gray-600">
-                Manage your personal information and account settings
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Profile Picture */}
-              <div className="flex items-center gap-4">
-                <Avatar className="w-20 h-20">
-                  <AvatarImage src="" />
-                  <AvatarFallback className="text-lg">
-                    {personalProfile.firstName[0]}{personalProfile.lastName[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <Label>Profile Picture</Label>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Change Photo
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Personal Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    value={personalProfile.firstName}
-                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, firstName: e.target.value }))}
-                    data-testid="input-first-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    value={personalProfile.lastName}
-                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, lastName: e.target.value }))}
-                    data-testid="input-last-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="personalEmail">Email Address</Label>
-                  <Input
-                    id="personalEmail"
-                    type="email"
-                    value={personalProfile.email}
-                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, email: e.target.value }))}
-                    data-testid="input-personal-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="personalPhone">Phone Number</Label>
-                  <Input
-                    id="personalPhone"
-                    value={personalProfile.phone}
-                    onChange={(e) => setPersonalProfile(prev => ({ ...prev, phone: e.target.value }))}
-                    data-testid="input-personal-phone"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bio">Account Description</Label>
-                <Textarea
-                  id="bio"
-                  rows={4}
-                  value={personalProfile.bio}
-                  onChange={(e) => setPersonalProfile(prev => ({ ...prev, bio: e.target.value }))}
-                  placeholder="Tell us about yourself and your experience..."
-                  data-testid="textarea-personal-bio"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Operating Hours Tab */}
         <TabsContent value="operating-hours" className="space-y-6">
           <Card>
@@ -525,7 +531,7 @@ export default function Settings() {
                         {dayNames[day as keyof typeof dayNames]}
                       </span>
                     </div>
-                    
+
                     {hours.enabled && (
                       <div className="flex items-center gap-2">
                         <Input
@@ -736,7 +742,7 @@ export default function Settings() {
                       Enter your custom domain name to create a professional booking experience
                     </p>
                   </div>
-                  
+
                   <div className="flex gap-2">
                     <Button data-testid="button-save-domain">
                       Save
@@ -902,7 +908,7 @@ export default function Settings() {
                     <span>Allow new customers to book</span>
                     <Switch defaultChecked data-testid="switch-allow-new-customers" />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="newCustomerInstructions">Instructions for new customers</Label>
                     <Textarea
@@ -923,7 +929,7 @@ export default function Settings() {
                     <span>Restrict to service areas only</span>
                     <Switch defaultChecked data-testid="switch-restrict-service-areas" />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="outsideAreaMessage">Message for locations outside service area</Label>
                     <Textarea
@@ -1131,7 +1137,7 @@ export default function Settings() {
                       Enter the email address of the editor you want to invite
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="editorStudioName">Editor Studio Name</Label>
                     <Input
@@ -1193,7 +1199,7 @@ export default function Settings() {
                       Editor receives an email invitation to partner with your studio
                     </p>
                   </div>
-                  
+
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <Mail className="w-6 h-6 text-green-600" />
@@ -1203,7 +1209,7 @@ export default function Settings() {
                       Editor reviews and accepts the partnership invitation
                     </p>
                   </div>
-                  
+
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
                     <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <Handshake className="w-6 h-6 text-purple-600" />
@@ -1315,7 +1321,7 @@ export default function Settings() {
                               Active
                             </Badge>
                           </div>
-                          
+
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center text-gray-600">
                               <Calendar className="w-4 h-4 mr-2" />
