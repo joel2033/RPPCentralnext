@@ -104,7 +104,7 @@ export default function Dashboard() {
         {/* Welcome Section */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-rpp-grey-dark tracking-tight">
-            Welcome back, {userData?.email?.split('@')[0] || 'Sarah'}! 👋
+            Welcome back, {(userData as any)?.firstName || userData?.email?.split('@')[0] || 'there'}! 👋
           </h1>
           <p className="text-sm text-rpp-grey-medium font-medium">Here's a snapshot of your media business today</p>
         </div>
