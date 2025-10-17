@@ -519,31 +519,10 @@ export default function Upload() {
 
           {/* Configure Services Section */}
           {selectedServices.length > 0 && (
-            <Card className="border-gray-200">
-              <CardContent className="pt-6">
-                <h3 className="text-base font-semibold text-gray-900 mb-1">Configure Services</h3>
-                <p className="text-sm text-gray-600 mb-4">Upload files and set preferences for each service</p>
-                
-                {/* Selected Services Pills */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {selectedServices.map((selectedService) => (
-                    <div key={selectedService.id} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg">
-                      <Camera className="w-4 h-4" />
-                      <span className="text-sm font-medium">{selectedService.service.name}</span>
-                      <button
-                        onClick={() => removeService(selectedService.id)}
-                        className="hover:bg-gray-200 rounded-full p-0.5"
-                        data-testid={`button-remove-service-${selectedService.id}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Service Configuration */}
-                {selectedServices.map((selectedService, serviceIndex) => (
-                  <div key={selectedService.id} className="border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
+            <div className="space-y-4">
+              {selectedServices.map((selectedService, serviceIndex) => (
+                <Card key={selectedService.id} className="border-gray-200">
+                  <CardContent className="pt-6">
                     {/* Service Name Heading */}
                     <h4 className="text-gray-900 mb-4 font-medium text-[22px]">{selectedService.service.name}</h4>
                     
@@ -718,10 +697,10 @@ export default function Upload() {
                       </Button>
                     </div>
                   </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+              ))}
+            </div>
           )}
 
         </div>
