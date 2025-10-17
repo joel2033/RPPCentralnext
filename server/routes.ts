@@ -1700,6 +1700,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Editor declines an assigned order
+  app.post("/api/editor/orders/:orderId/decline", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { reason } = req.body; // Optional decline reason
+      
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can decline orders" });
+      }
+      
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      // Verify the order is assigned to this editor
+      if (order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+      
+      // Verify order is in pending status
+      if (order.status !== 'pending') {
+        return res.status(400).json({ error: `Order is already ${order.status}` });
+      }
+      
+      // Update order to cancelled status and clear assignedTo
+      const declinedOrder = await storage.updateOrder(orderId, {
+        status: 'cancelled',
+        assignedTo: null // Unassign the order so partner can reassign
+      });
+      
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: order.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: uid,
+          userEmail: currentUser.email,
+          userName: currentUser.studioName || currentUser.email,
+          action: "decline",
+          category: "order",
+          title: "Order Declined",
+          description: `Order #${order.orderNumber} declined by editor${reason ? `: ${reason}` : ''}`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            declinedBy: currentUser.email,
+            declinedAt: new Date().toISOString(),
+            reason: reason || 'No reason provided'
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log order decline activity:", activityError);
+      }
+      
+      // Create notification for the partner
+      try {
+        await storage.createNotification({
+          partnerId: order.partnerId,
+          recipientId: order.partnerId,
+          type: 'order_declined',
+          title: 'Order Declined',
+          body: `Order #${order.orderNumber} was declined by ${currentUser.studioName || 'editor'}${reason ? `. Reason: ${reason}` : ''}`,
+          orderId: order.id,
+          jobId: order.jobId,
+          read: false
+        });
+      } catch (notificationError) {
+        console.error("Failed to create decline notification:", notificationError);
+      }
+      
+      res.json({
+        success: true,
+        message: "Order declined successfully",
+        order: declinedOrder
+      });
+    } catch (error: any) {
+      console.error("Error declining order:", error);
+      res.status(500).json({ 
+        error: "Failed to decline order", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get all jobs assigned to an editor
   app.get("/api/editor/jobs", async (req, res) => {
     try {
