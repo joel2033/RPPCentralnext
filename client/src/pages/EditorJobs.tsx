@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -70,6 +72,14 @@ export default function EditorJobs() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
   const [selectedJobForValidation, setSelectedJobForValidation] = useState<string | null>(null);
+  
+  // Confirmation dialog states
+  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false);
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [declineReason, setDeclineReason] = useState("");
+  
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -206,13 +216,13 @@ export default function EditorJobs() {
     }
   };
 
-  const handleAcceptOrder = async (orderId: string) => {
+  const handleAcceptOrder = async () => {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
 
       const token = await user.getIdToken();
-      const response = await fetch(`/api/editor/orders/${orderId}/accept`, {
+      const response = await fetch(`/api/editor/orders/${selectedOrderId}/accept`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -233,6 +243,9 @@ export default function EditorJobs() {
         title: "Order Accepted",
         description: "You can now begin processing this order.",
       });
+      
+      setShowAcceptDialog(false);
+      setSelectedOrderId("");
     } catch (error: any) {
       console.error('Error accepting order:', error);
       toast({
@@ -243,9 +256,88 @@ export default function EditorJobs() {
     }
   };
 
-  const handleCompleteJob = (jobId: string) => {
-    // This will update the job status to completed
-    console.log('Completing job:', jobId);
+  const handleDeclineOrder = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/orders/${selectedOrderId}/decline`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: declineReason })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to decline order');
+      }
+
+      // Refresh the jobs list
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Order Declined",
+        description: "The order has been declined and the partner will be notified.",
+      });
+      
+      setShowDeclineDialog(false);
+      setSelectedOrderId("");
+      setDeclineReason("");
+    } catch (error: any) {
+      console.error('Error declining order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to decline order. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMarkComplete = async () => {
+    try {
+      // Mark the job as complete
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/jobs/${selectedOrderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'completed' })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to mark order as complete');
+      }
+
+      // Refresh the jobs list
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Order Completed",
+        description: "The order has been marked as complete.",
+      });
+      
+      setShowCompleteDialog(false);
+      setSelectedOrderId("");
+    } catch (error: any) {
+      console.error('Error marking order complete:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark order as complete. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDownloadFiles = async (job: EditorJob) => {
@@ -328,35 +420,6 @@ export default function EditorJobs() {
       toast({
         title: "Download Error",
         description: "Failed to download files. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleMarkComplete = async (jobId: string) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User not authenticated');
-
-      const token = await user.getIdToken();
-      const response = await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', {
-        status: 'completed'
-      });
-
-      if (response.ok) {
-        // Refresh the jobs list
-        queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
-
-        toast({
-          title: "Job Completed",
-          description: "Job has been marked as completed.",
-        });
-      }
-    } catch (error) {
-      console.error('Error marking job complete:', error);
-      toast({
-        title: "Error",
-        description: "Failed to mark job as complete. Please try again.",
         variant: "destructive"
       });
     }
@@ -595,21 +658,41 @@ export default function EditorJobs() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleDownloadFiles(job)}
+                      disabled={job.status === 'pending'}
                       data-testid={`button-download-${job.orderNumber}`}
+                      className={job.status === 'pending' ? 'opacity-50 cursor-not-allowed' : ''}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download Files
                     </Button>
                     {job.status === 'pending' && (
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleAcceptOrder(job.orderId)}
-                        data-testid={`button-accept-${job.id}`}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Accept Order
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => {
+                            setSelectedOrderId(job.orderId);
+                            setShowAcceptDialog(true);
+                          }}
+                          data-testid={`button-accept-${job.id}`}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Accept Order
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-red-300 text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            setSelectedOrderId(job.orderId);
+                            setShowDeclineDialog(true);
+                          }}
+                          data-testid={`button-decline-${job.id}`}
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Decline Order
+                        </Button>
+                      </>
                     )}
                     {job.status === 'processing' && (
                       <>
@@ -625,7 +708,10 @@ export default function EditorJobs() {
                         <Button
                           size="sm"
                           className="bg-gray-600 hover:bg-gray-700 text-white"
-                          onClick={() => handleMarkComplete(job.jobId)}
+                          onClick={() => {
+                            setSelectedOrderId(job.jobId);
+                            setShowCompleteDialog(true);
+                          }}
                           data-testid={`button-complete-${job.id}`}
                         >
                           Mark Complete
@@ -659,6 +745,80 @@ export default function EditorJobs() {
           }}
         />
       )}
+
+      {/* Accept Order Confirmation Dialog */}
+      <AlertDialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Accept This Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to accept this order? Once accepted, you'll be able to download files and begin processing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleAcceptOrder}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Accept Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Decline Order Confirmation Dialog */}
+      <AlertDialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Decline This Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to decline this order? The order will be cancelled and the partner will be notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">Reason for declining (optional)</label>
+            <Textarea
+              placeholder="Enter a reason for declining this order..."
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              className="w-full"
+              rows={3}
+              data-testid="textarea-decline-reason"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeclineReason("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeclineOrder}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Decline Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mark Complete Confirmation Dialog */}
+      <AlertDialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark Order as Complete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this order as complete? This will notify the partner that the work is finished.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleMarkComplete}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Mark as Complete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
