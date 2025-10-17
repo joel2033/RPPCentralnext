@@ -528,29 +528,28 @@ export default function Upload() {
               {selectedServices.map((selectedService, serviceIndex) => (
                 <Card key={selectedService.id} className="border-gray-200">
                   <CardContent className="pt-6">
-                    {/* Service Name Heading */}
-                    <h4 className="text-gray-900 mb-4 font-medium text-[22px]">{selectedService.service.name}</h4>
-                    
-                    {/* Upload Files Section */}
-                    <div className="mb-6">
-                      <label className="block text-sm font-medium text-gray-900 mb-3">Upload Files</label>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          type="button"
-                          onClick={() => openUploadModal(selectedService)}
-                          className="bg-orange-400 hover:bg-orange-500 text-white"
-                          data-testid={`button-upload-${selectedService.id}`}
-                        >
-                          <UploadIcon className="w-4 h-4 mr-2" />
-                          Upload
-                        </Button>
-                        {selectedService.files.length > 0 && (
-                          <span className="text-sm text-gray-600">
-                            {selectedService.files.length} file(s) selected
-                          </span>
-                        )}
-                      </div>
+                    {/* Service Name Heading with Upload Button */}
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-gray-900 font-medium text-[22px]">{selectedService.service.name}</h4>
+                      <Button
+                        type="button"
+                        onClick={() => openUploadModal(selectedService)}
+                        className="bg-orange-400 hover:bg-orange-500 text-white"
+                        data-testid={`button-upload-${selectedService.id}`}
+                      >
+                        <UploadIcon className="w-4 h-4 mr-2" />
+                        Upload
+                      </Button>
                     </div>
+                    
+                    {/* Upload Files Status */}
+                    {selectedService.files.length > 0 && (
+                      <div className="mb-6">
+                        <span className="text-sm text-gray-600">
+                          {selectedService.files.length} file(s) selected
+                        </span>
+                      </div>
+                    )}
 
                   {/* Quantity Section */}
                   <div className="mb-6">
