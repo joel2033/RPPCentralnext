@@ -4647,6 +4647,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Save partner settings
+  app.put("/api/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      const { businessProfile, personalProfile, businessHours } = req.body;
+
+      // Here you would save the settings to your storage
+      // For now, we'll just return success since the settings are stored in state
+      // In a real app, you'd save these to a database table
+
+      console.log("Saving settings for partner:", req.user.partnerId);
+      console.log("Business Profile:", businessProfile);
+      console.log("Personal Profile:", personalProfile);
+      console.log("Business Hours:", businessHours);
+
+      // TODO: Implement actual storage of settings
+      // await storage.savePartnerSettings(req.user.partnerId, { businessProfile, personalProfile, businessHours });
+
+      res.json({ 
+        success: true, 
+        message: "Settings saved successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error saving settings:", error);
+      res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

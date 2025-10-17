@@ -92,6 +92,26 @@ export default function Settings() {
     retry: false
   });
 
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any }) => {
+      return apiRequest("/api/settings", "PUT", data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Settings Saved!",
+        description: "Your settings have been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Save Settings",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Editor invitation mutation
   const inviteMutation = useMutation({
     mutationFn: async (data: { editorEmail: string; editorStudioName: string }) => {
@@ -120,6 +140,14 @@ export default function Settings() {
       });
     }
   });
+
+  const handleSaveSettings = () => {
+    saveSettingsMutation.mutate({
+      businessProfile,
+      personalProfile,
+      businessHours
+    });
+  };
 
   const handleEditorInviteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,9 +207,14 @@ export default function Settings() {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600">Manage your business profile, settings and preferences</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={handleSaveSettings}
+          disabled={saveSettingsMutation.isPending}
+          data-testid="button-save-settings"
+        >
           <Save className="w-4 h-4 mr-2" />
-          Save Changes
+          {saveSettingsMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
       </div>
 
