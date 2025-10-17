@@ -389,6 +389,34 @@
       "filesExpiryDate": "2025-10-07T08:44:55.703Z",
       "id": "b82486cd-69fe-4ddf-b65f-42a1f709eb54",
       "createdAt": "2025-09-23T08:44:55.703Z"
+    },
+    "a9d49007-2177-44bc-b7de-158af8849447": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "8.44",
+      "dateAccepted": null,
+      "orderNumber": "#00004",
+      "filesExpiryDate": "2025-10-31T10:15:08.644Z",
+      "id": "a9d49007-2177-44bc-b7de-158af8849447",
+      "createdAt": "2025-10-17T10:15:08.644Z"
+    },
+    "aaf65dc3-c45a-4255-8e79-9876db6c3aaa": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "customerId": null,
+      "status": "pending",
+      "assignedTo": "pht_studio",
+      "createdBy": "adamson652@gmail.com",
+      "estimatedTotal": "3.35",
+      "dateAccepted": null,
+      "orderNumber": "#00005",
+      "filesExpiryDate": "2025-10-31T10:17:01.955Z",
+      "id": "aaf65dc3-c45a-4255-8e79-9876db6c3aaa",
+      "createdAt": "2025-10-17T10:17:01.955Z"
     }
   },
   "orderServices": {
@@ -499,6 +527,15 @@
       "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
       "id": "61895346-f7aa-4893-bb0f-8bc94c170d77",
       "createdAt": "2025-09-23T08:44:55.719Z"
+    },
+    "07d8a935-46af-480a-9ffb-64e25fea3fcf": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 9,
+      "instructions": "[{\"fileName\":\"123\",\"detail\":\"abc\"}]",
+      "exportTypes": "[{\"type\":\"high-res\",\"description\":\"\"},{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
+      "id": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "createdAt": "2025-10-17T10:15:08.657Z"
     }
   },
   "orderFiles": {
@@ -878,6 +915,84 @@
       "expiresAt": "2025-10-07T08:44:55.736Z",
       "id": "5c89077e-dd72-468c-b647-21985e2eb508",
       "uploadedAt": "2025-09-23T08:44:55.736Z"
+    },
+    "403a3bfe-ca8b-49ce-ad02-0b389b9a00fe": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016190604_0064_D.dng",
+      "originalName": "DJI_20251016190604_0064_D.dng",
+      "fileSize": 3874796,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696046693_DJI_20251016190604_0064_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696046693_DJI_20251016190604_0064_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.660Z",
+      "id": "403a3bfe-ca8b-49ce-ad02-0b389b9a00fe",
+      "uploadedAt": "2025-10-17T10:15:08.660Z"
+    },
+    "e779d603-63c3-455c-8937-322a51515ba1": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016190604_0065_D.dng",
+      "originalName": "DJI_20251016190604_0065_D.dng",
+      "fileSize": 4196460,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696054799_DJI_20251016190604_0065_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696054799_DJI_20251016190604_0065_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.663Z",
+      "id": "e779d603-63c3-455c-8937-322a51515ba1",
+      "uploadedAt": "2025-10-17T10:15:08.663Z"
+    },
+    "4b56aaf2-f0d9-4324-ae1b-1a327f30a49c": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016190604_0066_D.dng",
+      "originalName": "DJI_20251016190604_0066_D.dng",
+      "fileSize": 3562266,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696059076_DJI_20251016190604_0066_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696059076_DJI_20251016190604_0066_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.678Z",
+      "id": "4b56aaf2-f0d9-4324-ae1b-1a327f30a49c",
+      "uploadedAt": "2025-10-17T10:15:08.678Z"
+    },
+    "adadc300-fae2-4342-a8db-f5aac390504c": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016192049_0088_D.dng",
+      "originalName": "DJI_20251016192049_0088_D.dng",
+      "fileSize": 3806354,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696063443_DJI_20251016192049_0088_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696063443_DJI_20251016192049_0088_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.690Z",
+      "id": "adadc300-fae2-4342-a8db-f5aac390504c",
+      "uploadedAt": "2025-10-17T10:15:08.691Z"
+    },
+    "b0e65bde-ae93-4083-8c4e-6721c63a2569": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016192049_0089_D.dng",
+      "originalName": "DJI_20251016192049_0089_D.dng",
+      "fileSize": 3881554,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696068860_DJI_20251016192049_0089_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696068860_DJI_20251016192049_0089_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.700Z",
+      "id": "b0e65bde-ae93-4083-8c4e-6721c63a2569",
+      "uploadedAt": "2025-10-17T10:15:08.700Z"
+    },
+    "dcd535a5-0930-419a-814d-9d70be6fad92": {
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "serviceId": "07d8a935-46af-480a-9ffb-64e25fea3fcf",
+      "fileName": "DJI_20251016192049_0090_D.dng",
+      "originalName": "DJI_20251016192049_0090_D.dng",
+      "fileSize": 3686300,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696076017_DJI_20251016192049_0090_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696076017_DJI_20251016192049_0090_D.dng",
+      "expiresAt": "2025-10-31T10:15:08.714Z",
+      "id": "dcd535a5-0930-419a-814d-9d70be6fad92",
+      "uploadedAt": "2025-10-17T10:15:08.714Z"
     }
   },
   "serviceCategories": {
@@ -1589,6 +1704,120 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
       "uploadedAt": "2025-10-14T03:49:05.572Z"
+    },
+    "d39707a2-1950-4f32-916c-04563fcadfb5": {
+      "id": "d39707a2-1950-4f32-916c-04563fcadfb5",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016190604_0064_D.dng",
+      "originalName": "DJI_20251016190604_0064_D.dng",
+      "fileSize": 3874796,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696046693_DJI_20251016190604_0064_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696046693_DJI_20251016190604_0064_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:11.525Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:11.525Z"
+    },
+    "cc44568b-e687-425b-b9c0-90d5f9fa55dd": {
+      "id": "cc44568b-e687-425b-b9c0-90d5f9fa55dd",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016190604_0065_D.dng",
+      "originalName": "DJI_20251016190604_0065_D.dng",
+      "fileSize": 4196460,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696054799_DJI_20251016190604_0065_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696054799_DJI_20251016190604_0065_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:17.940Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:17.940Z"
+    },
+    "07890287-a956-4d8f-9ed4-d52d31a47cfb": {
+      "id": "07890287-a956-4d8f-9ed4-d52d31a47cfb",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016190604_0066_D.dng",
+      "originalName": "DJI_20251016190604_0066_D.dng",
+      "fileSize": 3562266,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696059076_DJI_20251016190604_0066_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696059076_DJI_20251016190604_0066_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:22.035Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:22.035Z"
+    },
+    "b4fbedf1-d307-4e4a-94b6-c54a21df24df": {
+      "id": "b4fbedf1-d307-4e4a-94b6-c54a21df24df",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016192049_0088_D.dng",
+      "originalName": "DJI_20251016192049_0088_D.dng",
+      "fileSize": 3806354,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696063443_DJI_20251016192049_0088_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696063443_DJI_20251016192049_0088_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:27.636Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:27.636Z"
+    },
+    "406d3948-a5be-4f08-985e-d026a452cae9": {
+      "id": "406d3948-a5be-4f08-985e-d026a452cae9",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016192049_0089_D.dng",
+      "originalName": "DJI_20251016192049_0089_D.dng",
+      "fileSize": 3881554,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696068860_DJI_20251016192049_0089_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696068860_DJI_20251016192049_0089_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:34.818Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:34.818Z"
+    },
+    "3b95efa8-71f4-4e3e-bb23-038852e0cd41": {
+      "id": "3b95efa8-71f4-4e3e-bb23-038852e0cd41",
+      "jobId": "25a23639-0111-49b4-a60b-64d655364ca8",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DJI_20251016192049_0090_D.dng",
+      "originalName": "DJI_20251016192049_0090_D.dng",
+      "fileSize": 3686300,
+      "mimeType": "image/x-adobe-dng",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696076017_DJI_20251016192049_0090_D.dng",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Lkm3Ynx1gZm6tDgZ6ZGLw/00004/1760696076017_DJI_20251016192049_0090_D.dng",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-18T10:14:39.633Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-17T10:14:39.633Z"
     }
   },
   "notifications": {
@@ -1668,6 +1897,19 @@
       "read": false,
       "id": "7938f191-c584-4939-9936-bcd581eb279f",
       "createdAt": "2025-09-23T08:44:55.754Z",
+      "readAt": null
+    },
+    "4b4a5959-daef-4c32-b4b7-ec9cd83cc810": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##00004 has been assigned to you and is ready for processing.",
+      "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
+      "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
+      "read": false,
+      "id": "4b4a5959-daef-4c32-b4b7-ec9cd83cc810",
+      "createdAt": "2025-10-17T10:15:08.733Z",
       "readAt": null
     }
   },
@@ -2045,6 +2287,23 @@
       "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
       "id": "f3e08494-b6d7-409e-ad0d-94ee4e07ce62",
       "createdAt": "2025-10-13T22:50:44.733Z"
+    },
+    "d291e8c9-4fc6-49c7-85f3-45cffcd789f5": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderId": "aaf65dc3-c45a-4255-8e79-9876db6c3aaa",
+      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "order",
+      "title": "Order Created",
+      "description": "New order ##00005 created",
+      "metadata": "{\"orderNumber\":\"#00005\",\"status\":\"pending\",\"estimatedTotal\":\"3.35\",\"jobId\":\"0f88361c-6229-44e4-826a-ec837afad642\",\"customerId\":null}",
+      "ipAddress": "172.31.84.98",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "d291e8c9-4fc6-49c7-85f3-45cffcd789f5",
+      "createdAt": "2025-10-17T10:17:01.957Z"
     }
   },
   "editingOptions": {
@@ -2191,7 +2450,7 @@
       "updatedAt": "2025-10-15T03:10:23.235Z"
     }
   },
-  "orderCounter": 4,
+  "orderCounter": 6,
   "orderReservations": {
     "#12347": {
       "orderNumber": "#12347",
@@ -2265,13 +2524,13 @@
       "expiresAt": "2025-09-23T10:44:33.937Z",
       "status": "confirmed"
     },
-    "#00003": {
-      "orderNumber": "#00003",
+    "#00004": {
+      "orderNumber": "#00004",
       "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
-      "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "reservedAt": "2025-10-14T03:48:56.675Z",
-      "expiresAt": "2025-10-14T05:48:56.675Z",
-      "status": "reserved"
+      "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
+      "reservedAt": "2025-10-17T10:14:04.318Z",
+      "expiresAt": "2025-10-17T12:14:04.318Z",
+      "status": "confirmed"
     }
   }
 }
