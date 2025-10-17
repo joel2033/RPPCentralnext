@@ -328,8 +328,14 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                 </div>
                 <p className="text-sm text-gray-500 mb-6">Click on services to add them to your order</p>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  {availableServices.map((service) => {
+                {availableServices.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                    <p>No services available. Please select a supplier first.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {availableServices.map((service) => {
                     const isSelected = selectedServices.find(s => s.id === service.id);
                     const Icon = service.icon;
                     
@@ -363,6 +369,7 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                     );
                   })}
                 </div>
+                )}
               </div>
             )}
 
