@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Building2, 
   User, 
@@ -48,10 +49,8 @@ interface Partnership {
   isActive: boolean;
 }
 
-// Placeholder for userData, assuming it's fetched elsewhere and available
-const userData = { email: "user@example.com" }; // Replace with actual user data fetching
-
 export default function Settings() {
+  const { userData } = useAuth();
   const [activeTab, setActiveTab] = useState("business-profile");
   const { toast } = useToast();
   const queryClient = useQueryClient();
