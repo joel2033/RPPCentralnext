@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +86,26 @@ export default function Settings() {
     editorStudioName: ""
   });
 
+  // Load saved settings from backend
+  const { data: savedSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['/api/settings']
+  });
+
+  // Update state when settings are loaded
+  useEffect(() => {
+    if (savedSettings) {
+      if (savedSettings.businessProfile) {
+        setBusinessProfile(savedSettings.businessProfile);
+      }
+      if (savedSettings.personalProfile) {
+        setPersonalProfile(savedSettings.personalProfile);
+      }
+      if (savedSettings.businessHours) {
+        setBusinessHours(savedSettings.businessHours);
+      }
+    }
+  }, [savedSettings]);
+
   // Fetch active partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
     queryKey: ['/api/partnerships'],
@@ -98,6 +118,7 @@ export default function Settings() {
       return apiRequest("/api/settings", "PUT", data);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
       toast({
         title: "Settings Saved!",
         description: "Your settings have been updated successfully.",

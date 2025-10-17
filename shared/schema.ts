@@ -227,6 +227,17 @@ export const customerEditingPreferences = pgTable("customer_editing_preferences"
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Partner settings (stores business profile, personal profile, and business hours)
+export const partnerSettings = pgTable("partner_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull().unique(), // Multi-tenant identifier
+  businessProfile: text("business_profile"), // JSON: businessName, tagline, email, phone, address, website, description
+  personalProfile: text("personal_profile"), // JSON: firstName, lastName, email, phone, bio
+  businessHours: text("business_hours"), // JSON: {monday: {isOpen, start, end}, tuesday: {...}, ...}
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -333,6 +344,12 @@ export const insertCustomerEditingPreferenceSchema = createInsertSchema(customer
   updatedAt: true,
 });
 
+export const insertPartnerSettingsSchema = createInsertSchema(partnerSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -375,3 +392,6 @@ export type InsertEditingOption = z.infer<typeof insertEditingOptionSchema>;
 
 export type CustomerEditingPreference = typeof customerEditingPreferences.$inferSelect;
 export type InsertCustomerEditingPreference = z.infer<typeof insertCustomerEditingPreferenceSchema>;
+
+export type PartnerSettings = typeof partnerSettings.$inferSelect;
+export type InsertPartnerSettings = z.infer<typeof insertPartnerSettingsSchema>;

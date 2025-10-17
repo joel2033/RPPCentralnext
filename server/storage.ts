@@ -26,7 +26,9 @@ import {
   type EditingOption,
   type InsertEditingOption,
   type CustomerEditingPreference,
-  type InsertCustomerEditingPreference
+  type InsertCustomerEditingPreference,
+  type PartnerSettings,
+  type InsertPartnerSettings
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -175,6 +177,10 @@ export interface IStorage {
   updateCustomerEditingPreference(id: string, updates: Partial<CustomerEditingPreference>): Promise<CustomerEditingPreference | undefined>;
   deleteCustomerEditingPreference(id: string): Promise<void>;
   saveCustomerPreferences(customerId: string, preferences: { editingOptionId: string; isEnabled: boolean; notes?: string }[]): Promise<void>;
+
+  // Partner Settings
+  getPartnerSettings(partnerId: string): Promise<PartnerSettings | undefined>;
+  savePartnerSettings(partnerId: string, settings: InsertPartnerSettings): Promise<PartnerSettings>;
 }
 
 export class MemStorage implements IStorage {
@@ -192,6 +198,7 @@ export class MemStorage implements IStorage {
   private activities: Map<string, Activity>;
   private editingOptions: Map<string, EditingOption>;
   private customerEditingPreferences: Map<string, CustomerEditingPreference>;
+  private partnerSettings: Map<string, PartnerSettings>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -211,6 +218,7 @@ export class MemStorage implements IStorage {
     this.activities = new Map();
     this.editingOptions = new Map();
     this.customerEditingPreferences = new Map();
+    this.partnerSettings = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -392,7 +400,18 @@ export class MemStorage implements IStorage {
           });
         }
         
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences`);
+        // Restore partner settings
+        if (data.partnerSettings) {
+          Object.entries(data.partnerSettings).forEach(([partnerId, settings]: [string, any]) => {
+            this.partnerSettings.set(partnerId, {
+              ...settings,
+              createdAt: new Date(settings.createdAt),
+              updatedAt: new Date(settings.updatedAt)
+            });
+          });
+        }
+        
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -416,6 +435,7 @@ export class MemStorage implements IStorage {
         activities: Object.fromEntries(this.activities.entries()),
         editingOptions: Object.fromEntries(this.editingOptions.entries()),
         customerEditingPreferences: Object.fromEntries(this.customerEditingPreferences.entries()),
+        partnerSettings: Object.fromEntries(this.partnerSettings.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
@@ -2054,6 +2074,29 @@ export class MemStorage implements IStorage {
     }
     
     this.saveToFile();
+  }
+
+  // Partner Settings Implementation
+  async getPartnerSettings(partnerId: string): Promise<PartnerSettings | undefined> {
+    return this.partnerSettings.get(partnerId);
+  }
+
+  async savePartnerSettings(partnerId: string, settings: InsertPartnerSettings): Promise<PartnerSettings> {
+    const existing = this.partnerSettings.get(partnerId);
+    
+    const partnerSettingsData: PartnerSettings = {
+      id: existing?.id || randomUUID(),
+      partnerId,
+      businessProfile: settings.businessProfile || null,
+      personalProfile: settings.personalProfile || null,
+      businessHours: settings.businessHours || null,
+      createdAt: existing?.createdAt || new Date(),
+      updatedAt: new Date(),
+    };
+    
+    this.partnerSettings.set(partnerId, partnerSettingsData);
+    this.saveToFile();
+    return partnerSettingsData;
   }
 }
 

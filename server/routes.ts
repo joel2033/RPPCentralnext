@@ -4647,6 +4647,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // Get partner settings
+  app.get("/api/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      const settings = await storage.getPartnerSettings(req.user.partnerId);
+      
+      if (!settings) {
+        return res.json({
+          businessProfile: null,
+          personalProfile: null,
+          businessHours: null
+        });
+      }
+
+      res.json({
+        businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
+        personalProfile: settings.personalProfile ? JSON.parse(settings.personalProfile) : null,
+        businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null
+      });
+    } catch (error: any) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
   // Save partner settings
   app.put("/api/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -4656,21 +4684,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { businessProfile, personalProfile, businessHours } = req.body;
 
-      // Here you would save the settings to your storage
-      // For now, we'll just return success since the settings are stored in state
-      // In a real app, you'd save these to a database table
-
-      console.log("Saving settings for partner:", req.user.partnerId);
-      console.log("Business Profile:", businessProfile);
-      console.log("Personal Profile:", personalProfile);
-      console.log("Business Hours:", businessHours);
-
-      // TODO: Implement actual storage of settings
-      // await storage.savePartnerSettings(req.user.partnerId, { businessProfile, personalProfile, businessHours });
+      // Save settings to storage with JSON stringified data
+      const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
+        partnerId: req.user.partnerId,
+        businessProfile: businessProfile ? JSON.stringify(businessProfile) : null,
+        personalProfile: personalProfile ? JSON.stringify(personalProfile) : null,
+        businessHours: businessHours ? JSON.stringify(businessHours) : null
+      });
 
       res.json({ 
         success: true, 
-        message: "Settings saved successfully" 
+        message: "Settings saved successfully",
+        settings: savedSettings
       });
     } catch (error: any) {
       console.error("Error saving settings:", error);
