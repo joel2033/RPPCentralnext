@@ -534,23 +534,22 @@ export default function Upload() {
                     {/* Upload Files Section */}
                     <div className="mb-6">
                       <label className="block text-sm font-medium text-gray-900 mb-3">Upload Files</label>
-                      <button
-                        onClick={() => openUploadModal(selectedService)}
-                        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-orange-400 hover:bg-orange-50 transition-colors"
-                        data-testid={`button-upload-${selectedService.id}`}
-                      >
-                        <div className="flex flex-col items-center">
-                          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-3">
-                            <UploadIcon className="w-6 h-6 text-orange-600" />
-                          </div>
-                          <p className="text-sm text-gray-700 font-medium">
-                            {selectedService.files.length > 0 
-                              ? `${selectedService.files.length} file(s) selected - Click to change` 
-                              : 'Click to upload files or drag and drop'}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">JPG, PNG, RAW, or TIFF files</p>
-                        </div>
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          onClick={() => openUploadModal(selectedService)}
+                          className="bg-orange-400 hover:bg-orange-500 text-white"
+                          data-testid={`button-upload-${selectedService.id}`}
+                        >
+                          <UploadIcon className="w-4 h-4 mr-2" />
+                          Upload
+                        </Button>
+                        {selectedService.files.length > 0 && (
+                          <span className="text-sm text-gray-600">
+                            {selectedService.files.length} file(s) selected
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                   {/* Quantity Section */}
