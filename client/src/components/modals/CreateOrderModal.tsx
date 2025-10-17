@@ -46,8 +46,30 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
     queryKey: ["/api/partnerships/suppliers"],
   });
 
-  // Mock services data - will be replaced with API
-  const availableServices = [
+  const { data: services = [] } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedSupplier, "services"],
+    enabled: !!selectedSupplier
+  });
+
+  const { data: categories = [] } = useQuery<any[]>({
+    queryKey: ["/api/editor", selectedSupplier, "service-categories"],
+    enabled: !!selectedSupplier
+  });
+
+  // Map services to display format with icons and colors
+  const availableServices = services.map((service: any) => ({
+    id: service.id,
+    name: service.serviceName,
+    description: service.categoryName || '',
+    price: parseFloat(service.basePrice),
+    icon: Camera, // Default icon
+    iconColor: 'bg-blue-100 text-blue-600',
+    iconBg: 'bg-blue-50',
+    borderColor: 'border-blue-200'
+  }));
+
+  // Fallback mock services if no supplier selected (will be empty once supplier is selected)
+  const mockServices = [
     { 
       id: '1', 
       name: 'Image Enhancement', 
