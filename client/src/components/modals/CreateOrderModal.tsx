@@ -57,16 +57,21 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
   });
 
   // Map services to display format with icons and colors
-  const availableServices = services.map((service: any) => ({
-    id: service.id,
-    name: service.serviceName,
-    description: service.categoryName || '',
-    price: parseFloat(service.basePrice),
-    icon: Camera, // Default icon
-    iconColor: 'bg-blue-100 text-blue-600',
-    iconBg: 'bg-blue-50',
-    borderColor: 'border-blue-200'
-  }));
+  const availableServices = services.map((service: any) => {
+    // Find matching category for the service
+    const category = categories.find((cat: any) => cat.id === service.categoryId);
+    
+    return {
+      id: service.id,
+      name: service.name,
+      description: category?.name || service.description || '',
+      price: parseFloat(service.basePrice),
+      icon: Camera, // Default icon
+      iconColor: 'bg-blue-100 text-blue-600',
+      iconBg: 'bg-blue-50',
+      borderColor: 'border-blue-200'
+    };
+  });
 
   const createOrderMutation = useMutation({
     mutationFn: async (data: any) => {
