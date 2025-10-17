@@ -364,15 +364,17 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pht_studio">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-gray-400" />
-                          <div>
-                            <div className="font-medium">PHT Studio</div>
-                            <div className="text-xs text-gray-500">PHT Creative Studio</div>
+                      {suppliers.map((supplier: any) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-gray-400" />
+                            <div>
+                              <div className="font-medium">{supplier.businessName}</div>
+                              <div className="text-xs text-gray-500">{supplier.companyName}</div>
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
