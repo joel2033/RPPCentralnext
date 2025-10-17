@@ -369,8 +369,8 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                           <div className="flex items-center gap-2">
                             <Building2 className="w-4 h-4 text-gray-400" />
                             <div>
-                              <div className="font-medium">{supplier.businessName}</div>
-                              <div className="text-xs text-gray-500">{supplier.companyName}</div>
+                              <div className="font-medium">{supplier.studioName}</div>
+                              <div className="text-xs text-gray-500">{supplier.email}</div>
                             </div>
                           </div>
                         </SelectItem>
