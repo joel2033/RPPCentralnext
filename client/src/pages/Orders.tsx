@@ -29,9 +29,10 @@ export default function Orders() {
     return job?.address || 'No address available';
   };
 
-  const getEditorStudioName = (editorId: string) => {
-    if (!editorId) return 'Unassigned';
-    const partnership = partnerships.find((p: any) => p.editorId === editorId);
+  const getEditorStudioName = (assignedToId: string) => {
+    if (!assignedToId) return 'Unassigned';
+    const partnership = partnerships.find((p: any) => p.editorId === assignedToId);
+    console.log('Looking for editor:', assignedToId, 'Found partnership:', partnership);
     return partnership?.editorStudioName || 'Unknown Editor';
   };
 
