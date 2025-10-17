@@ -3,9 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Download, Upload, FileImage, Calendar, DollarSign, Package, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Download, Upload, FileImage, Calendar, DollarSign, Package, Loader2, Check, X } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
@@ -44,6 +45,13 @@ export default function EditorDashboard() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
+  
+  // Confirmation dialog states
+  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [declineReason, setDeclineReason] = useState("");
+  
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
@@ -102,6 +110,88 @@ export default function EditorDashboard() {
     
     setIsUploadOpen(false);
     setSelectedJob(null);
+  };
+
+  const handleAcceptOrder = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/orders/${selectedOrderId}/accept`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to accept order');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Order Accepted",
+        description: "You can now download the files and start working.",
+      });
+      
+      setShowAcceptDialog(false);
+      setSelectedOrderId("");
+    } catch (error: any) {
+      console.error('Error accepting order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to accept order. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeclineOrder = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/orders/${selectedOrderId}/decline`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          reason: declineReason || undefined 
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to decline order');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Order Declined",
+        description: "The order has been declined and the partner has been notified.",
+      });
+      
+      setShowDeclineDialog(false);
+      setSelectedOrderId("");
+      setDeclineReason("");
+    } catch (error: any) {
+      console.error('Error declining order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to decline order. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDownloadFiles = async (job: EditorJob) => {
@@ -253,6 +343,84 @@ export default function EditorDashboard() {
         />
       )}
 
+      {/* Accept Order Confirmation Dialog */}
+      <Dialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accept Order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to accept this order? You will be able to download the files and start working on it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowAcceptDialog(false);
+                setSelectedOrderId("");
+              }}
+              data-testid="button-cancel-accept"
+            >
+              Cancel
+            </Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleAcceptOrder}
+              data-testid="button-confirm-accept"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Accept Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Decline Order Confirmation Dialog */}
+      <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Order</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to decline this order? The partner will be notified.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              Reason for declining (optional)
+            </label>
+            <Textarea
+              placeholder="Let the partner know why you're declining this order..."
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              className="w-full"
+              rows={4}
+              data-testid="textarea-decline-reason"
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeclineDialog(false);
+                setSelectedOrderId("");
+                setDeclineReason("");
+              }}
+              data-testid="button-cancel-decline"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeclineOrder}
+              data-testid="button-confirm-decline"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Decline Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -356,25 +524,67 @@ export default function EditorDashboard() {
                     <p className="text-xs text-gray-500 mt-1">Due: {job.dueDate}</p>
                   </div>
                   <div className="flex space-x-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDownloadFiles(job)}
-                      data-testid={`button-download-${job.orderNumber}`}
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      Download
-                    </Button>
-                    {job.status === 'processing' && (
-                      <Button 
-                        size="sm" 
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => handleUploadClick(job)}
-                        data-testid={`button-upload-${job.id}`}
-                      >
-                        <Upload className="w-4 h-4 mr-1" />
-                        Upload
-                      </Button>
+                    {job.status === 'pending' ? (
+                      <>
+                        <Button 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => {
+                            setSelectedOrderId(job.orderId);
+                            setShowAcceptDialog(true);
+                          }}
+                          data-testid={`button-accept-${job.orderNumber}`}
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Accept Order
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="border-red-300 text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            setSelectedOrderId(job.orderId);
+                            setShowDeclineDialog(true);
+                          }}
+                          data-testid={`button-decline-${job.orderNumber}`}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          Decline Order
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          disabled={true}
+                          className="opacity-50 cursor-not-allowed"
+                          data-testid={`button-download-${job.orderNumber}`}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleDownloadFiles(job)}
+                          data-testid={`button-download-${job.orderNumber}`}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                        {job.status === 'processing' && (
+                          <Button 
+                            size="sm" 
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => handleUploadClick(job)}
+                            data-testid={`button-upload-${job.id}`}
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            Upload
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
