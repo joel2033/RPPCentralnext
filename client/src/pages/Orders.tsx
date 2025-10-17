@@ -12,9 +12,18 @@ export default function Orders() {
     queryKey: ["/api/orders"],
   });
 
+  const { data: jobs = [] } = useQuery<any[]>({
+    queryKey: ["/api/jobs"],
+  });
+
   const filteredOrders = (orders || []).filter((order: any) => {
     return order.status === activeTab;
   });
+
+  const getJobAddress = (jobId: string) => {
+    const job = jobs.find((j: any) => j.jobId === jobId || j.id === jobId);
+    return job?.address || 'No address available';
+  };
 
   const tabs = [
     { id: "pending", label: "Pending", count: (orders || []).filter((o: any) => o.status === "pending").length },
@@ -90,7 +99,7 @@ export default function Orders() {
                     {order.dateAccepted ? new Date(order.dateAccepted).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="py-4 px-6 text-sm">
-                    {order.jobId || 'No address available'}
+                    {getJobAddress(order.jobId)}
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-2">
