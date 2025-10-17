@@ -895,9 +895,9 @@ export class MemStorage implements IStorage {
     
     const editorOrders = allOrders.filter(order => 
       order.assignedTo === editorId && 
-      order.status === 'processing'
+      (order.status === 'pending' || order.status === 'processing')
     );
-    console.log(`[DEBUG] Orders ready for upload (assigned + processing): ${editorOrders.length}`);
+    console.log(`[DEBUG] Orders ready for upload (assigned + pending/processing): ${editorOrders.length}`);
 
     const jobsData = [];
     for (const order of editorOrders) {
