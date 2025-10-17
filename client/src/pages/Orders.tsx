@@ -16,8 +16,8 @@ export default function Orders() {
     queryKey: ["/api/jobs"],
   });
 
-  const { data: partnerships = [] } = useQuery<any[]>({
-    queryKey: ["/api/partnerships"],
+  const { data: partnerships = [], isLoading: isLoadingPartnerships } = useQuery<any[]>({
+    queryKey: ["/api/partner/partnerships"],
   });
 
   const filteredOrders = (orders || []).filter((order: any) => {
@@ -43,7 +43,7 @@ export default function Orders() {
     { id: "cancelled", label: "Cancelled", count: (orders || []).filter((o: any) => o.status === "cancelled").length },
   ];
 
-  if (isLoading) {
+  if (isLoading || isLoadingPartnerships) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
