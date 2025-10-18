@@ -912,33 +912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/jobs", async (req, res) => {
-    try {
-      // Get all jobs (with optional partner filtering)
-      const jobs = await storage.getJobs();
-      res.json(jobs);
-    } catch (error: any) {
-      console.error("Error getting jobs:", error);
-      res.status(500).json({ 
-        error: "Failed to get jobs", 
-        details: error.message 
-      });
-    }
-  });
-
-  app.post("/api/jobs", async (req, res) => {
-    try {
-      const jobData = insertJobSchema.parse(req.body);
-      const job = await storage.createJob(jobData);
-      res.status(201).json(job);
-    } catch (error: any) {
-      console.error("Error creating job:", error);
-      res.status(500).json({ 
-        error: "Failed to create job", 
-        details: error.message 
-      });
-    }
-  });
+  // Note: GET /api/jobs and POST /api/jobs are defined earlier in the file (lines 191-261)
 
   // New endpoint for jobs that have associated orders (for upload page)
   app.get("/api/jobs-with-orders", requireAuth, async (req: AuthenticatedRequest, res) => {

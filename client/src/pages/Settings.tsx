@@ -252,7 +252,7 @@ export default function Settings() {
           <p className="text-gray-600">Manage your business profile, settings and preferences</p>
         </div>
         <Button 
-          className="bg-[#f2572c] hover:bg-[#d94722] text-white"
+          className="bg-[#f2572c] hover:bg-[#d94820] text-white"
           onClick={handleSaveSettings}
           disabled={saveSettingsMutation.isPending}
           data-testid="button-save-settings"
@@ -1186,7 +1186,7 @@ export default function Settings() {
                   <Button 
                     type="submit" 
                     disabled={inviteMutation.isPending}
-                    className="bg-[#f2572c] hover:bg-[#d94722] text-white"
+                    className="bg-[#f2572c] hover:bg-[#d94820] text-white"
                     data-testid="button-send-editor-invite"
                   >
                     {inviteMutation.isPending ? (

@@ -243,7 +243,7 @@ export default function EditingOptionsManager() {
           {!isAdding && (
             <Button
               onClick={() => setIsAdding(true)}
-              className="bg-[#f2572c] hover:bg-[#d94722] text-white"
+              className="bg-[#f2572c] hover:bg-[#d94820] text-white"
               data-testid="button-add-new-option"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -261,7 +261,7 @@ export default function EditingOptionsManager() {
             </p>
             <Button
               onClick={() => setIsAdding(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-[#f2572c] hover:bg-[#d94820] text-white"
               data-testid="button-add-first-option"
             >
               <Plus className="w-4 h-4 mr-2" />
