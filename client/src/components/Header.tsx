@@ -125,7 +125,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <input 
               type="text" 
               placeholder="Search for jobs, people, orders or projects" 
-              className="w-64 px-4 py-2 border border-rpp-grey-border rounded-lg focus:outline-none focus:ring-2 focus:ring-rpp-red-main"
+              className="w-96 px-4 py-2 border border-rpp-grey-border rounded-lg focus:outline-none focus:ring-2 focus:ring-rpp-red-main"
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
           </div>
