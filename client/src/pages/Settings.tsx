@@ -1186,7 +1186,7 @@ export default function Settings() {
                   <Button 
                     type="submit" 
                     disabled={inviteMutation.isPending}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-[#f2572c] hover:bg-[#d94722] text-white"
                     data-testid="button-send-editor-invite"
                   >
                     {inviteMutation.isPending ? (
