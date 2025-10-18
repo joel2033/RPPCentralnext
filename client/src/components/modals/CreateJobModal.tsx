@@ -234,10 +234,19 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
   const createJobMutation = useMutation({
     mutationFn: async (jobData: any) => {
+      // Get Firebase auth token
+      const { auth } = await import("@/lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
+      
+      if (!token) {
+        throw new Error("You must be logged in to create a job");
+      }
+
       const response = await fetch("/api/jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(jobData),
       });
