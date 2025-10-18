@@ -252,7 +252,7 @@ export default function Settings() {
           <p className="text-gray-600">Manage your business profile, settings and preferences</p>
         </div>
         <Button 
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="bg-[#f2572c] hover:bg-[#d94722] text-white"
           onClick={handleSaveSettings}
           disabled={saveSettingsMutation.isPending}
           data-testid="button-save-settings"
