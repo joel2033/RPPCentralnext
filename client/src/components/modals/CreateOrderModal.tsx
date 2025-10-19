@@ -46,6 +46,13 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
     queryKey: ["/api/partnerships/suppliers"],
   });
 
+  // Sort jobs: newest first (by appointment date, then creation date)
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const dateA = new Date(a.appointmentDate || a.createdAt || 0).getTime();
+    const dateB = new Date(b.appointmentDate || b.createdAt || 0).getTime();
+    return dateB - dateA; // Newest first
+  });
+
   const { data: services = [] } = useQuery<any[]>({
     queryKey: ["/api/editor", selectedSupplier, "services"],
     enabled: !!selectedSupplier
@@ -280,7 +287,7 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                       <SelectValue placeholder="Select a job" />
                     </SelectTrigger>
                     <SelectContent>
-                      {jobs.map((job: any) => (
+                      {sortedJobs.map((job: any) => (
                         <SelectItem key={job.id} value={job.id}>
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-gray-400" />
