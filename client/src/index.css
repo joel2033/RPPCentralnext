@@ -26,6 +26,7 @@
 
   /* RPP Brand Colors - Exact match to Figma specs */
   --rpp-red: hsl(13, 88%, 56%);
+  --rpp-red-main: hsl(13, 88%, 56%);
   --rpp-red-dark: hsl(13, 70%, 45%);
   --rpp-red-light: hsl(13, 88%, 65%);
   --rpp-red-lighter: hsl(13, 88%, 73%);
@@ -161,12 +162,12 @@
 }
 
 .nav-item.active {
-  background-color: var(--rpp-red-main) !important;
-  color: white !important;
+  background-color: var(--rpp-red-palest) !important;
+  color: var(--rpp-red-main) !important;
   position: relative;
-  box-shadow: 0 4px 12px rgba(232, 120, 84, 0.25);
+  box-shadow: 0 2px 8px rgba(232, 120, 84, 0.15);
 }
 
 .nav-item.active .lucide {
-  color: white !important;
+  color: var(--rpp-red-main) !important;
 }

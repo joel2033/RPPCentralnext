@@ -148,10 +148,10 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-preview"
-              disabled={!jobData.deliveryToken}
               onClick={() => {
-                if (!jobData.deliveryToken) return;
-                const newWindow = window.open(`/delivery/${jobData.deliveryToken}`, '_blank', 'noopener,noreferrer');
+                const token = jobData.deliveryToken || jobData.jobId;
+                if (!token) return;
+                const newWindow = window.open(`/delivery/${token}`, '_blank', 'noopener,noreferrer');
                 if (newWindow) newWindow.opener = null;
               }}
             >
@@ -162,11 +162,11 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-share"
-              disabled={!jobData.deliveryToken}
               onClick={async () => {
-                if (!jobData.deliveryToken) return;
+                const token = jobData.deliveryToken || jobData.jobId;
+                if (!token) return;
                 try {
-                  const deliveryUrl = `${window.location.origin}/delivery/${jobData.deliveryToken}`;
+                  const deliveryUrl = `${window.location.origin}/delivery/${token}`;
                   await navigator.clipboard.writeText(deliveryUrl);
                   toast({
                     title: "Link copied!",
@@ -186,12 +186,13 @@ export default function JobCard() {
             </Button>
             <Button 
               size="sm"
-              className="bg-gradient-to-r from-primary to-primary/90 hover:shadow-lg transition-shadow"
+              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white hover:shadow-lg transition-all"
               data-testid="button-delivery"
-              disabled={jobData.status !== 'completed' || !jobData.deliveryToken}
+              disabled={jobData.status !== 'completed'}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!jobData.deliveryToken) return;
+                const token = jobData.deliveryToken || jobData.jobId;
+                if (!token) return;
                 setDeliveryModalJob(jobData);
               }}
             >
