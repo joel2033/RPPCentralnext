@@ -2452,9 +2452,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get associated orders to verify assignment and tenant isolation
       const allOrders = await storage.getOrders();
+      // Match by job.id (UUID) which is how orders are stored in database
       const jobOrders = allOrders.filter(o => o.jobId === job.id);
       const assignedOrder = jobOrders.find(order => order.assignedTo === uid);
-      if (jobOrders.length === 0 || !assignedOrder) {
+      if (!assignedOrder) {
+        console.log(`[UPLOAD ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
         return res.status(403).json({ error: "You are not assigned to this job" });
       }
       const order = assignedOrder; // Use the assigned order for upload records
@@ -3098,10 +3100,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[UPLOAD DEBUG] Order ${orderNumber || 'not provided'} not found, searching for editor's assigned order`);
         
         // Find orders for this job that are assigned to the current editor
+        // No partnerId check - editors work across different partners
         const jobOrders = allOrders.filter(o => 
           (o.jobId === job.id || o.jobId === job.jobId) && 
-          o.assignedTo === editorId &&
-          o.partnerId === user.partnerId
+          o.assignedTo === editorId
         );
         
         console.log(`[UPLOAD DEBUG] Found ${jobOrders.length} orders assigned to editor for this job`);
@@ -3118,10 +3120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[UPLOAD DEBUG] Selected order: ${orderEntity.orderNumber} (${orderEntity.status})`);
       }
 
-      // CRITICAL: Validate tenant isolation - order must belong to editor's organization
-      if (orderEntity.partnerId !== user.partnerId) {
-        return res.status(403).json({ error: "Access denied: Order belongs to different organization" });
-      }
+      // Editor is verified through assignment check above
+      // No partnerId check needed - editors work across different partners
 
       // CRITICAL: Validate the order actually belongs to the requested job
       if (orderEntity.jobId !== job.id && orderEntity.jobId !== job.jobId) {
@@ -3194,6 +3194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       fs.unlinkSync(req.file.path);
 
       // Create editor upload record with folder information
+      // Store file path, not signed URL - proxy will generate fresh signed URLs on demand
       await storage.createEditorUpload({
         jobId: job.id,
         orderId: orderEntity.id,
@@ -3202,8 +3203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        firebaseUrl: publicUrl,
-        downloadUrl: publicUrl,
+        firebaseUrl: filePath, // Store path, not signed URL
+        downloadUrl: filePath, // Store path for proxy to generate signed URL
         folderPath: folderPath || null,
         editorFolderName: editorFolderName || null,
         partnerFolderName: null, // Partners can rename later
@@ -3647,20 +3648,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "File not found" });
       }
       
-      // Extract file path from the stored URL
+      // Get file path - now stored directly, not as signed URL
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
       
-      const urlPattern = new RegExp(`https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/(.+)`);
-      const match = file.downloadUrl.match(urlPattern);
+      let filePath: string;
       
-      if (!match || !match[1]) {
-        return res.status(400).json({ error: "Invalid file URL" });
+      // Check if downloadUrl is a file path or a signed URL (for backwards compatibility)
+      if (file.downloadUrl.startsWith('http')) {
+        // Legacy signed URL - extract the path
+        const urlPattern = new RegExp(`https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/(.+?)(?:\\?|$)`);
+        const match = file.downloadUrl.match(urlPattern);
+        
+        if (!match || !match[1]) {
+          return res.status(400).json({ error: "Invalid file URL format" });
+        }
+        
+        filePath = decodeURIComponent(match[1]);
+      } else {
+        // Modern file path stored directly
+        filePath = file.downloadUrl;
       }
       
-      const filePath = decodeURIComponent(match[1]);
       console.log(`[PROXY] Streaming file: ${filePath}`);
       
       const bucket = getStorage().bucket(bucketName);
