@@ -48,7 +48,7 @@ function Router() {
   return (
     <Switch>
       {/* Public Routes - No Authentication Required */}
-      <Route path="/delivery/:jobId" component={DeliveryPage} />
+      <Route path="/delivery/:token" component={DeliveryPage} />
       
       {/* Partner Authentication */}
       <Route path="/login" component={Login} />

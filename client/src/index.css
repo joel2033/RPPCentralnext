@@ -3,44 +3,47 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(30, 30%, 98%);
-  --foreground: hsl(220, 15%, 20%);
-  --muted: hsl(30, 20%, 96%);
-  --muted-foreground: hsl(220, 10%, 50%);
+  --background: hsl(0, 0%, 98%);
+  --foreground: hsl(207, 14%, 22%);
+  --muted: hsl(210, 4%, 92%);
+  --muted-foreground: hsl(207, 5%, 52%);
   --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(220, 15%, 20%);
+  --popover-foreground: hsl(207, 14%, 22%);
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(220, 15%, 20%);
-  --border: hsl(30, 15%, 90%);
-  --input: hsl(30, 15%, 92%);
+  --card-foreground: hsl(207, 14%, 22%);
+  --border: hsl(210, 8%, 91%);
+  --input: hsl(210, 8%, 91%);
   --primary: hsl(13, 88%, 56%);
   --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(30, 20%, 96%);
-  --secondary-foreground: hsl(220, 15%, 20%);
+  --secondary: hsl(210, 4%, 92%);
+  --secondary-foreground: hsl(207, 14%, 22%);
   --accent: hsl(13, 88%, 96%);
   --accent-foreground: hsl(13, 88%, 56%);
   --destructive: hsl(0, 84.2%, 60.2%);
   --destructive-foreground: hsl(0, 0%, 100%);
   --ring: hsl(13, 88%, 56%);
-  --radius: 0.5rem;
+  --radius: 1rem;
 
-  /* RPP Brand Colors - Updated to match Figma */
-  --rpp-grey-dark: hsl(220, 15%, 25%);
-  --rpp-grey-medium: hsl(220, 12%, 45%);
-  --rpp-grey-light: hsl(220, 8%, 60%);
-  --rpp-grey-lighter: hsl(220, 6%, 75%);
-  --rpp-grey-border: hsl(30, 15%, 88%);
-  --rpp-grey-bg: hsl(30, 25%, 96%);
-  --rpp-grey-surface: hsl(30, 30%, 98%);
-  --rpp-grey-white: hsl(0, 0%, 100%);
+  /* RPP Brand Colors - Exact match to Figma specs */
+  --rpp-red: hsl(13, 88%, 56%);
+  --rpp-red-dark: hsl(13, 70%, 45%);
+  --rpp-red-light: hsl(13, 88%, 65%);
+  --rpp-red-lighter: hsl(13, 88%, 73%);
+  --rpp-red-pale: hsl(13, 88%, 82%);
+  --rpp-red-palest: hsl(13, 88%, 91%);
   
-  --rpp-red-dark: hsl(13, 82%, 48%);
-  --rpp-red-main: hsl(13, 88%, 56%);
-  --rpp-red-light: hsl(13, 88%, 66%);
-  --rpp-red-lighter: hsl(13, 88%, 92%);
+  --rpp-grey-darkest: hsl(207, 14%, 22%);
+  --rpp-grey-dark: hsl(207, 5%, 38%);
+  --rpp-grey: hsl(207, 5%, 52%);
+  --rpp-grey-light: hsl(207, 4%, 68%);
+  --rpp-grey-lighter: hsl(207, 4%, 83%);
+  --rpp-grey-lightest: hsl(210, 4%, 92%);
+  --rpp-grey-pale: hsl(210, 4%, 96%);
+  
+  --background-surface: hsl(0, 0%, 98%);
   
   --support-yellow: hsl(45, 90%, 60%);
-  --support-green: hsl(145, 70%, 50%);
+  --support-green: hsl(145, 65%, 45%);
   --support-blue: hsl(210, 90%, 60%);
 }
 
@@ -72,26 +75,45 @@
   }
 
   body {
-    @apply font-sans antialiased bg-rpp-grey-surface text-foreground;
+    @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Inter', sans-serif;
   }
 }
 
 @layer utilities {
-  .bg-rpp-grey-dark { background-color: var(--rpp-grey-dark); }
-  .bg-rpp-grey-medium { background-color: var(--rpp-grey-medium); }
-  .bg-rpp-grey-light { background-color: var(--rpp-grey-light); }
-  .bg-rpp-grey-lighter { background-color: var(--rpp-grey-lighter); }
-  .bg-rpp-grey-border { background-color: var(--rpp-grey-border); }
-  .bg-rpp-grey-bg { background-color: var(--rpp-grey-bg); }
-  .bg-rpp-grey-surface { background-color: var(--rpp-grey-surface); }
-  .bg-rpp-grey-white { background-color: var(--rpp-grey-white); }
-  
+  /* RPP Brand Background Colors */
+  .bg-rpp-red { background-color: var(--rpp-red); }
   .bg-rpp-red-dark { background-color: var(--rpp-red-dark); }
-  .bg-rpp-red-main { background-color: var(--rpp-red-main); }
   .bg-rpp-red-light { background-color: var(--rpp-red-light); }
   .bg-rpp-red-lighter { background-color: var(--rpp-red-lighter); }
+  .bg-rpp-red-pale { background-color: var(--rpp-red-pale); }
+  .bg-rpp-red-palest { background-color: var(--rpp-red-palest); }
   
+  .bg-rpp-grey-darkest { background-color: var(--rpp-grey-darkest); }
+  .bg-rpp-grey-dark { background-color: var(--rpp-grey-dark); }
+  .bg-rpp-grey { background-color: var(--rpp-grey); }
+  .bg-rpp-grey-light { background-color: var(--rpp-grey-light); }
+  .bg-rpp-grey-lighter { background-color: var(--rpp-grey-lighter); }
+  .bg-rpp-grey-lightest { background-color: var(--rpp-grey-lightest); }
+  .bg-rpp-grey-pale { background-color: var(--rpp-grey-pale); }
+  
+  /* RPP Brand Text Colors */
+  .text-rpp-red { color: var(--rpp-red); }
+  .text-rpp-red-dark { color: var(--rpp-red-dark); }
+  .text-rpp-red-light { color: var(--rpp-red-light); }
+  
+  .text-rpp-grey-darkest { color: var(--rpp-grey-darkest); }
+  .text-rpp-grey-dark { color: var(--rpp-grey-dark); }
+  .text-rpp-grey { color: var(--rpp-grey); }
+  .text-rpp-grey-light { color: var(--rpp-grey-light); }
+  .text-rpp-grey-lighter { color: var(--rpp-grey-lighter); }
+  
+  /* RPP Brand Border Colors */
+  .border-rpp-red { border-color: var(--rpp-red); }
+  .border-rpp-red-dark { border-color: var(--rpp-red-dark); }
+  .border-rpp-grey-lightest { border-color: var(--rpp-grey-lightest); }
+  
+  /* Support Colors */
   .bg-support-yellow { background-color: var(--support-yellow); }
   .bg-support-green { background-color: var(--support-green); }
   .bg-support-blue { background-color: var(--support-blue); }
@@ -104,31 +126,18 @@
   .border-support-green { border-color: var(--support-green); }
   .border-support-blue { border-color: var(--support-blue); }
   
-  .text-rpp-grey-dark { color: var(--rpp-grey-dark); }
-  .text-rpp-grey-medium { color: var(--rpp-grey-medium); }
-  .text-rpp-grey-light { color: var(--rpp-grey-light); }
-  
   /* Dashboard specific utilities */
-  .bg-rpp-cream { background-color: hsl(33, 58%, 95%); }
   .shadow-rpp-card { 
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
   .shadow-rpp-card-hover {
-    box-shadow: 0 12px 24px rgba(255, 107, 74, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 12px 24px rgba(240, 90, 42, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
   }
-  .text-rpp-grey-lighter { color: var(--rpp-grey-lighter); }
   
-  .text-rpp-red-dark { color: var(--rpp-red-dark); }
-  .text-rpp-red-main { color: var(--rpp-red-main); }
-  .text-rpp-red-light { color: var(--rpp-red-light); }
-  
-  .border-rpp-grey-border { border-color: var(--rpp-grey-border); }
-  .border-rpp-red-main { border-color: var(--rpp-red-main); }
-  
-  .hover\:bg-rpp-grey-medium:hover { background-color: var(--rpp-grey-medium); }
+  /* Hover States */
   .hover\:bg-rpp-red-dark:hover { background-color: var(--rpp-red-dark); }
   .hover\:text-rpp-red-dark:hover { color: var(--rpp-red-dark); }
-  .hover\:text-rpp-grey-dark:hover { color: var(--rpp-grey-dark); }
+  .hover\:text-rpp-grey-darkest:hover { color: var(--rpp-grey-darkest); }
 }
 
 .sidebar-transition { 
