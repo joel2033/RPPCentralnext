@@ -457,7 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         jobId: jobId || null,
         customerId: customerId || null,
         assignedTo: assignedTo || null,
-        status: assignedTo ? "processing" : "pending", // Set to processing if assigned, pending if not
+        status: "pending", // Always start as pending - editors must accept before processing
         createdBy: createdBy || null,
         estimatedTotal: estimatedTotal || "0"
       }, orderNumber); // Pass the confirmed order number
