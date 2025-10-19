@@ -52,6 +52,13 @@ export default function Upload() {
     queryKey: ["/api/jobs"],
   });
 
+  // Sort jobs: newest first (by appointment date, then creation date)
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const dateA = new Date(a.appointmentDate || a.createdAt || 0).getTime();
+    const dateB = new Date(b.appointmentDate || b.createdAt || 0).getTime();
+    return dateB - dateA; // Newest first
+  });
+
   // Get partnered editors (suppliers) for dropdown
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery<any[]>({
     queryKey: ["/api/partnerships/suppliers"],
@@ -373,7 +380,7 @@ export default function Upload() {
                   <SelectValue placeholder="Select a job..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {jobs.map((job: any) => (
+                  {sortedJobs.map((job: any) => (
                     <SelectItem 
                       key={job.id} 
                       value={job.jobId || job.id}
