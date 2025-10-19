@@ -972,7 +972,8 @@ export class MemStorage implements IStorage {
     const job = await this.getJobByJobId(jobId);
     if (!job) return undefined;
 
-    let currentStatus = job.status;
+    // Treat null status as 'scheduled' (default initial state)
+    let currentStatus = job.status || 'scheduled';
     let finalJob = job;
 
     // Handle transition from scheduled to completed by going through in_progress first
