@@ -73,11 +73,11 @@ interface DeliveryPageData {
     files: DeliveryFile[];
   }>;
   folders?: DeliveryFolder[];
-  orders?: Array<{
-    id: string;
-    orderNumber: string;
-    maxRevisionRounds: number;
-    usedRevisionRounds: number;
+  revisionStatus?: Array<{
+    orderId: string;
+    maxRounds: number;
+    usedRounds: number;
+    remainingRounds: number;
   }>;
   jobReview?: {
     id: string;
@@ -188,6 +188,11 @@ export default function DeliveryPage() {
     sum + folder.files.reduce((fileSum, file) => fileSum + file.fileSize, 0), 0
   );
 
+  // Check revision limits
+  const revisionStatus = deliveryData?.revisionStatus?.[0];
+  const revisionsExhausted = revisionStatus ? revisionStatus.remainingRounds <= 0 : false;
+  const revisionRoundsRemaining = revisionStatus?.remainingRounds || 0;
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -266,7 +271,7 @@ export default function DeliveryPage() {
       const selectedFiles = folders.flatMap((folder) =>
         folder.files.filter((file) => selectedItems.has(file.id))
       );
-      const orderId = deliveryData?.orders?.[0]?.id || deliveryData?.completedFiles?.[0]?.orderId;
+      const orderId = deliveryData?.revisionStatus?.[0]?.orderId || deliveryData?.completedFiles?.[0]?.orderId;
       
       return apiRequest(`/api/delivery/${token}/revisions/request`, {
         method: "POST",
@@ -823,40 +828,63 @@ export default function DeliveryPage() {
       {/* Floating Action Bar */}
       {selectedItems.size > 0 && (
         <Card className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30 shadow-2xl animate-in slide-in-from-bottom-4">
-          <div className="p-4 flex items-center gap-4">
-            <Badge variant="secondary" className="border" data-testid="badge-selection-count">
-              {selectedItems.size} selected
-            </Badge>
-            <Separator orientation="vertical" className="h-8" />
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowRevisionRequest(true)}
-                className="rounded-xl border-primary/50 text-primary hover:bg-primary/10"
-                data-testid="button-request-edits"
-              >
-                Request Edits
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleDownloadSelected}
-                className="bg-gradient-to-r from-primary to-primary/90 rounded-xl"
-                data-testid="button-download-selected"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download Selected
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedItems(new Set())}
-                className="rounded-xl"
-                data-testid="button-clear-selection"
-              >
-                Clear
-              </Button>
+          <div className="p-4 flex flex-col gap-3">
+            {/* Selection Info */}
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="border" data-testid="badge-selection-count">
+                {selectedItems.size} selected
+              </Badge>
+              <Separator orientation="vertical" className="h-8" />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRevisionRequest(true)}
+                  disabled={revisionsExhausted}
+                  className={`rounded-xl ${
+                    revisionsExhausted
+                      ? "opacity-50 cursor-not-allowed"
+                      : "border-primary/50 text-primary hover:bg-primary/10"
+                  }`}
+                  data-testid="button-request-edits"
+                >
+                  Request Edits
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleDownloadSelected}
+                  className="bg-gradient-to-r from-primary to-primary/90 rounded-xl"
+                  data-testid="button-download-selected"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Selected
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedItems(new Set())}
+                  className="rounded-xl"
+                  data-testid="button-clear-selection"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
+
+            {/* Revision Status Alert */}
+            {revisionsExhausted && (
+              <Alert className="py-2 px-3 bg-amber-50 border-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <p className="text-xs text-amber-800 ml-6">
+                  No revision rounds remaining. Please contact your photographer for additional edits.
+                </p>
+              </Alert>
+            )}
+            {!revisionsExhausted && revisionRoundsRemaining > 0 && (
+              <div className="text-xs text-muted-foreground px-1">
+                {revisionRoundsRemaining} revision {revisionRoundsRemaining === 1 ? 'round' : 'rounds'} remaining
+              </div>
+            )}
           </div>
         </Card>
       )}
