@@ -5150,7 +5150,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
         personalProfile: settings.personalProfile ? JSON.parse(settings.personalProfile) : null,
-        businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null
+        businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null,
+        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2
       });
     } catch (error: any) {
       console.error("Error fetching settings:", error);
@@ -5165,14 +5166,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const { businessProfile, personalProfile, businessHours } = req.body;
+      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds } = req.body;
 
       // Save settings to storage with JSON stringified data
       const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
         partnerId: req.user.partnerId,
         businessProfile: businessProfile ? JSON.stringify(businessProfile) : null,
         personalProfile: personalProfile ? JSON.stringify(personalProfile) : null,
-        businessHours: businessHours ? JSON.stringify(businessHours) : null
+        businessHours: businessHours ? JSON.stringify(businessHours) : null,
+        defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2
       });
 
       res.json({ 

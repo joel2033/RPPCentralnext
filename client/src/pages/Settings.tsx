@@ -85,6 +85,9 @@ export default function Settings() {
   });
 
 
+  // Default max revision rounds
+  const [defaultMaxRevisionRounds, setDefaultMaxRevisionRounds] = useState(2);
+
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
     editorEmail: "",
@@ -120,6 +123,9 @@ export default function Settings() {
       if (savedSettings.businessHours) {
         setBusinessHours(savedSettings.businessHours);
       }
+      if (savedSettings.defaultMaxRevisionRounds !== undefined) {
+        setDefaultMaxRevisionRounds(savedSettings.defaultMaxRevisionRounds);
+      }
     } else if (userData?.email) {
       // Initialize email from userData if no saved settings at all
       setPersonalProfile(prev => ({
@@ -137,7 +143,7 @@ export default function Settings() {
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({
-    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any }) => {
+    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; defaultMaxRevisionRounds: number }) => {
       return apiRequest("/api/settings", "PUT", data);
     },
     onSuccess: () => {
@@ -189,7 +195,8 @@ export default function Settings() {
     saveSettingsMutation.mutate({
       personalProfile,
       businessProfile,
-      businessHours
+      businessHours,
+      defaultMaxRevisionRounds
     });
   };
 
@@ -1117,6 +1124,36 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+              </div>
+
+              {/* Delivery Settings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Delivery Settings</h3>
+                <p className="text-sm text-gray-600">
+                  Configure default settings for client deliveries and revision requests
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="defaultMaxRevisionRounds">Default maximum revision rounds</Label>
+                  <Select 
+                    value={defaultMaxRevisionRounds.toString()}
+                    onValueChange={(value) => setDefaultMaxRevisionRounds(parseInt(value))}
+                  >
+                    <SelectTrigger data-testid="select-max-revision-rounds">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 rounds (no revisions)</SelectItem>
+                      <SelectItem value="1">1 round</SelectItem>
+                      <SelectItem value="2">2 rounds</SelectItem>
+                      <SelectItem value="3">3 rounds</SelectItem>
+                      <SelectItem value="4">4 rounds</SelectItem>
+                      <SelectItem value="5">5 rounds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    This sets the default number of revision rounds allowed per order. You can override this per-order basis.
+                  </p>
                 </div>
               </div>
             </CardContent>
