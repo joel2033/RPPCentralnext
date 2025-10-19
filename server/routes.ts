@@ -2450,10 +2450,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      // Get associated orders to verify assignment and tenant isolation
+      // Get associated orders to verify assignment
       const allOrders = await storage.getOrders();
-      // Match by job.id (UUID) which is how orders are stored in database
-      const jobOrders = allOrders.filter(o => o.jobId === job.id);
+      // Match by job.id (UUID) or job.jobId (NanoID) - both are used in different contexts
+      const jobOrders = allOrders.filter(o => o.jobId === job.id || o.jobId === job.jobId);
       const assignedOrder = jobOrders.find(order => order.assignedTo === uid);
       if (!assignedOrder) {
         console.log(`[UPLOAD ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
