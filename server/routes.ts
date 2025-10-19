@@ -983,30 +983,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Jobs endpoints
-  app.get("/api/jobs/card/:jobId", async (req, res) => {
-    try {
-      const job = await storage.getJobByJobId(req.params.jobId);
-      if (!job) {
-        return res.status(404).json({ error: "Job not found" });
-      }
-      
-      // Get customer information if customerId exists
-      let customer = null;
-      if (job.customerId) {
-        customer = await storage.getCustomer(job.customerId);
-      }
-      
-      // Return job with customer data
-      res.json({
-        ...job,
-        customer
-      });
-    } catch (error: any) {
-      console.error("Error fetching job card:", error);
-      res.status(500).json({ error: "Failed to fetch job card" });
-    }
-  });
+  // Jobs endpoints (actual endpoint is defined later with requireAuth)
 
   // Note: GET /api/jobs and POST /api/jobs are defined earlier in the file (lines 191-261)
 

@@ -1,19 +1,23 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send } from "lucide-react";
 import { format } from "date-fns";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import FileGallery from "@/components/FileGallery";
+import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 interface JobCardData {
   id: string;
   jobId: string;
+  deliveryToken?: string;
   partnerId: string;
   address: string;
   customerId?: string;
@@ -43,6 +47,7 @@ export default function JobCard() {
   const [, setLocation] = useLocation();
   const jobId = params.jobId;
   const { toast } = useToast();
+  const [deliveryModalJob, setDeliveryModalJob] = useState<JobCardData | null>(null);
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
@@ -143,10 +148,10 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-preview"
-              disabled={!jobData.jobId}
+              disabled={!jobData.deliveryToken}
               onClick={() => {
-                if (!jobData.jobId) return;
-                const newWindow = window.open(`/delivery/${jobData.jobId}`, '_blank', 'noopener,noreferrer');
+                if (!jobData.deliveryToken) return;
+                const newWindow = window.open(`/delivery/${jobData.deliveryToken}`, '_blank', 'noopener,noreferrer');
                 if (newWindow) newWindow.opener = null;
               }}
             >
@@ -157,11 +162,11 @@ export default function JobCard() {
               variant="outline" 
               size="sm"
               data-testid="button-share"
-              disabled={!jobData.jobId}
+              disabled={!jobData.deliveryToken}
               onClick={async () => {
-                if (!jobData.jobId) return;
+                if (!jobData.deliveryToken) return;
                 try {
-                  const deliveryUrl = `${window.location.origin}/delivery/${jobData.jobId}`;
+                  const deliveryUrl = `${window.location.origin}/delivery/${jobData.deliveryToken}`;
                   await navigator.clipboard.writeText(deliveryUrl);
                   toast({
                     title: "Link copied!",
@@ -181,15 +186,17 @@ export default function JobCard() {
             </Button>
             <Button 
               size="sm"
+              className="bg-gradient-to-r from-primary to-primary/90 hover:shadow-lg transition-shadow"
               data-testid="button-delivery"
-              disabled={!jobData.jobId}
-              onClick={() => {
-                if (!jobData.jobId) return;
-                setLocation(`/delivery/${jobData.jobId}`);
+              disabled={jobData.status !== 'completed' || !jobData.deliveryToken}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!jobData.deliveryToken) return;
+                setDeliveryModalJob(jobData);
               }}
             >
-              <DollarSign className="h-4 w-4 mr-2" />
-              Delivery
+              <Send className="h-4 w-4 mr-2" />
+              Deliver
             </Button>
           </div>
           <Badge className={getStatusColor(jobData.status)}>
@@ -341,6 +348,20 @@ export default function JobCard() {
           <ActivityTimeline jobId={jobData.id} />
         </div>
       </div>
+
+      {/* Send Delivery Email Modal */}
+      {deliveryModalJob && deliveryModalJob.customer && (
+        <SendDeliveryEmailModal
+          open={!!deliveryModalJob}
+          onOpenChange={(open) => !open && setDeliveryModalJob(null)}
+          job={deliveryModalJob}
+          customer={deliveryModalJob.customer}
+          onEmailSent={() => {
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+          }}
+        />
+      )}
     </div>
   );
 }
