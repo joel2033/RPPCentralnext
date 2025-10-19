@@ -479,6 +479,19 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
+                      toast({
+                        title: "Feature coming soon",
+                        description: "Set as cover image functionality will be available in a future update.",
+                      });
+                    }}
+                    data-testid={`menuitem-set-cover-${file.id}`}
+                  >
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    Set as Cover Image
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
                       handleDownload(file.downloadUrl, file.originalName);
                     }}
                     data-testid={`menuitem-download-file-${file.id}`}
