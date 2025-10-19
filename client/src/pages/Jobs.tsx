@@ -132,7 +132,7 @@ export default function Jobs() {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-2xl font-bold text-rpp-grey-dark">
+              <h1 className="text-rpp-grey-dark font-medium text-[24px]">
                 Jobs <span className="text-sm font-medium text-rpp-grey-medium">on time - ({successfulJobsCount}) successful</span>
               </h1>
               <p className="text-sm text-rpp-grey-medium mt-1">
