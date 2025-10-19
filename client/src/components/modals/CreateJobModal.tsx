@@ -21,7 +21,8 @@ import {
   ChevronUp, 
   Clock,
   AlertCircle,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 
 interface CreateJobModalProps {
@@ -65,6 +66,8 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
   const [skipAppointment, setSkipAppointment] = useState(false);
+  const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [uploadingCoverImage, setUploadingCoverImage] = useState(false);
 
   // Address autocomplete states
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
@@ -306,6 +309,56 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     }
   };
 
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingCoverImage(true);
+
+    try {
+      // Upload to Firebase Storage
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      
+      // Create a unique file path
+      const timestamp = Date.now();
+      const fileName = `cover-images/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, fileName);
+      
+      // Upload the file
+      await uploadBytes(storageRef, file);
+      
+      // Get the download URL
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      setCoverImage(downloadURL);
+      
+      toast({
+        title: "Success",
+        description: "Cover image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading cover image:', error);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload cover image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingCoverImage(false);
+    }
+  };
+
   const calculateOrderTotal = () => {
     return selectedProducts.reduce((total, product) => {
       const subtotal = product.price * product.quantity;
@@ -338,6 +391,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
       assignedTo: assignedOperators.length > 0 ? assignedOperators[0] : undefined,
       notes: appointmentNotes.trim() || undefined,
       totalValue: calculateOrderTotal().toFixed(2),
+      propertyImage: coverImage || undefined,
     };
 
     createJobMutation.mutate(jobData);
@@ -405,6 +459,68 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                   <Button type="button" variant="outline" size="sm" data-testid="button-create-customer">
                     Create
                   </Button>
+                </div>
+              </div>
+
+              {/* Cover Image Upload */}
+              <div className="space-y-2">
+                <Label htmlFor="cover-image">Cover Image (Optional)</Label>
+                <div className="flex items-center gap-4">
+                  {/* Image Preview */}
+                  <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl overflow-hidden flex-shrink-0">
+                    {coverImage ? (
+                      <img 
+                        src={coverImage} 
+                        alt="Cover preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-3xl">🏠</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Upload Button */}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="cover-image-upload"
+                      accept="image/*"
+                      onChange={handleCoverImageUpload}
+                      className="hidden"
+                      data-testid="input-cover-image"
+                    />
+                    <label htmlFor="cover-image-upload">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        disabled={uploadingCoverImage}
+                        asChild
+                        data-testid="button-upload-cover-image"
+                      >
+                        <span>
+                          {uploadingCoverImage ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : coverImage ? (
+                            <>Change Cover Image</>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Cover Image
+                            </>
+                          )}
+                        </span>
+                      </Button>
+                    </label>
+                    <p className="text-xs text-rpp-grey-light mt-1">
+                      Add a photo of the property to help identify the job
+                    </p>
+                  </div>
                 </div>
               </div>
 

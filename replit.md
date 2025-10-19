@@ -39,12 +39,13 @@ Preferred communication style: Simple, everyday language.
 
 ## File Storage
 - **Provider**: Firebase Storage.
-- **Use Cases**: Profile images, product images, job photos, and general file uploads.
+- **Use Cases**: Profile images, product images, job cover images, completed deliverables with subfolder organization, and general file uploads.
 - **Integration**: Direct Firebase SDK integration in the frontend and backend logic for organizing files with job-specific and tokenized folder structures.
+- **Cover Images**: Jobs can have optional cover images uploaded during creation, stored in Firebase Storage under `cover-images/` path. Displayed as placeholder (🏠 emoji) when not set, and as the actual image when uploaded.
 
 ## System Design Choices
 - **Multi-Tenancy**: Implemented `partnerId`-based data isolation across all core business objects (customers, jobs, orders, products) to support multiple independent businesses.
-- **Job Management**: Complete job creation, listing, and detailed management with unique NanoIDs for tracking.
+- **Job Management**: Complete job creation, listing, and detailed management with unique NanoIDs for tracking. Includes optional cover image upload for each job to help visually identify properties.
 - **Order-Independent File Uploads**: Standalone folder creation and file uploads are supported, not requiring an associated order.
 - **Accounting Integration Foundation**: UI and database schema updates in place to support future integration with accounting software like Xero. The Create Customer modal includes dropdowns for selecting accounting integration (Xero) and matching contacts.
 - **Multi-Step Order Creation**: "Upload to Editors" modal redesigned with Figma-based 3-step wizard flow: Job/Supplier selection → Service selection grid → Per-service configuration (files, quantity, instructions, export types). Includes Order Summary sidebar with live cost calculations and terms acceptance. Note: File uploads currently send filenames only - actual binary file upload requires backend FormData API endpoint and Firebase Storage integration.
