@@ -205,6 +205,21 @@
       "notes": null,
       "id": "0f88361c-6229-44e4-826a-ec837afad642",
       "createdAt": "2025-09-04T13:24:04.529Z"
+    },
+    "2ec374d9-6463-4429-8091-06bb8eb72d55": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "5 Dora Street, Dora Creek NSW, Australia",
+      "customerId": "24733f65-7db4-4778-8228-9cbf6b87c469",
+      "appointmentDate": "2025-10-24T13:45:00.000Z",
+      "assignedTo": null,
+      "totalValue": "NaN",
+      "jobId": "vQkP2MkvShJhrweBsCJ5J",
+      "status": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "notes": null,
+      "id": "2ec374d9-6463-4429-8091-06bb8eb72d55",
+      "createdAt": "2025-10-18T23:49:09.392Z"
     }
   },
   "orders": {
@@ -2484,6 +2499,22 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "d0e6ed73-0754-4add-883e-570d79c3fcb4",
       "createdAt": "2025-10-17T13:30:54.237Z"
+    },
+    "eae608e1-e6f4-4e2a-857a-0ab92942f164": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "2ec374d9-6463-4429-8091-06bb8eb72d55",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "job",
+      "title": "Job Created",
+      "description": "New job created at 5 Dora Street, Dora Creek NSW, Australia",
+      "metadata": "{\"jobId\":\"vQkP2MkvShJhrweBsCJ5J\",\"address\":\"5 Dora Street, Dora Creek NSW, Australia\",\"status\":null,\"customerId\":\"24733f65-7db4-4778-8228-9cbf6b87c469\",\"totalValue\":\"NaN\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "eae608e1-e6f4-4e2a-857a-0ab92942f164",
+      "createdAt": "2025-10-18T23:49:09.401Z"
     }
   },
   "editingOptions": {

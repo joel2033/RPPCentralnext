@@ -6,13 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 
 export default function Jobs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "on_time" | "overdue">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
+  const [photographerFilter, setPhotographerFilter] = useState<string>("all");
   const [, setLocation] = useLocation();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
@@ -21,6 +24,10 @@ export default function Jobs() {
 
   const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
+  });
+
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ["/api/users"],
   });
 
   const getStatusColor = (status: string) => {
@@ -69,16 +76,37 @@ export default function Jobs() {
     return '1h 30m duration';
   };
 
-  const filteredJobs = jobs.filter((job: any) => {
+  // Sort jobs: newest first (by appointment date, then creation date)
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const dateA = new Date(a.appointmentDate || a.createdAt || 0).getTime();
+    const dateB = new Date(b.appointmentDate || b.createdAt || 0).getTime();
+    return dateB - dateA; // Newest first
+  });
+
+  const filteredJobs = sortedJobs.filter((job: any) => {
+    // Search filter
     const matchesSearch = job.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getCustomerName(job.customerId).toLowerCase().includes(searchTerm.toLowerCase());
+      getCustomerName(job.customerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (job.jobId && job.jobId.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    if (statusFilter === "all") return matchesSearch;
-    // Add logic for on_time/overdue filtering based on your business logic
-    return matchesSearch;
+    if (!matchesSearch) return false;
+
+    // Status filter
+    if (statusFilter !== "all" && job.status !== statusFilter) return false;
+
+    // Customer filter
+    if (customerFilter !== "all" && job.customerId !== customerFilter) return false;
+
+    // Photographer filter
+    if (photographerFilter !== "all" && job.assignedPhotographerId !== photographerFilter) return false;
+    
+    return true;
   });
 
   const successfulJobsCount = jobs.filter(j => j.status === 'completed' || j.status === 'delivered').length;
+
+  // Get unique statuses for filter
+  const uniqueStatuses = Array.from(new Set(jobs.map(j => j.status).filter(Boolean)));
 
   if (isLoading) {
     return (
@@ -123,7 +151,8 @@ export default function Jobs() {
         </div>
 
         {/* Search and Filter Bar */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="space-y-3 mb-4">
+          {/* Search Bar */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
             <Input
@@ -134,34 +163,75 @@ export default function Jobs() {
               data-testid="input-search-jobs"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStatusFilter("on_time")}
-              className={statusFilter === "on_time" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
-              data-testid="filter-on-time"
-            >
-              On time
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStatusFilter("all")}
-              className={statusFilter === "all" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
-              data-testid="filter-all"
-            >
-              All
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStatusFilter("overdue")}
-              className={statusFilter === "overdue" ? "bg-rpp-red-main text-white hover:bg-rpp-red-dark rounded-lg font-semibold" : "text-rpp-grey-medium hover:bg-rpp-grey-bg rounded-lg font-semibold"}
-              data-testid="filter-overdue"
-            >
-              Overdue
-            </Button>
+
+          {/* Filter Bar */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-rpp-grey-medium">
+              <Filter className="w-4 h-4" />
+              <span className="font-medium">Filters:</span>
+            </div>
+
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] h-9 border-rpp-grey-border rounded-lg" data-testid="select-status-filter">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {uniqueStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status === 'completed' ? 'Delivered' : status === 'scheduled' ? 'Booked' : status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Customer Filter */}
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-[200px] h-9 border-rpp-grey-border rounded-lg" data-testid="select-customer-filter">
+                <SelectValue placeholder="All Customers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Customers</SelectItem>
+                {customers.map((customer: any) => (
+                  <SelectItem key={customer.id} value={customer.id}>
+                    {customer.firstName} {customer.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Photographer Filter */}
+            <Select value={photographerFilter} onValueChange={setPhotographerFilter}>
+              <SelectTrigger className="w-[200px] h-9 border-rpp-grey-border rounded-lg" data-testid="select-photographer-filter">
+                <SelectValue placeholder="All Photographers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Photographers</SelectItem>
+                {users.filter((u: any) => u.role === 'photographer').map((user: any) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.firstName} {user.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Clear Filters Button */}
+            {(statusFilter !== "all" || customerFilter !== "all" || photographerFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setCustomerFilter("all");
+                  setPhotographerFilter("all");
+                }}
+                className="text-rpp-grey-medium hover:text-rpp-grey-dark text-xs"
+                data-testid="button-clear-filters"
+              >
+                Clear all
+              </Button>
+            )}
           </div>
         </div>
 
