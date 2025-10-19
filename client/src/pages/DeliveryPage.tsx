@@ -28,7 +28,7 @@ import {
   Play
 } from "lucide-react";
 import { format } from "date-fns";
-import ImageWithFallback from "@/components/ImageWithFallback";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface DeliveryFile {

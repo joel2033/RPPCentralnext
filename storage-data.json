@@ -105,6 +105,8 @@
   "jobs": {
     "4a04b9b0-3692-4682-baaa-9a1d5eacd9db": {
       "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "JOB_test_abc123",
+      "deliveryToken": "DELIVERY_TOKEN_test_xyz789",
       "address": "16 Collins Street, Plumpton NSW 6018 2761",
       "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
       "appointmentDate": "2025-08-06T14:00:00.000Z",

@@ -3833,7 +3833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get customer details if available
       let customer = null;
       if (job.customerId) {
-        customer = await storage.getCustomerById(job.customerId);
+        customer = await storage.getCustomer(job.customerId);
       }
 
       // Get all editor uploads for this job with completed status
@@ -4226,7 +4226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get customer info for notifications
-      const customer = job.customerId ? await storage.getCustomerById(job.customerId) : null;
+      const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
       const customerName = customer ? `${customer.firstName} ${customer.lastName}` : 'Client';
       
       // Create notifications for editor and partner
