@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2 } from "lucide-react";
+import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2, Send } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import CreateJobModal from "@/components/modals/CreateJobModal";
+import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export default function Jobs() {
   const [, setLocation] = useLocation();
   const [renamingJob, setRenamingJob] = useState<{ id: string; currentName: string } | null>(null);
   const [newImageName, setNewImageName] = useState("");
+  const [deliveryModalJob, setDeliveryModalJob] = useState<any>(null);
   const { toast } = useToast();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
@@ -435,6 +437,22 @@ export default function Jobs() {
                       </div>
                     </div>
 
+                    {/* Deliver Button - Only show for completed jobs */}
+                    {job.status === 'completed' && (
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeliveryModalJob(job);
+                        }}
+                        className="bg-gradient-to-r from-primary to-primary/90 hover:shadow-lg transition-shadow"
+                        size="sm"
+                        data-testid={`button-deliver-${job.id}`}
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        Deliver
+                      </Button>
+                    )}
+
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -535,6 +553,24 @@ export default function Jobs() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Send Delivery Email Modal */}
+        {deliveryModalJob && (() => {
+          const customer = customers.find((c: any) => c.id === deliveryModalJob.customerId);
+          if (!customer) return null;
+          
+          return (
+            <SendDeliveryEmailModal
+              open={!!deliveryModalJob}
+              onOpenChange={(open) => !open && setDeliveryModalJob(null)}
+              job={deliveryModalJob}
+              customer={customer}
+              onEmailSent={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );
