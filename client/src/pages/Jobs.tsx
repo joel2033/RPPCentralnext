@@ -1,14 +1,31 @@
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter } from "lucide-react";
+import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import CreateJobModal from "@/components/modals/CreateJobModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export default function Jobs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -17,6 +34,9 @@ export default function Jobs() {
   const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [photographerFilter, setPhotographerFilter] = useState<string>("all");
   const [, setLocation] = useLocation();
+  const [renamingJob, setRenamingJob] = useState<{ id: string; currentName: string } | null>(null);
+  const [newImageName, setNewImageName] = useState("");
+  const { toast } = useToast();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
@@ -74,6 +94,67 @@ export default function Jobs() {
   const calculateDuration = (startDate: string) => {
     // For demo purposes, showing duration as "1h 30m duration"
     return '1h 30m duration';
+  };
+
+  // Image menu handlers
+  const handleDownloadImage = async (imageUrl: string, jobAddress: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${jobAddress.replace(/[^a-zA-Z0-9]/g, '_')}_cover.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Image downloaded",
+        description: "Cover image has been downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "Could not download the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRenameImage = (jobId: string, currentAddress: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingJob({ id: jobId, currentName: currentAddress });
+    setNewImageName(currentAddress);
+  };
+
+  const deleteCoverImageMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      return await apiRequest(`/api/jobs/${jobId}/cover-image`, 'DELETE');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      toast({
+        title: "Image deleted",
+        description: "Cover image has been removed successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Delete failed",
+        description: "Could not delete the image. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteImage = async (jobId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this cover image?')) {
+      deleteCoverImageMutation.mutate(jobId);
+    }
   };
 
   // Sort jobs: newest first (by appointment date, then creation date)
@@ -252,14 +333,56 @@ export default function Jobs() {
               <CardContent className="p-5">
                 <div className="flex items-center gap-5">
                   {/* Property thumbnail */}
-                  <div className="w-24 h-24 bg-rpp-grey-bg rounded-xl overflow-hidden flex-shrink-0">
+                  <div className="w-24 h-24 bg-rpp-grey-bg rounded-xl overflow-hidden flex-shrink-0 relative group">
                     {(job.propertyImageThumbnail || job.propertyImage) ? (
-                      <img 
-                        src={job.propertyImageThumbnail || job.propertyImage} 
-                        alt="Property" 
-                        className="w-full h-full object-cover"
-                        data-testid={`img-job-thumbnail-${job.id}`}
-                      />
+                      <>
+                        <img 
+                          src={job.propertyImageThumbnail || job.propertyImage} 
+                          alt="Property" 
+                          className="w-full h-full object-cover"
+                          data-testid={`img-job-thumbnail-${job.id}`}
+                        />
+                        {/* Image menu overlay */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 bg-white/90 hover:bg-white focus-visible:bg-white text-gray-700 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#f2572c]"
+                                data-testid={`button-image-menu-${job.id}`}
+                                aria-label="Image options menu"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuItem 
+                                onClick={(e) => handleDownloadImage(job.propertyImage || job.propertyImageThumbnail, job.address, e)}
+                                data-testid={`menuitem-download-${job.id}`}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download Image
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => handleRenameImage(job.id, job.address, e)}
+                                data-testid={`menuitem-rename-${job.id}`}
+                              >
+                                <Edit2 className="h-4 w-4 mr-2" />
+                                Rename Image
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => handleDeleteImage(job.id, e)}
+                                className="text-red-600 focus:text-red-600"
+                                data-testid={`menuitem-delete-${job.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Image
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
                         <span className="text-3xl">🏠</span>
@@ -365,6 +488,53 @@ export default function Jobs() {
         {showCreateModal && (
           <CreateJobModal onClose={() => setShowCreateModal(false)} />
         )}
+
+        {/* Rename Image Dialog */}
+        <Dialog open={!!renamingJob} onOpenChange={() => setRenamingJob(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rename Image</DialogTitle>
+              <DialogDescription>
+                Update the display name for this cover image.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="image-name">Image Name</Label>
+                <Input
+                  id="image-name"
+                  value={newImageName}
+                  onChange={(e) => setNewImageName(e.target.value)}
+                  placeholder="Enter new name"
+                  data-testid="input-image-name"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setRenamingJob(null)}
+                data-testid="button-cancel-rename"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  // For now, just show a toast - this would need backend implementation
+                  toast({
+                    title: "Feature coming soon",
+                    description: "Image renaming will be available in a future update.",
+                  });
+                  setRenamingJob(null);
+                }}
+                className="bg-[#f2572c] hover:bg-[#d94820]"
+                data-testid="button-confirm-rename"
+              >
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

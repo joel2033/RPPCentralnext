@@ -272,6 +272,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete cover image from a job
+  app.delete("/api/jobs/:id/cover-image", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const job = await storage.getJob(req.params.id);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify the user has permission to delete (must be the job owner or admin)
+      if (req.user?.partnerId !== job.partnerId && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Unauthorized to delete cover image" });
+      }
+
+      // Delete from Firebase Storage if exists
+      if (job.propertyImage || job.propertyImageThumbnail) {
+        try {
+          const bucket = getStorage().bucket();
+          
+          // Helper function to extract storage path from Firebase URL
+          const extractStoragePath = (url: string): string | null => {
+            try {
+              // Firebase URLs are like: https://storage.googleapis.com/.../o/cover-images%2Ffilename.jpg?...
+              const match = url.match(/\/o\/(.+?)\?/);
+              if (match && match[1]) {
+                return decodeURIComponent(match[1]);
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          };
+          
+          // Delete original image
+          if (job.propertyImage) {
+            const storagePath = extractStoragePath(job.propertyImage);
+            if (storagePath) {
+              await bucket.file(storagePath).delete().catch((err) => {
+                console.log(`Original image not found in storage (${storagePath}), continuing...`, err.message);
+              });
+            }
+          }
+
+          // Delete thumbnail
+          if (job.propertyImageThumbnail) {
+            const storagePath = extractStoragePath(job.propertyImageThumbnail);
+            if (storagePath) {
+              await bucket.file(storagePath).delete().catch((err) => {
+                console.log(`Thumbnail not found in storage (${storagePath}), continuing...`, err.message);
+              });
+            }
+          }
+        } catch (storageError) {
+          console.error("Error deleting from Firebase Storage:", storageError);
+          // Continue even if storage deletion fails
+        }
+      }
+
+      // Update job to remove cover image URLs
+      const updatedJob = await storage.updateJob(req.params.id, {
+        propertyImage: null,
+        propertyImageThumbnail: null,
+      });
+
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: req.user?.partnerId || job.partnerId,
+          jobId: job.id,
+          userId: req.user?.uid || '',
+          userEmail: req.user?.email || '',
+          userName: req.user?.email || '',
+          action: "update",
+          category: "job",
+          title: "Cover Image Deleted",
+          description: `Cover image removed from job at ${job.address}`,
+          metadata: JSON.stringify({
+            jobId: job.jobId,
+            address: job.address,
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log cover image deletion activity:", activityError);
+      }
+
+      res.json(updatedJob);
+    } catch (error) {
+      console.error("Error deleting cover image:", error);
+      res.status(500).json({ error: "Failed to delete cover image" });
+    }
+  });
+
   // Orders
   app.get("/api/orders", async (req, res) => {
     try {
