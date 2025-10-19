@@ -2459,10 +2459,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const order = assignedOrder; // Use the assigned order for upload records
 
-      // Verify partnerId for tenant isolation
-      if (job.partnerId !== currentUser.partnerId) {
-        return res.status(403).json({ error: "Access denied: job belongs to different partner" });
-      }
+      // Editor is already verified through assignment check above
+      // No need for partnerId check - editors work across different partners
 
       // Create upload records for each file
       const uploadPromises = uploads.map((upload: any) => {

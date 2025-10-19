@@ -220,6 +220,21 @@
       "notes": null,
       "id": "2ec374d9-6463-4429-8091-06bb8eb72d55",
       "createdAt": "2025-10-18T23:49:09.392Z"
+    },
+    "7a778e97-6fbb-4694-917c-e7fbd2362657": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "73 Range Road, North Gosford NSW, Australia",
+      "customerId": "f740b8db-5699-43e4-9672-33ef7485b547",
+      "appointmentDate": "2025-10-21T12:45:00.000Z",
+      "assignedTo": null,
+      "notes": "hello, collect the keys onsite",
+      "totalValue": "NaN",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "status": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "id": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "createdAt": "2025-10-19T00:44:18.164Z"
     }
   },
   "orders": {
@@ -432,6 +447,20 @@
       "filesExpiryDate": "2025-11-02T00:38:44.411Z",
       "id": "028fc324-f149-4900-a3a7-2ce74ca6390a",
       "createdAt": "2025-10-19T00:38:44.411Z"
+    },
+    "2cbc44a2-d2fc-44b0-84ed-d27b831792cc": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "customerId": null,
+      "assignedTo": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "status": "processing",
+      "createdBy": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "estimatedTotal": "3.89",
+      "dateAccepted": "2025-10-19T00:50:50.511Z",
+      "orderNumber": "#00015",
+      "filesExpiryDate": "2025-11-02T00:49:00.872Z",
+      "id": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "createdAt": "2025-10-19T00:49:00.872Z"
     }
   },
   "orderServices": {
@@ -551,6 +580,15 @@
       "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
       "id": "8a649923-0e2d-443f-9513-108e7d749e2f",
       "createdAt": "2025-10-19T00:38:44.413Z"
+    },
+    "2d58dcfc-8db7-409b-a864-126428a28518": {
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "serviceId": "79241da3-be00-4b07-a358-03730484c782",
+      "quantity": 4,
+      "instructions": "[{\"fileName\":\"IMG_8987\",\"detail\":\"replace the sky\"},{\"fileName\":\"IMG_8765\",\"detail\":\"replace the grass\"},{\"fileName\":\"IMG5674\",\"detail\":\"de clutter all images\"},{\"fileName\":\"IMG_8765\",\"detail\":\"virtually stage this image\"}]",
+      "exportTypes": "[{\"type\":\"web-res\",\"description\":\"2250x1500\"}]",
+      "id": "2d58dcfc-8db7-409b-a864-126428a28518",
+      "createdAt": "2025-10-19T00:49:00.877Z"
     }
   },
   "orderFiles": {
@@ -1099,6 +1137,45 @@
       "expiresAt": "2025-11-02T00:38:44.442Z",
       "id": "8a943067-0f6b-461f-ba8f-579bc06d00b7",
       "uploadedAt": "2025-10-19T00:38:44.442Z"
+    },
+    "622b28ef-0e22-47ac-8f59-31c30528a01a": {
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "serviceId": "2d58dcfc-8db7-409b-a864-126428a28518",
+      "fileName": "DSC06020.JPG",
+      "originalName": "DSC06020.JPG",
+      "fileSize": 9460007,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834708132_DSC06020.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834708132_DSC06020.JPG",
+      "expiresAt": "2025-11-02T00:49:00.880Z",
+      "id": "622b28ef-0e22-47ac-8f59-31c30528a01a",
+      "uploadedAt": "2025-10-19T00:49:00.880Z"
+    },
+    "743ca1ec-27df-4554-a62e-d7bc1df00c93": {
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "serviceId": "2d58dcfc-8db7-409b-a864-126428a28518",
+      "fileName": "DSC06026.JPG",
+      "originalName": "DSC06026.JPG",
+      "fileSize": 10522196,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834717505_DSC06026.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834717505_DSC06026.JPG",
+      "expiresAt": "2025-11-02T00:49:00.884Z",
+      "id": "743ca1ec-27df-4554-a62e-d7bc1df00c93",
+      "uploadedAt": "2025-10-19T00:49:00.884Z"
+    },
+    "938cbac6-40b4-4e5e-8916-ae3d88d96446": {
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "serviceId": "2d58dcfc-8db7-409b-a864-126428a28518",
+      "fileName": "DSC06029.JPG",
+      "originalName": "DSC06029.JPG",
+      "fileSize": 10844781,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834724303_DSC06029.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834724303_DSC06029.JPG",
+      "expiresAt": "2025-11-02T00:49:00.892Z",
+      "id": "938cbac6-40b4-4e5e-8916-ae3d88d96446",
+      "uploadedAt": "2025-10-19T00:49:00.892Z"
     }
   },
   "serviceCategories": {
@@ -2057,6 +2134,120 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
       "uploadedAt": "2025-10-19T00:36:48.326Z"
+    },
+    "8ac5cfc0-174c-4f6d-a459-f5bd1e801044": {
+      "id": "8ac5cfc0-174c-4f6d-a459-f5bd1e801044",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC06020.JPG",
+      "originalName": "DSC06020.JPG",
+      "fileSize": 9460007,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834708132_DSC06020.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834708132_DSC06020.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-20T00:45:14.073Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-19T00:45:14.073Z"
+    },
+    "8acb444b-8c63-4a62-8ad3-0506bffde7e4": {
+      "id": "8acb444b-8c63-4a62-8ad3-0506bffde7e4",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC06026.JPG",
+      "originalName": "DSC06026.JPG",
+      "fileSize": 10522196,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834717505_DSC06026.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834717505_DSC06026.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-20T00:45:21.727Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-19T00:45:21.727Z"
+    },
+    "73a5dff0-5699-4a25-8e2a-3cf0a8a0e90b": {
+      "id": "73a5dff0-5699-4a25-8e2a-3cf0a8a0e90b",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": null,
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "DSC06029.JPG",
+      "originalName": "DSC06029.JPG",
+      "fileSize": 10844781,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834724303_DSC06029.JPG",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00015/1760834724303_DSC06029.JPG",
+      "folderPath": null,
+      "editorFolderName": null,
+      "folderToken": null,
+      "expiresAt": "2025-10-20T00:45:28.448Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-19T00:45:28.448Z"
+    },
+    "14d1ab19-c3e8-4330-9ee9-47f32f3a689c": {
+      "id": "14d1ab19-c3e8-4330-9ee9-47f32f3a689c",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "fileName": "DSC06020.JPG",
+      "originalName": "DSC06020.JPG",
+      "fileSize": 9460007,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835109760_DSC06020.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439914&Signature=t7Mm0KbEOiRNymSz6BIvi3tZpY6JcBR0Fcif2%2BI5Dn9qdCqCH5AOtzThl6va6VpJAYkQpR62xsLcc8mJRQnmVpOPeYnWmEG8VNB0a7gQgQiio994Of1%2Bd3zTbPDlISsvevDBDjRX5ukzPs%2BjRSBBnbP68biikDL0EGn2jk9p1LWU9KIhvp5yw2KdkwcDoOM511L8OmLF0FbrEgZYXTf6LWlZXTSxF0OZCw7xbdzOWDtwQgct%2B3sBYiiph6rwJr%2FsfzT9%2FsVkpoblK6YqIGmRwa6YDtORdQ3uJfr4n3oqqD0AwCBtoa7zun1TX2kiSPUFY%2BtfWtRUSteoC5VZoiPnfg%3D%3D",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835109760_DSC06020.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439914&Signature=t7Mm0KbEOiRNymSz6BIvi3tZpY6JcBR0Fcif2%2BI5Dn9qdCqCH5AOtzThl6va6VpJAYkQpR62xsLcc8mJRQnmVpOPeYnWmEG8VNB0a7gQgQiio994Of1%2Bd3zTbPDlISsvevDBDjRX5ukzPs%2BjRSBBnbP68biikDL0EGn2jk9p1LWU9KIhvp5yw2KdkwcDoOM511L8OmLF0FbrEgZYXTf6LWlZXTSxF0OZCw7xbdzOWDtwQgct%2B3sBYiiph6rwJr%2FsfzT9%2FsVkpoblK6YqIGmRwa6YDtORdQ3uJfr4n3oqqD0AwCBtoa7zun1TX2kiSPUFY%2BtfWtRUSteoC5VZoiPnfg%3D%3D",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "partnerFolderName": null,
+      "expiresAt": "2025-11-18T00:51:54.062Z",
+      "status": "completed",
+      "notes": "Completed deliverable uploaded by editor",
+      "uploadedAt": "2025-10-19T00:51:54.062Z"
+    },
+    "e5293711-e0a7-4783-bb40-5048143a22ea": {
+      "id": "e5293711-e0a7-4783-bb40-5048143a22ea",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "fileName": "DSC06026.JPG",
+      "originalName": "DSC06026.JPG",
+      "fileSize": 10522196,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835117741_DSC06026.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439921&Signature=tb2uBwJLorHv2Z4F6Fr6n8UO6AkrDfEHqG2hwK28YfCJirA8O7X5f2kQ7kTuiQ6isfkDFYCxTEV2zlC9WvmG52c7ZCxLEZmn%2Fg9Pmg89nGriBQOe2ue52Qq9daMADYKw0WLmpQ6G2UrC2aGQRMH0%2BvGBOfG%2FFhJRGpK28Ehsq7XQu6USCPqTSnh7EvKAd0ap%2FftG59fz4d5zQTxs%2Frp0J1tg0eo4g7Zx5zE6Ge3%2Fx5oz95mHCXji7H%2FCqLKQuCqsn%2FVUXftTeDRtv3AqhWhTHE56WNBp2IElrvuKfWS%2FFgIo9CsAna%2FUVolXdI2AAK2tTXvmDGBVONI357xrgRsNaQ%3D%3D",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835117741_DSC06026.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439921&Signature=tb2uBwJLorHv2Z4F6Fr6n8UO6AkrDfEHqG2hwK28YfCJirA8O7X5f2kQ7kTuiQ6isfkDFYCxTEV2zlC9WvmG52c7ZCxLEZmn%2Fg9Pmg89nGriBQOe2ue52Qq9daMADYKw0WLmpQ6G2UrC2aGQRMH0%2BvGBOfG%2FFhJRGpK28Ehsq7XQu6USCPqTSnh7EvKAd0ap%2FftG59fz4d5zQTxs%2Frp0J1tg0eo4g7Zx5zE6Ge3%2Fx5oz95mHCXji7H%2FCqLKQuCqsn%2FVUXftTeDRtv3AqhWhTHE56WNBp2IElrvuKfWS%2FFgIo9CsAna%2FUVolXdI2AAK2tTXvmDGBVONI357xrgRsNaQ%3D%3D",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "partnerFolderName": null,
+      "expiresAt": "2025-11-18T00:52:01.591Z",
+      "status": "completed",
+      "notes": "Completed deliverable uploaded by editor",
+      "uploadedAt": "2025-10-19T00:52:01.592Z"
+    },
+    "472c0142-1369-4ed1-abd4-08ef445c90fb": {
+      "id": "472c0142-1369-4ed1-abd4-08ef445c90fb",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "fileName": "DSC06029.JPG",
+      "originalName": "DSC06029.JPG",
+      "fileSize": 10844781,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835123883_DSC06029.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439927&Signature=MxbZjk6khJZ1uezjp5NccjNpBuj4f%2F2%2BMKHO%2BQxeIq2DhOcEdJpexsd%2Bv%2FoMWpGX2EjJX0yCZ%2FE8ObqEbSt%2Fhmt6dy3%2FzqoD8g3kc%2BqysxTMIsMrfH7yax06xlxdDTlB%2B7feeM%2FfVDVVR2JqYYtpfVEvrQbj0j04k8jjjMekOEfDo3MZ1X7lIoF%2BsUV3%2BjnLxKiKd2kRNMuyvTwxUOLOfuOunwB4YR6WkTybhv9w5OZ8%2BWNR96zr9OphxE3bk43BcVZ32RsSDIG9AlCbXoyDyvguCMYHxFeAxvzOvEqU2ed51XKlY59lX%2Bs4g1WsNTIgasO5t7u0QODpn%2Bv1u89ldQ%3D%3D",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835123883_DSC06029.JPG?GoogleAccessId=firebase-adminsdk-fbsvc%40rpp-central-flask.iam.gserviceaccount.com&Expires=1761439927&Signature=MxbZjk6khJZ1uezjp5NccjNpBuj4f%2F2%2BMKHO%2BQxeIq2DhOcEdJpexsd%2Bv%2FoMWpGX2EjJX0yCZ%2FE8ObqEbSt%2Fhmt6dy3%2FzqoD8g3kc%2BqysxTMIsMrfH7yax06xlxdDTlB%2B7feeM%2FfVDVVR2JqYYtpfVEvrQbj0j04k8jjjMekOEfDo3MZ1X7lIoF%2BsUV3%2BjnLxKiKd2kRNMuyvTwxUOLOfuOunwB4YR6WkTybhv9w5OZ8%2BWNR96zr9OphxE3bk43BcVZ32RsSDIG9AlCbXoyDyvguCMYHxFeAxvzOvEqU2ed51XKlY59lX%2Bs4g1WsNTIgasO5t7u0QODpn%2Bv1u89ldQ%3D%3D",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "partnerFolderName": null,
+      "expiresAt": "2025-11-18T00:52:07.747Z",
+      "status": "completed",
+      "notes": "Completed deliverable uploaded by editor",
+      "uploadedAt": "2025-10-19T00:52:07.747Z"
     }
   },
   "notifications": {
@@ -2201,6 +2392,32 @@
       "read": false,
       "id": "0853e290-953e-42d4-b65d-ca63af3c21b0",
       "createdAt": "2025-10-19T00:38:44.456Z",
+      "readAt": null
+    },
+    "ae68a6e5-9bf0-4b6a-8b37-45a2b29b76d3": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "order_assigned",
+      "title": "New Order Assigned",
+      "body": "Order ##00015 has been assigned to you and is ready for processing.",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "read": false,
+      "id": "ae68a6e5-9bf0-4b6a-8b37-45a2b29b76d3",
+      "createdAt": "2025-10-19T00:49:00.901Z",
+      "readAt": null
+    },
+    "cb46b1db-cb0a-4987-a639-d38a15044687": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "partner_192l9bh1xmduwueha",
+      "type": "order_accepted",
+      "title": "Order Accepted",
+      "body": "Order ##00015 has been accepted by editor and is now being processed.",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "read": false,
+      "id": "cb46b1db-cb0a-4987-a639-d38a15044687",
+      "createdAt": "2025-10-19T00:50:50.525Z",
       "readAt": null
     }
   },
@@ -2679,6 +2896,107 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "eae608e1-e6f4-4e2a-857a-0ab92942f164",
       "createdAt": "2025-10-18T23:49:09.401Z"
+    },
+    "e014d289-6536-4fd5-af64-cfd71f1ebe83": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "job",
+      "title": "Job Created",
+      "description": "New job created at 73 Range Road, North Gosford NSW, Australia",
+      "metadata": "{\"jobId\":\"Mo6JlZ3shUHNSRd1RiwRs\",\"address\":\"73 Range Road, North Gosford NSW, Australia\",\"status\":null,\"customerId\":\"f740b8db-5699-43e4-9672-33ef7485b547\",\"totalValue\":\"NaN\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "e014d289-6536-4fd5-af64-cfd71f1ebe83",
+      "createdAt": "2025-10-19T00:44:18.169Z"
+    },
+    "19164f08-da01-4bb5-8be0-dec5c03648b4": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "acceptance",
+      "category": "order",
+      "title": "Order Accepted",
+      "description": "Order ##00015 accepted by editor",
+      "metadata": "{\"orderNumber\":\"#00015\",\"acceptedBy\":\"May@maystudios.com\",\"acceptedAt\":\"2025-10-19T00:50:50.514Z\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "19164f08-da01-4bb5-8be0-dec5c03648b4",
+      "createdAt": "2025-10-19T00:50:50.514Z"
+    },
+    "c1fa579d-6203-4489-ad32-1a622fce3388": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "download",
+      "category": "file",
+      "title": "Order Files Downloaded",
+      "description": "Editor downloaded files for order #00015",
+      "metadata": "{\"orderNumber\":\"#00015\",\"fileCount\":3,\"totalSize\":30827841,\"downloadedFiles\":[{\"fileName\":\"DSC06020.JPG\",\"fileSize\":9460007,\"mimeType\":\"image/jpeg\"},{\"fileName\":\"DSC06026.JPG\",\"fileSize\":10522196,\"mimeType\":\"image/jpeg\"},{\"fileName\":\"DSC06029.JPG\",\"fileSize\":10844781,\"mimeType\":\"image/jpeg\"}],\"downloadedAt\":\"2025-10-19T00:51:03.719Z\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "c1fa579d-6203-4489-ad32-1a622fce3388",
+      "createdAt": "2025-10-19T00:51:03.720Z"
+    },
+    "ea2bb7cd-8200-4c88-9231-eef244a57ba3": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "upload_completed",
+      "category": "deliverable",
+      "title": "Completed File Upload",
+      "description": "Editor uploaded completed deliverable: DSC06020.JPG",
+      "metadata": "{\"fileName\":\"DSC06020.JPG\",\"fileSize\":9460007,\"uploadPath\":\"completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835109760_DSC06020.JPG\",\"orderNumber\":\"#00015\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "ea2bb7cd-8200-4c88-9231-eef244a57ba3",
+      "createdAt": "2025-10-19T00:51:54.070Z"
+    },
+    "33f9e619-0f7d-4efc-8b81-19d6bb53403c": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "upload_completed",
+      "category": "deliverable",
+      "title": "Completed File Upload",
+      "description": "Editor uploaded completed deliverable: DSC06026.JPG",
+      "metadata": "{\"fileName\":\"DSC06026.JPG\",\"fileSize\":10522196,\"uploadPath\":\"completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835117741_DSC06026.JPG\",\"orderNumber\":\"#00015\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "33f9e619-0f7d-4efc-8b81-19d6bb53403c",
+      "createdAt": "2025-10-19T00:52:01.597Z"
+    },
+    "66097f96-eb86-4c8a-b1a2-17d02f120b01": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "userId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "userEmail": "May@maystudios.com",
+      "userName": "May@maystudios.com",
+      "action": "upload_completed",
+      "category": "deliverable",
+      "title": "Completed File Upload",
+      "description": "Editor uploaded completed deliverable: DSC06029.JPG",
+      "metadata": "{\"fileName\":\"DSC06029.JPG\",\"fileSize\":10844781,\"uploadPath\":\"completed/7a778e97-6fbb-4694-917c-e7fbd2362657/00015/Photos/1760835123883_DSC06029.JPG\",\"orderNumber\":\"#00015\"}",
+      "ipAddress": "172.31.68.130",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "66097f96-eb86-4c8a-b1a2-17d02f120b01",
+      "createdAt": "2025-10-19T00:52:07.752Z"
     }
   },
   "editingOptions": {
@@ -2836,7 +3154,7 @@
       "updatedAt": "2025-10-17T13:09:26.943Z"
     }
   },
-  "orderCounter": 15,
+  "orderCounter": 16,
   "orderReservations": {
     "#00001": {
       "orderNumber": "#00001",
@@ -2908,6 +3226,14 @@
       "jobId": "vQkP2MkvShJhrweBsCJ5J",
       "reservedAt": "2025-10-19T00:36:11.801Z",
       "expiresAt": "2025-10-19T02:36:11.801Z",
+      "status": "confirmed"
+    },
+    "#00015": {
+      "orderNumber": "#00015",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "reservedAt": "2025-10-19T00:44:57.742Z",
+      "expiresAt": "2025-10-19T02:44:57.742Z",
       "status": "confirmed"
     }
   }
