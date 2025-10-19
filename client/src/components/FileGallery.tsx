@@ -458,8 +458,63 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               className="w-full h-full object-cover"
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 group-focus-within:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
               <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            {/* Image menu overlay */}
+            <div className="absolute top-2 right-2 z-10">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 bg-white/90 hover:bg-white focus-visible:bg-white text-gray-700 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#f2572c]"
+                    data-testid={`button-file-menu-${file.id}`}
+                    aria-label="File options menu"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(file.downloadUrl, file.originalName);
+                    }}
+                    data-testid={`menuitem-download-file-${file.id}`}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast({
+                        title: "Feature coming soon",
+                        description: "Rename functionality will be available in a future update.",
+                      });
+                    }}
+                    data-testid={`menuitem-rename-file-${file.id}`}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Rename File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast({
+                        title: "Feature coming soon",
+                        description: "Delete functionality will be available in a future update.",
+                      });
+                    }}
+                    className="text-red-600 focus:text-red-600"
+                    data-testid={`menuitem-delete-file-${file.id}`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete File
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         ) : isVideo(file.mimeType) ? (
