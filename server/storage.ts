@@ -73,6 +73,8 @@ export interface IStorage {
   // Jobs
   getJob(id: string): Promise<Job | undefined>;
   getJobByJobId(jobId: string): Promise<Job | undefined>;
+  getJobByDeliveryToken(token: string): Promise<Job | undefined>;
+  generateDeliveryToken(jobId: string): Promise<string>;
   getJobs(partnerId?: string): Promise<Job[]>;
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: string, job: Partial<Job>): Promise<Job | undefined>;
@@ -588,6 +590,30 @@ export class MemStorage implements IStorage {
     return Array.from(this.jobs.values()).find(job => 
       job.jobId === jobId || job.id === jobId
     );
+  }
+
+  async getJobByDeliveryToken(token: string): Promise<Job | undefined> {
+    return Array.from(this.jobs.values()).find(job => job.deliveryToken === token);
+  }
+
+  async generateDeliveryToken(jobId: string): Promise<string> {
+    const job = await this.getJobByJobId(jobId);
+    if (!job) {
+      throw new Error('Job not found');
+    }
+    
+    // If token already exists, return it
+    if (job.deliveryToken) {
+      return job.deliveryToken;
+    }
+    
+    // Generate a new unguessable token
+    const token = nanoid(32); // 32-character unguessable token
+    
+    // Update job with token
+    await this.updateJob(job.id, { deliveryToken: token });
+    
+    return token;
   }
 
   async getJobs(partnerId?: string): Promise<Job[]> {

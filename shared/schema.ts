@@ -65,6 +65,7 @@ export const products = pgTable("products", {
 export const jobs = pgTable("jobs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   jobId: text("job_id").notNull().unique(), // NanoID for backend tracking
+  deliveryToken: text("delivery_token").unique(), // Unguessable token for secure delivery page access
   partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   customerId: varchar("customer_id").references(() => customers.id),
   address: text("address").notNull(),

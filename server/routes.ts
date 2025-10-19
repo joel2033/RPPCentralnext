@@ -13,7 +13,10 @@ import {
   insertNotificationSchema,
   insertActivitySchema,
   insertEditingOptionSchema,
-  insertCustomerEditingPreferenceSchema
+  insertCustomerEditingPreferenceSchema,
+  insertFileCommentSchema,
+  insertJobReviewSchema,
+  insertDeliveryEmailSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -3815,18 +3818,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public delivery endpoint - No authentication required for client access
-  app.get("/api/delivery/:jobId", async (req, res) => {
+  // Public delivery endpoint - Uses deliveryToken for secure access
+  app.get("/api/delivery/:token", async (req, res) => {
     try {
-      const { jobId } = req.params;
+      const { token } = req.params;
 
-      // Find the job by jobId (string identifier)
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        // Fallback: try to find by internal ID
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      // Find the job by delivery token (secure, unguessable credential)
+      const job = await storage.getJobByDeliveryToken(token);
       
       if (!job) {
         return res.status(404).json({ error: "Delivery not found" });
@@ -3845,7 +3843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
       );
 
-      // Group files by order and enrich with order information
+      // Group files by order and enrich with order information (backward compatibility)
       const filesByOrder = completedFiles.reduce((acc, file) => {
         if (!acc[file.orderId]) {
           acc[file.orderId] = [];
@@ -3875,7 +3873,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
-      // Return job info and completed files for delivery
+      // Get folder structure with files
+      const folders = await storage.getUploadFolders(job.id);
+      
+      // Get all file comments for this job
+      const allComments = await storage.getJobFileComments(job.id);
+      
+      // Create a map of file IDs to comment counts
+      const commentCounts = allComments.reduce((acc, comment) => {
+        acc[comment.fileId] = (acc[comment.fileId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Get order information and revision status
+      const orders = await storage.getOrders(job.partnerId);
+      const jobOrders = orders.filter(o => o.jobId === job.id);
+      
+      // Get revision status for each order (with defensive coding)
+      const revisionStatuses = await Promise.all(
+        jobOrders.map(async (order) => {
+          const status = await storage.getOrderRevisionStatus(order.id);
+          if (!status) {
+            return { orderId: order.id, maxRounds: 2, usedRounds: 0, remainingRounds: 2 };
+          }
+          return { orderId: order.id, ...status };
+        })
+      );
+
+      // Get job review if exists
+      const jobReview = await storage.getJobReview(job.id);
+
+      // Enrich folders with comment counts
+      const enrichedFolders = folders.map(folder => ({
+        ...folder,
+        files: folder.files.map(file => ({
+          ...file,
+          commentCount: commentCounts[file.id] || 0,
+        }))
+      }));
+
+      // Return job info, folders with files, and revision status
+      // Keep completedFiles for backward compatibility
       res.json({
         job: {
           id: job.id,
@@ -3889,12 +3927,343 @@ export async function registerRoutes(app: Express): Promise<Server> {
             company: customer.company,
           } : null,
         },
-        completedFiles: enrichedFiles,
+        completedFiles: enrichedFiles, // Backward compatibility
+        folders: enrichedFolders,
+        revisionStatus: revisionStatuses,
+        jobReview,
       });
     } catch (error: any) {
       console.error("Error fetching delivery data:", error);
       res.status(500).json({ 
         error: "Failed to fetch delivery data", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get file comments for a specific file within a job (token scopes access)
+  app.get("/api/delivery/:token/files/:fileId/comments", async (req, res) => {
+    try {
+      const { token, fileId } = req.params;
+      
+      // Verify job exists first (deliveryToken is the access credential)
+      const job = await storage.getJobByDeliveryToken(token);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Verify file belongs to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const file = jobUploads.find(f => f.id === fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found in this job" });
+      }
+      
+      // Get comments scoped to this file
+      const comments = await storage.getFileComments(fileId);
+      res.json(comments);
+    } catch (error: any) {
+      console.error("Error fetching file comments:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch file comments", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create a file comment scoped to a job (token is the access credential)
+  app.post("/api/delivery/:token/files/:fileId/comments", async (req, res) => {
+    try {
+      const { token, fileId } = req.params;
+      const { authorId, authorName, authorRole, message } = req.body;
+      
+      // Verify job exists first (deliveryToken is the access credential)
+      const job = await storage.getJobByDeliveryToken(token);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Verify file belongs to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const file = jobUploads.find(f => f.id === fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found in this job" });
+      }
+      
+      // Get the order for this file
+      const order = await storage.getOrder(file.orderId);
+      
+      // Create comment scoped to this job/file
+      const validated = insertFileCommentSchema.parse({
+        fileId,
+        orderId: file.orderId,
+        jobId: job.id,
+        authorId,
+        authorName,
+        authorRole,
+        message,
+      });
+      
+      const comment = await storage.createFileComment(validated);
+      res.status(201).json(comment);
+    } catch (error: any) {
+      console.error("Error creating file comment:", error);
+      res.status(400).json({ 
+        error: "Failed to create file comment", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Update file comment status (requires auth)
+  app.patch("/api/file-comments/:commentId/status", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { commentId } = req.params;
+      const { status } = req.body;
+      
+      if (!['pending', 'in-progress', 'resolved'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
+      
+      // Get the comment to verify access
+      const existingComments = await storage.getJobFileComments(''); // Will need improvement
+      const comment = existingComments.find(c => c.id === commentId);
+      
+      if (!comment) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+      
+      // Verify job/partner access
+      const job = await storage.getJob(comment.jobId);
+      if (!job || (req.user?.partnerId && job.partnerId !== req.user.partnerId)) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updatedComment = await storage.updateFileCommentStatus(commentId, status);
+      res.json(updatedComment);
+    } catch (error: any) {
+      console.error("Error updating comment status:", error);
+      res.status(500).json({ 
+        error: "Failed to update comment status", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Submit job review scoped to a job (token is the access credential)
+  app.post("/api/delivery/:token/review", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { rating, review, submittedBy, submittedByEmail } = req.body;
+      
+      // Verify job exists first (deliveryToken is the access credential)
+      const job = await storage.getJobByDeliveryToken(token);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Check if review already exists
+      const existingReview = await storage.getJobReview(job.id);
+      if (existingReview) {
+        return res.status(400).json({ error: "Review already submitted for this job" });
+      }
+      
+      // Create review scoped to this job
+      const validated = insertJobReviewSchema.parse({
+        jobId: job.id,
+        partnerId: job.partnerId,
+        rating,
+        review,
+        submittedBy,
+        submittedByEmail,
+      });
+      
+      const newReview = await storage.createJobReview(validated);
+      res.status(201).json(newReview);
+    } catch (error: any) {
+      console.error("Error creating job review:", error);
+      res.status(400).json({ 
+        error: "Failed to create job review", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Generate delivery token for a job (requires auth - partner only)
+  app.post("/api/jobs/:jobId/generate-delivery-token", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Verify job exists and belongs to partner
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (req.user?.partnerId && job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Generate or get existing delivery token
+      const token = await storage.generateDeliveryToken(jobId);
+      
+      // Construct the delivery link
+      const deliveryLink = `${req.protocol}://${req.get('host')}/delivery/${token}`;
+      
+      res.status(200).json({ token, deliveryLink });
+    } catch (error: any) {
+      console.error("Error generating delivery token:", error);
+      res.status(500).json({ 
+        error: "Failed to generate delivery token", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Send delivery email (requires auth - partner only)
+  app.post("/api/delivery-emails", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const validated = insertDeliveryEmailSchema.parse(req.body);
+      
+      // Verify job exists and belongs to partner
+      const job = await storage.getJob(validated.jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (req.user?.partnerId && job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Generate delivery token if it doesn't exist
+      const token = await storage.generateDeliveryToken(job.jobId || job.id);
+      const deliveryLink = `${req.protocol}://${req.get('host')}/delivery/${token}`;
+      
+      // Set sentBy from authenticated user and include the secure delivery link
+      const emailData = {
+        ...validated,
+        sentBy: req.user?.uid || 'system',
+        deliveryLink, // Override with secure tokenized link
+      };
+      
+      const email = await storage.createDeliveryEmail(emailData);
+      
+      // TODO: Integrate with actual email service here
+      // For now, just log the email
+      console.log('Delivery email created:', {
+        to: email.recipientEmail,
+        subject: email.subject,
+        link: email.deliveryLink
+      });
+      
+      res.status(201).json(email);
+    } catch (error: any) {
+      console.error("Error sending delivery email:", error);
+      res.status(400).json({ 
+        error: "Failed to send delivery email", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Request revisions scoped to a job (token is the access credential)
+  app.post("/api/delivery/:token/revisions/request", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { orderId, fileIds, comments } = req.body;
+      
+      if (!orderId || !fileIds || !Array.isArray(fileIds)) {
+        return res.status(400).json({ error: "orderId and fileIds array required" });
+      }
+      
+      // Verify job exists first (deliveryToken is the access credential)
+      const job = await storage.getJobByDeliveryToken(token);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Verify order belongs to this job
+      const order = await storage.getOrder(orderId);
+      if (!order || order.jobId !== job.id) {
+        return res.status(404).json({ error: "Order not found for this job" });
+      }
+      
+      // Verify all files belong to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const validFileIds = jobUploads.map(f => f.id);
+      const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
+      
+      if (invalidFiles.length > 0) {
+        return res.status(400).json({ error: "Some files do not belong to this job" });
+      }
+      
+      // Increment revision round for the order
+      const updatedOrder = await storage.incrementRevisionRound(orderId);
+      if (!updatedOrder) {
+        return res.status(404).json({ error: "Failed to update order" });
+      }
+      
+      // Create comment entries for each file if comments provided
+      if (comments && Array.isArray(comments)) {
+        await Promise.all(
+          comments.map((comment: any) => 
+            storage.createFileComment(insertFileCommentSchema.parse({
+              ...comment,
+              jobId: job.id,
+              orderId,
+            }))
+          )
+        );
+      }
+      
+      res.json({ 
+        success: true, 
+        order: updatedOrder,
+        message: "Revision request submitted successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error requesting revisions:", error);
+      res.status(500).json({ 
+        error: "Failed to request revisions", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get revision status for an order scoped to a job (token is the access credential)
+  app.get("/api/delivery/:token/orders/:orderId/revision-status", async (req, res) => {
+    try {
+      const { token, orderId } = req.params;
+      
+      // Verify job exists first (deliveryToken is the access credential)
+      const job = await storage.getJobByDeliveryToken(token);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      // Verify order belongs to this job
+      const order = await storage.getOrder(orderId);
+      if (!order || order.jobId !== job.id) {
+        return res.status(404).json({ error: "Order not found for this job" });
+      }
+      
+      const status = await storage.getOrderRevisionStatus(orderId);
+      if (!status) {
+        return res.status(404).json({ error: "Revision status not found" });
+      }
+      
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error fetching revision status:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch revision status", 
         details: error.message 
       });
     }
