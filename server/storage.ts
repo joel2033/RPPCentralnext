@@ -28,7 +28,13 @@ import {
   type CustomerEditingPreference,
   type InsertCustomerEditingPreference,
   type PartnerSettings,
-  type InsertPartnerSettings
+  type InsertPartnerSettings,
+  type FileComment,
+  type InsertFileComment,
+  type JobReview,
+  type InsertJobReview,
+  type DeliveryEmail,
+  type InsertDeliveryEmail
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -181,6 +187,24 @@ export interface IStorage {
   // Partner Settings
   getPartnerSettings(partnerId: string): Promise<PartnerSettings | undefined>;
   savePartnerSettings(partnerId: string, settings: InsertPartnerSettings): Promise<PartnerSettings>;
+
+  // File Comments
+  getFileComments(fileId: string): Promise<FileComment[]>;
+  getJobFileComments(jobId: string): Promise<FileComment[]>;
+  createFileComment(comment: InsertFileComment): Promise<FileComment>;
+  updateFileCommentStatus(id: string, status: string): Promise<FileComment | undefined>;
+
+  // Job Reviews
+  getJobReview(jobId: string): Promise<JobReview | undefined>;
+  createJobReview(review: InsertJobReview): Promise<JobReview>;
+
+  // Delivery Emails
+  getDeliveryEmails(jobId: string): Promise<DeliveryEmail[]>;
+  createDeliveryEmail(email: InsertDeliveryEmail): Promise<DeliveryEmail>;
+
+  // Revision Management
+  incrementRevisionRound(orderId: string): Promise<Order | undefined>;
+  getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -199,6 +223,9 @@ export class MemStorage implements IStorage {
   private editingOptions: Map<string, EditingOption>;
   private customerEditingPreferences: Map<string, CustomerEditingPreference>;
   private partnerSettings: Map<string, PartnerSettings>;
+  private fileComments: Map<string, FileComment>;
+  private jobReviews: Map<string, JobReview>;
+  private deliveryEmails: Map<string, DeliveryEmail>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -219,6 +246,9 @@ export class MemStorage implements IStorage {
     this.editingOptions = new Map();
     this.customerEditingPreferences = new Map();
     this.partnerSettings = new Map();
+    this.fileComments = new Map();
+    this.jobReviews = new Map();
+    this.deliveryEmails = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -2091,6 +2121,7 @@ export class MemStorage implements IStorage {
       businessProfile: settings.businessProfile || null,
       personalProfile: settings.personalProfile || null,
       businessHours: settings.businessHours || null,
+      defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -2098,6 +2129,111 @@ export class MemStorage implements IStorage {
     this.partnerSettings.set(partnerId, partnerSettingsData);
     this.saveToFile();
     return partnerSettingsData;
+  }
+
+  // File Comments Implementation
+  async getFileComments(fileId: string): Promise<FileComment[]> {
+    return Array.from(this.fileComments.values())
+      .filter(comment => comment.fileId === fileId)
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async getJobFileComments(jobId: string): Promise<FileComment[]> {
+    return Array.from(this.fileComments.values())
+      .filter(comment => comment.jobId === jobId)
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async createFileComment(comment: InsertFileComment): Promise<FileComment> {
+    const id = randomUUID();
+    const newComment: FileComment = {
+      ...comment,
+      id,
+      status: comment.status || 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.fileComments.set(id, newComment);
+    this.saveToFile();
+    return newComment;
+  }
+
+  async updateFileCommentStatus(id: string, status: string): Promise<FileComment | undefined> {
+    const comment = this.fileComments.get(id);
+    if (!comment) {
+      return undefined;
+    }
+    const updatedComment = { ...comment, status, updatedAt: new Date() };
+    this.fileComments.set(id, updatedComment);
+    this.saveToFile();
+    return updatedComment;
+  }
+
+  // Job Reviews Implementation
+  async getJobReview(jobId: string): Promise<JobReview | undefined> {
+    return Array.from(this.jobReviews.values())
+      .find(review => review.jobId === jobId);
+  }
+
+  async createJobReview(review: InsertJobReview): Promise<JobReview> {
+    const id = randomUUID();
+    const newReview: JobReview = {
+      ...review,
+      id,
+      createdAt: new Date(),
+    };
+    this.jobReviews.set(id, newReview);
+    this.saveToFile();
+    return newReview;
+  }
+
+  // Delivery Emails Implementation
+  async getDeliveryEmails(jobId: string): Promise<DeliveryEmail[]> {
+    return Array.from(this.deliveryEmails.values())
+      .filter(email => email.jobId === jobId)
+      .sort((a, b) => (b.sentAt?.getTime() || 0) - (a.sentAt?.getTime() || 0));
+  }
+
+  async createDeliveryEmail(email: InsertDeliveryEmail): Promise<DeliveryEmail> {
+    const id = randomUUID();
+    const newEmail: DeliveryEmail = {
+      ...email,
+      id,
+      sentAt: new Date(),
+    };
+    this.deliveryEmails.set(id, newEmail);
+    this.saveToFile();
+    return newEmail;
+  }
+
+  // Revision Management Implementation
+  async incrementRevisionRound(orderId: string): Promise<Order | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order) {
+      return undefined;
+    }
+    const updatedOrder = {
+      ...order,
+      usedRevisionRounds: (order.usedRevisionRounds || 0) + 1,
+      status: 'in_revision' as const,
+    };
+    this.orders.set(orderId, updatedOrder);
+    this.saveToFile();
+    return updatedOrder;
+  }
+
+  async getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined> {
+    const order = this.orders.get(orderId);
+    if (!order) {
+      return undefined;
+    }
+    const maxRounds = order.maxRevisionRounds || 2;
+    const usedRounds = order.usedRevisionRounds || 0;
+    return {
+      maxRounds,
+      usedRounds,
+      remainingRounds: Math.max(0, maxRounds - usedRounds),
+    };
   }
 }
 

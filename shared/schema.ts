@@ -91,6 +91,8 @@ export const orders = pgTable("orders", {
   estimatedTotal: decimal("estimated_total", { precision: 10, scale: 2 }).default("0"),
   dateAccepted: timestamp("date_accepted"),
   filesExpiryDate: timestamp("files_expiry_date"), // 14 days from upload
+  maxRevisionRounds: integer("max_revision_rounds").default(2), // Max allowed revision rounds (configurable per order)
+  usedRevisionRounds: integer("used_revision_rounds").default(0), // Number of revision rounds used
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -235,8 +237,49 @@ export const partnerSettings = pgTable("partner_settings", {
   businessProfile: text("business_profile"), // JSON: businessName, tagline, email, phone, address, website, description
   personalProfile: text("personal_profile"), // JSON: firstName, lastName, email, phone, bio
   businessHours: text("business_hours"), // JSON: {monday: {isOpen, start, end}, tuesday: {...}, ...}
+  defaultMaxRevisionRounds: integer("default_max_revision_rounds").default(2), // Default max revision rounds for new orders
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// File comments (conversation threads on deliverable files)
+export const fileComments = pgTable("file_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id").references(() => editorUploads.id).notNull(),
+  orderId: varchar("order_id").references(() => orders.id),
+  jobId: varchar("job_id").references(() => jobs.id).notNull(),
+  authorId: text("author_id").notNull(), // Firebase UID of author
+  authorName: text("author_name").notNull(), // Display name
+  authorRole: text("author_role").notNull(), // "client", "partner", "editor", "photographer"
+  message: text("message").notNull(),
+  status: text("status").default("pending"), // "pending", "in-progress", "resolved"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Job reviews (ratings and feedback from clients)
+export const jobReviews = pgTable("job_reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").references(() => jobs.id).notNull(),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  rating: integer("rating").notNull(), // 1-5 stars
+  review: text("review"), // Optional text review
+  submittedBy: text("submitted_by"), // Name or identifier of reviewer
+  submittedByEmail: text("submitted_by_email"), // Email of reviewer
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Delivery emails (tracking sent delivery notifications)
+export const deliveryEmails = pgTable("delivery_emails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").references(() => jobs.id).notNull(),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  recipientEmail: text("recipient_email").notNull(),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  deliveryLink: text("delivery_link").notNull(), // URL to delivery page
+  sentBy: text("sent_by").notNull(), // Firebase UID of sender
+  sentAt: timestamp("sent_at").defaultNow(),
 });
 
 // Insert schemas
@@ -352,6 +395,22 @@ export const insertPartnerSettingsSchema = createInsertSchema(partnerSettings).o
   updatedAt: true,
 });
 
+export const insertFileCommentSchema = createInsertSchema(fileComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertJobReviewSchema = createInsertSchema(jobReviews).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDeliveryEmailSchema = createInsertSchema(deliveryEmails).omit({
+  id: true,
+  sentAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -397,3 +456,12 @@ export type InsertCustomerEditingPreference = z.infer<typeof insertCustomerEditi
 
 export type PartnerSettings = typeof partnerSettings.$inferSelect;
 export type InsertPartnerSettings = z.infer<typeof insertPartnerSettingsSchema>;
+
+export type FileComment = typeof fileComments.$inferSelect;
+export type InsertFileComment = z.infer<typeof insertFileCommentSchema>;
+
+export type JobReview = typeof jobReviews.$inferSelect;
+export type InsertJobReview = z.infer<typeof insertJobReviewSchema>;
+
+export type DeliveryEmail = typeof deliveryEmails.$inferSelect;
+export type InsertDeliveryEmail = z.infer<typeof insertDeliveryEmailSchema>;
