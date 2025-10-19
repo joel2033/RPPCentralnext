@@ -67,6 +67,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
   const [skipAppointment, setSkipAppointment] = useState(false);
   const [coverImage, setCoverImage] = useState<string | null>(null);
+  const [coverImageThumbnail, setCoverImageThumbnail] = useState<string | null>(null);
   const [uploadingCoverImage, setUploadingCoverImage] = useState(false);
 
   // Address autocomplete states
@@ -326,22 +327,22 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     setUploadingCoverImage(true);
 
     try {
-      // Upload to Firebase Storage
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-      const storage = getStorage();
+      // Import the upload utility
+      const { uploadImageWithThumbnail } = await import('@/lib/image-utils');
       
-      // Create a unique file path
+      // Create a unique file name
       const timestamp = Date.now();
-      const fileName = `cover-images/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
+      const fileName = `${timestamp}_${file.name}`;
       
-      // Upload the file
-      await uploadBytes(storageRef, file);
+      // Upload both original and thumbnail
+      const { originalUrl, thumbnailUrl } = await uploadImageWithThumbnail(
+        file,
+        'cover-images',
+        fileName
+      );
       
-      // Get the download URL
-      const downloadURL = await getDownloadURL(storageRef);
-      
-      setCoverImage(downloadURL);
+      setCoverImage(originalUrl);
+      setCoverImageThumbnail(thumbnailUrl);
       
       toast({
         title: "Success",
@@ -392,6 +393,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
       notes: appointmentNotes.trim() || undefined,
       totalValue: calculateOrderTotal().toFixed(2),
       propertyImage: coverImage || undefined,
+      propertyImageThumbnail: coverImageThumbnail || undefined,
     };
 
     createJobMutation.mutate(jobData);

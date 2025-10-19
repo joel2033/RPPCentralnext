@@ -253,11 +253,12 @@ export default function Jobs() {
                 <div className="flex items-center gap-5">
                   {/* Property thumbnail */}
                   <div className="w-24 h-24 bg-rpp-grey-bg rounded-xl overflow-hidden flex-shrink-0">
-                    {job.propertyImage ? (
+                    {(job.propertyImageThumbnail || job.propertyImage) ? (
                       <img 
-                        src={job.propertyImage} 
+                        src={job.propertyImageThumbnail || job.propertyImage} 
                         alt="Property" 
                         className="w-full h-full object-cover"
+                        data-testid={`img-job-thumbnail-${job.id}`}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">

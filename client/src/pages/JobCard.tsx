@@ -23,6 +23,7 @@ interface JobCardData {
   appointmentDate?: string;
   dueDate?: string;
   propertyImage?: string;
+  propertyImageThumbnail?: string;
   notes?: string;
   createdAt: string;
   customer?: {

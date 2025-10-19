@@ -74,6 +74,7 @@ export const jobs = pgTable("jobs", {
   appointmentDate: timestamp("appointment_date"),
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
   propertyImage: text("property_image"),
+  propertyImageThumbnail: text("property_image_thumbnail"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -268,6 +269,7 @@ export const insertJobSchema = z.object({
   appointmentDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   totalValue: z.string().optional(),
   propertyImage: z.string().optional(),
+  propertyImageThumbnail: z.string().optional(),
   notes: z.string().optional(),
 });
 
