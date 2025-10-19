@@ -42,6 +42,7 @@ interface DeliveryFile {
   notes?: string;
   folderPath?: string;
   editorFolderName?: string;
+  commentCount?: number;
 }
 
 interface DeliveryFolder {
@@ -78,9 +79,14 @@ interface DeliveryPageData {
     maxRevisionRounds: number;
     usedRevisionRounds: number;
   }>;
-  review?: {
+  jobReview?: {
+    id: string;
+    jobId: string;
     rating: number;
     review?: string;
+    submittedBy: string;
+    submittedByEmail: string;
+    submittedAt: string;
   };
 }
 
@@ -122,6 +128,14 @@ export default function DeliveryPage() {
     queryKey: [`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`],
     enabled: !!token && !!selectedMediaForModal,
   });
+
+  // Initialize review form from existing review data
+  useEffect(() => {
+    if (deliveryData?.jobReview && !reviewSubmitted) {
+      setRating(deliveryData.jobReview.rating);
+      setReviewText(deliveryData.jobReview.review || "");
+    }
+  }, [deliveryData?.jobReview]);
 
   // Scroll detection for sticky header
   useEffect(() => {
@@ -592,7 +606,7 @@ export default function DeliveryPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {folder.files.map((file) => {
                   const isSelected = selectedItems.has(file.id);
-                  const hasComments = fileComments.some((c) => c.fileId === file.id);
+                  const hasComments = (file.commentCount || 0) > 0;
                   const isVideo = file.mimeType.startsWith("video/");
 
                   return (
@@ -677,7 +691,42 @@ export default function DeliveryPage() {
         </div>
 
         {/* Rating & Review */}
-        {!deliveryData.review && !reviewSubmitted && (
+        {deliveryData.jobReview && !reviewSubmitted ? (
+          <Card className="mt-16 border-border/50">
+            <div className="p-8">
+              <h3 className="text-2xl font-bold mb-4">Your Review</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground mb-2 block">Rating</Label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-8 h-8 ${
+                          star <= deliveryData.jobReview!.rating
+                            ? "fill-primary text-primary"
+                            : "fill-none text-muted-foreground"
+                        }`}
+                      />
+                    ))}
+                    <span className="text-sm font-medium ml-2">
+                      {getRatingText(deliveryData.jobReview.rating)}
+                    </span>
+                  </div>
+                </div>
+                {deliveryData.jobReview.review && (
+                  <div>
+                    <Label className="text-muted-foreground mb-2 block">Your Feedback</Label>
+                    <p className="text-foreground">{deliveryData.jobReview.review}</p>
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  Submitted on {format(new Date(deliveryData.jobReview.submittedAt), "MMMM d, yyyy 'at' h:mm a")}
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : !reviewSubmitted && (
           <Card className="mt-16 border-border/50">
             <div className="p-8">
               <h3 className="text-2xl font-bold mb-2">Rate Your Experience</h3>
