@@ -4209,6 +4209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Failed to update order" });
       }
       
+      // Update order status to 'in_revision'
+      await storage.updateOrderStatus(orderId, 'in_revision');
+      
       // Create comment entries for each file if comments provided
       if (comments && Array.isArray(comments)) {
         await Promise.all(
@@ -4221,6 +4224,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
       }
+      
+      // Get customer info for notifications
+      const customer = job.customerId ? await storage.getCustomerById(job.customerId) : null;
+      const customerName = customer ? `${customer.firstName} ${customer.lastName}` : 'Client';
+      
+      // Create notifications for editor and partner
+      const notifications = [];
+      
+      // Notify the assigned editor if exists
+      if (order.assignedTo) {
+        notifications.push(insertNotificationSchema.parse({
+          partnerId: job.partnerId,
+          recipientId: order.assignedTo,
+          type: 'revision_request',
+          title: 'Revision Requested',
+          body: `${customerName} has requested revisions for ${job.address} (Order ${order.orderNumber})`,
+          orderId: orderId,
+          jobId: job.id,
+        }));
+      }
+      
+      // Notify the partner
+      notifications.push(insertNotificationSchema.parse({
+        partnerId: job.partnerId,
+        recipientId: job.partnerId,
+        type: 'revision_request',
+        title: 'Revision Requested',
+        body: `${customerName} has requested revisions for ${job.address} (Order ${order.orderNumber})`,
+        orderId: orderId,
+        jobId: job.id,
+      }));
+      
+      await storage.createNotifications(notifications);
       
       res.json({ 
         success: true, 
