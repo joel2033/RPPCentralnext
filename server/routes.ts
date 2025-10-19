@@ -2636,9 +2636,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify assignment through order and tenant isolation
       const allOrders = await storage.getOrders();
-      const jobOrders = allOrders.filter(o => o.jobId === job.id);
+      // Match by job.id (UUID) or job.jobId (NanoID) - both are used in different contexts
+      const jobOrders = allOrders.filter(o => o.jobId === job.id || o.jobId === job.jobId);
       const assignedOrder = jobOrders.find(order => order.assignedTo === uid);
-      if (jobOrders.length === 0 || !assignedOrder) {
+      if (!assignedOrder) {
+        console.log(`[STATUS UPDATE ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
         return res.status(403).json({ error: "You are not assigned to this job" });
       }
       const order = assignedOrder; // Use the assigned order for status updates
