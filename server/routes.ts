@@ -3708,6 +3708,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       
+      console.log("[COVER PHOTO] Request body:", req.body);
+      console.log("[COVER PHOTO] User:", req.user);
+      
       // Validate request body
       const coverPhotoSchema = z.object({
         imageUrl: z.string().min(1, "imageUrl is required"),
@@ -3715,6 +3718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validationResult = coverPhotoSchema.safeParse(req.body);
       if (!validationResult.success) {
+        console.log("[COVER PHOTO] Validation failed:", validationResult.error.errors);
         return res.status(400).json({ 
           error: "Invalid request body", 
           details: validationResult.error.errors 
