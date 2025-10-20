@@ -620,7 +620,7 @@ export default function DeliveryPage() {
         {/* Hero Content */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           <div className="max-w-3xl">
-            <Badge className="bg-white text-gray-900 border-0 mb-4 font-medium">
+            <Badge variant="secondary" className="mb-4">
               Professional Media Delivery
             </Badge>
 
@@ -656,13 +656,14 @@ export default function DeliveryPage() {
                 return (
                   <Button
                     key={folder.folderPath}
+                    variant="secondary"
                     onClick={() => scrollToFolder(folder.folderPath)}
-                    className="px-4 py-2.5 rounded-full bg-white hover:bg-white/90 text-gray-900 shadow-lg font-medium"
+                    className="rounded-xl"
                     data-testid={`hero-folder-${folder.folderPath}`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {folder.editorFolderName}
-                    <Badge className="ml-2 bg-gray-900 text-white text-xs h-5 px-1.5">
+                    <Badge variant="secondary" className="ml-2 text-xs">
                       {folder.fileCount}
                     </Badge>
                   </Button>
@@ -755,11 +756,11 @@ export default function DeliveryPage() {
                       />
 
                       {/* Selection Checkbox */}
-                      <div
-                        className={`absolute top-3 left-3 z-10 w-6 h-6 rounded-lg border-2 flex items-center justify-center ${
-                          isSelected
-                            ? "bg-primary border-primary"
-                            : "bg-white border-white hover:bg-gray-100"
+                      <Button
+                        size="icon"
+                        variant={isSelected ? "default" : "secondary"}
+                        className={`absolute top-3 left-3 z-10 h-7 w-7 rounded-xl shadow-sm ${
+                          isSelected ? "" : "border border-border/50"
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -767,8 +768,8 @@ export default function DeliveryPage() {
                         }}
                         data-testid={`checkbox-${file.id}`}
                       >
-                        {isSelected && <Check className="h-4 w-4 text-white" />}
-                      </div>
+                        {isSelected && <Check className="h-4 w-4" />}
+                      </Button>
 
                       {/* Revision Badge */}
                       {hasComments && (
@@ -780,7 +781,7 @@ export default function DeliveryPage() {
                       {/* Video Play Icon */}
                       {isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
+                          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center shadow-lg">
                             <Play className="h-8 w-8 text-primary ml-1 fill-current" />
                           </div>
                         </div>
@@ -796,16 +797,16 @@ export default function DeliveryPage() {
                             </p>
                           </div>
                           <Button
-                            size="sm"
-                            variant="ghost"
-                            className="p-1.5 bg-white hover:bg-gray-100 rounded-lg flex-shrink-0 ml-2 text-gray-900"
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8 rounded-xl flex-shrink-0 ml-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownload(file.downloadUrl, file.originalName);
                             }}
                             data-testid={`button-download-${file.id}`}
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Download className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -1099,10 +1100,10 @@ export default function DeliveryPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSelectedMediaForModal(null)}
-                className="absolute top-2 right-2 lg:top-4 lg:right-4 h-9 w-9 lg:h-10 lg:w-10 bg-white hover:bg-gray-100 rounded-full z-10 shadow-lg"
+                className="absolute top-2 right-2 lg:top-4 lg:right-4 h-9 w-9 lg:h-10 lg:w-10 rounded-xl hover:bg-accent z-10"
                 data-testid="button-close-modal"
               >
-                <X className="h-4 w-4 text-gray-900" />
+                <X className="h-4 w-4" />
               </Button>
 
               {selectedMediaForModal && (
@@ -1114,7 +1115,7 @@ export default function DeliveryPage() {
                   />
                   {selectedMediaForModal.mimeType.startsWith("video/") && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-16 h-16 lg:w-24 lg:h-24 bg-white rounded-full flex items-center justify-center shadow-xl">
+                      <div className="w-16 h-16 lg:w-24 lg:h-24 bg-secondary rounded-full flex items-center justify-center shadow-xl">
                         <Play className="h-8 w-8 lg:h-12 lg:w-12 text-primary ml-1 fill-current" />
                       </div>
                     </div>
