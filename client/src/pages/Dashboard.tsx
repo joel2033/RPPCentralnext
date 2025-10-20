@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatsCard } from "@/components/StatsCard";
 import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight, CheckCircle, RefreshCw, Package } from "lucide-react";
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,105 +116,34 @@ export default function Dashboard() {
 
         {/* Stats Cards - 4 columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Active Projects */}
-          <Card 
-            className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
-            data-testid="card-active-projects"
-          >
-            <CardContent className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center">
-                    <FolderOpen className="w-5 h-5 text-rpp-red-main" />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+12%</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Active Projects</p>
-                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{activeProjects}</p>
-                  <p className="text-xs text-rpp-grey-light">vs last month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Leads */}
-          <Card 
-            className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
-            data-testid="card-leads"
-          >
-            <CardContent className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center">
-                    <Users className="w-5 h-5 text-support-green" />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+23%</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Media Assets</p>
-                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{totalLeads}</p>
-                  <p className="text-xs text-rpp-grey-light">vs last month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Monthly Revenue */}
-          <Card 
-            className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
-            data-testid="card-revenue"
-          >
-            <CardContent className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light rounded-2xl flex items-center justify-center">
-                    <DollarSign className="w-5 h-5 text-rpp-red-main" />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+8%</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Monthly Revenue</p>
-                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">${monthlyRevenue}k</p>
-                  <p className="text-xs text-rpp-grey-light">vs last month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Active Clients */}
-          <Card 
-            className="bg-white border-0 rounded-3xl shadow-rpp-card hover:shadow-rpp-card-hover transition-all duration-300 hover:-translate-y-1"
-            data-testid="card-clients"
-          >
-            <CardContent className="p-6">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-50 to-green-100 rounded-2xl flex items-center justify-center">
-                    <UserCheck className="w-5 h-5 text-support-green" />
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-support-green">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>+5%</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">Active Clients</p>
-                  <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{activeClients}</p>
-                  <p className="text-xs text-rpp-grey-light">vs last month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatsCard
+            title="Active Projects"
+            value={String(activeProjects)}
+            change="+12%"
+            changeType="positive"
+            icon={FolderOpen}
+          />
+          <StatsCard
+            title="Media Assets"
+            value={String(totalLeads)}
+            change="+23%"
+            changeType="positive"
+            icon={Users}
+          />
+          <StatsCard
+            title="Monthly Revenue"
+            value={`$${monthlyRevenue}k`}
+            change="+8%"
+            changeType="positive"
+            icon={DollarSign}
+          />
+          <StatsCard
+            title="Active Clients"
+            value={String(activeClients)}
+            change="+5%"
+            changeType="positive"
+            icon={UserCheck}
+          />
         </div>
 
         {/* Needs Your Attention - 3 Rows Layout */}
