@@ -29,6 +29,7 @@ interface EditingPreference {
 
 interface CustomerEditingPreferencesProps {
   customerId: string;
+  customerName?: string;
 }
 
 const getIconComponent = (iconName: string | null) => {
@@ -59,7 +60,7 @@ const getIconColorClasses = (iconColor: string | null): { bg: string; text: stri
   return colorMap[iconColor || ''] || { bg: 'bg-gray-100', text: 'text-gray-600' };
 };
 
-export default function CustomerEditingPreferences({ customerId }: CustomerEditingPreferencesProps) {
+export default function CustomerEditingPreferences({ customerId, customerName }: CustomerEditingPreferencesProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -172,21 +173,21 @@ export default function CustomerEditingPreferences({ customerId }: CustomerEditi
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
       <Card className="border-gray-200 shadow-sm rounded-2xl bg-white">
         <CollapsibleTrigger asChild>
-          <CardHeader className="p-6 cursor-pointer hover:bg-gray-50/50 transition-colors">
+          <CardHeader className="p-5 cursor-pointer hover:bg-gray-50/50 transition-colors">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light flex items-center justify-center shadow-sm">
-                  <Settings className="w-6 h-6 text-rpp-red-main" />
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-rpp-red-lighter flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-rpp-red-main" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">Editing Preferences</h3>
+                  <h3 className="text-base font-semibold text-gray-900">Editing Preferences</h3>
                   <p className="text-sm text-gray-600">
-                    Automatic post-production edits applied to all Emma Wilson's photos
+                    Automatic post-production edits applied to all {customerName || 'this customer'}'s photos
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200 px-3 py-1">
+                <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0 px-3 py-1 font-normal">
                   {enabledCount} active
                 </Badge>
                 {isExpanded ? (
@@ -267,14 +268,14 @@ export default function CustomerEditingPreferences({ customerId }: CustomerEditi
             {/* Notes for Editors */}
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <Label htmlFor="editor-notes" className="text-sm font-medium text-gray-700 mb-1 block">
+                  <Label htmlFor="editor-notes" className="text-sm font-semibold text-gray-900 mb-1 block">
                     Notes for Editors
                   </Label>
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-gray-600 mb-3">
                     These instructions will be automatically included with every order for this client
                   </p>
                   <Textarea

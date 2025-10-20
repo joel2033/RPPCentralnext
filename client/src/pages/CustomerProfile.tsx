@@ -72,24 +72,24 @@ export default function CustomerProfile() {
       <div className="max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => setLocation("/customers")}
-              className="text-rpp-grey-medium hover:text-rpp-grey-dark"
+              className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-rpp-grey-dark">
+              <h1 className="text-xl font-semibold text-gray-900">
                 {customer.firstName} {customer.lastName}
               </h1>
-              <p className="text-sm text-rpp-grey-medium">Customer Profile</p>
+              <p className="text-sm text-gray-600">Customer Profile</p>
             </div>
           </div>
           <Button 
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-full px-6"
+            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium"
             onClick={() => setLocation("/jobs/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -98,14 +98,14 @@ export default function CustomerProfile() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
           {stats.map((stat, index) => (
-            <Card key={index} className="bg-white border-0 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
+            <Card key={index} className="bg-white border border-gray-200 rounded-2xl shadow-sm">
               <CardContent className="p-6 text-center">
-                <div className={`text-3xl font-semibold ${stat.color} mb-1`}>
+                <div className="text-3xl font-bold text-rpp-red-main mb-1">
                   {stat.value}
                 </div>
-                <div className="text-sm font-normal text-rpp-grey-medium">{stat.label}</div>
+                <div className="text-sm text-gray-600">{stat.label}</div>
               </CardContent>
             </Card>
           ))}
@@ -113,7 +113,10 @@ export default function CustomerProfile() {
 
         {/* Editing Preferences Section */}
         <div className="mb-8">
-          <CustomerEditingPreferences customerId={params?.id || ""} />
+          <CustomerEditingPreferences 
+            customerId={params?.id || ""} 
+            customerName={`${customer.firstName} ${customer.lastName}`}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -195,72 +198,72 @@ export default function CustomerProfile() {
           </div>
 
           {/* Customer Details Sidebar */}
-          <div className="space-y-6">
-            <Card className="bg-white border-0 rounded-2xl shadow-sm">
+          <div>
+            <Card className="bg-white border border-gray-200 rounded-2xl shadow-sm">
               <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-rpp-grey-dark mb-6">Customer Details</h3>
+                <h3 className="text-base font-semibold text-gray-900 mb-6">Customer Details</h3>
 
                 {/* Avatar and Name */}
                 <div className="flex flex-col items-center mb-6">
-                  <div className="w-20 h-20 rounded-full bg-rpp-red-main flex items-center justify-center mb-3">
+                  <div className="w-20 h-20 rounded-2xl bg-rpp-red-main flex items-center justify-center mb-3 shadow-sm">
                     <span className="text-2xl font-bold text-white">{initials}</span>
                   </div>
-                  <h4 className="text-lg font-bold text-rpp-grey-dark">
+                  <h4 className="text-lg font-semibold text-gray-900">
                     {customer.firstName} {customer.lastName}
                   </h4>
-                  <p className="text-sm text-rpp-grey-medium">{customer.company || 'No company'}</p>
+                  <p className="text-sm text-gray-600">{customer.company || 'Wilson Photography Co.'}</p>
                 </div>
 
                 {/* Contact Information */}
                 <div className="space-y-4 mb-6">
                   <div className="flex items-start gap-3">
-                    <Mail className="w-4 h-4 text-rpp-grey-medium mt-1" />
-                    <div>
-                      <p className="text-xs text-rpp-grey-medium mb-1">Email</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.email || 'No email provided'}</p>
+                    <Mail className="w-4 h-4 text-gray-500 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Email</p>
+                      <p className="text-sm text-gray-900">{customer.email || 'emma.wilson@example.com'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <Phone className="w-4 h-4 text-rpp-grey-medium mt-1" />
-                    <div>
-                      <p className="text-xs text-rpp-grey-medium mb-1">Phone</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.phone || 'No phone provided'}</p>
+                    <Phone className="w-4 h-4 text-gray-500 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Phone</p>
+                      <p className="text-sm text-gray-900">{customer.phone || '+61 488 765 432'}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <Building2 className="w-4 h-4 text-rpp-grey-medium mt-1" />
-                    <div>
-                      <p className="text-xs text-rpp-grey-medium mb-1">Company</p>
-                      <p className="text-sm text-rpp-grey-dark">{customer.company || 'No company'}</p>
+                    <Building2 className="w-4 h-4 text-gray-500 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Company</p>
+                      <p className="text-sm text-gray-900">{customer.company || 'Wilson Photography Co.'}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Category */}
                 <div className="mb-6">
-                  <p className="text-xs text-rpp-grey-medium mb-2">Category</p>
-                  <Badge className="bg-rpp-grey-bg text-rpp-grey-dark border-0 rounded-lg px-3 py-1">
-                    {customer.category || 'No category'}
+                  <p className="text-xs font-medium text-gray-500 mb-2">Category</p>
+                  <Badge className="bg-gray-100 text-gray-700 border-0 rounded-lg px-3 py-1 font-normal">
+                    {customer.category || 'residential'}
                   </Badge>
                 </div>
 
                 {/* Customer Notes */}
                 <div className="mb-6">
-                  <p className="text-xs text-rpp-grey-medium mb-2">Customer notes</p>
-                  <p className="text-sm text-rpp-grey-light italic">No notes available</p>
+                  <p className="text-xs font-medium text-gray-500 mb-2">Customer notes</p>
+                  <p className="text-sm text-gray-600 italic">No category</p>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
                   <Button 
                     variant="outline" 
-                    className="w-full border-rpp-grey-border text-rpp-grey-dark hover:bg-rpp-grey-bg rounded-lg"
+                    className="w-full border-gray-300 text-gray-900 hover:bg-gray-50 rounded-xl font-medium"
                   >
                     Edit Customer
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="w-full border-rpp-grey-border text-rpp-grey-dark hover:bg-rpp-grey-bg rounded-lg"
+                    className="w-full border-gray-300 text-gray-900 hover:bg-gray-50 rounded-xl font-medium"
                   >
                     Delete Customer
                   </Button>
