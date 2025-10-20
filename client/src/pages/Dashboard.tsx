@@ -41,7 +41,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-rpp-grey-dark tracking-tight">
             Welcome back, {settings?.personalProfile?.firstName || userData?.email?.split('@')[0] || 'there'}! 👋
           </h1>
-          <p className="text-sm text-rpp-grey-medium font-medium">Here's a snapshot of your media business today</p>
+          <p className="text-rpp-grey-medium font-medium text-[18px]">Here's a snapshot of your media business today</p>
         </div>
 
         {/* Stats Cards - 4 columns */}
