@@ -234,9 +234,10 @@
       "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
       "status": "completed",
       "dueDate": null,
-      "propertyImage": null,
+      "propertyImage": "/api/files/proxy/14d1ab19-c3e8-4330-9ee9-47f32f3a689c",
       "id": "7a778e97-6fbb-4694-917c-e7fbd2362657",
-      "createdAt": "2025-10-19T00:44:18.164Z"
+      "createdAt": "2025-10-19T00:44:18.164Z",
+      "propertyImageThumbnail": "/api/files/proxy/14d1ab19-c3e8-4330-9ee9-47f32f3a689c"
     }
   },
   "orders": {

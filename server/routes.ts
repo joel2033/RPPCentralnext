@@ -3707,14 +3707,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/jobs/:jobId/cover-photo", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      const { imageUrl } = req.body;
+      
+      // Validate request body
+      const coverPhotoSchema = z.object({
+        imageUrl: z.string().url("imageUrl must be a valid URL"),
+      });
+      
+      const validationResult = coverPhotoSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request body", 
+          details: validationResult.error.errors 
+        });
+      }
+      
+      const { imageUrl } = validationResult.data;
       
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
-      }
-
-      if (!imageUrl) {
-        return res.status(400).json({ error: "imageUrl is required" });
       }
 
       // Find the job
