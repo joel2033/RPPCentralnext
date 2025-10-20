@@ -115,9 +115,10 @@
       "status": "completed",
       "notes": "Commercial property photography with aerial shots",
       "assignedTo": null,
-      "propertyImage": null,
+      "propertyImage": "/api/files/proxy/f9a6b0ad-f312-45fa-9063-6677ee6214ca",
       "id": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "createdAt": "2025-08-03T14:00:22.997Z"
+      "createdAt": "2025-08-03T14:00:22.997Z",
+      "propertyImageThumbnail": "/api/files/proxy/f9a6b0ad-f312-45fa-9063-6677ee6214ca"
     },
     "f419b821-944b-46aa-bb52-094af317f499": {
       "partnerId": "partner_192l9bh1xmduwueha",
