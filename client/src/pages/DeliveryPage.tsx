@@ -145,17 +145,15 @@ export default function DeliveryPage() {
             setIsPreviewMode(true);
             return await previewResponse.json();
           }
-          if (previewResponse.status !== 404) {
-            throw new Error('Preview failed');
+          
+          // For non-404 errors, fall through silently to delivery endpoint
+          // This prevents error flash during fallback
+          if (previewResponse.status !== 404 && previewResponse.status !== 403) {
+            // Try delivery endpoint as fallback
           }
-          // Fall through to delivery endpoint on 404
+          // Fall through to delivery endpoint on 404 or 403
         } catch (error: any) {
-          // If error is not 404-related, rethrow it
-          if (error.message !== 'Preview failed' && !error.message?.includes('404')) {
-            // Fall through to delivery endpoint
-          } else {
-            throw error;
-          }
+          // Silently fall through to delivery endpoint on any error
         }
       }
       
@@ -168,6 +166,7 @@ export default function DeliveryPage() {
       return await deliveryResponse.json();
     },
     enabled: !!token && !authLoading,
+    retry: false, // Don't retry on error to prevent flash
   });
 
   // File comments query - use appropriate endpoint based on preview mode
@@ -620,8 +619,8 @@ export default function DeliveryPage() {
               alt={job.address}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/30" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/50" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           </>
         )}
 
