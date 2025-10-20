@@ -48,16 +48,24 @@ const getIconComponent = (iconName: string | null) => {
 
 const getIconColorClasses = (iconColor: string | null): { bg: string; text: string } => {
   const colorMap: Record<string, { bg: string; text: string }> = {
-    'text-green-600': { bg: 'bg-green-100', text: 'text-green-600' },
-    'text-orange-600': { bg: 'bg-orange-100', text: 'text-orange-600' },
-    'text-blue-600': { bg: 'bg-blue-100', text: 'text-blue-600' },
-    'text-amber-600': { bg: 'bg-amber-100', text: 'text-amber-600' },
-    'text-cyan-600': { bg: 'bg-cyan-100', text: 'text-cyan-600' },
-    'text-purple-600': { bg: 'bg-purple-100', text: 'text-purple-600' },
-    'text-pink-600': { bg: 'bg-pink-100', text: 'text-pink-600' },
-    'text-indigo-600': { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+    'text-green-600': { bg: 'bg-green-100', text: 'text-green-700' },
+    'text-green-700': { bg: 'bg-green-100', text: 'text-green-700' },
+    'text-orange-600': { bg: 'bg-orange-100', text: 'text-orange-700' },
+    'text-orange-700': { bg: 'bg-orange-100', text: 'text-orange-700' },
+    'text-blue-600': { bg: 'bg-blue-100', text: 'text-blue-700' },
+    'text-blue-700': { bg: 'bg-blue-100', text: 'text-blue-700' },
+    'text-amber-600': { bg: 'bg-amber-100', text: 'text-amber-700' },
+    'text-amber-700': { bg: 'bg-amber-100', text: 'text-amber-700' },
+    'text-cyan-600': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+    'text-cyan-700': { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+    'text-purple-600': { bg: 'bg-purple-100', text: 'text-purple-700' },
+    'text-purple-700': { bg: 'bg-purple-100', text: 'text-purple-700' },
+    'text-pink-600': { bg: 'bg-pink-100', text: 'text-pink-700' },
+    'text-pink-700': { bg: 'bg-pink-100', text: 'text-pink-700' },
+    'text-indigo-600': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    'text-indigo-700': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
   };
-  return colorMap[iconColor || ''] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+  return colorMap[iconColor || ''] || { bg: 'bg-gray-100', text: 'text-gray-700' };
 };
 
 export default function CustomerEditingPreferences({ customerId, customerName }: CustomerEditingPreferencesProps) {
@@ -177,7 +185,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-rpp-red-lighter flex items-center justify-center">
-                  <Settings className="w-5 h-5 text-rpp-red-main" />
+                  <Settings className="w-6 h-6 text-rpp-red-main" />
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-gray-900">Editing Preferences</h3>
@@ -237,7 +245,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                       <div className="relative p-4">
                         <div className="flex items-start gap-3">
                           <div className={`w-12 h-12 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-                            <IconComponent className={`w-5 h-5 ${colors.text}`} />
+                            <IconComponent className={`w-6 h-6 ${colors.text}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -269,7 +277,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
             <div className="space-y-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                  <FileText className="w-6 h-6 text-blue-700" />
                 </div>
                 <div className="flex-1">
                   <Label htmlFor="editor-notes" className="text-sm font-semibold text-gray-900 mb-1 block">
@@ -298,7 +306,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <div className="flex items-start gap-3">
                 <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Info className="w-3 h-3 text-blue-600" />
+                  <Info className="w-4 h-4 text-blue-700" />
                 </div>
                 <p className="text-sm text-blue-800 leading-relaxed">
                   <span className="font-medium">Tip:</span> Be specific about style preferences, brightness levels, color tones, and any client-specific requirements to ensure consistent results.
