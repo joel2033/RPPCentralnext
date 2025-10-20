@@ -620,7 +620,7 @@ export default function DeliveryPage() {
         {/* Hero Content */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           <div className="max-w-3xl">
-            <Badge className="bg-white/10 text-white border-white/20 backdrop-blur-sm mb-4">
+            <Badge className="bg-white text-gray-900 border-0 mb-4 font-medium">
               Professional Media Delivery
             </Badge>
 
@@ -656,14 +656,13 @@ export default function DeliveryPage() {
                 return (
                   <Button
                     key={folder.folderPath}
-                    variant="ghost"
                     onClick={() => scrollToFolder(folder.folderPath)}
-                    className="px-4 py-2.5 rounded-xl bg-black/90 border border-white/50 backdrop-blur-md hover:bg-black hover:border-white text-white shadow-2xl"
+                    className="px-4 py-2.5 rounded-full bg-white hover:bg-white/90 text-gray-900 shadow-lg font-medium"
                     data-testid={`hero-folder-${folder.folderPath}`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {folder.editorFolderName}
-                    <Badge className="ml-2 bg-white/30 text-white text-xs h-5 px-1.5">
+                    <Badge className="ml-2 bg-gray-900 text-white text-xs h-5 px-1.5">
                       {folder.fileCount}
                     </Badge>
                   </Button>
@@ -760,7 +759,7 @@ export default function DeliveryPage() {
                         className={`absolute top-3 left-3 z-10 w-6 h-6 rounded-lg border-2 flex items-center justify-center ${
                           isSelected
                             ? "bg-primary border-primary"
-                            : "bg-white/90 border-white/90 hover:bg-white"
+                            : "bg-white border-white hover:bg-gray-100"
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -781,7 +780,7 @@ export default function DeliveryPage() {
                       {/* Video Play Icon */}
                       {isVideo && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center">
+                          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
                             <Play className="h-8 w-8 text-primary ml-1 fill-current" />
                           </div>
                         </div>
@@ -799,7 +798,7 @@ export default function DeliveryPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="p-1.5 bg-white/90 hover:bg-white rounded-lg flex-shrink-0 ml-2"
+                            className="p-1.5 bg-white hover:bg-gray-100 rounded-lg flex-shrink-0 ml-2 text-gray-900"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDownload(file.downloadUrl, file.originalName);
@@ -1100,10 +1099,10 @@ export default function DeliveryPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSelectedMediaForModal(null)}
-                className="absolute top-2 right-2 lg:top-4 lg:right-4 h-9 w-9 lg:h-10 lg:w-10 bg-background/90 backdrop-blur-sm hover:bg-background rounded-full z-10"
+                className="absolute top-2 right-2 lg:top-4 lg:right-4 h-9 w-9 lg:h-10 lg:w-10 bg-white hover:bg-gray-100 rounded-full z-10 shadow-lg"
                 data-testid="button-close-modal"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4 text-gray-900" />
               </Button>
 
               {selectedMediaForModal && (
@@ -1115,7 +1114,7 @@ export default function DeliveryPage() {
                   />
                   {selectedMediaForModal.mimeType.startsWith("video/") && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-16 h-16 lg:w-24 lg:h-24 bg-white/90 rounded-full flex items-center justify-center shadow-xl">
+                      <div className="w-16 h-16 lg:w-24 lg:h-24 bg-white rounded-full flex items-center justify-center shadow-xl">
                         <Play className="h-8 w-8 lg:h-12 lg:w-12 text-primary ml-1 fill-current" />
                       </div>
                     </div>
