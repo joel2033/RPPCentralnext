@@ -3958,6 +3958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           address: job.address,
           status: job.status,
           appointmentDate: job.appointmentDate,
+          propertyImage: job.propertyImage,
           customer: customer ? {
             firstName: customer.firstName,
             lastName: customer.lastName,
@@ -4085,6 +4086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           address: job.address,
           status: job.status,
           appointmentDate: job.appointmentDate,
+          propertyImage: job.propertyImage,
           customer: customer ? {
             firstName: customer.firstName,
             lastName: customer.lastName,

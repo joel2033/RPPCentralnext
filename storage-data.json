@@ -203,10 +203,11 @@
       "jobId": "AngIgN8qzyFuBWw7k1JP3",
       "status": null,
       "dueDate": null,
-      "propertyImage": null,
+      "propertyImage": "/api/files/proxy/9e7da682-0de1-4bb7-b4ca-add6b96a0174",
       "notes": null,
       "id": "0f88361c-6229-44e4-826a-ec837afad642",
-      "createdAt": "2025-09-04T13:24:04.529Z"
+      "createdAt": "2025-09-04T13:24:04.529Z",
+      "propertyImageThumbnail": "/api/files/proxy/9e7da682-0de1-4bb7-b4ca-add6b96a0174"
     },
     "2ec374d9-6463-4429-8091-06bb8eb72d55": {
       "partnerId": "partner_192l9bh1xmduwueha",
