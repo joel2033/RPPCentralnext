@@ -56,6 +56,12 @@ Preferred communication style: Simple, everyday language.
   3. Upon acceptance, status changes to "processing" and `dateAccepted` is set
   4. This ensures editors explicitly confirm they can handle the work before beginning
 - **Order Numbering**: Sequential order numbers starting from #00001, automatically incremented based on the highest existing order (not gap-filling).
+- **Delivery Preview System**: Dual-access model for job delivery pages:
+  - **Public Delivery Access**: Customers access delivery pages via unguessable `deliveryToken` using `/api/delivery/:token` endpoints. Supports comments, revision requests, and reviews without authentication.
+  - **Authenticated Partner Preview**: Partners can preview their own jobs using `jobId` via authenticated `/api/jobs/:jobId/*` endpoints. Requires Firebase authentication and partner ownership verification. Supports full interactive features (comments, revisions, reviews) for testing customer workflow.
+  - **Security Model**: Clear separation - public endpoints only accept deliveryToken, authenticated endpoints only accept jobId with proper auth headers. No way to bypass security with guessable identifiers.
+  - **Smart Routing**: DeliveryPage component detects auth state and automatically tries authenticated preview first (for partners), then falls back to public delivery endpoint. All mutations route to appropriate endpoints based on preview mode.
+  - **Preview Button**: JobCard "Preview" button uses `deliveryToken || jobId` to support both scenarios. Visible with !important CSS overrides.
 
 # External Dependencies
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +105,7 @@ interface FileComment {
 export default function DeliveryPage() {
   const params = useParams();
   const token = params.token;
+  const { currentUser, loading: authLoading } = useAuth();
   
   const [scrolled, setScrolled] = useState(false);
   const [showQuickNav, setShowQuickNav] = useState(false);
@@ -119,14 +121,80 @@ export default function DeliveryPage() {
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const lastScrollY = useRef(0);
   
+  // Track which credential type we're using (jobId for preview, deliveryToken for public)
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
+  // Try authenticated preview first (if logged in), then fall back to public delivery endpoint
   const { data: deliveryData, isLoading, error } = useQuery<DeliveryPageData>({
-    queryKey: [`/api/delivery/${token}`],
-    enabled: !!token,
+    queryKey: [`/api/delivery/${token}`, currentUser?.uid],
+    queryFn: async () => {
+      // If user is authenticated, try the preview endpoint first
+      if (currentUser) {
+        try {
+          const idToken = await currentUser.getIdToken();
+          const previewResponse = await fetch(`/api/jobs/${token}/preview`, {
+            credentials: 'include',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+            },
+          });
+          
+          // Only fall back on 404 (token is deliveryToken, not jobId)
+          // Don't fall back on 403 (token is jobId but not owned by this partner)
+          if (previewResponse.ok) {
+            setIsPreviewMode(true);
+            return await previewResponse.json();
+          }
+          if (previewResponse.status !== 404) {
+            throw new Error('Preview failed');
+          }
+          // Fall through to delivery endpoint on 404
+        } catch (error: any) {
+          // If error is not 404-related, rethrow it
+          if (error.message !== 'Preview failed' && !error.message?.includes('404')) {
+            // Fall through to delivery endpoint
+          } else {
+            throw error;
+          }
+        }
+      }
+      
+      // Try public delivery endpoint (works for both authenticated and unauthenticated users)
+      setIsPreviewMode(false);
+      const deliveryResponse = await fetch(`/api/delivery/${token}`);
+      if (!deliveryResponse.ok) {
+        throw new Error('Delivery not found');
+      }
+      return await deliveryResponse.json();
+    },
+    enabled: !!token && !authLoading,
   });
 
+  // File comments query - use appropriate endpoint based on preview mode
+  const fileCommentsEndpoint = isPreviewMode
+    ? `/api/jobs/${token}/files/${selectedMediaForModal?.id}/comments`
+    : `/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`;
+    
   const { data: fileComments = [] } = useQuery<FileComment[]>({
-    queryKey: [`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`],
-    enabled: !!token && !!selectedMediaForModal,
+    queryKey: [fileCommentsEndpoint, currentUser?.uid],
+    queryFn: async () => {
+      if (isPreviewMode && currentUser) {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(fileCommentsEndpoint, {
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+          },
+        });
+        if (!response.ok) throw new Error('Failed to fetch comments');
+        return response.json();
+      }
+      // Public delivery endpoint
+      const response = await fetch(fileCommentsEndpoint);
+      if (!response.ok) throw new Error('Failed to fetch comments');
+      return response.json();
+    },
+    enabled: !!token && !!selectedMediaForModal && !authLoading,
   });
 
   // Initialize review form from existing review data
@@ -273,6 +341,27 @@ export default function DeliveryPage() {
       );
       const orderId = deliveryData?.revisionStatus?.[0]?.orderId || deliveryData?.completedFiles?.[0]?.orderId;
       
+      // Use authenticated endpoint for preview mode, public endpoint otherwise
+      if (isPreviewMode) {
+        if (!currentUser) throw new Error('Authentication required for preview mode');
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(`/api/jobs/${token}/revisions/request`, {
+          method: "POST",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            orderId,
+            fileIds: selectedFiles.map((f) => f.id),
+            comments: revisionNotes,
+          }),
+        });
+        if (!response.ok) throw new Error('Failed to submit revision request');
+        return response.json();
+      }
+      
       return apiRequest(`/api/delivery/${token}/revisions/request`, {
         method: "POST",
         body: JSON.stringify({
@@ -295,6 +384,28 @@ export default function DeliveryPage() {
 
   const submitCommentMutation = useMutation({
     mutationFn: async () => {
+      // Use authenticated endpoint for preview mode, public endpoint otherwise
+      if (isPreviewMode) {
+        if (!currentUser) throw new Error('Authentication required for preview mode');
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(`/api/jobs/${token}/files/${selectedMediaForModal?.id}/comments`, {
+          method: "POST",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            authorId: "client",
+            authorName: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
+            authorRole: "client",
+            message: newComment,
+          }),
+        });
+        if (!response.ok) throw new Error('Failed to submit comment');
+        return response.json();
+      }
+      
       return apiRequest(`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`, {
         method: "POST",
         body: JSON.stringify({
@@ -306,13 +417,35 @@ export default function DeliveryPage() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`] });
+      queryClient.invalidateQueries({ queryKey: [fileCommentsEndpoint, currentUser?.uid] });
       setNewComment("");
     },
   });
 
   const submitReviewMutation = useMutation({
     mutationFn: async () => {
+      // Use authenticated endpoint for preview mode, public endpoint otherwise
+      if (isPreviewMode) {
+        if (!currentUser) throw new Error('Authentication required for preview mode');
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(`/api/jobs/${token}/review`, {
+          method: "POST",
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            rating,
+            review: reviewText,
+            submittedBy: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
+            submittedByEmail: "client@example.com",
+          }),
+        });
+        if (!response.ok) throw new Error('Failed to submit review');
+        return response.json();
+      }
+      
       return apiRequest(`/api/delivery/${token}/review`, {
         method: "POST",
         body: JSON.stringify({
@@ -325,7 +458,7 @@ export default function DeliveryPage() {
     },
     onSuccess: () => {
       setReviewSubmitted(true);
-      queryClient.invalidateQueries({ queryKey: [`/api/delivery/${token}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/delivery/${token}`, currentUser?.uid] });
     },
   });
 

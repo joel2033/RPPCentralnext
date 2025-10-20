@@ -3795,12 +3795,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Public delivery endpoint - Uses deliveryToken for secure access
+  // Public delivery endpoint - Uses deliveryToken for secure access only
   app.get("/api/delivery/:token", async (req, res) => {
     try {
       const { token } = req.params;
 
-      // Find the job by delivery token (secure, unguessable credential)
+      // Find job by delivery token (secure, unguessable credential)
       const job = await storage.getJobByDeliveryToken(token);
       
       if (!job) {
@@ -3913,6 +3913,321 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching delivery data:", error);
       res.status(500).json({ 
         error: "Failed to fetch delivery data", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Authenticated partner preview endpoint - Uses jobId for internal previews
+  app.get("/api/jobs/:jobId/preview", requireAuth, async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { partnerId } = req.user;
+
+      // Find job by jobId and verify ownership
+      const job = await storage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify the job belongs to this partner
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get customer details if available
+      let customer = null;
+      if (job.customerId) {
+        customer = await storage.getCustomer(job.customerId);
+      }
+
+      // Get all editor uploads for this job with completed status
+      const allUploads = await storage.getEditorUploads(job.id);
+      const completedFiles = allUploads.filter(upload => 
+        upload.status === 'completed' && 
+        upload.fileName !== '.folder_placeholder'
+      );
+
+      // Group files by order and enrich with order information
+      const filesByOrder = completedFiles.reduce((acc, file) => {
+        if (!acc[file.orderId]) {
+          acc[file.orderId] = [];
+        }
+        acc[file.orderId].push(file);
+        return acc;
+      }, {} as Record<string, typeof completedFiles>);
+
+      const enrichedFiles = await Promise.all(
+        Object.entries(filesByOrder).map(async ([orderId, files]) => {
+          const order = await storage.getOrder(orderId);
+          return {
+            orderId,
+            orderNumber: order?.orderNumber || 'Unknown',
+            files: files.map(file => ({
+              id: file.id,
+              fileName: file.fileName,
+              originalName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              downloadUrl: file.downloadUrl,
+              uploadedAt: file.uploadedAt,
+              notes: file.notes
+            }))
+          };
+        })
+      );
+
+      // Get folder structure with files
+      const folders = await storage.getUploadFolders(job.id);
+      
+      // Get all file comments for this job
+      const allComments = await storage.getJobFileComments(job.id);
+      
+      // Create a map of file IDs to comment counts
+      const commentCounts = allComments.reduce((acc, comment) => {
+        acc[comment.fileId] = (acc[comment.fileId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Get order information and revision status
+      const orders = await storage.getOrders(job.partnerId);
+      const jobOrders = orders.filter(o => o.jobId === job.id);
+      
+      // Get revision status for each order
+      const revisionStatuses = await Promise.all(
+        jobOrders.map(async (order) => {
+          const status = await storage.getOrderRevisionStatus(order.id);
+          if (!status) {
+            return { orderId: order.id, maxRounds: 2, usedRounds: 0, remainingRounds: 2 };
+          }
+          return { orderId: order.id, ...status };
+        })
+      );
+
+      // Get job review if exists
+      const jobReview = await storage.getJobReview(job.id);
+
+      // Enrich folders with comment counts
+      const enrichedFolders = folders.map(folder => ({
+        ...folder,
+        files: folder.files.map(file => ({
+          ...file,
+          commentCount: commentCounts[file.id] || 0,
+        }))
+      }));
+
+      // Return same format as public delivery endpoint
+      res.json({
+        job: {
+          id: job.id,
+          jobId: job.jobId,
+          address: job.address,
+          status: job.status,
+          appointmentDate: job.appointmentDate,
+          customer: customer ? {
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            company: customer.company,
+          } : null,
+        },
+        completedFiles: enrichedFiles,
+        folders: enrichedFolders,
+        revisionStatus: revisionStatuses,
+        jobReview,
+      });
+    } catch (error: any) {
+      console.error("Error fetching job preview:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch job preview", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Authenticated jobId-based endpoints for preview mode
+
+  // Get file comments (authenticated preview mode)
+  app.get("/api/jobs/:jobId/files/:fileId/comments", requireAuth, async (req, res) => {
+    try {
+      const { jobId, fileId } = req.params;
+      const { partnerId } = req.user;
+
+      // Get job and verify ownership
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Verify file belongs to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const file = jobUploads.find(f => f.id === fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found in this job" });
+      }
+      
+      // Get comments scoped to this file
+      const comments = await storage.getFileComments(fileId);
+      res.json(comments);
+    } catch (error: any) {
+      console.error("Error fetching file comments:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch file comments", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create file comment (authenticated preview mode)
+  app.post("/api/jobs/:jobId/files/:fileId/comments", requireAuth, async (req, res) => {
+    try {
+      const { jobId, fileId } = req.params;
+      const { partnerId } = req.user;
+      const { authorId, authorName, authorRole, message } = req.body;
+
+      // Get job and verify ownership
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Verify file belongs to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const file = jobUploads.find(f => f.id === fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found in this job" });
+      }
+      
+      // Create comment scoped to this job/file
+      const validated = insertFileCommentSchema.parse({
+        fileId,
+        orderId: file.orderId,
+        jobId: job.id,
+        authorId,
+        authorName,
+        authorRole,
+        message,
+      });
+      
+      const comment = await storage.createFileComment(validated);
+      res.status(201).json(comment);
+    } catch (error: any) {
+      console.error("Error creating file comment:", error);
+      res.status(400).json({ 
+        error: "Failed to create file comment", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Submit job review (authenticated preview mode)
+  app.post("/api/jobs/:jobId/review", requireAuth, async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { partnerId } = req.user;
+      const { rating, review, submittedBy, submittedByEmail } = req.body;
+
+      // Get job and verify ownership
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Check if review already exists
+      const existingReview = await storage.getJobReview(job.id);
+      if (existingReview) {
+        return res.status(400).json({ error: "Review already submitted for this job" });
+      }
+
+      // Validate and create review
+      const validated = insertJobReviewSchema.parse({
+        jobId: job.id,
+        rating,
+        review,
+        submittedBy,
+        submittedByEmail,
+      });
+
+      const newReview = await storage.createJobReview(validated);
+      res.status(201).json(newReview);
+    } catch (error: any) {
+      console.error("Error creating job review:", error);
+      res.status(400).json({ 
+        error: "Failed to create job review", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Request revisions (authenticated preview mode)
+  app.post("/api/jobs/:jobId/revisions/request", requireAuth, async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { partnerId } = req.user;
+      const { orderId, fileIds, comments } = req.body;
+
+      if (!orderId || !fileIds || !Array.isArray(fileIds)) {
+        return res.status(400).json({ error: "orderId and fileIds array required" });
+      }
+
+      // Get job and verify ownership
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Verify order belongs to this job
+      const order = await storage.getOrder(orderId);
+      if (!order || order.jobId !== job.id) {
+        return res.status(404).json({ error: "Order not found for this job" });
+      }
+
+      // Verify all files belong to this job
+      const jobUploads = await storage.getEditorUploads(job.id);
+      const validFileIds = jobUploads.map(f => f.id);
+      const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
+      
+      if (invalidFiles.length > 0) {
+        return res.status(400).json({ error: "Some files do not belong to this job" });
+      }
+
+      // Check revision limits
+      const revisionStatus = await storage.getOrderRevisionStatus(orderId);
+      if (revisionStatus && revisionStatus.remainingRounds <= 0) {
+        return res.status(400).json({ 
+          error: "No revision rounds remaining",
+          revisionStatus 
+        });
+      }
+
+      // Create revision request
+      const validated = insertRevisionRequestSchema.parse({
+        orderId,
+        fileIds,
+        comments,
+        status: 'pending',
+      });
+
+      const revision = await storage.createRevisionRequest(validated);
+      res.status(201).json(revision);
+    } catch (error: any) {
+      console.error("Error creating revision request:", error);
+      res.status(400).json({ 
+        error: "Failed to create revision request", 
         details: error.message 
       });
     }
