@@ -3924,8 +3924,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { jobId } = req.params;
       const { partnerId } = req.user;
 
-      // Find job by jobId and verify ownership
-      const job = await storage.getJob(jobId);
+      // Find job by jobId (supports both nanoId and UUID) and verify ownership
+      const job = await storage.getJobByJobId(jobId);
       
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -4053,8 +4053,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { jobId, fileId } = req.params;
       const { partnerId } = req.user;
 
-      // Get job and verify ownership
-      const job = await storage.getJob(jobId);
+      // Get job (supports both nanoId and UUID) and verify ownership
+      const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -4089,8 +4089,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { partnerId } = req.user;
       const { authorId, authorName, authorRole, message } = req.body;
 
-      // Get job and verify ownership
-      const job = await storage.getJob(jobId);
+      // Get job (supports both nanoId and UUID) and verify ownership
+      const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -4135,8 +4135,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { partnerId } = req.user;
       const { rating, review, submittedBy, submittedByEmail } = req.body;
 
-      // Get job and verify ownership
-      const job = await storage.getJob(jobId);
+      // Get job (supports both nanoId and UUID) and verify ownership
+      const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -4181,8 +4181,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "orderId and fileIds array required" });
       }
 
-      // Get job and verify ownership
-      const job = await storage.getJob(jobId);
+      // Get job (supports both nanoId and UUID) and verify ownership
+      const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
