@@ -197,6 +197,28 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     },
   });
 
+  // Mutation for setting cover photo
+  const setCoverPhotoMutation = useMutation({
+    mutationFn: async ({ imageUrl }: { imageUrl: string }) => {
+      return apiRequest(`/api/jobs/${jobId}/cover-photo`, 'PATCH', { imageUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      toast({
+        title: "Cover photo updated",
+        description: "The job cover photo has been set successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to set cover photo",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // useEffect for keyboard navigation - Must be before any early returns
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -479,15 +501,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
-                      toast({
-                        title: "Feature coming soon",
-                        description: "Set as cover image functionality will be available in a future update.",
-                      });
+                      setCoverPhotoMutation.mutate({ imageUrl: file.downloadUrl });
                     }}
                     data-testid={`menuitem-set-cover-${file.id}`}
                   >
                     <ImageIcon className="h-4 w-4 mr-2" />
-                    Set as Cover Image
+                    Set as Cover Photo
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={(e) => {

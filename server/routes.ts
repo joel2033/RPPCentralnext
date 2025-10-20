@@ -3703,6 +3703,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update job cover photo
+  app.patch("/api/jobs/:jobId/cover-photo", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { imageUrl } = req.body;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!imageUrl) {
+        return res.status(400).json({ error: "imageUrl is required" });
+      }
+
+      // Find the job
+      let job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        const allJobs = await storage.getJobs();
+        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
+      }
+      
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Update job with the new cover photo
+      await storage.updateJob(job.id, {
+        propertyImage: imageUrl,
+        propertyImageThumbnail: imageUrl, // Use same image for thumbnail for now
+      });
+      
+      res.json({ success: true, message: "Cover photo updated successfully" });
+    } catch (error: any) {
+      console.error("Error updating cover photo:", error);
+      res.status(500).json({ 
+        error: "Failed to update cover photo", 
+        details: error.message 
+      });
+    }
+  });
+
   // Proxy endpoint to serve files from Firebase Storage
   // This bypasses browser issues with # character in URLs
   app.get("/api/files/proxy/:fileId", async (req, res) => {
