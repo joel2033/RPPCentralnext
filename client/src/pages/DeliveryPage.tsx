@@ -658,12 +658,12 @@ export default function DeliveryPage() {
                     key={folder.folderPath}
                     variant="ghost"
                     onClick={() => scrollToFolder(folder.folderPath)}
-                    className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 backdrop-blur-sm hover:bg-white/20 hover:border-white/40 text-white"
+                    className="px-4 py-2.5 rounded-xl bg-black/60 border border-white/30 backdrop-blur-sm hover:bg-black/70 hover:border-white/50 text-white shadow-lg"
                     data-testid={`hero-folder-${folder.folderPath}`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {folder.editorFolderName}
-                    <Badge className="ml-2 bg-white/20 text-white text-xs h-5 px-1.5">
+                    <Badge className="ml-2 bg-white/30 text-white text-xs h-5 px-1.5">
                       {folder.fileCount}
                     </Badge>
                   </Button>
