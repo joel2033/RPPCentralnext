@@ -203,8 +203,11 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       return apiRequest(`/api/jobs/${jobId}/cover-photo`, 'PATCH', { imageUrl });
     },
     onSuccess: () => {
+      // Invalidate all queries that might show the cover photo
       queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+      // Invalidate delivery page queries (uses jobId as token in preview mode)
+      queryClient.invalidateQueries({ queryKey: [`/api/delivery/${jobId}`] });
       toast({
         title: "Cover photo updated",
         description: "The job cover photo has been set successfully.",
