@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatsCard } from "@/components/StatsCard";
+import { NeedsAttention } from "@/components/NeedsAttention";
+import { RevenueChart } from "@/components/RevenueChart";
 import { FolderOpen, Users, DollarSign, UserCheck, Clock, AlertCircle, TrendingUp, Circle, ChevronRight, CheckCircle, RefreshCw, Package } from "lucide-react";
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { useAuth } from "@/contexts/AuthContext";
@@ -146,153 +148,11 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Needs Your Attention - 3 Rows Layout */}
-        <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-needs-attention">
-          <CardContent className="p-7">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-rpp-grey-dark">Needs Your Attention</h2>
-                <div className="w-7 h-7 bg-rpp-red-main rounded-full flex items-center justify-center shadow-md">
-                  <span className="text-xs font-bold text-white">{attentionMetrics.reduce((sum, item) => sum + item.count, 0)}</span>
-                </div>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-sm font-semibold text-rpp-red-main hover:bg-rpp-red-lighter"
-                data-testid="button-view-all"
-              >
-                View All
-              </Button>
-            </div>
+        {/* Needs Your Attention */}
+        <NeedsAttention />
 
-            {/* Row 1: Ready to Deliver & Requested Revisions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              {attentionMetrics.slice(0, 2).map((metric) => (
-                <div
-                  key={metric.id}
-                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
-                  data-testid={`attention-metric-${metric.id}`}
-                >
-                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
-                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
-                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              ))}
-            </div>
-
-            {/* Row 2: Pending Review & Urgent Tasks */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              {attentionMetrics.slice(2, 4).map((metric) => (
-                <div
-                  key={metric.id}
-                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
-                  data-testid={`attention-metric-${metric.id}`}
-                >
-                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
-                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
-                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              ))}
-            </div>
-
-            {/* Row 3: In Progress & Completed Today */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {attentionMetrics.slice(4, 6).map((metric) => (
-                <div
-                  key={metric.id}
-                  className="group relative flex items-center gap-4 p-5 rounded-2xl border-2 border-transparent hover:border-rpp-red-light hover:bg-rpp-red-lighter hover:bg-opacity-20 transition-all cursor-pointer"
-                  data-testid={`attention-metric-${metric.id}`}
-                >
-                  <div className={`w-14 h-14 ${metric.color} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    <metric.icon className={`w-7 h-7 ${metric.iconColor}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-rpp-grey-dark mb-0.5">{metric.count}</p>
-                    <p className="font-semibold text-rpp-grey-dark text-sm mb-1">{metric.label}</p>
-                    <p className="text-xs text-rpp-grey-light">{metric.description}</p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-rpp-grey-light opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Revenue Overview - Full Width */}
-        <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-revenue-overview">
-          <CardContent className="p-7">
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Revenue Overview</h2>
-                  <p className="text-sm text-rpp-grey-medium font-medium">Monthly performance result</p>
-                </div>
-                
-                <div className="space-y-1 text-right">
-                  <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight">${monthlyRevenue}k</p>
-                  <p className="text-xs text-rpp-grey-light font-semibold uppercase tracking-wider">This month</p>
-                </div>
-              </div>
-
-              <div className="h-56 -mx-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FF6B4A" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#FF6B4A" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-                    <XAxis 
-                      dataKey="month" 
-                      tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      tick={{ fill: '#9CA3AF', fontSize: 11, fontWeight: 500 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        border: 'none',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#FF6B4A"
-                      strokeWidth={3}
-                      fill="url(#colorRevenue)"
-                      dot={{ r: 4, fill: '#FF6B4A', strokeWidth: 2, stroke: '#fff' }}
-                      activeDot={{ r: 6, fill: '#FF6B4A', strokeWidth: 3, stroke: '#fff' }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Revenue Overview */}
+        <RevenueChart />
 
         {/* Services This Month */}
         <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-services">
