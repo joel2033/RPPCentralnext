@@ -38,7 +38,7 @@ export default function Dashboard() {
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Welcome Section */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-rpp-grey-dark tracking-tight">
+          <h1 className="text-3xl text-rpp-grey-dark tracking-tight font-medium">
             Welcome back, {settings?.personalProfile?.firstName || userData?.email?.split('@')[0] || 'there'}! 👋
           </h1>
           <p className="text-rpp-grey-medium font-medium text-[18px]">Here's a snapshot of your media business today</p>
