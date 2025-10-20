@@ -206,8 +206,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       // Invalidate all queries that might show the cover photo
       queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
       queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
-      // Invalidate delivery page queries (uses jobId as token in preview mode)
-      queryClient.invalidateQueries({ queryKey: [`/api/delivery/${jobId}`] });
+      // Invalidate all delivery page queries (both public and preview mode)
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.includes('/api/delivery/');
+        }
+      });
       toast({
         title: "Cover photo updated",
         description: "The job cover photo has been set successfully.",
