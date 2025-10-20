@@ -498,7 +498,8 @@ export default function DeliveryPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedMediaForModal, currentFileIndex]);
 
-  if (isLoading) {
+  // Show loading state while auth is loading OR query is loading
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -509,6 +510,7 @@ export default function DeliveryPage() {
     );
   }
 
+  // Only show error after loading is complete AND we have an actual error
   if (error || !deliveryData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -610,8 +612,8 @@ export default function DeliveryPage() {
               alt={job.address}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/50" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/70" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
           </>
         )}
 
