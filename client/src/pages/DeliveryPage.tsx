@@ -603,7 +603,7 @@ export default function DeliveryPage() {
       </header>
 
       {/* Hero Banner */}
-      <div className="relative h-[400px] bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
+      <div className="relative h-[550px] bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
         {/* Background Image */}
         {job.propertyImage && (
           <>
@@ -656,14 +656,14 @@ export default function DeliveryPage() {
                 return (
                   <Button
                     key={folder.folderPath}
-                    variant="secondary"
+                    variant="outline"
                     onClick={() => scrollToFolder(folder.folderPath)}
-                    className="rounded-xl"
+                    className="bg-transparent border-white/30 text-white hover:bg-white/10 hover:border-white/50 rounded-xl backdrop-blur-sm"
                     data-testid={`hero-folder-${folder.folderPath}`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {folder.editorFolderName}
-                    <Badge variant="secondary" className="ml-2 text-xs">
+                    <Badge variant="secondary" className="ml-2 text-xs bg-white/20 text-white border-0">
                       {folder.fileCount}
                     </Badge>
                   </Button>
@@ -675,9 +675,9 @@ export default function DeliveryPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-16">
+      <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Media Folders */}
-        <div className="space-y-12">
+        <div className="space-y-8">
           {folders.map((folder) => (
             <div
               key={folder.folderPath}
@@ -685,9 +685,9 @@ export default function DeliveryPage() {
               className="scroll-mt-40"
             >
               {/* Folder Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-3xl font-bold" data-testid={`text-folder-${folder.folderPath}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-bold" data-testid={`text-folder-${folder.folderPath}`}>
                     {folder.editorFolderName}
                   </h2>
                   <Badge variant="secondary" className="border border-border/50">
@@ -733,7 +733,7 @@ export default function DeliveryPage() {
               </div>
 
               {/* Media Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {folder.files.map((file) => {
                   const isSelected = selectedItems.has(file.id);
                   const hasComments = (file.commentCount || 0) > 0;
@@ -753,6 +753,7 @@ export default function DeliveryPage() {
                         src={file.downloadUrl}
                         alt={file.originalName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
                       />
 
                       {/* Selection Checkbox */}

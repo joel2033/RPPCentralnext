@@ -3829,8 +3829,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('Content-Length', fileSize);
       res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 year cache
       res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('ETag', `"${fileId}"`); // Use fileId as ETag for cache validation
       
       // Stream the file from Firebase Storage to the client
       const stream = storageFile.createReadStream();

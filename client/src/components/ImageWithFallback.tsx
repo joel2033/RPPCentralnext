@@ -8,6 +8,7 @@ interface ImageWithFallbackProps {
   fallbackClassName?: string;
   onLoad?: () => void;
   onError?: () => void;
+  loading?: 'lazy' | 'eager';
 }
 
 export function ImageWithFallback({ 
@@ -16,7 +17,8 @@ export function ImageWithFallback({
   className = '', 
   fallbackClassName = '',
   onLoad,
-  onError 
+  onError,
+  loading = 'eager'
 }: ImageWithFallbackProps) {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
 
@@ -57,6 +59,7 @@ export function ImageWithFallback({
         className={`${className} ${imageState === 'loading' ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
         onLoad={handleLoad}
         onError={handleError}
+        loading={loading}
         data-testid="image-element"
       />
     </>
