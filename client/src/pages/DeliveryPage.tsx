@@ -361,13 +361,10 @@ export default function DeliveryPage() {
         return response.json();
       }
       
-      return apiRequest(`/api/delivery/${token}/revisions/request`, {
-        method: "POST",
-        body: JSON.stringify({
-          orderId,
-          fileIds: selectedFiles.map((f) => f.id),
-          comments: revisionNotes,
-        }),
+      return apiRequest(`/api/delivery/${token}/revisions/request`, "POST", {
+        orderId,
+        fileIds: selectedFiles.map((f) => f.id),
+        comments: revisionNotes,
       });
     },
     onSuccess: () => {
@@ -405,14 +402,11 @@ export default function DeliveryPage() {
         return response.json();
       }
       
-      return apiRequest(`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`, {
-        method: "POST",
-        body: JSON.stringify({
-          authorId: "client",
-          authorName: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
-          authorRole: "client",
-          message: newComment,
-        }),
+      return apiRequest(`/api/delivery/${token}/files/${selectedMediaForModal?.id}/comments`, "POST", {
+        authorId: "client",
+        authorName: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
+        authorRole: "client",
+        message: newComment,
       });
     },
     onSuccess: () => {
@@ -445,14 +439,11 @@ export default function DeliveryPage() {
         return response.json();
       }
       
-      return apiRequest(`/api/delivery/${token}/review`, {
-        method: "POST",
-        body: JSON.stringify({
-          rating,
-          review: reviewText,
-          submittedBy: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
-          submittedByEmail: "client@example.com",
-        }),
+      return apiRequest(`/api/delivery/${token}/review`, "POST", {
+        rating,
+        review: reviewText,
+        submittedBy: deliveryData?.job.customer?.firstName + " " + deliveryData?.job.customer?.lastName,
+        submittedByEmail: "client@example.com",
       });
     },
     onSuccess: () => {
