@@ -620,10 +620,6 @@ export default function DeliveryPage() {
         {/* Hero Content */}
         <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center">
           <div className="max-w-3xl">
-            <Badge variant="secondary" className="mb-4">
-              Professional Media Delivery
-            </Badge>
-
             <h1
               className="text-white text-4xl md:text-5xl font-bold mb-3"
               data-testid="text-property-address"
