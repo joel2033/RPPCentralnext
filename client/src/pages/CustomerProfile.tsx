@@ -164,7 +164,7 @@ export default function CustomerProfile() {
                   {jobsList.length === 0 ? (
                     <p className="text-sm text-rpp-grey-medium text-center py-8" data-testid="text-no-jobs">No jobs found for this customer</p>
                   ) : (
-                    jobsList.map((job) => (
+                    jobsList.map((job: any) => (
                       <div
                         key={job.id}
                         className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
