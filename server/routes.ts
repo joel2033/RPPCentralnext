@@ -3710,7 +3710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate request body
       const coverPhotoSchema = z.object({
-        imageUrl: z.string().url("imageUrl must be a valid URL"),
+        imageUrl: z.string().min(1, "imageUrl is required"),
       });
       
       const validationResult = coverPhotoSchema.safeParse(req.body);
