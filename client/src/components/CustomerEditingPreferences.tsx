@@ -176,7 +176,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
           <CardHeader className="p-5 cursor-pointer hover:bg-gray-50/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-rpp-red-lighter flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-rpp-red-lighter flex items-center justify-center">
                   <Settings className="w-5 h-5 text-rpp-red-main" />
                 </div>
                 <div>
@@ -236,7 +236,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                       
                       <div className="relative p-4">
                         <div className="flex items-start gap-3">
-                          <div className={`w-11 h-11 rounded-xl ${colors.bg} flex items-center justify-center flex-shrink-0`}>
+                          <div className={`w-12 h-12 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
                             <IconComponent className={`w-5 h-5 ${colors.text}`} />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -268,8 +268,8 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
             {/* Notes for Editors */}
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-blue-600" />
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-blue-600" />
                 </div>
                 <div className="flex-1">
                   <Label htmlFor="editor-notes" className="text-sm font-semibold text-gray-900 mb-1 block">
