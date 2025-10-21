@@ -1,5 +1,5 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type Customer,
   type InsertCustomer,
@@ -34,7 +34,11 @@ import {
   type JobReview,
   type InsertJobReview,
   type DeliveryEmail,
-  type InsertDeliveryEmail
+  type InsertDeliveryEmail,
+  type Conversation,
+  type InsertConversation,
+  type Message,
+  type InsertMessage
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -207,6 +211,17 @@ export interface IStorage {
   // Revision Management
   incrementRevisionRound(orderId: string): Promise<Order | undefined>;
   getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined>;
+
+  // Messaging
+  getUserConversations(userId: string, partnerId?: string): Promise<Conversation[]>;
+  getConversation(id: string): Promise<Conversation | undefined>;
+  getConversationByParticipants(partnerId: string, editorId: string): Promise<Conversation | undefined>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversationLastMessage(conversationId: string, lastMessageText: string, isPartnerSender: boolean): Promise<void>;
+  markConversationAsRead(conversationId: string, isPartnerReading: boolean): Promise<void>;
+  getUnreadMessageCount(userId: string, partnerId?: string): Promise<number>;
+  getConversationMessages(conversationId: string): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
 }
 
 export class MemStorage implements IStorage {
@@ -228,6 +243,8 @@ export class MemStorage implements IStorage {
   private fileComments: Map<string, FileComment>;
   private jobReviews: Map<string, JobReview>;
   private deliveryEmails: Map<string, DeliveryEmail>;
+  private conversations: Map<string, Conversation>;
+  private messages: Map<string, Message>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -251,6 +268,8 @@ export class MemStorage implements IStorage {
     this.fileComments = new Map();
     this.jobReviews = new Map();
     this.deliveryEmails = new Map();
+    this.conversations = new Map();
+    this.messages = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -442,8 +461,30 @@ export class MemStorage implements IStorage {
             });
           });
         }
-        
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings`);
+
+        // Restore conversations
+        if (data.conversations) {
+          Object.entries(data.conversations).forEach(([id, conversation]: [string, any]) => {
+            this.conversations.set(id, {
+              ...conversation,
+              createdAt: new Date(conversation.createdAt),
+              lastMessageAt: conversation.lastMessageAt ? new Date(conversation.lastMessageAt) : new Date(conversation.createdAt)
+            });
+          });
+        }
+
+        // Restore messages
+        if (data.messages) {
+          Object.entries(data.messages).forEach(([id, message]: [string, any]) => {
+            this.messages.set(id, {
+              ...message,
+              createdAt: new Date(message.createdAt),
+              readAt: message.readAt ? new Date(message.readAt) : null
+            });
+          });
+        }
+
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings, ${this.conversations.size} conversations, ${this.messages.size} messages`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -468,6 +509,8 @@ export class MemStorage implements IStorage {
         editingOptions: Object.fromEntries(this.editingOptions.entries()),
         customerEditingPreferences: Object.fromEntries(this.customerEditingPreferences.entries()),
         partnerSettings: Object.fromEntries(this.partnerSettings.entries()),
+        conversations: Object.fromEntries(this.conversations.entries()),
+        messages: Object.fromEntries(this.messages.entries()),
         orderCounter: this.orderCounter,
         orderReservations: Object.fromEntries(this.orderReservations.entries())
       };
@@ -2260,6 +2303,129 @@ export class MemStorage implements IStorage {
       usedRounds,
       remainingRounds: Math.max(0, maxRounds - usedRounds),
     };
+  }
+
+  // Messaging Implementation
+  async getUserConversations(userId: string, partnerId?: string): Promise<Conversation[]> {
+    return Array.from(this.conversations.values())
+      .filter(conv => {
+        // User can see conversations where they are either the partner or the editor
+        const isParticipant = conv.editorId === userId || (partnerId && conv.partnerId === partnerId);
+        return isParticipant;
+      })
+      .sort((a, b) => (b.lastMessageAt?.getTime() || 0) - (a.lastMessageAt?.getTime() || 0));
+  }
+
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    return this.conversations.get(id);
+  }
+
+  async getConversationByParticipants(partnerId: string, editorId: string): Promise<Conversation | undefined> {
+    return Array.from(this.conversations.values())
+      .find(conv => conv.partnerId === partnerId && conv.editorId === editorId);
+  }
+
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const id = randomUUID();
+    const newConversation: Conversation = {
+      ...conversation,
+      id,
+      lastMessageAt: new Date(),
+      lastMessageText: null,
+      partnerUnreadCount: 0,
+      editorUnreadCount: 0,
+      createdAt: new Date(),
+    };
+    this.conversations.set(id, newConversation);
+    this.saveToFile();
+    return newConversation;
+  }
+
+  async updateConversationLastMessage(conversationId: string, lastMessageText: string, isPartnerSender: boolean): Promise<void> {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return;
+    }
+
+    // Update last message info and increment unread count for the recipient
+    const updatedConversation: Conversation = {
+      ...conversation,
+      lastMessageAt: new Date(),
+      lastMessageText: lastMessageText.substring(0, 100), // Limit preview length
+      partnerUnreadCount: isPartnerSender ? conversation.partnerUnreadCount : (conversation.partnerUnreadCount || 0) + 1,
+      editorUnreadCount: isPartnerSender ? (conversation.editorUnreadCount || 0) + 1 : conversation.editorUnreadCount,
+    };
+
+    this.conversations.set(conversationId, updatedConversation);
+    this.saveToFile();
+  }
+
+  async markConversationAsRead(conversationId: string, isPartnerReading: boolean): Promise<void> {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return;
+    }
+
+    // Mark all unread messages as read
+    const messages = Array.from(this.messages.values())
+      .filter(msg => msg.conversationId === conversationId && !msg.readAt);
+
+    const now = new Date();
+    messages.forEach(msg => {
+      // Only mark messages that were sent by the other party
+      const shouldMark = isPartnerReading
+        ? msg.senderRole === 'editor'
+        : msg.senderRole === 'partner';
+
+      if (shouldMark) {
+        this.messages.set(msg.id, { ...msg, readAt: now });
+      }
+    });
+
+    // Reset unread count for the reader
+    const updatedConversation: Conversation = {
+      ...conversation,
+      partnerUnreadCount: isPartnerReading ? 0 : conversation.partnerUnreadCount,
+      editorUnreadCount: isPartnerReading ? conversation.editorUnreadCount : 0,
+    };
+
+    this.conversations.set(conversationId, updatedConversation);
+    this.saveToFile();
+  }
+
+  async getUnreadMessageCount(userId: string, partnerId?: string): Promise<number> {
+    const conversations = await this.getUserConversations(userId, partnerId);
+
+    return conversations.reduce((total, conv) => {
+      // If user is the partner, count partner's unread messages
+      if (partnerId && conv.partnerId === partnerId) {
+        return total + (conv.partnerUnreadCount || 0);
+      }
+      // If user is the editor, count editor's unread messages
+      if (conv.editorId === userId) {
+        return total + (conv.editorUnreadCount || 0);
+      }
+      return total;
+    }, 0);
+  }
+
+  async getConversationMessages(conversationId: string): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(msg => msg.conversationId === conversationId)
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const id = randomUUID();
+    const newMessage: Message = {
+      ...message,
+      id,
+      readAt: null,
+      createdAt: new Date(),
+    };
+    this.messages.set(id, newMessage);
+    this.saveToFile();
+    return newMessage;
   }
 }
 
