@@ -45,6 +45,11 @@ import EditorProtectedRoute from "@/components/EditorProtectedRoute";
 import EditorLayout from "@/components/EditorLayout";
 import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
 
+/**
+ * Defines the application's route map, wiring public, authenticated, and editor-specific routes to their respective layouts and pages.
+ *
+ * @returns A JSX element that renders the configured routing Switch with all application routes.
+ */
 function Router() {
   return (
     <Switch>
