@@ -146,6 +146,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           className={`nav-item flex items-center px-4 py-3 rounded-full transition-all duration-200 ${
             isActive(item.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-rpp-grey-bg'
           }`}
+          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
         >
           <Icon className="w-5 h-5 mr-3" />
           <span className="font-medium">{item.title}</span>
