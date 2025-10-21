@@ -99,6 +99,17 @@ const requireAuth = async (req: any, res: any, next: any) => {
   }
 };
 
+/**
+ * Attach the full set of API routes to the provided Express application and return a configured HTTP server.
+ *
+ * This registers endpoints for customers, users/auth flows, jobs, orders, editor workflows and uploads,
+ * file proxying, delivery and review flows, messaging, partnerships/team management, notifications,
+ * activity tracking, validation/health checks, and various utility routes, then creates and returns
+ * an HTTP server wrapping the given Express app.
+ *
+ * @param app - The Express application to register routes on
+ * @returns The configured HTTP server instance wrapping the provided Express app
+ */
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
   app.get("/api/customers", async (req, res) => {
