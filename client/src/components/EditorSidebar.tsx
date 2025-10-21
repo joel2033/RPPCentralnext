@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  Home, 
-  Download, 
-  Upload, 
-  FileImage, 
+import {
+  Home,
+  Download,
+  Upload,
+  FileImage,
   Package,
   Settings,
   LogOut,
   Camera,
   Users,
   Mail,
-  UserPlus
+  UserPlus,
+  MessageSquare
 } from "lucide-react";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { signOut } from "@/lib/firebaseAuth";
@@ -34,6 +35,7 @@ const menuItems: MenuItem[] = [
   { title: "Downloads", icon: Download, path: "/editor/downloads" },
   { title: "Upload Completed", icon: Upload, path: "/editor/uploads" },
   { title: "My Products", icon: Package, path: "/editor/products" },
+  { title: "Messages", icon: MessageSquare, path: "/editor/messages" },
   { title: "Settings", icon: Settings, path: "/editor/settings" },
 ];
 

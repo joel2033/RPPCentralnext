@@ -1,8 +1,8 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertCustomerSchema, 
+import {
+  insertCustomerSchema,
   insertProductSchema,
   insertJobSchema,
   insertOrderSchema,
@@ -16,7 +16,9 @@ import {
   insertCustomerEditingPreferenceSchema,
   insertFileCommentSchema,
   insertJobReviewSchema,
-  insertDeliveryEmailSchema
+  insertDeliveryEmailSchema,
+  insertConversationSchema,
+  insertMessageSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -1285,6 +1287,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invite.partnerName,
         invite.partnerEmail
       );
+      
+      // Create conversation between partner and editor
+      const existingConversation = await storage.getConversationByParticipants(invite.partnerId, currentUser.uid);
+      
+      if (!existingConversation) {
+        const conversationData = insertConversationSchema.parse({
+          partnerId: invite.partnerId,
+          editorId: currentUser.uid,
+          partnerName: invite.partnerName,
+          editorName: invite.editorStudioName || currentUser.email,
+          partnerEmail: invite.partnerEmail,
+          editorEmail: currentUser.email,
+        });
+        
+        await storage.createConversation(conversationData);
+      }
       
       // Update invite status
       await updatePartnershipInviteStatus(token, "accepted");
@@ -5540,6 +5558,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error saving settings:", error);
       res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
+  // ============================================================================
+  // MESSAGING ENDPOINTS
+  // ============================================================================
+
+  // Get all conversations for the current user (partner or editor)
+  app.get("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { uid, partnerId } = req.user!;
+
+      // Get conversations where user is either partner or editor
+      const conversations = await storage.getUserConversations(uid, partnerId);
+
+      res.json(conversations);
+    } catch (error: any) {
+      console.error("Error fetching conversations:", error);
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  // Get total unread message count for current user (MUST come before /:id route)
+  app.get("/api/conversations/unread-count", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { uid, partnerId } = req.user!;
+
+      const count = await storage.getUnreadMessageCount(uid, partnerId);
+
+      res.json({ count });
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
+  // Get a specific conversation with its messages
+  app.get("/api/conversations/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { uid, partnerId } = req.user!;
+
+      // Get conversation
+      const conversation = await storage.getConversation(id);
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Verify user has access to this conversation
+      if (conversation.partnerId !== partnerId && conversation.editorId !== uid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get messages for this conversation
+      const messages = await storage.getConversationMessages(id);
+
+      res.json({
+        conversation,
+        messages
+      });
+    } catch (error: any) {
+      console.error("Error fetching conversation:", error);
+      res.status(500).json({ error: "Failed to fetch conversation" });
+    }
+  });
+
+  // Create or get a conversation between partner and editor
+  app.post("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { uid, partnerId, email } = req.user!;
+      const { editorId, editorEmail, editorName } = req.body;
+
+      if (!editorId || !editorEmail) {
+        return res.status(400).json({ error: "Editor ID and email are required" });
+      }
+
+      // Check if conversation already exists
+      let conversation = await storage.getConversationByParticipants(partnerId!, editorId);
+
+      if (!conversation) {
+        // Get partner name from user document
+        const userDoc = await getUserDocument(uid);
+        const partnerName = userDoc ? `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() : email;
+
+        // Create new conversation
+        const conversationData = insertConversationSchema.parse({
+          partnerId: partnerId!,
+          editorId,
+          partnerName,
+          editorName,
+          partnerEmail: email,
+          editorEmail,
+        });
+
+        conversation = await storage.createConversation(conversationData);
+      }
+
+      res.json(conversation);
+    } catch (error: any) {
+      console.error("Error creating conversation:", error);
+      res.status(500).json({ error: "Failed to create conversation" });
+    }
+  });
+
+  // Send a message in a conversation
+  app.post("/api/conversations/:id/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { uid, partnerId, email } = req.user!;
+      const { content } = req.body;
+
+      if (!content || content.trim() === "") {
+        return res.status(400).json({ error: "Message content is required" });
+      }
+
+      // Get conversation
+      const conversation = await storage.getConversation(id);
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Verify user has access to this conversation
+      if (conversation.partnerId !== partnerId && conversation.editorId !== uid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Determine sender role
+      const isPartner = conversation.partnerId === partnerId;
+      const senderRole = isPartner ? "partner" : "editor";
+
+      // Get sender name
+      const userDoc = await getUserDocument(uid);
+      const senderName = userDoc ? `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || email : email;
+
+      // Create message
+      const messageData = insertMessageSchema.parse({
+        conversationId: id,
+        senderId: uid,
+        senderEmail: email,
+        senderName,
+        senderRole,
+        content: content.trim()
+      });
+
+      const message = await storage.createMessage(messageData);
+
+      // Update conversation's last message and unread count
+      await storage.updateConversationLastMessage(id, content.trim(), isPartner);
+
+      res.json(message);
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Mark messages in a conversation as read
+  app.patch("/api/conversations/:id/read", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { uid, partnerId } = req.user!;
+
+      // Get conversation
+      const conversation = await storage.getConversation(id);
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      // Verify user has access to this conversation
+      if (conversation.partnerId !== partnerId && conversation.editorId !== uid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Determine if user is partner or editor
+      const isPartner = conversation.partnerId === partnerId;
+
+      // Mark messages as read
+      await storage.markConversationAsRead(id, isPartner);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ error: "Failed to mark messages as read" });
     }
   });
 

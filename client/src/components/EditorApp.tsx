@@ -12,6 +12,7 @@ import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
 import TeamAssignments from "@/pages/TeamAssignments";
+import Messages from "@/pages/Messages";
 import NotFound from "@/pages/not-found";
 
 function EditorRouter() {
@@ -74,6 +75,14 @@ function EditorRouter() {
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorSettings />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      
+      <Route path="/messages">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <Messages />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>

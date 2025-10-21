@@ -145,6 +145,10 @@ export const routePermissions: Record<string, UserRole[]> = {
   "/upload": ["partner", "admin", "photographer"],
   "/settings": ["partner"], // Only partners can access team management
   "/team/assignments": ["partner", "admin"], // Only partners and admins can assign team orders
+  "/messages": ["partner", "admin", "photographer"], // Partners can message with editors
+  "/team": ["partner", "admin"], // Team members management
+  "/partnerships": ["partner", "admin"], // Partnership management
+  "/invite-editor": ["partner", "admin"], // Invite editors
   // Editor-specific routes
   "/editor": ["editor"],
   "/editor/dashboard": ["editor"],
@@ -152,7 +156,9 @@ export const routePermissions: Record<string, UserRole[]> = {
   "/editor/downloads": ["editor"],
   "/editor/uploads": ["editor"],
   "/editor/products": ["editor"],
-  "/editor/settings": ["editor"]
+  "/editor/settings": ["editor"],
+  "/editor/messages": ["editor"], // Editors can message with partners
+  "/editor/invitations": ["editor"] // Editor invitations
 };
 
 // Check if user has permission for route

@@ -62,6 +62,14 @@ Preferred communication style: Simple, everyday language.
   - **Security Model**: Clear separation - public endpoints only accept deliveryToken, authenticated endpoints only accept jobId with proper auth headers. No way to bypass security with guessable identifiers.
   - **Smart Routing**: DeliveryPage component detects auth state and automatically tries authenticated preview first (for partners), then falls back to public delivery endpoint. All mutations route to appropriate endpoints based on preview mode.
   - **Preview Button**: JobCard "Preview" button uses `deliveryToken || jobId` to support both scenarios. Visible with !important CSS overrides.
+- **Messaging System**: Bidirectional messaging functionality between partners and editors:
+  - **Automatic Conversation Creation**: When editors accept partnership invitations, a conversation is automatically created between the partner and editor
+  - **Manual Conversation Initiation**: Both partners and editors can start new conversations with their active partnership connections via "New Conversation" button
+  - **Smart Conversation Reuse**: Duplicate prevention - selecting an existing conversation participant opens the existing conversation instead of creating a new one
+  - **Role-Adaptive UI**: Messages component adapts based on user role - shows editors for partners, partners for editors
+  - **Partnership-Gated Access**: "New Conversation" button only appears when user has at least one active partnership
+  - **Storage**: Conversations and messages stored in PostgreSQL, partnerships stored in Firestore
+  - **API Endpoints**: GET /api/partnerships (partners), GET /api/editor/partnerships (editors), POST /api/conversations (both roles)
 
 # External Dependencies
 
