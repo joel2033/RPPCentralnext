@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Home,
-  Users,
-  Calendar,
-  Camera,
-  Edit,
-  Folder,
-  BarChart3,
+import { 
+  Home, 
+  Users, 
+  Calendar, 
+  Camera, 
+  Edit, 
+  Folder, 
+  BarChart3, 
   Box,
   Upload,
   ClipboardList,
@@ -16,8 +16,7 @@ import {
   ChevronDown,
   Handshake,
   Settings,
-  UserPlus,
-  MessageSquare
+  UserPlus
 } from "lucide-react";
 
 interface SidebarProps {
@@ -62,7 +61,6 @@ const menuItems: MenuItem[] = [
     ],
   },
   { title: "Team Members", icon: Users, path: "/team" },
-  { title: "Messages", icon: MessageSquare, path: "/messages" },
   { title: "Settings", icon: Settings, path: "/settings" },
 ];
 
