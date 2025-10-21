@@ -117,6 +117,7 @@ export default function Messages() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations/unread-count"] });
     },
   });
 
@@ -251,11 +252,14 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] border rounded-lg overflow-hidden bg-background">
+    <div className="flex h-[calc(100vh-12rem)] rounded-lg overflow-hidden shadow-lg bg-background">
       {/* Conversations List */}
-      <div className="w-80 border-r flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Messages</h2>
+      <div className="w-80 border-r flex flex-col bg-gradient-to-b from-background to-muted/20">
+        <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-rpp-red-main" />
+            Messages
+          </h2>
           {(isEditor || isPartner) && partnerships.some(p => p.isActive) && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
@@ -331,44 +335,69 @@ export default function Messages() {
         </div>
         <ScrollArea className="flex-1">
           {conversations.length === 0 ? (
-            <div className="p-4 text-center text-muted-foreground">
-              <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No conversations yet</p>
+            <div className="p-8 text-center text-muted-foreground">
+              <MessageSquare className="h-16 w-16 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs mt-1">Start a new conversation to begin messaging</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="p-2 space-y-2">
               {conversations.map((conversation) => {
                 const participant = getOtherParticipant(conversation);
+                const isSelected = selectedConversationId === conversation.id;
                 return (
                   <button
                     key={conversation.id}
                     onClick={() => setSelectedConversationId(conversation.id)}
                     className={cn(
-                      "w-full p-4 hover:bg-accent transition-colors text-left",
-                      selectedConversationId === conversation.id && "bg-accent"
+                      "w-full p-3 rounded-lg text-left transition-all duration-200",
+                      "hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
+                      "border border-transparent",
+                      isSelected 
+                        ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md" 
+                        : "hover:bg-accent hover:border-muted-foreground/20"
                     )}
+                    data-testid={`conversation-card-${conversation.id}`}
                   >
                     <div className="flex items-start gap-3">
-                      <Avatar>
-                        <AvatarFallback>{getInitials(participant.name)}</AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className={cn(
+                          "ring-2 transition-all duration-200",
+                          isSelected ? "ring-rpp-red-main" : "ring-transparent"
+                        )}>
+                          <AvatarFallback className={cn(
+                            "font-semibold",
+                            isSelected && "bg-rpp-red-main/20 text-rpp-red-main"
+                          )}>
+                            {getInitials(participant.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {participant.unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold animate-pulse">
+                            {participant.unreadCount}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className="font-medium truncate">{participant.name}</p>
+                          <p className={cn(
+                            "font-medium truncate transition-colors",
+                            isSelected && "text-rpp-red-main"
+                          )}>
+                            {participant.name}
+                          </p>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatTime(conversation.lastMessageAt)}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm text-muted-foreground truncate">
-                            {conversation.lastMessageText || "No messages yet"}
-                          </p>
-                          {participant.unreadCount > 0 && (
-                            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                              {participant.unreadCount}
-                            </span>
-                          )}
-                        </div>
+                        <p className={cn(
+                          "text-sm truncate transition-colors",
+                          participant.unreadCount > 0 
+                            ? "text-foreground font-medium" 
+                            : "text-muted-foreground"
+                        )}>
+                          {conversation.lastMessageText || "No messages yet"}
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -384,16 +413,16 @@ export default function Messages() {
         {selectedConversationId ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b">
+            <div className="p-4 border-b bg-gradient-to-r from-background to-muted/10 shadow-sm">
               {conversationData && (
                 <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarFallback>
+                  <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
+                    <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
                       {getInitials(getOtherParticipant(conversationData.conversation).name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium">
+                    <p className="font-semibold text-base">
                       {getOtherParticipant(conversationData.conversation).name}
                     </p>
                     <p className="text-sm text-muted-foreground">
@@ -411,27 +440,33 @@ export default function Messages() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {conversationData?.messages.map((message) => {
+                <div className="space-y-3">
+                  {conversationData?.messages.map((message, index) => {
                     const isCurrentUser = message.senderEmail === currentUser?.email;
                     return (
                       <div
                         key={message.id}
-                        className={cn("flex", isCurrentUser ? "justify-end" : "justify-start")}
+                        className={cn(
+                          "flex animate-in fade-in slide-in-from-bottom-2 duration-300",
+                          isCurrentUser ? "justify-end" : "justify-start"
+                        )}
+                        style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div
                           className={cn(
-                            "max-w-[70%] rounded-lg px-4 py-2",
+                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                             isCurrentUser
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"
+                              ? "bg-rpp-red-main text-white rounded-br-sm"
+                              : "bg-muted rounded-bl-sm"
                           )}
                         >
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                            {message.content}
+                          </p>
                           <p
                             className={cn(
-                              "text-xs mt-1",
-                              isCurrentUser ? "text-primary-foreground/70" : "text-muted-foreground"
+                              "text-xs mt-1.5 flex items-center gap-1",
+                              isCurrentUser ? "text-white/70 justify-end" : "text-muted-foreground"
                             )}
                           >
                             {formatTime(message.createdAt)}
@@ -446,7 +481,7 @@ export default function Messages() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="p-4 border-t">
+            <div className="p-4 border-t bg-gradient-to-r from-background to-muted/5">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -459,11 +494,15 @@ export default function Messages() {
                   onChange={(e) => setMessageInput(e.target.value)}
                   placeholder="Type a message..."
                   disabled={sendMessageMutation.isPending}
+                  className="focus-visible:ring-rpp-red-main"
+                  data-testid="input-message"
                 />
                 <Button
                   type="submit"
                   disabled={!messageInput.trim() || sendMessageMutation.isPending}
                   size="icon"
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark transition-all hover:scale-105"
+                  data-testid="button-send-message"
                 >
                   {sendMessageMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -475,10 +514,15 @@ export default function Messages() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center">
-              <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p>Select a conversation to start messaging</p>
+          <div className="flex-1 flex items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/10">
+            <div className="text-center p-8">
+              <div className="inline-block p-6 rounded-full bg-muted/30 mb-4">
+                <MessageSquare className="h-16 w-16 opacity-40" />
+              </div>
+              <p className="text-lg font-medium mb-2">No conversation selected</p>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Choose a conversation from the list or start a new one to begin messaging
+              </p>
             </div>
           </div>
         )}
