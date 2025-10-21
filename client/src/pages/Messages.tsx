@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, MessageSquare, Loader2 } from "lucide-react";
+import { Send, MessageSquare, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getAuth } from "firebase/auth";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEditorAuth } from "@/contexts/EditorAuthContext";
 
 const auth = getAuth();
 
@@ -43,13 +46,28 @@ interface ConversationWithMessages {
   messages: Message[];
 }
 
+interface Partnership {
+  id: string;
+  editorId: string;
+  editorStudioName: string;
+  editorEmail: string;
+  partnerId: string;
+  partnerName: string;
+  partnerEmail: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export default function Messages() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
+  const [newConversationDialogOpen, setNewConversationDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentUser = auth.currentUser;
+  const { userData: partnerData } = useAuth();
+  const { userData: editorData } = useEditorAuth();
 
   // Fetch all conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
@@ -62,6 +80,15 @@ export default function Messages() {
     queryKey: [`/api/conversations/${selectedConversationId}`],
     enabled: !!selectedConversationId,
     refetchInterval: 3000, // Poll every 3 seconds for new messages in active conversation
+  });
+
+  // Determine if current user is an editor
+  const isEditor = editorData?.role === "editor";
+
+  // Fetch partnerships for editors (so they can start conversations with partners)
+  const { data: partnerships = [] } = useQuery<Partnership[]>({
+    queryKey: ["/api/editor/partnerships"],
+    enabled: isEditor,
   });
 
   // Mark conversation as read when selected
@@ -107,6 +134,43 @@ export default function Messages() {
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create conversation mutation
+  const createConversationMutation = useMutation({
+    mutationFn: async (partnership: Partnership) => {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch("/api/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          editorId: partnership.editorId,
+          editorEmail: partnership.editorEmail,
+          editorName: partnership.editorStudioName,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to create conversation");
+      return response.json();
+    },
+    onSuccess: (conversation) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setNewConversationDialogOpen(false);
+      setSelectedConversationId(conversation.id);
+      toast({
+        title: "Success",
+        description: "Conversation started!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start conversation. Please try again.",
         variant: "destructive",
       });
     },
@@ -180,8 +244,71 @@ export default function Messages() {
     <div className="flex h-[calc(100vh-12rem)] border rounded-lg overflow-hidden bg-background">
       {/* Conversations List */}
       <div className="w-80 border-r flex flex-col">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold">Messages</h2>
+          {isEditor && partnerships.some(p => p.isActive) && (
+            <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" data-testid="button-new-conversation">
+                  <Plus className="h-4 w-4 mr-1" />
+                  New
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Start New Conversation</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Select a partner to start messaging:</p>
+                  <ScrollArea className="max-h-[300px]">
+                    <div className="space-y-2">
+                      {partnerships.filter(p => p.isActive).map((partnership) => {
+                        // Check if conversation already exists
+                        const existingConversation = conversations.find(
+                          c => c.partnerId === partnership.partnerId && c.editorId === partnership.editorId
+                        );
+                        
+                        return (
+                          <button
+                            key={partnership.id}
+                            onClick={() => {
+                              if (existingConversation) {
+                                setSelectedConversationId(existingConversation.id);
+                                setNewConversationDialogOpen(false);
+                              } else {
+                                createConversationMutation.mutate(partnership);
+                              }
+                            }}
+                            disabled={createConversationMutation.isPending}
+                            className="w-full p-3 text-left rounded-lg border hover:bg-accent transition-colors disabled:opacity-50"
+                            data-testid={`button-start-conversation-${partnership.partnerId}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarFallback>{getInitials(partnership.partnerName)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{partnership.partnerName}</p>
+                                <p className="text-sm text-muted-foreground">{partnership.partnerEmail}</p>
+                                {existingConversation && (
+                                  <p className="text-xs text-primary mt-1">Already chatting</p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                  {partnerships.filter(p => p.isActive).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No active partnerships. Accept partnership invites to start messaging.
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
         <ScrollArea className="flex-1">
           {conversations.length === 0 ? (
