@@ -3441,14 +3441,26 @@
       "partnerEmail": "May@maystudios.com",
       "editorEmail": "May@maystudios.com",
       "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
-      "lastMessageAt": "2025-10-21T10:45:20.233Z",
-      "lastMessageText": null,
+      "lastMessageAt": "2025-10-21T10:45:25.710Z",
+      "lastMessageText": "hello",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 0,
+      "editorUnreadCount": 1,
       "createdAt": "2025-10-21T10:45:20.233Z"
     }
   },
-  "messages": {},
+  "messages": {
+    "a9c30162-723e-4411-9564-8b4c5279ea19": {
+      "conversationId": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "hello",
+      "id": "a9c30162-723e-4411-9564-8b4c5279ea19",
+      "readAt": null,
+      "createdAt": "2025-10-21T10:45:25.706Z"
+    }
+  },
   "orderCounter": 16,
   "orderReservations": {
     "#00001": {

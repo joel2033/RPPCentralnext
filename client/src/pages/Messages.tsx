@@ -82,14 +82,24 @@ export default function Messages() {
     refetchInterval: 3000, // Poll every 3 seconds for new messages in active conversation
   });
 
-  // Determine if current user is an editor
+  // Determine if current user is an editor or partner
   const isEditor = editorData?.role === "editor";
+  const isPartner = partnerData?.role === "partner";
 
   // Fetch partnerships for editors (so they can start conversations with partners)
-  const { data: partnerships = [] } = useQuery<Partnership[]>({
+  const { data: editorPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/editor/partnerships"],
     enabled: isEditor,
   });
+
+  // Fetch partnerships for partners (so they can start conversations with editors)
+  const { data: partnerPartnerships = [] } = useQuery<Partnership[]>({
+    queryKey: ["/api/partnerships"],
+    enabled: isPartner,
+  });
+
+  // Use the appropriate partnerships list based on user role
+  const partnerships = isEditor ? editorPartnerships : partnerPartnerships;
 
   // Mark conversation as read when selected
   const markAsReadMutation = useMutation({
@@ -246,7 +256,7 @@ export default function Messages() {
       <div className="w-80 border-r flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold">Messages</h2>
-          {isEditor && partnerships.some(p => p.isActive) && (
+          {(isEditor || isPartner) && partnerships.some(p => p.isActive) && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline" data-testid="button-new-conversation">
@@ -259,7 +269,9 @@ export default function Messages() {
                   <DialogTitle>Start New Conversation</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Select a partner to start messaging:</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isEditor ? "Select a partner to start messaging:" : "Select an editor to start messaging:"}
+                  </p>
                   <ScrollArea className="max-h-[300px]">
                     <div className="space-y-2">
                       {partnerships.filter(p => p.isActive).map((partnership) => {
@@ -267,6 +279,11 @@ export default function Messages() {
                         const existingConversation = conversations.find(
                           c => c.partnerId === partnership.partnerId && c.editorId === partnership.editorId
                         );
+                        
+                        // Show editor info for partners, partner info for editors
+                        const displayName = isEditor ? partnership.partnerName : partnership.editorStudioName;
+                        const displayEmail = isEditor ? partnership.partnerEmail : partnership.editorEmail;
+                        const testId = isEditor ? partnership.partnerId : partnership.editorId;
                         
                         return (
                           <button
@@ -281,15 +298,15 @@ export default function Messages() {
                             }}
                             disabled={createConversationMutation.isPending}
                             className="w-full p-3 text-left rounded-lg border hover:bg-accent transition-colors disabled:opacity-50"
-                            data-testid={`button-start-conversation-${partnership.partnerId}`}
+                            data-testid={`button-start-conversation-${testId}`}
                           >
                             <div className="flex items-center gap-3">
                               <Avatar>
-                                <AvatarFallback>{getInitials(partnership.partnerName)}</AvatarFallback>
+                                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-medium">{partnership.partnerName}</p>
-                                <p className="text-sm text-muted-foreground">{partnership.partnerEmail}</p>
+                                <p className="font-medium">{displayName}</p>
+                                <p className="text-sm text-muted-foreground">{displayEmail}</p>
                                 {existingConversation && (
                                   <p className="text-xs text-primary mt-1">Already chatting</p>
                                 )}
@@ -302,7 +319,9 @@ export default function Messages() {
                   </ScrollArea>
                   {partnerships.filter(p => p.isActive).length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No active partnerships. Accept partnership invites to start messaging.
+                      {isEditor 
+                        ? "No active partnerships. Accept partnership invites to start messaging."
+                        : "No active partnerships. Invite editors to start messaging."}
                     </p>
                   )}
                 </div>
