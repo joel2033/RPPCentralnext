@@ -89,7 +89,7 @@
   .bg-rpp-red-lighter { background-color: var(--rpp-red-lighter); }
   .bg-rpp-red-pale { background-color: var(--rpp-red-pale); }
   .bg-rpp-red-palest { background-color: var(--rpp-red-palest); }
-  
+
   .bg-rpp-grey-darkest { background-color: var(--rpp-grey-darkest); }
   .bg-rpp-grey-dark { background-color: var(--rpp-grey-dark); }
   .bg-rpp-grey { background-color: var(--rpp-grey); }
@@ -97,48 +97,167 @@
   .bg-rpp-grey-lighter { background-color: var(--rpp-grey-lighter); }
   .bg-rpp-grey-lightest { background-color: var(--rpp-grey-lightest); }
   .bg-rpp-grey-pale { background-color: var(--rpp-grey-pale); }
-  
+
   /* RPP Brand Text Colors */
   .text-rpp-red { color: var(--rpp-red); }
   .text-rpp-red-dark { color: var(--rpp-red-dark); }
   .text-rpp-red-light { color: var(--rpp-red-light); }
-  
+
   .text-rpp-grey-darkest { color: var(--rpp-grey-darkest); }
   .text-rpp-grey-dark { color: var(--rpp-grey-dark); }
   .text-rpp-grey { color: var(--rpp-grey); }
   .text-rpp-grey-light { color: var(--rpp-grey-light); }
   .text-rpp-grey-lighter { color: var(--rpp-grey-lighter); }
-  
+
   /* RPP Brand Border Colors */
   .border-rpp-red { border-color: var(--rpp-red); }
   .border-rpp-red-dark { border-color: var(--rpp-red-dark); }
   .border-rpp-grey-lightest { border-color: var(--rpp-grey-lightest); }
-  
+
   /* Support Colors */
   .bg-support-yellow { background-color: var(--support-yellow); }
   .bg-support-green { background-color: var(--support-green); }
   .bg-support-blue { background-color: var(--support-blue); }
-  
+
   .text-support-yellow { color: var(--support-yellow); }
   .text-support-green { color: var(--support-green); }
   .text-support-blue { color: var(--support-blue); }
-  
+
   .border-support-yellow { border-color: var(--support-yellow); }
   .border-support-green { border-color: var(--support-green); }
   .border-support-blue { border-color: var(--support-blue); }
-  
-  /* Dashboard specific utilities */
-  .shadow-rpp-card { 
+
+  /* Modern Gradient Backgrounds */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, var(--rpp-red-main) 0%, var(--rpp-red-light) 100%);
+  }
+
+  .bg-gradient-primary-dark {
+    background: linear-gradient(135deg, var(--rpp-red-dark) 0%, var(--rpp-red-main) 100%);
+  }
+
+  .bg-gradient-accent {
+    background: linear-gradient(135deg, var(--rpp-red-palest) 0%, var(--rpp-red-pale) 100%);
+  }
+
+  .bg-gradient-radial {
+    background: radial-gradient(circle at top right, var(--rpp-red-palest) 0%, transparent 70%);
+  }
+
+  .bg-gradient-mesh {
+    background:
+      radial-gradient(at 0% 0%, var(--rpp-red-palest) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, var(--support-blue) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, var(--support-green) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, var(--support-yellow) 0px, transparent 50%);
+  }
+
+  /* Glassmorphism Effects */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  .glass-card-dark {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* Modern Card Shadows */
+  .shadow-rpp-card {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
+
   .shadow-rpp-card-hover {
     box-shadow: 0 12px 24px rgba(240, 90, 42, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
   }
-  
+
+  .shadow-modern {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .shadow-modern-lg {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  .shadow-modern-xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  }
+
+  .shadow-colored {
+    box-shadow: 0 10px 25px -5px rgba(240, 90, 42, 0.2), 0 8px 10px -6px rgba(240, 90, 42, 0.15);
+  }
+
+  .shadow-glow {
+    box-shadow: 0 0 20px rgba(240, 90, 42, 0.3), 0 0 40px rgba(240, 90, 42, 0.15);
+  }
+
+  /* Modern Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-slide-down {
+    animation: slideDown 0.4s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  .animate-bounce-in {
+    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Hover Effects */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 20px rgba(240, 90, 42, 0.4);
+  }
+
+  .hover-scale {
+    transition: transform 0.3s ease;
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
+
   /* Hover States */
   .hover\:bg-rpp-red-dark:hover { background-color: var(--rpp-red-dark); }
   .hover\:text-rpp-red-dark:hover { color: var(--rpp-red-dark); }
   .hover\:text-rpp-grey-darkest:hover { color: var(--rpp-grey-darkest); }
+
+  /* Smooth Transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .transition-bounce {
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
 }
 
 .sidebar-transition { 
@@ -170,4 +289,64 @@
 
 .nav-item.active .lucide {
   color: var(--rpp-red-main) !important;
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
 }

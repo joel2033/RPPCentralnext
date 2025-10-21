@@ -103,45 +103,45 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 h-16 bg-white shadow-md z-30 lg:left-64">
+    <div className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl shadow-modern border-b border-gray-100 z-30 lg:left-64">
       <div className="flex items-center justify-between h-full px-6">
         {/* Left Side */}
         <div className="flex items-center space-x-4">
           {/* Mobile Menu Button */}
-          <button 
+          <button
             onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-lg hover:bg-rpp-grey-bg"
+            className="lg:hidden p-2 rounded-xl hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent transition-smooth"
           >
             <Menu className="w-5 h-5 text-rpp-grey-dark" />
           </button>
           {/* Page Title */}
-          <h1 className="text-rpp-grey-dark text-[32px] font-medium">Dashboard</h1>
+          <h1 className="text-rpp-grey-dark text-3xl font-bold bg-gradient-to-r from-rpp-grey-darkest to-rpp-red-dark bg-clip-text text-transparent">Dashboard</h1>
         </div>
 
         {/* Right Side */}
         <div className="flex items-center space-x-4">
           {/* Search Bar */}
-          <div className="hidden md:block relative">
-            <input 
-              type="text" 
-              placeholder="Search for jobs, people, orders or projects" 
-              className="w-96 px-4 py-2 border border-rpp-grey-border rounded-lg focus:outline-none focus:ring-2 focus:ring-rpp-red-main"
+          <div className="hidden md:block relative group">
+            <input
+              type="text"
+              placeholder="Search for jobs, people, orders or projects"
+              className="w-96 px-4 py-2.5 pl-10 border border-rpp-grey-lightest rounded-2xl focus:outline-none focus:ring-2 focus:ring-rpp-red-main/50 focus:border-rpp-red-main bg-gray-50/50 hover:bg-white transition-smooth text-sm"
             />
-            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light group-focus-within:text-rpp-red-main transition-colors" />
           </div>
 
           {/* Notifications */}
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
             <DropdownMenuTrigger asChild>
-              <button 
-                className="relative p-2 rounded-lg hover:bg-rpp-grey-bg"
+              <button
+                className="relative p-2.5 rounded-2xl hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent transition-smooth group"
                 data-testid="button-notifications"
                 aria-expanded={showNotifications}
               >
-                <Bell className="w-5 h-5 text-rpp-grey-dark" />
+                <Bell className="w-5 h-5 text-rpp-grey-dark group-hover:text-rpp-red-main transition-colors" />
                 {unreadCount > 0 && (
-                  <Badge 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-rpp-red-main text-white"
+                  <Badge
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-gradient-to-br from-rpp-red-main to-rpp-red-dark text-white shadow-colored animate-pulse"
                     data-testid="badge-unread-count"
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -215,21 +215,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-rpp-grey-bg">
-                <div className="w-8 h-8 bg-rpp-red-main rounded-full flex items-center justify-center text-white text-sm font-medium">
+              <button className="group flex items-center space-x-3 p-2 pr-3 rounded-2xl hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent transition-smooth shadow-sm hover:shadow-md">
+                <div className="w-9 h-9 bg-gradient-to-br from-rpp-red-main to-rpp-red-dark rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-colored group-hover:scale-110 transition-smooth">
                   {userData ? getUserInitials(userData.email) : 'U'}
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-sm font-medium text-rpp-grey-dark">
+                  <div className="text-sm font-semibold text-rpp-grey-dark group-hover:text-rpp-red-dark transition-colors">
                     {userData?.email || 'User'}
                   </div>
-                  <Badge 
-                    className={`text-xs mt-1 ${userData ? getRoleColor(userData.role) : 'bg-rpp-grey-bg text-rpp-grey-dark'}`}
+                  <Badge
+                    className={`text-xs mt-1 font-semibold ${userData ? getRoleColor(userData.role) : 'bg-rpp-grey-bg text-rpp-grey-dark'}`}
                   >
                     {userData?.role || 'Unknown'}
                   </Badge>
                 </div>
-                <ChevronDown className="w-4 h-4 text-rpp-grey-light" />
+                <ChevronDown className="w-4 h-4 text-rpp-grey-light group-hover:text-rpp-red-main transition-colors" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end">

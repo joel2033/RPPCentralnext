@@ -34,65 +34,78 @@ export default function Dashboard() {
   const activeClients = customers.length || 42;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-rpp-red-palest/30 p-8 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial opacity-40 -z-10" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-rpp-red-palest/40 to-transparent opacity-40 -z-10" />
+
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Welcome Section */}
-        <div className="space-y-2">
-          <h1 className="text-3xl text-rpp-grey-dark tracking-tight font-medium">
+        <div className="space-y-2 animate-slide-down">
+          <h1 className="text-4xl text-rpp-grey-dark tracking-tight font-bold bg-clip-text bg-gradient-to-r from-rpp-grey-darkest to-rpp-red-dark">
             Welcome back, {settings?.personalProfile?.firstName || userData?.email?.split('@')[0] || 'there'}! 👋
           </h1>
-          <p className="text-rpp-grey-medium font-medium text-[18px]">Here's a snapshot of your media business today</p>
+          <p className="text-rpp-grey text-lg font-medium">Here's a snapshot of your media business today</p>
         </div>
 
         {/* Stats Cards - 4 columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatsCard
-            title="Active Projects"
-            value={activeProjects.toString()}
-            change="+12%"
-            changeType="positive"
-            icon={FolderOpen}
-            iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
-            iconColor="text-rpp-red-main"
-          />
-          <StatsCard
-            title="Media Assets"
-            value={totalLeads.toString()}
-            change="+23%"
-            changeType="positive"
-            icon={Users}
-            iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
-            iconColor="text-support-green"
-          />
-          <StatsCard
-            title="Monthly Revenue"
-            value={`$${monthlyRevenue}k`}
-            change="+8%"
-            changeType="positive"
-            icon={DollarSign}
-            iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
-            iconColor="text-rpp-red-main"
-          />
-          <StatsCard
-            title="Active Clients"
-            value={activeClients.toString()}
-            change="+5%"
-            changeType="positive"
-            icon={UserCheck}
-            iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
-            iconColor="text-support-green"
-          />
+          <div className="animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+            <StatsCard
+              title="Active Projects"
+              value={activeProjects.toString()}
+              change="+12%"
+              changeType="positive"
+              icon={FolderOpen}
+              iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
+              iconColor="text-rpp-red-main"
+            />
+          </div>
+          <div className="animate-slide-up" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+            <StatsCard
+              title="Media Assets"
+              value={totalLeads.toString()}
+              change="+23%"
+              changeType="positive"
+              icon={Users}
+              iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
+              iconColor="text-support-green"
+            />
+          </div>
+          <div className="animate-slide-up" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+            <StatsCard
+              title="Monthly Revenue"
+              value={`$${monthlyRevenue}k`}
+              change="+8%"
+              changeType="positive"
+              icon={DollarSign}
+              iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
+              iconColor="text-rpp-red-main"
+            />
+          </div>
+          <div className="animate-slide-up" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
+            <StatsCard
+              title="Active Clients"
+              value={activeClients.toString()}
+              change="+5%"
+              changeType="positive"
+              icon={UserCheck}
+              iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
+              iconColor="text-support-green"
+            />
+          </div>
         </div>
 
         {/* Needs Your Attention & Revenue Overview - 2 Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
           <NeedsAttention />
           <RevenueChart />
         </div>
 
         {/* Services This Month */}
-        <Card className="bg-white border-0 rounded-3xl shadow-rpp-card" data-testid="card-services">
-          <CardContent className="p-7">
+        <div className="animate-fade-in" style={{ animationDelay: '0.6s', animationFillMode: 'both' }}>
+          <Card className="bg-white border-0 rounded-3xl shadow-modern hover:shadow-modern-lg transition-smooth hover-lift overflow-hidden" data-testid="card-services">
+            <CardContent className="p-7">
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Services This Month</h2>
@@ -170,6 +183,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

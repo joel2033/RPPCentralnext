@@ -16,20 +16,25 @@ const data = [
 
 export function RevenueChart() {
   return (
-    <Card className="bg-white border-0 rounded-3xl shadow-rpp-card">
-      <CardHeader className="p-6 pb-4">
+    <Card className="group bg-white border-0 rounded-3xl shadow-modern hover:shadow-modern-lg transition-smooth overflow-hidden relative">
+      {/* Decorative gradient background */}
+      <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-green-50/60 to-transparent rounded-full blur-3xl -z-0" />
+
+      <CardHeader className="p-6 pb-4 relative z-10">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-rpp-grey-dark mb-1">Revenue Overview</h2>
             <p className="text-sm text-rpp-grey-medium font-medium">Monthly performance trends</p>
           </div>
           <div className="text-right">
-            <p className="text-[44px] font-bold text-rpp-grey-dark leading-none tracking-tight">$29.8k</p>
-            <p className="text-xs text-rpp-grey-light font-semibold uppercase tracking-wider">This Month</p>
+            <p className="text-[44px] font-bold bg-gradient-to-br from-rpp-grey-darkest to-support-green bg-clip-text text-transparent leading-none tracking-tight group-hover:scale-105 transition-smooth inline-block">
+              $29.8k
+            </p>
+            <p className="text-xs text-rpp-grey-light font-semibold uppercase tracking-wider mt-1">This Month</p>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-6 pb-6">
+      <CardContent className="px-6 pb-6 relative z-10">
         <ResponsiveContainer width="100%" height={280}>
           <AreaChart data={data}>
             <defs>

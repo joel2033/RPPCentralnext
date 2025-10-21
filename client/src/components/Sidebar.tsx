@@ -109,14 +109,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="collapsible-menu">
             <button
               onClick={() => toggleMenu(item.title)}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-full hover:bg-rpp-grey-bg transition-all duration-200 text-rpp-grey-dark"
+              className="group/btn w-full flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent transition-smooth text-rpp-grey-dark hover:text-rpp-red-dark"
             >
               <div className="flex items-center">
-                <Icon className="w-5 h-5 mr-3" />
-                <span className="font-medium">{item.title}</span>
+                <Icon className="w-5 h-5 mr-3 group-hover/btn:scale-110 transition-smooth" />
+                <span className="font-semibold">{item.title}</span>
               </div>
-              <ChevronDown 
-                className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+              <ChevronDown
+                className={`w-4 h-4 transition-smooth ${isExpanded ? 'rotate-180' : ''}`}
               />
             </button>
             <div 
@@ -130,11 +130,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <Link
                       href={child.path!}
                       onClick={onClose}
-                      className={`nav-item block px-4 py-3 text-sm rounded-full transition-all duration-200 ${
-                        isActive(child.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-rpp-grey-bg'
+                      className={`nav-item group/link block px-4 py-3 text-sm rounded-2xl transition-smooth relative overflow-hidden ${
+                        isActive(child.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-gradient-to-r hover:from-rpp-red-palest/60 hover:to-transparent hover:text-rpp-red-dark'
                       }`}
                     >
-                      {child.title}
+                      <span className="relative z-10 font-medium">{child.title}</span>
                     </Link>
                   </li>
                 ))}
@@ -150,17 +150,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <Link
           href={item.path!}
           onClick={onClose}
-          className={`nav-item flex items-center justify-between px-4 py-3 rounded-full transition-all duration-200 ${
-            isActive(item.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-rpp-grey-bg'
+          className={`nav-item group/link flex items-center justify-between px-4 py-3 rounded-2xl transition-smooth relative overflow-hidden ${
+            isActive(item.path!) ? 'active' : 'text-rpp-grey-dark hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent hover:text-rpp-red-dark'
           }`}
           data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
         >
-          <div className="flex items-center">
-            <Icon className="w-5 h-5 mr-3" />
-            <span className="font-medium">{item.title}</span>
+          <div className="flex items-center relative z-10">
+            <Icon className="w-5 h-5 mr-3 group-hover/link:scale-110 transition-smooth" />
+            <span className="font-semibold">{item.title}</span>
           </div>
           {item.title === "Messages" && unreadData && unreadData.count > 0 && (
-            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-rpp-red-main text-white text-xs font-bold rounded-full">
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-gradient-to-br from-rpp-red-main to-rpp-red-dark text-white text-xs font-bold rounded-full shadow-colored animate-pulse relative z-10">
               {unreadData.count > 99 ? '99+' : unreadData.count}
             </span>
           )}
@@ -170,19 +170,23 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   return (
-    <div className={`fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-50 transform ${
+    <div className={`fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-white via-gray-50/30 to-white shadow-modern-xl z-50 transform ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
-    } lg:translate-x-0 sidebar-transition`}>
-      <div className="flex flex-col h-full">
+    } lg:translate-x-0 sidebar-transition overflow-hidden`}>
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-radial opacity-30 -z-10" />
+      <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-rpp-red-palest/40 to-transparent opacity-40 -z-10" />
+
+      <div className="flex flex-col h-full relative z-10">
         {/* Logo Header */}
-        <div className="p-6 border-b border-rpp-grey-border">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
-              <Camera className="w-4 h-4 text-white" />
+        <div className="p-6 border-b border-rpp-grey-lightest/60">
+          <div className="flex items-center space-x-3 group cursor-pointer">
+            <div className="w-10 h-10 bg-gradient-to-br from-rpp-red-main to-rpp-red-dark rounded-xl flex items-center justify-center shadow-colored group-hover:scale-110 transition-smooth">
+              <Camera className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-rpp-grey-dark">RPP</h1>
-              <p className="text-xs text-rpp-grey-light">Photography</p>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-rpp-grey-darkest to-rpp-red-dark bg-clip-text text-transparent">RPP</h1>
+              <p className="text-xs text-rpp-grey font-medium">Photography</p>
             </div>
           </div>
         </div>
@@ -195,13 +199,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* Sign Out */}
-        <div className="p-4 border-t border-rpp-grey-border">
-          <button 
+        <div className="p-4 border-t border-rpp-grey-lightest/60 bg-gradient-to-t from-gray-50/50 to-transparent">
+          <button
             onClick={handleSignOut}
-            className="w-full flex items-center px-3 py-2 text-left rounded-lg hover:bg-rpp-grey-bg transition-colors text-rpp-grey-dark"
+            className="group/signout w-full flex items-center px-4 py-3 text-left rounded-2xl hover:bg-gradient-to-r hover:from-red-50 hover:to-red-100/50 transition-smooth text-rpp-grey-dark hover:text-red-600 shadow-sm hover:shadow-md"
           >
-            <LogOut className="w-5 h-5 mr-3" />
-            <span>Sign Out</span>
+            <LogOut className="w-5 h-5 mr-3 group-hover/signout:scale-110 transition-smooth" />
+            <span className="font-semibold">Sign Out</span>
           </button>
         </div>
       </div>

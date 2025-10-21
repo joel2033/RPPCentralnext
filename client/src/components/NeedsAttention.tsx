@@ -110,28 +110,31 @@ export function NeedsAttention() {
   const unreadCount = attentionItems.filter(item => item.unread).length;
 
   return (
-    <Card className="bg-white border-0 rounded-3xl shadow-rpp-card overflow-hidden">
-      <CardHeader className="p-6 pb-4">
-        <div className="flex items-start justify-between">
+    <Card className="group bg-white border-0 rounded-3xl shadow-modern hover:shadow-modern-lg transition-smooth overflow-hidden">
+      <CardHeader className="p-6 pb-4 relative">
+        {/* Decorative gradient */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rpp-red-palest/40 to-transparent rounded-full blur-2xl -z-0" />
+
+        <div className="flex items-start justify-between relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light flex items-center justify-center">
-              <Bell className="w-5 h-5 text-rpp-red-main" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light flex items-center justify-center shadow-sm group-hover:scale-110 transition-smooth">
+              <Bell className="w-6 h-6 text-rpp-red-main" />
             </div>
             <div>
-              <CardTitle className="flex items-center gap-2.5 text-base font-bold text-rpp-grey-dark">
+              <CardTitle className="flex items-center gap-2.5 text-lg font-bold text-rpp-grey-dark">
                 Needs Your Attention
                 {unreadCount > 0 && (
-                  <Badge variant="destructive" className="rounded-full h-5 min-w-5 px-1.5 text-xs font-bold">
+                  <Badge variant="destructive" className="rounded-full h-5 min-w-5 px-1.5 text-xs font-bold animate-pulse">
                     {unreadCount}
                   </Badge>
                 )}
               </CardTitle>
-              <p className="text-xs text-rpp-grey-medium mt-1">
+              <p className="text-sm text-rpp-grey-medium mt-1 font-medium">
                 Stay on top of your important tasks
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="text-sm font-semibold text-rpp-red-main hover:bg-rpp-red-lighter rounded-xl">
+          <Button variant="ghost" size="sm" className="text-sm font-semibold text-rpp-red-main hover:bg-rpp-red-palest rounded-xl transition-smooth">
             View All
           </Button>
         </div>
@@ -144,8 +147,8 @@ export function NeedsAttention() {
               return (
                 <div
                   key={item.id}
-                  className={`p-4 hover:bg-rpp-grey-bg/50 transition-colors cursor-pointer relative ${
-                    item.unread ? 'bg-rpp-red-lighter/20' : ''
+                  className={`p-4 hover:bg-gradient-to-r hover:from-rpp-red-palest/60 hover:to-transparent transition-smooth cursor-pointer relative group/item ${
+                    item.unread ? 'bg-rpp-red-palest/30' : ''
                   }`}
                   data-testid={`attention-item-${item.id}`}
                 >
@@ -154,9 +157,9 @@ export function NeedsAttention() {
                   )}
                   
                   <div className="flex gap-3 pl-2">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 group-hover/item:scale-110 transition-smooth shadow-sm ${
                       item.type === 'revision' ? 'bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light' :
-                      item.type === 'approval' ? 'bg-gradient-to-br from-support-green/20 to-support-green/10' :
+                      item.type === 'approval' ? 'bg-gradient-to-br from-green-100 to-green-50' :
                       item.type === 'deadline' ? 'bg-gradient-to-br from-amber-100 to-amber-50' :
                       'bg-gradient-to-br from-muted to-muted/60'
                     }`}>
@@ -210,10 +213,10 @@ export function NeedsAttention() {
 
         <Separator />
         
-        <div className="p-4">
-          <Button 
-            variant="outline" 
-            className="w-full rounded-xl border-border/50 hover:border-rpp-red-main/50 hover:bg-rpp-red-lighter h-10 text-sm font-semibold"
+        <div className="p-4 bg-gradient-to-t from-gray-50/50 to-transparent">
+          <Button
+            variant="outline"
+            className="w-full rounded-xl border-border/50 hover:border-rpp-red-main hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-rpp-red-pale/50 h-11 text-sm font-semibold transition-smooth hover:shadow-md"
             data-testid="button-mark-all-read"
           >
             <CheckCircle2 className="w-4 h-4 mr-2" />
