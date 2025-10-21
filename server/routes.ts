@@ -1288,6 +1288,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invite.partnerEmail
       );
       
+      // Create conversation between partner and editor
+      const existingConversation = await storage.getConversationByParticipants(invite.partnerId, currentUser.uid);
+      
+      if (!existingConversation) {
+        const conversationData = insertConversationSchema.parse({
+          partnerId: invite.partnerId,
+          editorId: currentUser.uid,
+          partnerName: invite.partnerName,
+          editorName: invite.editorStudioName || currentUser.email,
+          partnerEmail: invite.partnerEmail,
+          editorEmail: currentUser.email,
+        });
+        
+        await storage.createConversation(conversationData);
+      }
+      
       // Update invite status
       await updatePartnershipInviteStatus(token, "accepted");
       
