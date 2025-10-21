@@ -3432,6 +3432,23 @@
       "updatedAt": "2025-10-17T13:09:26.943Z"
     }
   },
+  "conversations": {
+    "41529384-55f9-4d0c-ae25-4ef962795c44": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "partnerName": "",
+      "editorName": "May Studios",
+      "partnerEmail": "May@maystudios.com",
+      "editorEmail": "May@maystudios.com",
+      "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "lastMessageAt": "2025-10-21T10:45:20.233Z",
+      "lastMessageText": null,
+      "partnerUnreadCount": 0,
+      "editorUnreadCount": 0,
+      "createdAt": "2025-10-21T10:45:20.233Z"
+    }
+  },
+  "messages": {},
   "orderCounter": 16,
   "orderReservations": {
     "#00001": {
