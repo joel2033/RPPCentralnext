@@ -283,6 +283,40 @@ export const deliveryEmails = pgTable("delivery_emails", {
   sentAt: timestamp("sent_at").defaultNow(),
 });
 
+// Conversations (message threads between users)
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  // Participants (stored as Firebase UIDs)
+  participant1Id: text("participant1_id").notNull(),
+  participant1Name: text("participant1_name").notNull(),
+  participant1Role: text("participant1_role").notNull(), // "partner", "admin", "photographer", "editor"
+  participant2Id: text("participant2_id").notNull(),
+  participant2Name: text("participant2_name").notNull(),
+  participant2Role: text("participant2_role").notNull(),
+  // Last message info for preview
+  lastMessageContent: text("last_message_content"),
+  lastMessageAt: timestamp("last_message_at"),
+  lastMessageBy: text("last_message_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Messages (individual messages in conversations)
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id).notNull(),
+  senderId: text("sender_id").notNull(), // Firebase UID
+  senderName: text("sender_name").notNull(),
+  senderRole: text("sender_role").notNull(),
+  content: text("content").notNull(),
+  // Read receipts
+  readBy: text("read_by"), // JSON array of user IDs who read this message
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -412,6 +446,18 @@ export const insertDeliveryEmailSchema = createInsertSchema(deliveryEmails).omit
   sentAt: true,
 });
 
+export const insertConversationSchema = createInsertSchema(conversations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMessageSchema = createInsertSchema(messages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -466,3 +512,9 @@ export type InsertJobReview = z.infer<typeof insertJobReviewSchema>;
 
 export type DeliveryEmail = typeof deliveryEmails.$inferSelect;
 export type InsertDeliveryEmail = z.infer<typeof insertDeliveryEmailSchema>;
+
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+
+export type Message = typeof messages.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
