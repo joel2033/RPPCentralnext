@@ -14,14 +14,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  Building2, 
-  User, 
-  Clock, 
-  MapPin, 
-  FileText, 
-  Globe, 
-  Calendar, 
+import {
+  Building2,
+  User,
+  Clock,
+  MapPin,
+  FileText,
+  Globe,
+  Calendar,
   Settings as SettingsIcon,
   Camera,
   Upload,
@@ -35,7 +35,10 @@ import {
   Handshake,
   Wand2,
   Plus,
-  X
+  X,
+  Plug,
+  CheckCircle2,
+  XCircle
 } from "lucide-react";
 
 interface Partnership {
@@ -271,7 +274,7 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-11 lg:grid-cols-11">
+        <TabsList className="grid w-full grid-cols-12 lg:grid-cols-12">
           <TabsTrigger value="business-profile" className="flex flex-col items-center gap-1 p-3">
             <Building2 className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Business</span>
@@ -315,6 +318,10 @@ export default function Settings() {
           <TabsTrigger value="partnerships" className="flex flex-col items-center gap-1 p-3">
             <Handshake className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Partners</span>
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="flex flex-col items-center gap-1 p-3">
+            <Plug className="w-4 h-4" />
+            <span className="text-xs hidden sm:block">Integrations</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1367,7 +1374,7 @@ export default function Settings() {
                                 </p>
                               </div>
                             </div>
-                            <Badge 
+                            <Badge
                               variant="default"
                               className="bg-green-100 text-green-800 hover:bg-green-100"
                               data-testid={`badge-partnership-status-${index}`}
@@ -1388,17 +1395,17 @@ export default function Settings() {
                           </div>
 
                           <div className="mt-4 pt-3 border-t flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="flex-1"
                               data-testid={`button-contact-partner-${index}`}
                             >
                               <Mail className="w-4 h-4 mr-1" />
                               Contact
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               data-testid={`button-view-partnership-${index}`}
                             >
@@ -1411,6 +1418,429 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plug className="w-5 h-5" />
+                Integrations
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Connect your business with third-party applications to streamline your workflow
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Accounting & Finance */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Accounting & Finance</h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Xero */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Xero</h4>
+                            <p className="text-xs text-gray-600">Accounting</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync invoices, expenses, and financial data with Xero accounting software.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-xero"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Xero
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* QuickBooks */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-green-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">QuickBooks</h4>
+                            <p className="text-xs text-gray-600">Accounting</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Automatically sync your invoices and payments with QuickBooks.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-quickbooks"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect QuickBooks
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Email & Communication */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Email & Communication</h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Gmail */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                            <Mail className="w-6 h-6 text-red-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Gmail</h4>
+                            <p className="text-xs text-gray-600">Email</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Send emails and notifications directly through your Gmail account.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-gmail"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Gmail
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Outlook */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Mail className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Outlook</h4>
+                            <p className="text-xs text-gray-600">Email</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Integrate with Microsoft Outlook for email communication.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-outlook"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Outlook
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Calendar & Scheduling */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Calendar & Scheduling</h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Google Calendar */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-yellow-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Google Calendar</h4>
+                            <p className="text-xs text-gray-600">Scheduling</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync appointments and bookings with Google Calendar.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-google-calendar"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Google Calendar
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Outlook Calendar */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Outlook Calendar</h4>
+                            <p className="text-xs text-gray-600">Scheduling</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Keep your appointments synced with Microsoft Outlook Calendar.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-outlook-calendar"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Outlook Calendar
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Apple Calendar */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-gray-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Apple Calendar</h4>
+                            <p className="text-xs text-gray-600">Scheduling</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync bookings and appointments with Apple Calendar (iCal).
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-apple-calendar"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Apple Calendar
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Cloud Storage */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Cloud Storage</h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Google Drive */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Upload className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Google Drive</h4>
+                            <p className="text-xs text-gray-600">Storage</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Store and share files directly with Google Drive.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-google-drive"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Google Drive
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Dropbox */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Upload className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Dropbox</h4>
+                            <p className="text-xs text-gray-600">Storage</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync and share files using Dropbox cloud storage.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-dropbox"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Dropbox
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* OneDrive */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Upload className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">OneDrive</h4>
+                            <p className="text-xs text-gray-600">Storage</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Integrate with Microsoft OneDrive for file storage.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-onedrive"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect OneDrive
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              {/* CRM & Marketing */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">CRM & Marketing</h3>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {/* Mailchimp */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <Mail className="w-6 h-6 text-yellow-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Mailchimp</h4>
+                            <p className="text-xs text-gray-600">Email Marketing</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync customers and send marketing campaigns via Mailchimp.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-mailchimp"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Mailchimp
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* HubSpot */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Users className="w-6 h-6 text-orange-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">HubSpot</h4>
+                            <p className="text-xs text-gray-600">CRM</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Sync customer data and track interactions with HubSpot CRM.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-hubspot"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect HubSpot
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Salesforce */}
+                  <Card className="border-2">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <Users className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Salesforce</h4>
+                            <p className="text-xs text-gray-600">CRM</p>
+                          </div>
+                        </div>
+                        <XCircle className="w-5 h-5 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Connect with Salesforce to manage customer relationships.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        data-testid="button-connect-salesforce"
+                      >
+                        <Plug className="w-4 h-4 mr-2" />
+                        Connect Salesforce
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
