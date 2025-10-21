@@ -62,16 +62,20 @@ export default function Customers() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="p-6 min-h-screen bg-gradient-to-br from-gray-50 via-white to-rpp-red-palest/20 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-radial opacity-30 -z-10" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-tr from-blue-100/30 to-transparent opacity-40 -z-10" />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 animate-slide-down">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Manage your customer relationships and contact information</p>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-rpp-grey-darkest to-rpp-red-dark bg-clip-text text-transparent">Customers</h2>
+          <p className="text-sm text-rpp-grey font-medium mt-1">Manage your customer relationships and contact information</p>
         </div>
-        <Button 
+        <Button
           onClick={() => setShowCreateModal(true)}
-          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-full px-6"
+          className="bg-gradient-to-r from-rpp-red-main to-rpp-red-dark hover:from-rpp-red-dark hover:to-rpp-red-main text-white rounded-2xl px-6 h-11 font-semibold shadow-colored hover:shadow-glow transition-smooth"
           data-testid="button-new-customer"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -79,21 +83,21 @@ export default function Customers() {
         </Button>
       </div>
       {/* Search and Filter Bar */}
-      <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-6 glass-strong rounded-3xl p-5 shadow-modern animate-fade-in border-white/50">
         <div className="flex items-center gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative flex-1 max-w-md group">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light group-focus-within:text-rpp-red-main transition-colors" />
             <Input
               placeholder="Search customers..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl"
+              className="pl-10 border-rpp-grey-lightest rounded-2xl bg-white/80 focus:bg-white transition-smooth"
               data-testid="input-search-customers"
             />
           </div>
-          
+
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-48 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-category-filter">
+            <SelectTrigger className="w-48 border-rpp-grey-lightest rounded-2xl bg-white/80 hover:bg-white transition-smooth" data-testid="select-category-filter">
               <div className="flex items-center">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue />
@@ -110,21 +114,29 @@ export default function Customers() {
             </SelectContent>
           </Select>
         </div>
-        
-        <div className="text-sm text-gray-500 dark:text-gray-400 ml-4" data-testid="text-customers-count">
+
+        <div className="text-sm text-rpp-grey font-semibold ml-4 bg-rpp-red-palest/50 px-4 py-2 rounded-full" data-testid="text-customers-count">
           {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''} found
         </div>
       </div>
       {/* Customer Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCustomers.map((customer: any) => (
-          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 rounded-3xl" data-testid={`customer-card-${customer.id}`}>
-            <CardContent className="p-6">
-              {/* Customer Info */}
-              <div className="flex items-start gap-4 mb-6">
-                <div className={`w-14 h-14 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0`}>
-                  {getInitials(customer.firstName, customer.lastName)}
-                </div>
+        {filteredCustomers.map((customer: any, index: number) => (
+          <div
+            key={customer.id}
+            className="animate-slide-up"
+            style={{ animationDelay: `${index * 0.05}s`, animationFillMode: 'both' }}
+          >
+            <Card className="group border-0 hover:shadow-colored transition-smooth hover-lift bg-white rounded-3xl shadow-modern overflow-hidden relative" data-testid={`customer-card-${customer.id}`}>
+              {/* Gradient overlay on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-rpp-red-palest/0 to-rpp-red-pale/0 group-hover:from-rpp-red-palest/30 group-hover:to-rpp-red-pale/10 transition-all duration-500 -z-0" />
+
+              <CardContent className="p-6 relative z-10">
+                {/* Customer Info */}
+                <div className="flex items-start gap-4 mb-6">
+                  <div className={`w-14 h-14 ${getAvatarColor(customer.firstName)} rounded-2xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-md group-hover:scale-110 transition-smooth`}>
+                    {getInitials(customer.firstName, customer.lastName)}
+                  </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-gray-900 dark:text-white font-medium text-[20px]" data-testid={`text-customer-name-${customer.id}`}>
                     {customer.firstName} {customer.lastName}
@@ -182,9 +194,9 @@ export default function Customers() {
 
               {/* View Profile Button */}
               <Link href={`/customers/${customer.id}`}>
-                <Button 
-                  variant="outline" 
-                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl"
+                <Button
+                  variant="outline"
+                  className="w-full border-rpp-grey-lightest hover:border-rpp-red-main hover:bg-gradient-to-r hover:from-rpp-red-palest hover:to-transparent text-rpp-grey-dark hover:text-rpp-red-dark rounded-2xl font-semibold transition-smooth"
                   data-testid={`button-view-profile-${customer.id}`}
                 >
                   View Profile
@@ -192,6 +204,7 @@ export default function Customers() {
               </Link>
             </CardContent>
           </Card>
+          </div>
         ))}
       </div>
       {/* Empty States */}
