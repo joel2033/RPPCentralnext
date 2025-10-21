@@ -5580,6 +5580,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get total unread message count for current user (MUST come before /:id route)
+  app.get("/api/conversations/unread-count", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { uid, partnerId } = req.user!;
+
+      const count = await storage.getUnreadMessageCount(uid, partnerId);
+
+      res.json({ count });
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
   // Get a specific conversation with its messages
   app.get("/api/conversations/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -5730,20 +5744,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error marking messages as read:", error);
       res.status(500).json({ error: "Failed to mark messages as read" });
-    }
-  });
-
-  // Get total unread message count for current user
-  app.get("/api/conversations/unread-count", requireAuth, async (req: AuthenticatedRequest, res) => {
-    try {
-      const { uid, partnerId } = req.user!;
-
-      const count = await storage.getUnreadMessageCount(uid, partnerId);
-
-      res.json({ count });
-    } catch (error: any) {
-      console.error("Error fetching unread count:", error);
-      res.status(500).json({ error: "Failed to fetch unread count" });
     }
   });
 
