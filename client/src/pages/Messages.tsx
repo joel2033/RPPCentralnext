@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Send, Search, User } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MessageSquare, Send, Search, User, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { Conversation, Message } from "@shared/schema";
+
+interface UserListItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+}
 
 export default function Messages() {
   // Try to get auth from both contexts
@@ -22,16 +31,39 @@ export default function Messages() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [newConvoDialogOpen, setNewConvoDialogOpen] = useState(false);
 
   // Fetch conversations
   const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
   });
 
+  // Fetch available users to message
+  const { data: users = [] } = useQuery<UserListItem[]>({
+    queryKey: ["/api/users"],
+  });
+
   // Fetch messages for selected conversation
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: [`/api/conversations/${selectedConversation}/messages`],
     enabled: !!selectedConversation,
+  });
+
+  // Create new conversation mutation
+  const createConversationMutation = useMutation({
+    mutationFn: async (user: UserListItem) => {
+      const res = await apiRequest("/api/conversations", "POST", {
+        recipientId: user.id,
+        recipientName: `${user.firstName} ${user.lastName}`,
+        recipientRole: user.role,
+      });
+      return res.json();
+    },
+    onSuccess: (conversation) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      setSelectedConversation(conversation.id);
+      setNewConvoDialogOpen(false);
+    },
   });
 
   // Send message mutation
@@ -57,6 +89,25 @@ export default function Messages() {
     if (!newMessage.trim()) return;
     sendMessageMutation.mutate(newMessage);
   };
+
+  const handleStartConversation = (user: UserListItem) => {
+    // Check if conversation already exists
+    const existingConv = conversations.find(
+      (conv) =>
+        (conv.participant1Id === user.id && conv.participant2Id === userData?.uid) ||
+        (conv.participant2Id === user.id && conv.participant1Id === userData?.uid)
+    );
+
+    if (existingConv) {
+      setSelectedConversation(existingConv.id);
+      setNewConvoDialogOpen(false);
+    } else {
+      createConversationMutation.mutate(user);
+    }
+  };
+
+  // Filter out current user from the users list
+  const availableUsers = users.filter((user) => user.id !== userData?.uid);
 
   // Filter conversations based on search
   const filteredConversations = conversations.filter((conv) => {
@@ -113,11 +164,58 @@ export default function Messages() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-[1400px] mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl text-rpp-grey-dark tracking-tight font-medium">Messages</h1>
-          <p className="text-rpp-grey-medium font-medium text-[18px]">
-            Communicate with your team members and editors
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl text-rpp-grey-dark tracking-tight font-medium">Messages</h1>
+            <p className="text-rpp-grey-medium font-medium text-[18px]">
+              Communicate with your team members and editors
+            </p>
+          </div>
+
+          <Dialog open={newConvoDialogOpen} onOpenChange={setNewConvoDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-rpp-red-main hover:bg-rpp-red-dark text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                New Message
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Start New Conversation</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-500">Select a team member to message:</p>
+                <ScrollArea className="max-h-[300px]">
+                  <div className="space-y-1">
+                    {availableUsers.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        No team members available
+                      </p>
+                    ) : (
+                      availableUsers.map((user) => (
+                        <button
+                          key={user.id}
+                          onClick={() => handleStartConversation(user)}
+                          disabled={createConversationMutation.isPending}
+                          className="w-full p-3 text-left hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-3"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light flex items-center justify-center flex-shrink-0">
+                            <User className="h-5 w-5 text-rpp-red-main" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-rpp-grey-dark">
+                              {user.firstName} {user.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Card className="bg-white border-0 rounded-3xl shadow-rpp-card overflow-hidden">
@@ -144,7 +242,7 @@ export default function Messages() {
                     <MessageSquare className="h-12 w-12 text-gray-300 mb-3" />
                     <p className="text-sm text-gray-500">No conversations yet</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      Start a conversation from your team page
+                      Click "New Message" above to start a conversation
                     </p>
                   </div>
                 ) : (
