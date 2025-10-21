@@ -48,11 +48,11 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding & Features */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-rpp-red-main via-rpp-red-dark to-rpp-red-darker relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#FF6B35] via-[#FF4500] to-[#CC3700] relative overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0">
           <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-rpp-red-light/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-orange-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
         </div>
 
         <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full">
@@ -104,7 +104,7 @@ export default function Login() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-rpp-red-main rounded-xl mb-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#FF6B35] to-[#FF4500] rounded-xl mb-4">
               <Camera className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-rpp-grey-dark">RPP Central</h1>
