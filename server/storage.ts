@@ -1,5 +1,5 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type Customer,
   type InsertCustomer,
@@ -34,7 +34,11 @@ import {
   type JobReview,
   type InsertJobReview,
   type DeliveryEmail,
-  type InsertDeliveryEmail
+  type InsertDeliveryEmail,
+  type Conversation,
+  type InsertConversation,
+  type Message,
+  type InsertMessage
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -207,6 +211,17 @@ export interface IStorage {
   // Revision Management
   incrementRevisionRound(orderId: string): Promise<Order | undefined>;
   getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined>;
+
+  // Conversations
+  getConversations(userId: string, partnerId: string): Promise<Conversation[]>;
+  getConversation(id: string): Promise<Conversation | undefined>;
+  getOrCreateConversation(participant1Id: string, participant1Name: string, participant1Role: string, participant2Id: string, participant2Name: string, participant2Role: string, partnerId: string): Promise<Conversation>;
+  updateConversationLastMessage(conversationId: string, lastMessageContent: string, lastMessageBy: string): Promise<Conversation | undefined>;
+
+  // Messages
+  getMessages(conversationId: string): Promise<Message[]>;
+  createMessage(message: InsertMessage): Promise<Message>;
+  markMessageAsRead(messageId: string, userId: string): Promise<Message | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -228,6 +243,8 @@ export class MemStorage implements IStorage {
   private fileComments: Map<string, FileComment>;
   private jobReviews: Map<string, JobReview>;
   private deliveryEmails: Map<string, DeliveryEmail>;
+  private conversations: Map<string, Conversation>;
+  private messages: Map<string, Message>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
   private dataFile = join(process.cwd(), 'storage-data.json');
@@ -251,6 +268,8 @@ export class MemStorage implements IStorage {
     this.fileComments = new Map();
     this.jobReviews = new Map();
     this.deliveryEmails = new Map();
+    this.conversations = new Map();
+    this.messages = new Map();
     this.orderReservations = new Map();
     this.loadFromFile();
   }
@@ -2260,6 +2279,137 @@ export class MemStorage implements IStorage {
       usedRounds,
       remainingRounds: Math.max(0, maxRounds - usedRounds),
     };
+  }
+
+  // Conversations Implementation
+  async getConversations(userId: string, partnerId: string): Promise<Conversation[]> {
+    return Array.from(this.conversations.values())
+      .filter(conv =>
+        conv.partnerId === partnerId &&
+        (conv.participant1Id === userId || conv.participant2Id === userId)
+      )
+      .sort((a, b) => (b.lastMessageAt?.getTime() || 0) - (a.lastMessageAt?.getTime() || 0));
+  }
+
+  async getConversation(id: string): Promise<Conversation | undefined> {
+    return this.conversations.get(id);
+  }
+
+  async getOrCreateConversation(
+    participant1Id: string,
+    participant1Name: string,
+    participant1Role: string,
+    participant2Id: string,
+    participant2Name: string,
+    participant2Role: string,
+    partnerId: string
+  ): Promise<Conversation> {
+    // Check if conversation already exists between these two users
+    const existing = Array.from(this.conversations.values()).find(conv =>
+      conv.partnerId === partnerId &&
+      ((conv.participant1Id === participant1Id && conv.participant2Id === participant2Id) ||
+       (conv.participant1Id === participant2Id && conv.participant2Id === participant1Id))
+    );
+
+    if (existing) {
+      return existing;
+    }
+
+    // Create new conversation
+    const id = randomUUID();
+    const newConversation: Conversation = {
+      id,
+      partnerId,
+      participant1Id,
+      participant1Name,
+      participant1Role,
+      participant2Id,
+      participant2Name,
+      participant2Role,
+      lastMessageContent: null,
+      lastMessageAt: null,
+      lastMessageBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.conversations.set(id, newConversation);
+    this.saveToFile();
+    return newConversation;
+  }
+
+  async updateConversationLastMessage(
+    conversationId: string,
+    lastMessageContent: string,
+    lastMessageBy: string
+  ): Promise<Conversation | undefined> {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      return undefined;
+    }
+    const updatedConversation = {
+      ...conversation,
+      lastMessageContent,
+      lastMessageAt: new Date(),
+      lastMessageBy,
+      updatedAt: new Date(),
+    };
+    this.conversations.set(conversationId, updatedConversation);
+    this.saveToFile();
+    return updatedConversation;
+  }
+
+  // Messages Implementation
+  async getMessages(conversationId: string): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(msg => msg.conversationId === conversationId)
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const id = randomUUID();
+    const newMessage: Message = {
+      ...message,
+      id,
+      readBy: message.readBy || null,
+      readAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.messages.set(id, newMessage);
+    this.saveToFile();
+    return newMessage;
+  }
+
+  async markMessageAsRead(messageId: string, userId: string): Promise<Message | undefined> {
+    const message = this.messages.get(messageId);
+    if (!message) {
+      return undefined;
+    }
+
+    // Parse existing readBy array or create new one
+    let readByArray: string[] = [];
+    if (message.readBy) {
+      try {
+        readByArray = JSON.parse(message.readBy);
+      } catch {
+        readByArray = [];
+      }
+    }
+
+    // Add userId if not already in the array
+    if (!readByArray.includes(userId)) {
+      readByArray.push(userId);
+    }
+
+    const updatedMessage = {
+      ...message,
+      readBy: JSON.stringify(readByArray),
+      readAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.messages.set(messageId, updatedMessage);
+    this.saveToFile();
+    return updatedMessage;
   }
 }
 

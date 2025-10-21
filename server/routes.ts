@@ -1,8 +1,8 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertCustomerSchema, 
+import {
+  insertCustomerSchema,
   insertProductSchema,
   insertJobSchema,
   insertOrderSchema,
@@ -16,7 +16,9 @@ import {
   insertCustomerEditingPreferenceSchema,
   insertFileCommentSchema,
   insertJobReviewSchema,
-  insertDeliveryEmailSchema
+  insertDeliveryEmailSchema,
+  insertConversationSchema,
+  insertMessageSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -1187,7 +1189,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to mark all notifications as read" });
     }
   });
-  
+
+  // Messaging Routes - All endpoints require authentication
+
+  // Get all conversations for the authenticated user
+  app.get("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const conversations = await storage.getConversations(
+        req.user.uid,
+        req.user.partnerId || ''
+      );
+
+      res.json(conversations);
+    } catch (error) {
+      console.error("Failed to fetch conversations:", error);
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  // Get or create a conversation with another user
+  const createConversationSchema = z.object({
+    recipientId: z.string(),
+    recipientName: z.string(),
+    recipientRole: z.string(),
+  });
+
+  app.post("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { recipientId, recipientName, recipientRole } = createConversationSchema.parse(req.body);
+
+      // Get user document to get sender's name
+      const userDoc = await getUserDocument(req.user.uid);
+      if (!userDoc) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const conversation = await storage.getOrCreateConversation(
+        req.user.uid,
+        `${userDoc.firstName} ${userDoc.lastName}`,
+        req.user.role,
+        recipientId,
+        recipientName,
+        recipientRole,
+        req.user.partnerId || ''
+      );
+
+      res.status(201).json(conversation);
+    } catch (error) {
+      console.error("Failed to create conversation:", error);
+      res.status(500).json({ error: "Failed to create conversation" });
+    }
+  });
+
+  // Get messages in a conversation
+  app.get("/api/conversations/:id/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Verify user has access to this conversation
+      const conversation = await storage.getConversation(req.params.id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      if (
+        conversation.participant1Id !== req.user.uid &&
+        conversation.participant2Id !== req.user.uid
+      ) {
+        return res.status(403).json({ error: "Access denied to this conversation" });
+      }
+
+      const messages = await storage.getMessages(req.params.id);
+      res.json(messages);
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  // Send a message in a conversation
+  const sendMessageSchema = z.object({
+    content: z.string().min(1),
+  });
+
+  app.post("/api/conversations/:id/messages", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { content } = sendMessageSchema.parse(req.body);
+
+      // Verify user has access to this conversation
+      const conversation = await storage.getConversation(req.params.id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
+      if (
+        conversation.participant1Id !== req.user.uid &&
+        conversation.participant2Id !== req.user.uid
+      ) {
+        return res.status(403).json({ error: "Access denied to this conversation" });
+      }
+
+      // Get user document to get sender's name
+      const userDoc = await getUserDocument(req.user.uid);
+      if (!userDoc) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Create the message
+      const message = await storage.createMessage({
+        conversationId: req.params.id,
+        senderId: req.user.uid,
+        senderName: `${userDoc.firstName} ${userDoc.lastName}`,
+        senderRole: req.user.role,
+        content,
+      });
+
+      // Update conversation's last message
+      await storage.updateConversationLastMessage(
+        req.params.id,
+        content,
+        req.user.uid
+      );
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Mark a message as read
+  app.patch("/api/messages/:id/read", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const message = await storage.markMessageAsRead(req.params.id, req.user.uid);
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      res.json(message);
+    } catch (error) {
+      console.error("Failed to mark message as read:", error);
+      res.status(500).json({ error: "Failed to mark message as read" });
+    }
+  });
+
   // Partnership Management Routes
 
   // Partner invites editor to partnership
