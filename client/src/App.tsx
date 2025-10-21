@@ -26,7 +26,6 @@ import Partnerships from "@/pages/Partnerships";
 import TeamMembers from "@/pages/TeamMembers";
 import TeamAssignments from "@/pages/TeamAssignments";
 import Settings from "@/pages/Settings";
-import Messages from "@/pages/Messages";
 import NotFound from "@/pages/not-found";
 
 // Public Pages (No Auth Required)
@@ -104,13 +103,6 @@ function Router() {
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorInvitations />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      <Route path="/editor/messages">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <Messages />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
@@ -225,15 +217,8 @@ function Router() {
           </Layout>
         </ProtectedRoute>
       </Route>
-
-      <Route path="/messages">
-        <ProtectedRoute route="/messages">
-          <Layout>
-            <Messages />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
-
+      
+      
       <Route path="/settings">
         <ProtectedRoute route="/settings">
           <Layout>
