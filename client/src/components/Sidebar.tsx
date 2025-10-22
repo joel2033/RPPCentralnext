@@ -62,7 +62,6 @@ const menuItems: MenuItem[] = [
       { title: "Product Management", icon: Box, path: "/products" },
     ],
   },
-  { title: "Team Members", icon: Users, path: "/team" },
   { title: "Messages", icon: MessageSquare, path: "/messages" },
   { title: "Settings", icon: Settings, path: "/settings" },
 ];

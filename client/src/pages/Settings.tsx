@@ -39,7 +39,8 @@ import {
   X,
   Plug,
   CheckCircle2,
-  XCircle
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 
 interface Partnership {
@@ -223,6 +224,14 @@ export default function Settings() {
     editorStudioName: ""
   });
 
+  // Team member invitation form data
+  const [teamInviteDialogOpen, setTeamInviteDialogOpen] = useState(false);
+  const [teamMemberFormData, setTeamMemberFormData] = useState({
+    name: "",
+    email: "",
+    role: "photographer" as "admin" | "photographer"
+  });
+
   // Load saved settings from backend
   const { data: savedSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['/api/settings']
@@ -267,6 +276,13 @@ export default function Settings() {
   // Fetch active partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
     queryKey: ['/api/partnerships'],
+    retry: false
+  });
+
+  // Fetch team members
+  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery<any[]>({
+    queryKey: [`/api/team/invites/${userData?.partnerId}`],
+    enabled: !!userData?.partnerId,
     retry: false
   });
 
@@ -320,6 +336,37 @@ export default function Settings() {
     }
   });
 
+  // Team member invitation mutation
+  const teamInviteMutation = useMutation({
+    mutationFn: async (data: { name: string; email: string; role: string }) => {
+      return apiRequest("/api/team/invite", "POST", data);
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Team Member Invited!",
+        description: `Invitation sent successfully.`,
+      });
+
+      // Clear form
+      setTeamMemberFormData({
+        name: "",
+        email: "",
+        role: "photographer"
+      });
+      setTeamInviteDialogOpen(false);
+
+      // Invalidate team members cache
+      queryClient.invalidateQueries({ queryKey: [`/api/team/invites/${userData?.partnerId}`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Send Invitation",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleSaveSettings = () => {
     saveSettingsMutation.mutate({
       personalProfile,
@@ -347,6 +394,26 @@ export default function Settings() {
   const handleEditorInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setEditorFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleTeamMemberInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!teamMemberFormData.name.trim() || !teamMemberFormData.email.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in both name and email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    teamInviteMutation.mutate(teamMemberFormData);
+  };
+
+  const handleTeamMemberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setTeamMemberFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const formatDate = (timestamp: any) => {
@@ -448,6 +515,10 @@ export default function Settings() {
           <TabsTrigger value="integrations" className="flex flex-col items-center gap-1 p-3">
             <Plug className="w-4 h-4" />
             <span className="text-xs hidden sm:block">Integrations</span>
+          </TabsTrigger>
+          <TabsTrigger value="team-members" className="flex flex-col items-center gap-1 p-3">
+            <Users className="w-4 h-4" />
+            <span className="text-xs hidden sm:block">Team</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1941,6 +2012,182 @@ export default function Settings() {
                   </Card>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Team Members Tab */}
+        <TabsContent value="team-members" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Team Members
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Invite and manage your team members
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Current User Card */}
+              <div className="border rounded-lg p-4 bg-blue-50">
+                <h3 className="text-sm font-medium mb-3">Your Account</h3>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{userData?.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge className={userData?.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
+                        {userData?.role}
+                      </Badge>
+                      <Badge className="bg-blue-100 text-blue-800">Owner</Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Team Members List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Team Members ({teamMembers.length})</h3>
+                  <Button
+                    onClick={() => setTeamInviteDialogOpen(true)}
+                    className="bg-[#f2572c] hover:bg-[#d94820] text-white"
+                    data-testid="button-invite-team-member"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Invite Team Member
+                  </Button>
+                </div>
+
+                {teamMembersLoading ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  </div>
+                ) : teamMembers.length === 0 ? (
+                  <div className="text-center py-8 border rounded-lg">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50 text-gray-400" />
+                    <p className="text-gray-600">No team members invited yet</p>
+                    <p className="text-sm text-gray-500">Click "Invite Team Member" to get started</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {teamMembers.map((member, index) => (
+                      <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                            <Mail className="h-5 w-5 text-gray-500" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{member.email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge className={member.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
+                                {member.role}
+                              </Badge>
+                              <Badge className={member.status === 'accepted' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
+                                {member.status}
+                              </Badge>
+                              {member.status === 'pending' && (
+                                <div className="flex items-center text-sm text-gray-500">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Pending
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {member.status === 'pending' && member.inviteToken && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              const inviteLink = `${window.location.origin}/signup?invite=${member.inviteToken}`;
+                              navigator.clipboard.writeText(inviteLink);
+                              toast({
+                                title: "Link Copied!",
+                                description: "Invite link copied to clipboard",
+                              });
+                            }}
+                          >
+                            Copy Link
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Team Member Invite Dialog */}
+              {teamInviteDialogOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 className="text-lg font-medium mb-4">Invite Team Member</h3>
+                    <form onSubmit={handleTeamMemberInviteSubmit} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="teamMemberName">Name</Label>
+                        <Input
+                          id="teamMemberName"
+                          name="name"
+                          value={teamMemberFormData.name}
+                          onChange={handleTeamMemberInputChange}
+                          placeholder="Enter team member's name"
+                          required
+                          disabled={teamInviteMutation.isPending}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="teamMemberEmail">Email</Label>
+                        <Input
+                          id="teamMemberEmail"
+                          name="email"
+                          type="email"
+                          value={teamMemberFormData.email}
+                          onChange={handleTeamMemberInputChange}
+                          placeholder="Enter email address"
+                          required
+                          disabled={teamInviteMutation.isPending}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="teamMemberRole">Role</Label>
+                        <Select 
+                          value={teamMemberFormData.role} 
+                          onValueChange={(value: "admin" | "photographer") => setTeamMemberFormData(prev => ({ ...prev, role: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="photographer">Photographer</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex gap-3 pt-4">
+                        <Button 
+                          type="button"
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={() => setTeamInviteDialogOpen(false)}
+                          disabled={teamInviteMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          className="flex-1 bg-[#f2572c] hover:bg-[#d94820] text-white"
+                          disabled={teamInviteMutation.isPending}
+                        >
+                          {teamInviteMutation.isPending ? 'Sending...' : 'Send Invite'}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
