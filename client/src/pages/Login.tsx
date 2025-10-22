@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { signInUser } from '@/lib/firebaseAuth';
 import { Eye, EyeOff, Camera, Video, Layout, Home } from 'lucide-react';
+import rppLogo from '@assets/RPP Logo_2020_1761124400304.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -51,13 +52,11 @@ export default function Login() {
           {/* Logo Section */}
           <div className="flex justify-center lg:justify-start">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Camera className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">RPP Central</h1>
-                <p className="text-sm text-muted-foreground">Real Property Photography</p>
-              </div>
+              <img 
+                src={rppLogo} 
+                alt="RPP Logo" 
+                className="h-12 w-auto"
+              />
             </div>
           </div>
 
