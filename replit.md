@@ -39,8 +39,9 @@ Preferred communication style: Simple, everyday language.
 
 ## File Storage
 - **Provider**: Firebase Storage.
-- **Use Cases**: Profile images, product images, job cover images, completed deliverables with subfolder organization, and general file uploads.
+- **Use Cases**: Profile images, product images, business logos, job cover images, completed deliverables with subfolder organization, and general file uploads.
 - **Integration**: Direct Firebase SDK integration in the frontend and backend logic for organizing files with job-specific and tokenized folder structures.
+- **Business Logo Upload**: Partners can upload custom business logos in Settings > Business Profile. Logos are stored in Firebase Storage at `logos/{partnerId}_{timestamp}_{filename}` path with 2MB max file size and 200x200px recommended dimensions. Logo URL is saved in `businessProfile.logoUrl` field and displayed on login page.
 - **Cover Images**: Jobs can have optional cover images uploaded during creation, stored in Firebase Storage under `cover-images/` path. Displayed as placeholder (🏠 emoji) when not set, and as the actual image when uploaded.
 - **Thumbnail Optimization**: Cover images automatically generate client-side thumbnails (400x400px max, 80% quality) using Canvas API for faster page loading. Thumbnails stored in `cover-images/thumbnails/` subdirectory. Original full-resolution images retained for downloads and detailed viewing. Memory-optimized with automatic Object URL cleanup to prevent leaks during long sessions.
 
