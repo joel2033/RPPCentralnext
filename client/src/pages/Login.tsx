@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,24 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [, setLocation] = useLocation();
+  const [logoUrl, setLogoUrl] = useState(rppLogo);
+
+  // Fetch business logo on component mount (public endpoint or from cached settings)
+  useEffect(() => {
+    const fetchBusinessLogo = async () => {
+      try {
+        // Try to fetch from public endpoint if available
+        // For now, we'll use the default logo
+        // In a production app, you might have a public endpoint to fetch business branding
+        setLogoUrl(rppLogo);
+      } catch (error) {
+        console.error('Error fetching business logo:', error);
+        setLogoUrl(rppLogo);
+      }
+    };
+
+    fetchBusinessLogo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +71,7 @@ export default function Login() {
           <div className="flex justify-center lg:justify-start">
             <div className="flex items-center space-x-3">
               <img 
-                src={rppLogo} 
+                src={logoUrl} 
                 alt="RPP Logo" 
                 className="h-12 w-auto"
               />
