@@ -72,15 +72,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const { logout } = useAuth();
 
+  // Fetch business settings for logo
+  const { data: settingsData } = useQuery<{ businessProfile: { logoUrl?: string; businessName?: string } }>({
+    queryKey: ["/api/settings"],
+  });
+
   // Fetch unread message count
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/conversations/unread-count"],
     refetchInterval: 5000, // Poll every 5 seconds for updates
-  });
-
-  // Fetch business settings for logo
-  const { data: settingsData } = useQuery<{ businessProfile: { logoUrl?: string; businessName?: string } }>({
-    queryKey: ["/api/settings"],
   });
 
   const toggleMenu = (title: string) => {
@@ -182,12 +182,21 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo Header */}
         <div className="p-6 border-b border-rpp-grey-border">
           <div className="flex items-center justify-center">
-            <img 
-              src="/rpp-logo.svg" 
-              alt="Real Property Photography" 
-              className="h-12 w-auto object-contain"
-              data-testid="sidebar-logo"
-            />
+            {settingsData?.businessProfile?.logoUrl ? (
+              <img 
+                src={settingsData.businessProfile.logoUrl} 
+                alt={settingsData.businessProfile.businessName || "Business Logo"} 
+                className="h-12 w-auto object-contain"
+                data-testid="sidebar-logo"
+              />
+            ) : (
+              <img 
+                src="/rpp-logo.svg" 
+                alt="Real Property Photography" 
+                className="h-12 w-auto object-contain"
+                data-testid="sidebar-logo"
+              />
+            )}
           </div>
         </div>
 
