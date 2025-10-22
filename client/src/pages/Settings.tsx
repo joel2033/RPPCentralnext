@@ -556,62 +556,6 @@ export default function Settings() {
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Branding Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Branding</h3>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
-                    {businessProfile.logoUrl ? (
-                      <img 
-                        src={businessProfile.logoUrl} 
-                        alt="Business Logo" 
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <Camera className="w-8 h-8 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Business Logo</Label>
-                    <div className="flex gap-2">
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                        className="hidden"
-                        data-testid="input-logo-upload"
-                      />
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => logoInputRef.current?.click()}
-                        disabled={uploading}
-                        data-testid="button-upload-logo"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        {uploading ? "Uploading..." : "Upload Logo"}
-                      </Button>
-                      {businessProfile.logoUrl && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={handleLogoRemove}
-                          disabled={uploading}
-                          data-testid="button-remove-logo"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Recommended size: 200x200px. Max file size: 2MB
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {/* Business Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
