@@ -43,11 +43,6 @@ export default function Login() {
     }
   };
 
-  const fillDemoCredentials = () => {
-    setEmail('sarah@rpp.com');
-    setPassword('demo123');
-  };
-
   return (
     <div className="min-h-screen flex">
       {/* LEFT SECTION: LOGIN FORM */}
@@ -149,34 +144,6 @@ export default function Login() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
-
-          {/* Demo Credentials Section */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/50"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-background px-2 text-muted-foreground">
-                Demo Credentials
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-muted/30 rounded-xl p-4 space-y-2 border border-border/50">
-            <p className="text-xs text-muted-foreground">
-              Use any email and password to access the demo dashboard
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={fillDemoCredentials}
-                className="text-xs bg-background border border-border/50 rounded-lg px-3 py-1.5 hover:bg-accent transition-colors"
-                data-testid="button-fill-demo"
-              >
-                Fill Demo Account
-              </button>
-            </div>
-          </div>
 
           {/* Footer Section */}
           <div className="text-center">
