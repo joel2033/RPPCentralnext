@@ -542,33 +542,29 @@ export default function DeliveryPage() {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              {deliveryData?.branding?.logoUrl ? (
-                <img 
-                  src={deliveryData.branding.logoUrl} 
-                  alt={deliveryData.branding.businessName || 'Business Logo'} 
-                  className="h-12 w-auto object-contain"
-                  data-testid="delivery-logo"
-                />
-              ) : (
-                <div className="flex flex-col">
-                  <div className="text-2xl font-bold text-primary">
-                    {deliveryData?.branding?.businessName || 'RPP'}
-                  </div>
-                  <div className="text-xs tracking-wider text-muted-foreground">
-                    REAL PROPERTY<br />PHOTOGRAPHY
-                  </div>
-                </div>
-              )}
+              <img 
+                src="/rpp-logo.svg" 
+                alt="Real Property Photography" 
+                className="h-12 w-auto object-contain"
+                data-testid="delivery-logo"
+              />
             </div>
 
-            {/* Delivered Badge */}
-            <Badge
-              className="bg-green-50 text-green-700 border-green-200 px-4 py-2"
-              data-testid="badge-delivered"
-            >
-              <CheckCircle2 className="h-3 w-3 mr-1" />
-              Delivered
-            </Badge>
+            {/* Right side: Delivered Badge + RPP Logo */}
+            <div className="flex items-center gap-4">
+              <Badge
+                className="bg-green-50 text-green-700 border-green-200 px-4 py-2"
+                data-testid="badge-delivered"
+              >
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Delivered
+              </Badge>
+              <img 
+                src="/rpp-logo.svg" 
+                alt="Real Property Photography" 
+                className="h-10 w-auto object-contain"
+              />
+            </div>
           </div>
 
           {/* Quick Navigation Bar */}

@@ -1,0 +1,7 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60">
+  <path d="M10 50 L10 10 L30 2 L30 42 Z" fill="#F05A2A"/>
+  <path d="M30 42 L50 50 L50 10 L30 2 Z" fill="#C04821"/>
+  <text x="60" y="25" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#595F65">REAL PROPERTY</text>
+  <text x="60" y="45" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#595F65">PHOTOGRAPHY</text>
+</svg>

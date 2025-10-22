@@ -181,25 +181,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="flex flex-col h-full">
         {/* Logo Header */}
         <div className="p-6 border-b border-rpp-grey-border">
-          <div className="flex items-center space-x-3">
-            {settingsData?.businessProfile?.logoUrl ? (
-              <img 
-                src={settingsData.businessProfile.logoUrl} 
-                alt="Business Logo" 
-                className="w-10 h-10 object-contain"
-                data-testid="sidebar-logo"
-              />
-            ) : (
-              <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
-                <Camera className="w-4 h-4 text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-lg font-semibold text-rpp-grey-dark">
-                {settingsData?.businessProfile?.businessName || 'RPP'}
-              </h1>
-              <p className="text-xs text-rpp-grey-light">Photography</p>
-            </div>
+          <div className="flex items-center justify-center">
+            <img 
+              src="/rpp-logo.svg" 
+              alt="Real Property Photography" 
+              className="h-12 w-auto object-contain"
+              data-testid="sidebar-logo"
+            />
           </div>
         </div>
 
