@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
 import { useAuth } from "@/contexts/AuthContext";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   Building2,
   User,
@@ -84,12 +85,113 @@ export default function Settings() {
     phone: "(555) 123-4567",
     address: "123 Business St, City, State 12345",
     website: "https://realpropertyphoto.com",
-    description: "We provide high-quality real estate photography services to help showcase properties in their best light."
+    description: "We provide high-quality real estate photography services to help showcase properties in their best light.",
+    logoUrl: ""
   });
 
+  // State for logo upload
+  const [uploading, setUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Default max revision rounds
   const [defaultMaxRevisionRounds, setDefaultMaxRevisionRounds] = useState(2);
+
+  // Handle logo upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userData?.partnerId) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please upload an image file (PNG, JPG, SVG, etc.)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Logo must be less than 2MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setUploading(true);
+
+      // Upload to Firebase Storage
+      const storage = getStorage();
+      const timestamp = Date.now();
+      const fileName = `${userData.partnerId}_${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `logos/${fileName}`);
+
+      await uploadBytes(storageRef, file);
+      const logoUrl = await getDownloadURL(storageRef);
+
+      // Update business profile state
+      setBusinessProfile(prev => ({ ...prev, logoUrl }));
+
+      toast({
+        title: "Logo Uploaded!",
+        description: "Your business logo has been uploaded successfully.",
+      });
+    } catch (error: any) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle logo removal
+  const handleLogoRemove = async () => {
+    if (!businessProfile.logoUrl) return;
+
+    try {
+      setUploading(true);
+
+      // Delete from Firebase Storage
+      const storage = getStorage();
+      const logoRef = ref(storage, businessProfile.logoUrl);
+      
+      try {
+        await deleteObject(logoRef);
+      } catch (error) {
+        // File might not exist, continue anyway
+        console.log('Logo file not found in storage, proceeding with removal');
+      }
+
+      // Update business profile state
+      setBusinessProfile(prev => ({ ...prev, logoUrl: '' }));
+
+      toast({
+        title: "Logo Removed",
+        description: "Your business logo has been removed.",
+      });
+    } catch (error: any) {
+      console.error('Error removing logo:', error);
+      toast({
+        title: "Removal Failed",
+        description: error.message || "Failed to remove logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
@@ -434,20 +536,50 @@ export default function Settings() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Branding</h3>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
-                    <Camera className="w-8 h-8 text-gray-400" />
+                  <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
+                    {businessProfile.logoUrl ? (
+                      <img 
+                        src={businessProfile.logoUrl} 
+                        alt="Business Logo" 
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <Camera className="w-8 h-8 text-gray-400" />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Business Logo</Label>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        data-testid="input-logo-upload"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={uploading}
+                        data-testid="button-upload-logo"
+                      >
                         <Upload className="w-4 h-4 mr-2" />
-                        Upload Logo
+                        {uploading ? "Uploading..." : "Upload Logo"}
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove
-                      </Button>
+                      {businessProfile.logoUrl && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleLogoRemove}
+                          disabled={uploading}
+                          data-testid="button-remove-logo"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove
+                        </Button>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500">
                       Recommended size: 200x200px. Max file size: 2MB
