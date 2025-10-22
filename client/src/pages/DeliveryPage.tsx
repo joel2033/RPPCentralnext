@@ -543,7 +543,7 @@ export default function DeliveryPage() {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <img 
-                src="/rpp-logo.svg" 
+                src="/assets/rpp-logo.png" 
                 alt="Real Property Photography" 
                 className="h-12 w-auto object-contain"
                 data-testid="delivery-logo"
@@ -560,7 +560,7 @@ export default function DeliveryPage() {
                 Delivered
               </Badge>
               <img 
-                src="/rpp-logo.svg" 
+                src="/assets/rpp-logo.png" 
                 alt="Real Property Photography" 
                 className="h-10 w-auto object-contain"
               />
