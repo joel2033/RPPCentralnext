@@ -134,11 +134,23 @@ export default function Settings() {
       const logoUrl = await getDownloadURL(storageRef);
 
       // Update business profile state
-      setBusinessProfile(prev => ({ ...prev, logoUrl }));
+      const updatedProfile = { ...businessProfile, logoUrl };
+      setBusinessProfile(updatedProfile);
+
+      // Automatically save settings after upload
+      await apiRequest("/api/settings", "PUT", {
+        personalProfile,
+        businessProfile: updatedProfile,
+        businessHours,
+        defaultMaxRevisionRounds
+      });
+
+      // Invalidate cache to refresh logo everywhere
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
 
       toast({
         title: "Logo Uploaded!",
-        description: "Your business logo has been uploaded successfully.",
+        description: "Your business logo has been uploaded and saved successfully.",
       });
     } catch (error: any) {
       console.error('Error uploading logo:', error);
@@ -175,11 +187,23 @@ export default function Settings() {
       }
 
       // Update business profile state
-      setBusinessProfile(prev => ({ ...prev, logoUrl: '' }));
+      const updatedProfile = { ...businessProfile, logoUrl: '' };
+      setBusinessProfile(updatedProfile);
+
+      // Automatically save settings after removal
+      await apiRequest("/api/settings", "PUT", {
+        personalProfile,
+        businessProfile: updatedProfile,
+        businessHours,
+        defaultMaxRevisionRounds
+      });
+
+      // Invalidate cache to refresh logo everywhere
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
 
       toast({
         title: "Logo Removed",
-        description: "Your business logo has been removed.",
+        description: "Your business logo has been removed and saved successfully.",
       });
     } catch (error: any) {
       console.error('Error removing logo:', error);

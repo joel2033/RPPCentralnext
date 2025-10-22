@@ -89,6 +89,10 @@ interface DeliveryPageData {
     submittedByEmail: string;
     submittedAt: string;
   };
+  branding?: {
+    businessName: string;
+    logoUrl: string;
+  };
 }
 
 interface FileComment {
@@ -537,11 +541,24 @@ export default function DeliveryPage() {
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex flex-col">
-              <div className="text-2xl font-bold text-primary">RPP</div>
-              <div className="text-xs tracking-wider text-muted-foreground">
-                REAL PROPERTY<br />PHOTOGRAPHY
-              </div>
+            <div className="flex items-center gap-3">
+              {deliveryData?.branding?.logoUrl ? (
+                <img 
+                  src={deliveryData.branding.logoUrl} 
+                  alt={deliveryData.branding.businessName || 'Business Logo'} 
+                  className="h-12 w-auto object-contain"
+                  data-testid="delivery-logo"
+                />
+              ) : (
+                <div className="flex flex-col">
+                  <div className="text-2xl font-bold text-primary">
+                    {deliveryData?.branding?.businessName || 'RPP'}
+                  </div>
+                  <div className="text-xs tracking-wider text-muted-foreground">
+                    REAL PROPERTY<br />PHOTOGRAPHY
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Delivered Badge */}

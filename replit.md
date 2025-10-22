@@ -6,6 +6,11 @@ This project is a full-stack SaaS platform designed for Real Property Photograph
 
 Preferred communication style: Simple, everyday language.
 
+## Demo Login Credentials
+- Partner Account:
+  - Email: adamson652@gmail.com
+  - Password: benjiman1993
+
 # System Architecture
 
 ## Frontend Architecture

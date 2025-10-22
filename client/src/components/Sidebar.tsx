@@ -78,6 +78,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     refetchInterval: 5000, // Poll every 5 seconds for updates
   });
 
+  // Fetch business settings for logo
+  const { data: settingsData } = useQuery<{ businessProfile: { logoUrl?: string; businessName?: string } }>({
+    queryKey: ["/api/settings"],
+  });
+
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev => 
       prev.includes(title) 
@@ -177,11 +182,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo Header */}
         <div className="p-6 border-b border-rpp-grey-border">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
-              <Camera className="w-4 h-4 text-white" />
-            </div>
+            {settingsData?.businessProfile?.logoUrl ? (
+              <img 
+                src={settingsData.businessProfile.logoUrl} 
+                alt="Business Logo" 
+                className="w-10 h-10 object-contain"
+                data-testid="sidebar-logo"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
+                <Camera className="w-4 h-4 text-white" />
+              </div>
+            )}
             <div>
-              <h1 className="text-lg font-semibold text-rpp-grey-dark">RPP</h1>
+              <h1 className="text-lg font-semibold text-rpp-grey-dark">
+                {settingsData?.businessProfile?.businessName || 'RPP'}
+              </h1>
               <p className="text-xs text-rpp-grey-light">Photography</p>
             </div>
           </div>
