@@ -550,7 +550,7 @@ export default function DeliveryPage() {
               />
             </div>
 
-            {/* Right side: Delivered Badge + RPP Logo */}
+            {/* Right side: Delivered Badge */}
             <div className="flex items-center gap-4">
               <Badge
                 className="bg-green-50 text-green-700 border-green-200 px-4 py-2"
@@ -559,11 +559,6 @@ export default function DeliveryPage() {
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Delivered
               </Badge>
-              <img 
-                src="/assets/rpp-logo.png" 
-                alt="Real Property Photography" 
-                className="h-10 w-auto object-contain"
-              />
             </div>
           </div>
 
