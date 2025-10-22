@@ -55,7 +55,7 @@ export default function Login() {
               <img 
                 src={rppLogo} 
                 alt="RPP Logo" 
-                className="h-12 w-auto"
+                className="h-20 w-auto"
               />
             </div>
           </div>
