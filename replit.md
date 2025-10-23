@@ -76,14 +76,22 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
   - **Security Model**: Clear separation - public endpoints only accept deliveryToken, authenticated endpoints only accept jobId with proper auth headers. No way to bypass security with guessable identifiers.
   - **Smart Routing**: DeliveryPage component detects auth state and automatically tries authenticated preview first (for partners), then falls back to public delivery endpoint. All mutations route to appropriate endpoints based on preview mode.
   - **Preview Button**: JobCard "Preview" button uses `deliveryToken || jobId` to support both scenarios. Visible with !important CSS overrides.
-- **Messaging System**: Bidirectional messaging functionality between partners and editors:
+- **Messaging System**: Bidirectional messaging functionality between partners and editors with order-aware conversations:
+  - **Order-Aware Conversations**: Conversations can be linked to specific orders via optional `orderId` field. Database enforces uniqueness: only 1 conversation per (contact + order) pair, but allows multiple general conversations per contact.
   - **Automatic Conversation Creation**: When editors accept partnership invitations, a conversation is automatically created between the partner and editor
-  - **Manual Conversation Initiation**: Both partners and editors can start new conversations with their active partnership connections via "New Conversation" button
-  - **Smart Conversation Reuse**: Duplicate prevention - selecting an existing conversation participant opens the existing conversation instead of creating a new one
+  - **Manual Conversation Initiation**: Partners can start new conversations with editors or team members via "New Conversation" button. Supports both order-specific and general conversations.
+  - **Conversation Types**:
+    - **Order-Specific**: Linked to a specific order for discussing editing requirements, progress, and feedback
+    - **General**: Not linked to any order, for general communication between partners and contacts
   - **Role-Adaptive UI**: Messages component adapts based on user role - shows editors for partners, partners for editors
   - **Partnership-Gated Access**: "New Conversation" button only appears when user has at least one active partnership
+  - **UI Improvements** (October 2025):
+    - Card-based visual separation for conversation list and messages area
+    - Order dropdown displays "order number • address" format (e.g., "#00001 • 123 Main St")
+    - Contact dropdown organized with "Editors" and "Team Members" sections using SelectGroup
+    - Team members included in contact list alongside editors for unified messaging
   - **Storage**: Conversations and messages stored in PostgreSQL, partnerships stored in Firestore
-  - **API Endpoints**: GET /api/partnerships (partners), GET /api/editor/partnerships (editors), POST /api/conversations (both roles)
+  - **API Endpoints**: GET /api/partnerships (partners), GET /api/editor/partnerships (editors), POST /api/conversations (both roles), GET /api/team/invites/:partnerId (team members)
 
 # External Dependencies
 
