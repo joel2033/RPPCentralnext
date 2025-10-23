@@ -653,7 +653,7 @@ export default function Messages() {
                         <div
                           className="max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md rounded-br-sm text-[#a3a4a5] bg-[#fcdcd4]"
                         >
-                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                          <p className="whitespace-pre-wrap break-words text-[18px] text-[#313941] bg-[#fcdcd4]">
                             {message.content}
                           </p>
                           <p
