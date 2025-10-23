@@ -2924,6 +2924,18 @@
       "id": "fc2b0a64-6474-414e-b41a-439c2761005f",
       "createdAt": "2025-10-23T12:40:15.509Z",
       "readAt": null
+    },
+    "0e41adaa-89b4-47fe-a926-add261f1ec98": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "new_message",
+      "title": "New Message",
+      "body": "You have a new message from adamson652@gmail.com",
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "read": false,
+      "id": "0e41adaa-89b4-47fe-a926-add261f1ec98",
+      "createdAt": "2025-10-23T12:57:53.015Z",
+      "readAt": null
     }
   },
   "activities": {
@@ -3816,10 +3828,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T12:40:15.495Z",
-      "lastMessageText": "Simple editor unread test",
+      "lastMessageAt": "2025-10-23T12:57:53.003Z",
+      "lastMessageText": "Editor unread fix test message",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 24,
+      "editorUnreadCount": 25,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -4791,6 +4803,17 @@
       "id": "3155c577-3c4c-4dcf-9a85-93cf88a81e10",
       "readAt": null,
       "createdAt": "2025-10-23T12:40:15.483Z"
+    },
+    "7a7d9e04-14d5-42f5-843b-4631c5e0a9c5": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "Editor unread fix test message",
+      "id": "7a7d9e04-14d5-42f5-843b-4631c5e0a9c5",
+      "readAt": null,
+      "createdAt": "2025-10-23T12:57:52.997Z"
     }
   },
   "orderCounter": 16,
