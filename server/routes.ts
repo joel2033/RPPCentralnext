@@ -4325,6 +4325,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "File not found in this job" });
       }
 
+      // Get the order for this file
+      const order = await storage.getOrder(file.orderId);
+
       // Create comment scoped to this job/file
       const validated = insertFileCommentSchema.parse({
         fileId,
@@ -4693,7 +4696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const job = await storage.getJobByDeliveryToken(token);
 
       if (!job) {
-        return res.status(404).json({ error: "Job not found" });
+        return res.status(404).json({ error: "Jobnot found" });
       }
 
       // Verify order belongs to this job
@@ -4709,6 +4712,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (invalidFiles.length > 0) {
         return res.status(400).json({ error: "Some files do not belong to this job" });
+      }
+
+      // Check revision limits
+      const revisionStatus = await storage.getOrderRevisionStatus(orderId);
+      if (revisionStatus && revisionStatus.remainingRounds <= 0) {
+        return res.status(400).json({ 
+          error: "No revision rounds remaining",
+          revisionStatus 
+        });
       }
 
       // Increment revision round for the order
@@ -5039,9 +5051,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const analytics = await storage.getActivityCountByType(req.user.partnerId, timeRange);
       res.json(analytics);
     } catch (error: any) {
-      console.error("Error getting activity analytics:", error);
+      console.error("Error fetching activity analytics:", error);
       res.status(500).json({ 
-        error: "Failed to get activity analytics", 
+        error: "Failed to fetch activity analytics", 
         details: error.message 
       });
     }
@@ -5841,59 +5853,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update conversation's last message and unread count
       await storage.updateConversationLastMessage(id, content.trim(), isPartner);
 
-      // Create notification for the recipient (NOT the sender)
-      try {
-        let recipientId: string;
-        const recipientName = isPartner ? conversation.editorName : conversation.partnerName;
-
-        if (isPartner) {
-          // Partner sent message, notify editor (if editor is different from sender)
-          if (conversation.editorId !== uid) {
-            recipientId = conversation.editorId; // editorId is already a Firebase UID
-            
-            const notificationData = insertNotificationSchema.parse({
-              partnerId,
-              recipientId,
-              type: 'message_received',
-              title: 'New Message',
-              body: `${senderName} sent you a message`,
-              orderId: conversation.orderId,
-              jobId: null,
-              read: false
-            });
-
-            await storage.createNotification(notificationData);
-            console.log(`Created notification for ${conversation.editorName} (uid: ${conversation.editorId}) about new message from ${senderName}`);
-          } else {
-            console.log(`Skipping notification creation - sender and recipient are the same user (${uid})`);
-          }
-        } else {
-          // Editor sent message, notify ALL users in the partner organization
-          // Get all users in the partner organization
-          const partnerUsers = await storage.getUsers();
-          const orgUsers = partnerUsers.filter(u => u.partnerId === partnerId && u.uid !== uid);
-
-          // Create notifications for all partner organization users
-          const notifications = orgUsers.map(user => insertNotificationSchema.parse({
-            partnerId,
-            recipientId: user.uid,
-            type: 'message_received',
-            title: 'New Message',
-            body: `${senderName} sent you a message`,
-            orderId: conversation.orderId,
-            jobId: null,
-            read: false
-          }));
-
-          if (notifications.length > 0) {
-            await storage.createNotifications(notifications); // Use createNotifications for consistency
-            console.log(`Created ${notifications.length} notifications for partner organization about new message from ${senderName}`);
-          }
-        }
-      } catch (notifError) {
-        console.error("Error creating message notification:", notifError);
-        // Don't fail the message send if notification fails
+      // Create notification for the recipient (the other party in the conversation)
+    try {
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        console.error('Conversation not found for notification creation');
+        return;
       }
+
+      // Determine sender role and recipient based on the conversation structure
+      // Partners are identified by partnerId, editors by editorId
+      const isPartnerSender = senderRole === 'partner';
+      const recipientId = isPartnerSender ? conversation.editorId : conversation.partnerId;
+      const recipientName = isPartnerSender ? conversation.editorName : conversation.partnerName;
+
+      // Only create notification if sender and recipient are different
+      if (senderId === recipientId) {
+        console.log(`Skipping notification creation - sender and recipient are the same user (${senderId})`);
+        return;
+      }
+
+      await storage.createNotification({
+        partnerId: conversation.partnerId,
+        recipientId: recipientId,
+        type: 'new_message',
+        title: 'New Message',
+        body: `You have a new message from ${senderName}`,
+        conversationId: id,
+        read: false
+      });
+
+      console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${email}`);
+    } catch (notificationError) {
+      console.error('Failed to create message notification:', notificationError);
+      // Don't fail the message creation if notification fails
+    }
 
       res.json(message);
     } catch (error: any) {

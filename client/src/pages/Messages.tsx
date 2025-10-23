@@ -645,7 +645,7 @@ export default function Messages() {
                       isSelected 
                         ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md" 
                         : participant.unreadCount > 0
-                          ? "bg-rpp-red-lighter/80 border-rpp-red-main/80 shadow-lg ring-2 ring-rpp-red-main/50"
+                          ? "bg-rpp-red-lighter/90 border-rpp-red-main shadow-lg ring-2 ring-rpp-red-main/50"
                           : "border-transparent hover:bg-accent hover:border-muted-foreground/20"
                     )}
                     data-testid={`conversation-card-${conversation.id}`}
