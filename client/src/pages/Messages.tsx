@@ -652,10 +652,10 @@ export default function Messages() {
                       >
                         <div
                           className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md rounded-br-sm",
+                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                             isCurrentUser 
-                              ? "bg-[#fcdcd4] text-[#a3a4a5]" 
-                              : "bg-gray-200 dark:bg-gray-700"
+                              ? "bg-[#fcdcd4] text-[#a3a4a5] rounded-br-sm" 
+                              : "bg-gray-200 dark:bg-gray-700 rounded-bl-sm"
                           )}
                         >
                           <p className={cn(
@@ -667,7 +667,10 @@ export default function Messages() {
                             {message.content}
                           </p>
                           <p
-                            className="text-xs mt-1.5 flex items-center gap-1 justify-end text-[#090a0b]"
+                            className={cn(
+                              "text-xs mt-1.5 flex items-center gap-1 text-[#090a0b]",
+                              isCurrentUser ? "justify-end" : "justify-start"
+                            )}
                           >
                             {formatTime(message.createdAt)}
                           </p>
