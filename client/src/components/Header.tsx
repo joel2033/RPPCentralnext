@@ -143,7 +143,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
             <DropdownMenuTrigger asChild>
               <button 
-                className="relative p-2 rounded-lg hover:bg-rpp-grey-bg"
+                className="relative p-2 rounded-lg hover:bg-rpp-grey-bg flex-shrink-0"
                 data-testid="button-notifications"
                 aria-expanded={showNotifications}
               >
@@ -158,22 +158,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-80 max-h-96 overflow-y-auto" align="end">
+            <DropdownMenuContent className="w-80 max-h-96 overflow-y-auto" align="end" sideOffset={5}>
               <div className="px-3 py-2 border-b">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium" data-testid="text-notifications-title">
-                    Notifications
-                  </h4>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={handleMarkAllAsRead}
-                      className="text-xs text-rpp-red-main hover:text-rpp-red-dark"
-                      data-testid="button-mark-all-read"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
-                </div>
+                <h4 className="text-sm font-medium" data-testid="text-notifications-title">
+                  Notifications
+                </h4>
               </div>
               {notifications.length === 0 ? (
                 <div className="px-3 py-4 text-center text-sm text-rpp-grey-light" data-testid="text-no-notifications">
@@ -208,7 +197,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
               )}
               {notifications.length > 10 && (
                 <DropdownMenuItem 
-                  className="px-3 py-2 text-center text-sm text-rpp-red-main cursor-pointer"
+                  className="px-3 py-2 text-center text-sm text-rpp-red-main cursor-pointer border-t"
                   onClick={() => {
                     setLocation('/notifications');
                     setShowNotifications(false);
@@ -217,6 +206,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 >
                   View all notifications
                 </DropdownMenuItem>
+              )}
+              {unreadCount > 0 && (
+                <div className="border-t">
+                  <button
+                    onClick={handleMarkAllAsRead}
+                    className="w-full px-3 py-2 text-sm text-rpp-red-main hover:bg-rpp-grey-bg text-center font-medium"
+                    data-testid="button-mark-all-read"
+                  >
+                    Mark all as read
+                  </button>
+                </div>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
