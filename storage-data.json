@@ -2545,6 +2545,17 @@
       "id": "cb46b1db-cb0a-4987-a639-d38a15044687",
       "createdAt": "2025-10-19T00:50:50.525Z",
       "readAt": null
+    },
+    "partner-test-notif-1": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "type": "info",
+      "title": "Test Notification",
+      "body": "You have a new notification to test the badge system",
+      "read": false,
+      "id": "partner-test-notif-1",
+      "createdAt": "2025-10-23T07:21:27.517Z",
+      "readAt": null
     }
   },
   "activities": {
@@ -3394,7 +3405,7 @@
       "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
       "lastMessageAt": "2025-10-23T04:53:59.646Z",
       "lastMessageText": "message 6",
-      "partnerUnreadCount": 0,
+      "partnerUnreadCount": 5,
       "editorUnreadCount": 26,
       "createdAt": "2025-10-21T10:45:20.233Z"
     },
@@ -3422,10 +3433,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
-      "lastMessageAt": "2025-10-23T06:46:08.039Z",
-      "lastMessageText": "test 123456789",
+      "lastMessageAt": "2025-10-23T07:17:45.569Z",
+      "lastMessageText": "no i still dont get notifications",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 6,
+      "editorUnreadCount": 8,
       "createdAt": "2025-10-23T04:29:05.879Z"
     }
   },
@@ -3792,6 +3803,28 @@
       "id": "a34c4c97-a32c-4409-9030-3135ea4ca635",
       "readAt": null,
       "createdAt": "2025-10-23T06:46:08.032Z"
+    },
+    "ea642d9b-9e30-4aa6-82c7-0c4f5787a217": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "do you get notifications",
+      "id": "ea642d9b-9e30-4aa6-82c7-0c4f5787a217",
+      "readAt": null,
+      "createdAt": "2025-10-23T07:16:43.713Z"
+    },
+    "8d78729f-8194-4235-b559-40b3de51fb92": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "no i still dont get notifications",
+      "id": "8d78729f-8194-4235-b559-40b3de51fb92",
+      "readAt": null,
+      "createdAt": "2025-10-23T07:17:45.567Z"
     }
   },
   "orderCounter": 16,
