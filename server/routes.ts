@@ -3959,6 +3959,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get job review if exists
       const jobReview = await storage.getJobReview(job.id);
 
+      // Get partner settings for branding (logo, business name)
+      const partnerSettings = await storage.getPartnerSettings(job.partnerId);
+      const branding = partnerSettings?.businessProfile ? 
+        JSON.parse(partnerSettings.businessProfile) : 
+        { businessName: 'RPP', logoUrl: '' };
+
       // Enrich folders with comment counts
       const enrichedFolders = folders.map(folder => ({
         ...folder,
@@ -3968,7 +3974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       }));
 
-      // Return job info, folders with files, and revision status
+      // Return job info, folders with files, revision status, and branding
       // Keep completedFiles for backward compatibility
       res.json({
         job: {
@@ -3988,6 +3994,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folders: enrichedFolders,
         revisionStatus: revisionStatuses,
         jobReview,
+        branding: {
+          businessName: branding.businessName || 'RPP',
+          logoUrl: branding.logoUrl || '',
+        },
       });
     } catch (error: any) {
       console.error("Error fetching delivery data:", error);
@@ -4088,6 +4098,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get job review if exists
       const jobReview = await storage.getJobReview(job.id);
 
+      // Get partner settings for branding (logo, business name)
+      const partnerSettings = await storage.getPartnerSettings(job.partnerId);
+      const branding = partnerSettings?.businessProfile ? 
+        JSON.parse(partnerSettings.businessProfile) : 
+        { businessName: 'RPP', logoUrl: '' };
+
       // Enrich folders with comment counts
       const enrichedFolders = folders.map(folder => ({
         ...folder,
@@ -4097,7 +4113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       }));
 
-      // Return same format as public delivery endpoint
+      // Return same format as public delivery endpoint with branding
       res.json({
         job: {
           id: job.id,
@@ -4116,6 +4132,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folders: enrichedFolders,
         revisionStatus: revisionStatuses,
         jobReview,
+        branding: {
+          businessName: branding.businessName || 'RPP',
+          logoUrl: branding.logoUrl || '',
+        },
       });
     } catch (error: any) {
       console.error("Error fetching job preview:", error);

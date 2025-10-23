@@ -1643,56 +1643,6 @@
       "notes": "Folder: High Resolution Images/Web",
       "expiresAt": "1970-01-01T00:00:00.000Z"
     },
-    "aa6fa6a0-84e6-4796-9c46-b9ed7ff8b7da": {
-      "id": "aa6fa6a0-84e6-4796-9c46-b9ed7ff8b7da",
-      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
-      "orderId": null,
-      "fileName": ".folder_placeholder",
-      "originalName": ".folder_placeholder",
-      "fileSize": 0,
-      "mimeType": "application/x-folder-placeholder",
-      "downloadUrl": "",
-      "uploadedAt": "2025-10-13T06:17:12.439Z",
-      "folderPath": "Floor plan",
-      "editorFolderName": "Floor plan",
-      "partnerFolderName": "Floor plan",
-      "notes": "Folder: Floor plan",
-      "expiresAt": "1970-01-01T00:00:00.000Z"
-    },
-    "6a822302-8593-48c6-b6e7-55771bf2935f": {
-      "id": "6a822302-8593-48c6-b6e7-55771bf2935f",
-      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
-      "orderId": null,
-      "fileName": ".folder_placeholder",
-      "originalName": ".folder_placeholder",
-      "fileSize": 0,
-      "mimeType": "application/x-folder-placeholder",
-      "downloadUrl": "",
-      "firebaseUrl": "q808AUPopN",
-      "uploadedAt": "2025-10-13T08:32:16.539Z",
-      "folderPath": "Video",
-      "editorFolderName": "Video",
-      "partnerFolderName": "Video",
-      "notes": "Folder: Video (Token: q808AUPopN)",
-      "expiresAt": "1970-01-01T00:00:00.000Z"
-    },
-    "b1cbb205-2cfc-4a2b-b3c3-52664e0d3735": {
-      "id": "b1cbb205-2cfc-4a2b-b3c3-52664e0d3735",
-      "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
-      "orderId": null,
-      "fileName": ".folder_placeholder",
-      "originalName": ".folder_placeholder",
-      "fileSize": 0,
-      "mimeType": "application/x-folder-placeholder",
-      "downloadUrl": "",
-      "firebaseUrl": "-uzVPTf1Ws",
-      "uploadedAt": "2025-10-13T09:19:37.863Z",
-      "folderPath": "Drone",
-      "editorFolderName": "Drone",
-      "partnerFolderName": "Drone",
-      "notes": "Folder: Drone (Token: -uzVPTf1Ws)",
-      "expiresAt": "1970-01-01T00:00:00.000Z"
-    },
     "8d2163c3-2440-460c-82a5-e832272de0f2": {
       "id": "8d2163c3-2440-460c-82a5-e832272de0f2",
       "jobId": "0f88361c-6229-44e4-826a-ec837afad642",
@@ -3428,8 +3378,9 @@
       "businessProfile": "{\"businessName\":\"Real Property Photography | Central Coast\",\"tagline\":\"Professional Real Estate Services\",\"email\":\"\",\"phone\":\"(555) 123-4567\",\"address\":\"123 Business St, City, State 12345\",\"website\":\"https://realpropertyphoto.com\",\"description\":\"We provide high-quality real estate photography services to help showcase properties in their best light.\"}",
       "personalProfile": "{\"firstName\":\"Joel\",\"lastName\":\"Adamson\",\"email\":\"john@realpropertyphoto.com\",\"phone\":\"0433009173\",\"bio\":\"Professional real estate photographer with over 10 years of experience capturing stunning property images.\"}",
       "businessHours": "{\"monday\":{\"enabled\":true,\"start\":\"09:00\",\"end\":\"17:00\"},\"tuesday\":{\"enabled\":true,\"start\":\"09:00\",\"end\":\"17:00\"},\"wednesday\":{\"enabled\":true,\"start\":\"09:00\",\"end\":\"17:00\"},\"thursday\":{\"enabled\":true,\"start\":\"09:00\",\"end\":\"17:00\"},\"friday\":{\"enabled\":true,\"start\":\"09:00\",\"end\":\"17:00\"},\"saturday\":{\"enabled\":false,\"start\":\"09:00\",\"end\":\"17:00\"},\"sunday\":{\"enabled\":false,\"start\":\"09:00\",\"end\":\"17:00\"}}",
+      "defaultMaxRevisionRounds": 2,
       "createdAt": "2025-10-17T12:40:03.284Z",
-      "updatedAt": "2025-10-17T13:09:26.943Z"
+      "updatedAt": "2025-10-22T10:40:26.494Z"
     }
   },
   "conversations": {
@@ -3441,10 +3392,10 @@
       "partnerEmail": "May@maystudios.com",
       "editorEmail": "May@maystudios.com",
       "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
-      "lastMessageAt": "2025-10-21T11:14:07.446Z",
-      "lastMessageText": "hello",
+      "lastMessageAt": "2025-10-22T23:39:31.210Z",
+      "lastMessageText": "hi",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 2,
+      "editorUnreadCount": 4,
       "createdAt": "2025-10-21T10:45:20.233Z"
     }
   },
@@ -3470,6 +3421,28 @@
       "id": "d7ad5182-1b86-44fe-ae88-c53c0160be0f",
       "readAt": null,
       "createdAt": "2025-10-21T11:14:07.444Z"
+    },
+    "be3d4755-bf8d-41dc-ad48-2ee8e97df7b8": {
+      "conversationId": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "HI",
+      "id": "be3d4755-bf8d-41dc-ad48-2ee8e97df7b8",
+      "readAt": null,
+      "createdAt": "2025-10-21T12:13:18.745Z"
+    },
+    "fdec7aa5-d4c4-496f-ba39-36a10718ed6a": {
+      "conversationId": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "hi",
+      "id": "fdec7aa5-d4c4-496f-ba39-36a10718ed6a",
+      "readAt": null,
+      "createdAt": "2025-10-22T23:39:31.208Z"
     }
   },
   "orderCounter": 16,

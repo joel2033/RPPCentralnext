@@ -6,6 +6,19 @@ This project is a full-stack SaaS platform designed for Real Property Photograph
 
 Preferred communication style: Simple, everyday language.
 
+## Settings Page Organization
+The Settings page has been reorganized from 13 tabs into 5 logical groups for better usability:
+- **Company**: Business Profile, Operating Hours, Delivery Settings (revision rounds)
+- **Team**: Editor Partnerships (invite + active), Team Members (invite + list)
+- **Services**: Editing Options Manager, Service Areas
+- **Account**: Personal Profile (name, email, phone, bio)
+- **Advanced**: Future features grouped together (Domain, Booking, Policies, Integrations)
+
+## Demo Login Credentials
+- Partner Account:
+  - Email: adamson652@gmail.com
+  - Password: benjiman1993
+
 # System Architecture
 
 ## Frontend Architecture
@@ -39,8 +52,9 @@ Preferred communication style: Simple, everyday language.
 
 ## File Storage
 - **Provider**: Firebase Storage.
-- **Use Cases**: Profile images, product images, job cover images, completed deliverables with subfolder organization, and general file uploads.
+- **Use Cases**: Profile images, product images, business logos, job cover images, completed deliverables with subfolder organization, and general file uploads.
 - **Integration**: Direct Firebase SDK integration in the frontend and backend logic for organizing files with job-specific and tokenized folder structures.
+- **Hardcoded Business Logo**: Application uses a hardcoded RPP logo (`/assets/rpp-logo.png`) displayed consistently throughout the application - in the sidebar (top left), on delivery pages (both public and authenticated), and login page. No logo upload functionality exists as the logo is permanently set.
 - **Cover Images**: Jobs can have optional cover images uploaded during creation, stored in Firebase Storage under `cover-images/` path. Displayed as placeholder (🏠 emoji) when not set, and as the actual image when uploaded.
 - **Thumbnail Optimization**: Cover images automatically generate client-side thumbnails (400x400px max, 80% quality) using Canvas API for faster page loading. Thumbnails stored in `cover-images/thumbnails/` subdirectory. Original full-resolution images retained for downloads and detailed viewing. Memory-optimized with automatic Object URL cleanup to prevent leaks during long sessions.
 

@@ -62,7 +62,6 @@ const menuItems: MenuItem[] = [
       { title: "Product Management", icon: Box, path: "/products" },
     ],
   },
-  { title: "Team Members", icon: Users, path: "/team" },
   { title: "Messages", icon: MessageSquare, path: "/messages" },
   { title: "Settings", icon: Settings, path: "/settings" },
 ];
@@ -176,14 +175,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <div className="flex flex-col h-full">
         {/* Logo Header */}
         <div className="p-6 border-b border-rpp-grey-border">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-rpp-red-main rounded flex items-center justify-center">
-              <Camera className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-rpp-grey-dark">RPP</h1>
-              <p className="text-xs text-rpp-grey-light">Photography</p>
-            </div>
+          <div className="flex items-center justify-center">
+            <img 
+              src="/assets/rpp-logo.png" 
+              alt="Real Property Photography" 
+              className="h-12 w-auto object-contain"
+              data-testid="sidebar-logo"
+            />
           </div>
         </div>
 

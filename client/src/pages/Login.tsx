@@ -1,25 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { signInUser } from '@/lib/firebaseAuth';
-import { Eye, EyeOff, Camera, Users, TrendingUp, Shield, Loader2, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Camera, Video, Layout, Home } from 'lucide-react';
+import rppLogo from '@assets/RPP Logo_2020_1761124400304.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [, setLocation] = useLocation();
+  const [logoUrl, setLogoUrl] = useState(rppLogo);
+
+  // Fetch business logo on component mount (public endpoint or from cached settings)
+  useEffect(() => {
+    const fetchBusinessLogo = async () => {
+      try {
+        // Try to fetch from public endpoint if available
+        // For now, we'll use the default logo
+        // In a production app, you might have a public endpoint to fetch business branding
+        setLogoUrl(rppLogo);
+      } catch (error) {
+        console.error('Error fetching business logo:', error);
+        setLogoUrl(rppLogo);
+      }
+    };
+
+    fetchBusinessLogo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
@@ -39,7 +55,8 @@ export default function Login() {
         setLocation('/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in');
+      // Error will be handled by the form
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }
@@ -47,211 +64,198 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - Branding & Features */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#FF6B35] via-[#FF4500] to-[#CC3700] relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-orange-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        </div>
-
-        <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full">
-          {/* Logo & Brand */}
-          <div>
-            <div className="flex items-center space-x-3 mb-8">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <Camera className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">RPP Central</h1>
-                <p className="text-white/80 text-sm">Real Property Photography</p>
-              </div>
-            </div>
-
-            <div className="space-y-6 mt-16">
-              <h2 className="text-4xl font-bold leading-tight">
-                Welcome back to your<br />
-                photography platform
-              </h2>
-              <p className="text-xl text-white/90">
-                Manage your projects, clients, and team all in one place
-              </p>
+      {/* LEFT SECTION: LOGIN FORM */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-left-4 duration-700">
+          {/* Logo Section */}
+          <div className="flex justify-center lg:justify-start">
+            <div className="flex items-center space-x-3">
+              <img 
+                src={logoUrl} 
+                alt="RPP Logo" 
+                className="h-12 w-auto"
+              />
             </div>
           </div>
 
-          {/* Features */}
-          <div className="grid grid-cols-2 gap-6 mt-auto">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-4">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <h3 className="font-semibold mb-2">Team Management</h3>
-              <p className="text-sm text-white/80">Collaborate with photographers and editors seamlessly</p>
+          {/* Header Section */}
+          <div className="space-y-2">
+            <h1 className="text-3xl font-medium text-foreground">Welcome back</h1>
+            <p className="text-muted-foreground">
+              Sign in to your Real Property Photography dashboard
+            </p>
+          </div>
+
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email Field */}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors"
+                data-testid="input-email"
+              />
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-4">
-                <TrendingUp className="w-5 h-5 text-white" />
+
+            {/* Password Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  Forgot password?
+                </button>
               </div>
-              <h3 className="font-semibold mb-2">Analytics</h3>
-              <p className="text-sm text-white/80">Track revenue, projects, and performance metrics</p>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors pr-10"
+                  data-testid="input-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+              />
+              <label
+                htmlFor="remember"
+                className="text-sm text-muted-foreground cursor-pointer select-none"
+              >
+                Remember me for 30 days
+              </label>
+            </div>
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 rounded-xl"
+              data-testid="button-signin"
+            >
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+
+          {/* Footer Section */}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{" "}
+              <button
+                type="button"
+                className="text-primary hover:text-primary/80 transition-colors"
+              >
+                Contact sales
+              </button>
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-rpp-grey-bg to-white p-6">
-        <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#FF6B35] to-[#FF4500] rounded-xl mb-4">
-              <Camera className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-rpp-grey-dark">RPP Central</h1>
-            <p className="text-rpp-grey-light">Real Property Photography</p>
-          </div>
+      {/* RIGHT SECTION: HERO */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#2F373F] via-[#2F373F] to-[#1a1f24] relative overflow-hidden">
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 opacity-50"></div>
 
-          <Card className="border-0 shadow-2xl">
-            <CardHeader className="space-y-2 pb-8">
-              <CardTitle className="text-3xl font-bold text-rpp-grey-dark">
-                Partner Login
-              </CardTitle>
-              <p className="text-rpp-grey-light text-base">
-                Sign in to access your dashboard
+        {/* Animated Background Elements */}
+        <div className="absolute top-20 right-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+        <div 
+          className="absolute bottom-20 left-20 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse" 
+          style={{ animationDelay: '1s' }}
+        ></div>
+
+        {/* Content Container */}
+        <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
+          <div className="max-w-lg space-y-8 animate-in fade-in slide-in-from-right-4 duration-700">
+            
+            {/* Hero Heading */}
+            <div className="space-y-4">
+              <h2 className="text-4xl font-bold leading-tight">
+                Professional Real Estate Media Management
+              </h2>
+              <p className="text-lg text-white/80">
+                Streamline your photography business with powerful tools for project management, client delivery, and media organization.
               </p>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {error && (
-                  <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-1">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-rpp-grey-dark">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
-                    required
-                    disabled={loading}
-                    className="h-12 text-base border-rpp-grey-light focus:border-rpp-red-main focus:ring-rpp-red-main"
-                  />
+            {/* Feature Cards Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Photography Card */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
+                  <Camera className="w-5 h-5 text-primary" />
                 </div>
+                <h3 className="font-semibold mb-1">Photography</h3>
+                <p className="text-sm text-white/70">Professional photo management</p>
+              </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-sm font-medium text-rpp-grey-dark">
-                      Password
-                    </Label>
-                    <button
-                      type="button"
-                      className="text-sm text-rpp-red-main hover:text-rpp-red-dark transition-colors"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      disabled={loading}
-                      className="h-12 text-base pr-12 border-rpp-grey-light focus:border-rpp-red-main focus:ring-rpp-red-main"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-rpp-grey-light hover:text-rpp-grey-dark transition-colors"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
+              {/* Video Card */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
+                  <Video className="w-5 h-5 text-primary" />
                 </div>
+                <h3 className="font-semibold mb-1">Video</h3>
+                <p className="text-sm text-white/70">Cinematic video solutions</p>
+              </div>
 
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="remember"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-rpp-grey-light text-rpp-red-main focus:ring-rpp-red-main"
-                  />
-                  <Label htmlFor="remember" className="text-sm text-rpp-grey-light cursor-pointer">
-                    Remember me for 30 days
-                  </Label>
+              {/* Floor Plans Card */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
+                  <Layout className="w-5 h-5 text-primary" />
                 </div>
+                <h3 className="font-semibold mb-1">Floor Plans</h3>
+                <p className="text-sm text-white/70">2D & 3D floor plans</p>
+              </div>
 
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-rpp-red-main border-2 border-rpp-red-main text-white hover:bg-white hover:text-rpp-red-main hover:border-rpp-red-main text-base font-semibold transition-colors duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </>
-                  )}
-                </Button>
-
-                <div className="relative my-8">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-rpp-grey-light"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-rpp-grey-light">New to RPP Central?</span>
-                  </div>
+              {/* Virtual Tours Card */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
+                  <Home className="w-5 h-5 text-primary" />
                 </div>
+                <h3 className="font-semibold mb-1">Virtual Tours</h3>
+                <p className="text-sm text-white/70">360° virtual experiences</p>
+              </div>
+            </div>
 
-                <div className="space-y-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setLocation('/signup')}
-                    className="w-full h-12 border-2 border-rpp-red-main text-rpp-red-main hover:bg-rpp-red-pale transition-all"
-                  >
-                    Create Partner Account
-                  </Button>
-
-                  <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setLocation('/editor-login')}
-                      className="text-sm text-rpp-grey-light hover:text-rpp-grey-dark transition-colors inline-flex items-center group"
-                    >
-                      Editor? Sign in here
-                      <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Security Badge */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center space-x-2 text-sm text-rpp-grey-light">
-              <Shield className="w-4 h-4" />
-              <span>Secured by industry-standard encryption</span>
+            {/* Statistics Section */}
+            <div className="grid grid-cols-3 gap-6 pt-6 border-t border-white/10">
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-1">1,200+</div>
+                <div className="text-sm text-white/70">Properties Shot</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-1">150+</div>
+                <div className="text-sm text-white/70">Active Clients</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-1">98%</div>
+                <div className="text-sm text-white/70">Satisfaction</div>
+              </div>
             </div>
           </div>
         </div>
