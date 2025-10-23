@@ -5836,7 +5836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update conversation's last message and unread count
       await storage.updateConversationLastMessage(id, content.trim(), isPartner);
 
-      // Create notification for the recipient
+      // Create notification for the recipient (NOT the sender)
       try {
         let recipientId: string;
         const recipientName = isPartner ? conversation.editorName : conversation.partnerName;
@@ -5855,19 +5855,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recipientId = partnerUser.uid; // Use partner's Firebase UID
         }
         
-        const notificationData = insertNotificationSchema.parse({
-          partnerId: conversation.partnerId,
-          recipientId,
-          type: 'new_message',
-          title: `New message from ${senderName}`,
-          body: content.trim().length > 100 ? content.trim().substring(0, 100) + '...' : content.trim(),
-          orderId: conversation.orderId,
-          jobId: null,
-          read: false
-        });
+        // CRITICAL: Only create notification if recipientId is different from senderId
+        // This prevents the sender from seeing a notification for their own sent message
+        if (recipientId !== uid) {
+          const notificationData = insertNotificationSchema.parse({
+            partnerId: conversation.partnerId,
+            recipientId,
+            type: 'new_message',
+            title: `New message from ${senderName}`,
+            body: content.trim().length > 100 ? content.trim().substring(0, 100) + '...' : content.trim(),
+            orderId: conversation.orderId,
+            jobId: null,
+            read: false
+          });
 
-        await storage.createNotification(notificationData);
-        console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${senderName}`);
+          await storage.createNotification(notificationData);
+          console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${senderName}`);
+        } else {
+          console.log(`Skipping notification creation - sender and recipient are the same user (${uid})`);
+        }
       } catch (notifError) {
         console.error("Error creating message notification:", notifError);
         // Don't fail the message send if notification fails
