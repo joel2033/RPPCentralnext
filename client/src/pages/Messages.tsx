@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, MessageSquare, Loader2, Plus } from "lucide-react";
+import { Send, MessageSquare, Loader2, Plus, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { getAuth } from "firebase/auth";
 import { cn } from "@/lib/utils";
@@ -58,10 +61,36 @@ interface Partnership {
   createdAt: string;
 }
 
+interface Order {
+  orderId: string;
+  orderNumber: string;
+  jobId: string;
+  jobAddress: string;
+  status: string;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
+interface Contact {
+  id: string;
+  name: string;
+  email: string;
+  type: "editor" | "team";
+}
+
 export default function Messages() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [newConversationDialogOpen, setNewConversationDialogOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
+  const [isGeneralConversation, setIsGeneralConversation] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,34 +101,62 @@ export default function Messages() {
   // Fetch all conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
-    refetchInterval: 5000, // Poll every 5 seconds for new messages
+    refetchInterval: 5000,
   });
 
   // Fetch selected conversation with messages
   const { data: conversationData, isLoading: messagesLoading } = useQuery<ConversationWithMessages>({
     queryKey: [`/api/conversations/${selectedConversationId}`],
     enabled: !!selectedConversationId,
-    refetchInterval: 3000, // Poll every 3 seconds for new messages in active conversation
+    refetchInterval: 3000,
   });
 
   // Determine if current user is an editor or partner
   const isEditor = editorData?.role === "editor";
   const isPartner = partnerData?.role === "partner";
 
-  // Fetch partnerships for editors (so they can start conversations with partners)
+  // Fetch partnerships for editors
   const { data: editorPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/editor/partnerships"],
     enabled: isEditor,
   });
 
-  // Fetch partnerships for partners (so they can start conversations with editors)
+  // Fetch partnerships for partners
   const { data: partnerPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/partnerships"],
     enabled: isPartner,
   });
 
+  // Fetch orders (for partners only)
+  const { data: orders = [] } = useQuery<Order[]>({
+    queryKey: ["/api/orders"],
+    enabled: isPartner,
+  });
+
+  // Fetch team members (for partners only)
+  const { data: teamMembers = [] } = useQuery<TeamMember[]>({
+    queryKey: [`/api/team/invites/${partnerData?.partnerId}`],
+    enabled: isPartner && !!partnerData?.partnerId,
+  });
+
   // Use the appropriate partnerships list based on user role
   const partnerships = isEditor ? editorPartnerships : partnerPartnerships;
+
+  // Combine editors and team members into contacts list
+  const contacts: Contact[] = [
+    ...partnerPartnerships.filter(p => p.isActive).map(p => ({
+      id: p.editorId,
+      name: p.editorStudioName,
+      email: p.editorEmail,
+      type: "editor" as const,
+    })),
+    ...teamMembers.filter(tm => tm.status === 'active').map(tm => ({
+      id: tm.email,
+      name: tm.name,
+      email: tm.email,
+      type: "team" as const,
+    })),
+  ];
 
   // Mark conversation as read when selected
   const markAsReadMutation = useMutation({
@@ -152,8 +209,13 @@ export default function Messages() {
 
   // Create conversation mutation
   const createConversationMutation = useMutation({
-    mutationFn: async (partnership: Partnership) => {
+    mutationFn: async ({ contactId, orderId }: { contactId: string; orderId?: string }) => {
       const token = await auth.currentUser?.getIdToken();
+      
+      // Find the contact (editor or team member)
+      const contact = contacts.find(c => c.id === contactId);
+      if (!contact) throw new Error("Contact not found");
+
       const response = await fetch("/api/conversations", {
         method: "POST",
         headers: {
@@ -161,9 +223,10 @@ export default function Messages() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          editorId: partnership.editorId,
-          editorEmail: partnership.editorEmail,
-          editorName: partnership.editorStudioName,
+          editorId: contact.id,
+          editorEmail: contact.email,
+          editorName: contact.name,
+          orderId: orderId || undefined,
         }),
       });
       if (!response.ok) throw new Error("Failed to create conversation");
@@ -173,6 +236,9 @@ export default function Messages() {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       setNewConversationDialogOpen(false);
       setSelectedConversationId(conversation.id);
+      setSelectedOrderId("");
+      setSelectedContactId("");
+      setIsGeneralConversation(false);
       toast({
         title: "Success",
         description: "Conversation started!",
@@ -208,6 +274,52 @@ export default function Messages() {
     });
   };
 
+  const handleStartConversation = () => {
+    if (!selectedContactId) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a contact to start messaging.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isGeneralConversation && !selectedOrderId) {
+      toast({
+        title: "Missing Information",
+        description: "Please select an order or check 'General conversation'.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if conversation already exists with this contact
+    const contact = contacts.find(c => c.id === selectedContactId);
+    if (contact) {
+      const existingConversation = conversations.find(
+        c => c.editorEmail === contact.email || c.partnerEmail === contact.email
+      );
+      
+      if (existingConversation) {
+        setSelectedConversationId(existingConversation.id);
+        setNewConversationDialogOpen(false);
+        setSelectedOrderId("");
+        setSelectedContactId("");
+        setIsGeneralConversation(false);
+        toast({
+          title: "Existing Conversation",
+          description: "Opening your existing conversation with this contact.",
+        });
+        return;
+      }
+    }
+
+    createConversationMutation.mutate({
+      contactId: selectedContactId,
+      orderId: isGeneralConversation ? undefined : selectedOrderId,
+    });
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -234,7 +346,6 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation: Conversation) => {
-    // Determine if current user is partner or editor in this conversation
     const isPartner = conversation.partnerEmail === currentUser?.email;
     return {
       name: isPartner ? conversation.editorName : conversation.partnerName,
@@ -260,74 +371,152 @@ export default function Messages() {
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
             Messages
           </h2>
-          {(isEditor || isPartner) && partnerships.some(p => p.isActive) && (
+          {isPartner && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" variant="outline" data-testid="button-new-conversation">
+                <Button 
+                  size="sm" 
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  data-testid="button-new-conversation"
+                >
                   <Plus className="h-4 w-4 mr-1" />
                   New
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Start New Conversation</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-rpp-red-main" />
+                    Start New Conversation
+                  </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    {isEditor ? "Select a partner to start messaging:" : "Select an editor to start messaging:"}
-                  </p>
-                  <ScrollArea className="max-h-[300px]">
-                    <div className="space-y-2">
-                      {partnerships.filter(p => p.isActive).map((partnership) => {
-                        // Check if conversation already exists
-                        const existingConversation = conversations.find(
-                          c => c.partnerId === partnership.partnerId && c.editorId === partnership.editorId
-                        );
-                        
-                        // Show editor info for partners, partner info for editors
-                        const displayName = isEditor ? partnership.partnerName : partnership.editorStudioName;
-                        const displayEmail = isEditor ? partnership.partnerEmail : partnership.editorEmail;
-                        const testId = isEditor ? partnership.partnerId : partnership.editorId;
-                        
-                        return (
-                          <button
-                            key={partnership.id}
-                            onClick={() => {
-                              if (existingConversation) {
-                                setSelectedConversationId(existingConversation.id);
-                                setNewConversationDialogOpen(false);
-                              } else {
-                                createConversationMutation.mutate(partnership);
-                              }
-                            }}
-                            disabled={createConversationMutation.isPending}
-                            className="w-full p-3 text-left rounded-lg border hover:bg-accent transition-colors disabled:opacity-50"
-                            data-testid={`button-start-conversation-${testId}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Avatar>
-                                <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium">{displayName}</p>
-                                <p className="text-sm text-muted-foreground">{displayEmail}</p>
-                                {existingConversation && (
-                                  <p className="text-xs text-primary mt-1">Already chatting</p>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                <p className="text-sm text-muted-foreground">
+                  Select an order and editor to begin messaging
+                </p>
+                
+                <div className="space-y-4 py-4">
+                  {/* Order Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="order-select">Select Order</Label>
+                      <span className="text-red-500 text-sm">*</span>
                     </div>
-                  </ScrollArea>
-                  {partnerships.filter(p => p.isActive).length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      {isEditor 
-                        ? "No active partnerships. Accept partnership invites to start messaging."
-                        : "No active partnerships. Invite editors to start messaging."}
-                    </p>
+                    <Select 
+                      value={selectedOrderId} 
+                      onValueChange={setSelectedOrderId}
+                      disabled={isGeneralConversation}
+                    >
+                      <SelectTrigger 
+                        id="order-select"
+                        data-testid="select-order"
+                        className={isGeneralConversation ? "opacity-50" : ""}
+                      >
+                        <SelectValue placeholder="Choose an order..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orders.map((order) => (
+                          <SelectItem key={order.orderId} value={order.orderId}>
+                            {order.orderNumber} - {order.jobAddress}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* General Conversation Checkbox */}
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Checkbox 
+                        id="general-conversation"
+                        checked={isGeneralConversation}
+                        onCheckedChange={(checked) => {
+                          setIsGeneralConversation(checked as boolean);
+                          if (checked) {
+                            setSelectedOrderId("");
+                          }
+                        }}
+                        data-testid="checkbox-general-conversation"
+                      />
+                      <label
+                        htmlFor="general-conversation"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        General conversation
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Editor Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="editor-select">Select Editor</Label>
+                      <span className="text-red-500 text-sm">*</span>
+                    </div>
+                    <Select 
+                      value={selectedContactId} 
+                      onValueChange={setSelectedContactId}
+                    >
+                      <SelectTrigger 
+                        id="editor-select"
+                        data-testid="select-contact"
+                      >
+                        <SelectValue placeholder="Choose an editor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name} ({contact.type === "editor" ? "Editor" : "Team Member"})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Order Assignment Info */}
+                  {!isGeneralConversation && selectedOrderId && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex gap-2">
+                        <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900 mb-1">Order Assignment</h4>
+                          <p className="text-xs text-blue-800">
+                            This conversation will be linked to the selected order. You can discuss editing requirements, share feedback, and track progress.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setNewConversationDialogOpen(false);
+                      setSelectedOrderId("");
+                      setSelectedContactId("");
+                      setIsGeneralConversation(false);
+                    }}
+                    data-testid="button-cancel-conversation"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleStartConversation}
+                    disabled={createConversationMutation.isPending || !selectedContactId || (!isGeneralConversation && !selectedOrderId)}
+                    className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                    data-testid="button-start-conversation"
+                  >
+                    {createConversationMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Start Conversation
+                      </>
+                    )}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
