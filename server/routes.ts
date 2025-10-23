@@ -5830,8 +5830,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Determine sender role
-      const isPartner = conversation.partnerId === partnerId;
+      // Determine sender role by checking if sender is the editor
+      // Don't use partnerId comparison because editors have partnerId too (assigned partner)
+      const isPartner = conversation.editorId !== uid;
       const senderRole = isPartner ? "partner" : "editor";
 
       // Get sender name
