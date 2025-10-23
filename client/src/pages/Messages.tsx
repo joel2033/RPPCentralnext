@@ -102,14 +102,16 @@ export default function Messages() {
   // Fetch all conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
-    refetchInterval: 5000,
+    refetchInterval: 3000, // Sync with message polling
+    refetchIntervalInBackground: true,
   });
 
   // Fetch selected conversation with messages
   const { data: conversationData, isLoading: messagesLoading } = useQuery<ConversationWithMessages>({
     queryKey: [`/api/conversations/${selectedConversationId}`],
     enabled: !!selectedConversationId,
-    refetchInterval: 3000,
+    refetchInterval: 2000, // Poll every 2 seconds for faster updates
+    refetchIntervalInBackground: true, // Continue polling even when tab is inactive
   });
 
   // Determine if current user is an editor or partner
@@ -263,8 +265,13 @@ export default function Messages() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversationData?.messages]);
+    if (conversationData?.messages && conversationData.messages.length > 0) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [conversationData?.messages, conversationData?.messages?.length]);
 
   // Mark conversation as read when opened
   useEffect(() => {
