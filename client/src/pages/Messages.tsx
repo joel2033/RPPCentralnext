@@ -194,10 +194,17 @@ export default function Messages() {
       if (!response.ok) throw new Error("Failed to send message");
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       setMessageInput("");
-      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${selectedConversationId}`] });
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      // Force immediate refetch with the exact query key
+      await queryClient.refetchQueries({ 
+        queryKey: [`/api/conversations/${variables.conversationId}`],
+        exact: true 
+      });
+      await queryClient.refetchQueries({ 
+        queryKey: ["/api/conversations"],
+        exact: true 
+      });
     },
     onError: () => {
       toast({
@@ -619,13 +626,13 @@ export default function Messages() {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-4 max-h-[calc(100vh-20rem)]">
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pb-4">
                   {conversationData?.messages.map((message, index) => {
                     const isCurrentUser = message.senderEmail === currentUser?.email;
                     return (

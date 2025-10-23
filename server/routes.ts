@@ -99,6 +99,43 @@ const requireAuth = async (req: any, res: any, next: any) => {
   }
 };
 
+// Optional auth middleware - adds user if authenticated but allows unauthenticated requests
+// SECURITY: If Authorization header is present but invalid, returns 401 to prevent security bypass
+const optionalAuth = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  
+  // No auth header - allow unauthenticated access
+  if (!authHeader) {
+    return next();
+  }
+
+  // Auth header present - must be valid or reject
+  try {
+    const idToken = authHeader.replace('Bearer ', '');
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const userDoc = await getUserDocument(uid);
+    
+    if (!userDoc) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Attach user context to request
+    req.user = {
+      uid: userDoc.uid,
+      partnerId: userDoc.partnerId,
+      role: userDoc.role,
+      email: userDoc.email
+    };
+    
+    next();
+  } catch (error) {
+    // If Authorization header exists but token is invalid/expired, reject the request
+    console.error("Optional auth failed with invalid token:", error);
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers
   app.get("/api/customers", async (req, res) => {
@@ -1074,11 +1111,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Orders endpoints
-  app.get("/api/orders", async (req, res) => {
+  // Orders endpoints - Requires authentication for multi-tenant security
+  app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const orders = await storage.getOrders();
-      res.json(orders);
+      const allOrders = await storage.getOrders();
+      
+      // Multi-tenant security: Partners see only their orders, admins see all, others denied
+      let filteredOrders: typeof allOrders;
+      if (req.user?.partnerId) {
+        // Partners: filter by their partnerId
+        filteredOrders = allOrders.filter(order => order.partnerId === req.user?.partnerId);
+      } else if (req.user?.role === 'admin') {
+        // Admins: see all orders
+        filteredOrders = allOrders;
+      } else {
+        // Other roles (editors, etc.): access denied
+        return res.status(403).json({ error: "Access denied - insufficient permissions" });
+      }
+      
+      // Enrich orders with job address for display in dropdowns
+      const ordersWithJobData = await Promise.all(
+        filteredOrders.map(async (order) => {
+          if (order.jobId) {
+            const job = await storage.getJob(order.jobId);
+            return {
+              ...order,
+              jobAddress: job?.address || "Unknown Address"
+            };
+          }
+          return {
+            ...order,
+            jobAddress: "No Job Assigned"
+          };
+        })
+      );
+      
+      res.json(ordersWithJobData);
     } catch (error: any) {
       console.error("Error getting orders:", error);
       res.status(500).json({ 
