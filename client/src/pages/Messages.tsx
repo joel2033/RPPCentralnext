@@ -211,7 +211,7 @@ export default function Messages() {
   const createConversationMutation = useMutation({
     mutationFn: async ({ contactId, orderId }: { contactId: string; orderId?: string }) => {
       const token = await auth.currentUser?.getIdToken();
-      
+
       // Find the contact (editor or team member)
       const contact = contacts.find(c => c.id === contactId);
       if (!contact) throw new Error("Contact not found");
@@ -233,12 +233,28 @@ export default function Messages() {
       return response.json();
     },
     onSuccess: (conversation) => {
+      // Manually update the conversations cache with the new conversation
+      queryClient.setQueryData<Conversation[]>(["/api/conversations"], (oldData) => {
+        if (!oldData) return [conversation];
+        // Check if conversation already exists (in case of race condition)
+        const exists = oldData.some(c => c.id === conversation.id);
+        if (exists) return oldData;
+        // Add new conversation to the beginning of the list
+        return [conversation, ...oldData];
+      });
+
+      // Then invalidate to ensure we have the latest data from the server
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+
+      // Close dialog and reset form
       setNewConversationDialogOpen(false);
-      setSelectedConversationId(conversation.id);
       setSelectedOrderId("");
       setSelectedContactId("");
       setIsGeneralConversation(false);
+
+      // Select the new conversation
+      setSelectedConversationId(conversation.id);
+
       toast({
         title: "Success",
         description: "Conversation started!",
@@ -363,14 +379,18 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] rounded-lg overflow-hidden shadow-lg bg-background">
-      {/* Conversations List */}
-      <div className="w-80 border-r flex flex-col bg-gradient-to-b from-background to-muted/20">
-        <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-rpp-red-main" />
-            Messages
-          </h2>
+    <div className="flex h-[calc(100vh-12rem)] rounded-lg overflow-hidden shadow-lg bg-background border border-border">
+      {/* Left Section: Conversations List */}
+      <div className="w-80 border-r border-border flex flex-col bg-gradient-to-b from-background to-muted/20">
+        {/* Conversations Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between bg-background/80 backdrop-blur-sm shadow-sm">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-rpp-red-main" />
+              Conversations
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Your message threads</p>
+          </div>
           {isPartner && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
@@ -391,7 +411,7 @@ export default function Messages() {
                   </DialogTitle>
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
-                  Select an order and editor to begin messaging
+                  Select an order and contact (editor or team member) to begin messaging
                 </p>
                 
                 <div className="space-y-4 py-4">
@@ -444,21 +464,21 @@ export default function Messages() {
                     </div>
                   </div>
 
-                  {/* Editor Selection */}
+                  {/* Contact Selection */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="editor-select">Select Editor</Label>
+                      <Label htmlFor="contact-select">Select Contact</Label>
                       <span className="text-red-500 text-sm">*</span>
                     </div>
-                    <Select 
-                      value={selectedContactId} 
+                    <Select
+                      value={selectedContactId}
                       onValueChange={setSelectedContactId}
                     >
-                      <SelectTrigger 
-                        id="editor-select"
+                      <SelectTrigger
+                        id="contact-select"
                         data-testid="select-contact"
                       >
-                        <SelectValue placeholder="Choose an editor..." />
+                        <SelectValue placeholder="Choose an editor or team member..." />
                       </SelectTrigger>
                       <SelectContent>
                         {contacts.map((contact) => (
@@ -597,15 +617,15 @@ export default function Messages() {
         </ScrollArea>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 flex flex-col">
+      {/* Right Section: Messages Area */}
+      <div className="flex-1 flex flex-col bg-gradient-to-br from-background via-background to-muted/5">
         {selectedConversationId ? (
           <>
-            {/* Conversation Header */}
-            <div className="p-4 border-b bg-gradient-to-r from-background to-muted/10 shadow-sm">
+            {/* Active Conversation Header */}
+            <div className="p-4 border-b border-border bg-background/80 backdrop-blur-sm shadow-sm">
               {conversationData && (
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
+                  <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/30 shadow-sm">
                     <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
                       {getInitials(getOtherParticipant(conversationData.conversation).name)}
                     </AvatarFallback>
@@ -614,7 +634,7 @@ export default function Messages() {
                     <p className="font-semibold text-base">
                       {getOtherParticipant(conversationData.conversation).name}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
                       {getOtherParticipant(conversationData.conversation).email}
                     </p>
                   </div>
@@ -669,8 +689,8 @@ export default function Messages() {
               )}
             </ScrollArea>
 
-            {/* Message Input */}
-            <div className="p-4 border-t bg-gradient-to-r from-background to-muted/5">
+            {/* Message Input Section */}
+            <div className="p-4 border-t border-border bg-background/80 backdrop-blur-sm shadow-sm">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -681,16 +701,16 @@ export default function Messages() {
                 <Input
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder="Type your message..."
                   disabled={sendMessageMutation.isPending}
-                  className="focus-visible:ring-rpp-red-main"
+                  className="focus-visible:ring-rpp-red-main shadow-sm"
                   data-testid="input-message"
                 />
                 <Button
                   type="submit"
                   disabled={!messageInput.trim() || sendMessageMutation.isPending}
                   size="icon"
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark transition-all hover:scale-105"
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark transition-all hover:scale-105 shadow-sm"
                   data-testid="button-send-message"
                 >
                   {sendMessageMutation.isPending ? (
