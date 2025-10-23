@@ -38,8 +38,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
     refetchInterval: 8000 // Poll every 8 seconds for near real-time updates
   });
 
-  // Calculate unread count
-  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  // Fetch unread message count
+  const { data: unreadMessagesData } = useQuery<{ count: number }>({
+    queryKey: ['/api/conversations/unread-count'],
+    enabled: !!currentUser,
+    refetchInterval: 8000 // Poll every 8 seconds to sync with notifications
+  });
+
+  // Calculate unread count (notifications + messages)
+  const unreadNotificationsCount = notifications.filter((notification) => !notification.read).length;
+  const unreadMessagesCount = unreadMessagesData?.count || 0;
+  const unreadCount = unreadNotificationsCount + unreadMessagesCount;
 
   // Mark notification as read mutation
   const markAsReadMutation = useMutation({
