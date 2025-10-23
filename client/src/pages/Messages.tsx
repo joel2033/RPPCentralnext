@@ -667,10 +667,7 @@ export default function Messages() {
                             {message.content}
                           </p>
                           <p
-                            className={cn(
-                              "text-xs mt-1.5 flex items-center gap-1",
-                              isCurrentUser ? "text-white/70 justify-end" : "text-gray-600 dark:text-gray-400"
-                            )}
+                            className="text-xs mt-1.5 flex items-center gap-1 justify-end text-[#090a0b]"
                           >
                             {formatTime(message.createdAt)}
                           </p>
