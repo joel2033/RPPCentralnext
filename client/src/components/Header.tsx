@@ -140,7 +140,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           </div>
 
           {/* Notifications */}
-          <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications}>
+          <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications} modal={false}>
             <DropdownMenuTrigger asChild>
               <button 
                 className="relative p-2 rounded-lg hover:bg-rpp-grey-bg flex-shrink-0"
@@ -158,7 +158,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-80 max-h-96 overflow-y-auto" align="end" sideOffset={5}>
+            <DropdownMenuContent className="w-80 max-h-96 overflow-y-auto z-[100]" align="end" sideOffset={5}>
               <div className="px-3 py-2 border-b">
                 <h4 className="text-sm font-medium" data-testid="text-notifications-title">
                   Notifications
