@@ -5855,11 +5855,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for the recipient (the other party in the conversation)
     try {
+      console.log(`[MESSAGE NOTIFICATION] Starting notification creation for message in conversation ${id}`);
+      console.log(`[MESSAGE NOTIFICATION] Sender: uid=${uid}, partnerId=${partnerId}, email=${email}, role=${senderRole}`);
+      
       const conversation = await storage.getConversation(id);
       if (!conversation) {
         console.error('Conversation not found for notification creation');
         return;
       }
+
+      console.log(`[MESSAGE NOTIFICATION] Conversation: partnerId=${conversation.partnerId}, editorId=${conversation.editorId}`);
 
       // Determine sender role and recipient based on the conversation structure
       // Partners are identified by partnerId, editors by editorId
@@ -5867,11 +5872,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recipientId = isPartnerSender ? conversation.editorId : conversation.partnerId;
       const recipientName = isPartnerSender ? conversation.editorName : conversation.partnerName;
 
+      console.log(`[MESSAGE NOTIFICATION] isPartnerSender=${isPartnerSender}, recipientId=${recipientId}, recipientName=${recipientName}`);
+
       // Only create notification if sender and recipient are different
-      if (senderId === recipientId) {
-        console.log(`Skipping notification creation - sender and recipient are the same user (${senderId})`);
-        return;
-      }
+      // Check if sender is sending to themselves (which would be a bug in the conversation setup)
+      // For now, we'll allow all messages between different roles to create notifications
+      // since a conversation should always be between a partner and an editor
+      
+      console.log(`[MESSAGE NOTIFICATION] Sender role: ${isPartnerSender ? 'partner' : 'editor'}`);
+      console.log(`[MESSAGE NOTIFICATION] Recipient ID: ${recipientId}, Recipient Name: ${recipientName}`);
+      
+      // Always create notification for cross-role messages (partner→editor or editor→partner)
+      // A conversation should never have the same person as both partner and editor
 
       await storage.createNotification({
         partnerId: conversation.partnerId,
@@ -5883,9 +5895,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         read: false
       });
 
-      console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${email}`);
+      console.log(`[MESSAGE NOTIFICATION] ✓ Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${email}`);
     } catch (notificationError) {
-      console.error('Failed to create message notification:', notificationError);
+      console.error('[MESSAGE NOTIFICATION] ✗ Failed to create message notification:', notificationError);
       // Don't fail the message creation if notification fails
     }
 

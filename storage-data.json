@@ -3537,10 +3537,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
-      "lastMessageAt": "2025-10-23T10:25:16.040Z",
-      "lastMessageText": "hello",
+      "lastMessageAt": "2025-10-23T11:23:41.089Z",
+      "lastMessageText": "Debug test message",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 5,
+      "editorUnreadCount": 9,
       "createdAt": "2025-10-23T04:29:05.879Z"
     },
     "5d5180b2-3c67-47c4-8c96-84a5f77f25b3": {
@@ -4241,6 +4241,50 @@
       "id": "0ec0abab-78c2-4f40-bffc-c3dad3cd6093",
       "readAt": null,
       "createdAt": "2025-10-23T10:25:16.036Z"
+    },
+    "9f5b88ed-9530-4332-a50c-c74bd89de704": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "Test message from editor - notification test",
+      "id": "9f5b88ed-9530-4332-a50c-c74bd89de704",
+      "readAt": null,
+      "createdAt": "2025-10-23T11:00:08.728Z"
+    },
+    "19a6f95f-13aa-42d2-aafb-e805d984e018": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "Notification test message from editor",
+      "id": "19a6f95f-13aa-42d2-aafb-e805d984e018",
+      "readAt": null,
+      "createdAt": "2025-10-23T11:11:16.319Z"
+    },
+    "879a67de-3f30-466e-8f1a-b8dbf10a3080": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "Final notification test message",
+      "id": "879a67de-3f30-466e-8f1a-b8dbf10a3080",
+      "readAt": null,
+      "createdAt": "2025-10-23T11:18:37.659Z"
+    },
+    "409289d1-2a45-429b-ae8d-04339655f66d": {
+      "conversationId": "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "Debug test message",
+      "id": "409289d1-2a45-429b-ae8d-04339655f66d",
+      "readAt": null,
+      "createdAt": "2025-10-23T11:23:41.083Z"
     }
   },
   "orderCounter": 16,
