@@ -209,14 +209,12 @@ export default function Messages() {
         if (!old) return old;
         return old.map((conv) => {
           if (conv.id === conversationId) {
-            // Use partnerId for more reliable comparison (email can have case issues or data corruption)
-            const isPartner = currentUserPartnerId 
-              ? conv.partnerId === currentUserPartnerId
-              : conv.editorId !== currentUserId; // Fallback: if not editor, assume partner
+            // Check if current user is the editor in this conversation
+            const isEditor = conv.editorId === currentUserId;
             return {
               ...conv,
-              partnerUnreadCount: isPartner ? 0 : conv.partnerUnreadCount,
-              editorUnreadCount: isPartner ? conv.editorUnreadCount : 0,
+              partnerUnreadCount: isEditor ? conv.partnerUnreadCount : 0,
+              editorUnreadCount: isEditor ? 0 : conv.editorUnreadCount,
             };
           }
           return conv;
@@ -412,10 +410,9 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation: Conversation) => {
-    // Use partnerId for more reliable comparison (email can have case issues or data corruption)
-    const isPartner = currentUserPartnerId 
-      ? conversation.partnerId === currentUserPartnerId
-      : conversation.editorId !== currentUserId; // Fallback: if not editor, assume partner
+    // Check if current user is the editor in this conversation
+    const isEditor = conversation.editorId === currentUserId;
+    const isPartner = !isEditor;
     return {
       name: isPartner ? conversation.editorName : conversation.partnerName,
       email: isPartner ? conversation.editorEmail : conversation.partnerEmail,

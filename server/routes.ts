@@ -5941,8 +5941,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Determine if user is partner or editor
-      const isPartner = conversation.partnerId === partnerId;
+      // Determine if user is partner or editor by checking UID
+      const isEditor = conversation.editorId === uid;
+      const isPartner = !isEditor;
 
       // Mark messages as read
       await storage.markConversationAsRead(id, isPartner);
