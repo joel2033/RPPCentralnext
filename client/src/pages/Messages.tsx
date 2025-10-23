@@ -606,7 +606,6 @@ export default function Messages() {
           )}
         </ScrollArea>
       </Card>
-
       {/* Messages Area */}
       <Card className="flex-1 flex flex-col overflow-hidden shadow-lg">
         {selectedConversationId ? (
@@ -652,12 +651,7 @@ export default function Messages() {
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div
-                          className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
-                            isCurrentUser
-                              ? "bg-rpp-red-main text-white rounded-br-sm"
-                              : "bg-muted rounded-bl-sm"
-                          )}
+                          className="max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md rounded-br-sm text-[#a3a4a5] bg-[#fcdcd4]"
                         >
                           <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
                             {message.content}
