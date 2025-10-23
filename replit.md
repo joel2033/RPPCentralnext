@@ -60,6 +60,9 @@ Preferred communication style: Simple, everyday language.
     - **Message Notifications**: Unread counts displayed in notification bell. Polls every 8 seconds.
     - **Optimistic Updates**: TanStack Query optimistic updates for mark-as-read functionality.
     - **Notification System**: Automatic notification creation when messages are sent (editor→partner, partner→editor).
+    - **Unread Count Bug Fixes (October 23, 2025)**:
+        - **Partner Dashboard Fix**: Fixed sender role identification in message creation (server/routes.ts line 5838). Changed `isPartner` logic from comparing `conversation.partnerId === partnerId` to `conversation.editorId !== uid`. This fixed the issue where editors were misidentified as partners (because editors have a partnerId field), causing wrong unread count increments. Now partner dashboards correctly show unread badges when editors send messages.
+        - **Editor Dashboard Fix**: Fixed `getUnreadMessageCount` function (server/storage.ts line 2407) where editors saw unread counts when THEY sent messages instead of when they RECEIVED messages. Changed logic from checking `partnerId && conv.partnerId === partnerId` to `conv.editorId === userId` to correctly identify if the caller is an editor. This ensures editors only see unread counts when partners send them messages.
     - **Storage**: Conversations and messages in PostgreSQL, partnerships in Firestore.
 
 # External Dependencies
