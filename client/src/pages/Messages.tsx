@@ -200,10 +200,10 @@ export default function Messages() {
     onMutate: async (conversationId) => {
       // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: ["/api/conversations"] });
-      
+
       // Snapshot the previous value
       const previousConversations = queryClient.getQueryData<Conversation[]>(["/api/conversations"]);
-      
+
       // Optimistically update the conversation's unread count to 0
       queryClient.setQueryData<Conversation[]>(["/api/conversations"], (old) => {
         if (!old) return old;
@@ -222,7 +222,7 @@ export default function Messages() {
           return conv;
         });
       });
-      
+
       // Return context with previous data for rollback on error
       return { previousConversations };
     },
@@ -281,7 +281,7 @@ export default function Messages() {
   const createConversationMutation = useMutation({
     mutationFn: async ({ contactId, orderId }: { contactId: string; orderId?: string }) => {
       const token = await auth.currentUser?.getIdToken();
-      
+
       // Find the contact (editor/partner or team member)
       const contact = contacts.find(c => c.id === contactId);
       if (!contact) throw new Error("Contact not found");
@@ -464,7 +464,7 @@ export default function Messages() {
                     ? "Select an order and partner to begin messaging"
                     : "Select an order and editor to begin messaging"}
                 </p>
-                
+
                 <div className="space-y-4 py-4">
                   {/* Order Selection */}
                   <div className="space-y-2">
@@ -492,7 +492,7 @@ export default function Messages() {
                         ))}
                       </SelectContent>
                     </Select>
-                    
+
                     {/* General Conversation Checkbox */}
                     <div className="flex items-center space-x-2 pt-2">
                       <Checkbox 
@@ -645,7 +645,7 @@ export default function Messages() {
                       isSelected 
                         ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md" 
                         : participant.unreadCount > 0
-                          ? "bg-rpp-red-lighter/60 border-rpp-red-main/60 shadow-lg ring-2 ring-rpp-red-main/30 animate-pulse"
+                          ? "bg-rpp-red-lighter/80 border-rpp-red-main/80 shadow-lg ring-2 ring-rpp-red-main/50"
                           : "border-transparent hover:bg-accent hover:border-muted-foreground/20"
                     )}
                     data-testid={`conversation-card-${conversation.id}`}
@@ -664,7 +664,7 @@ export default function Messages() {
                           </AvatarFallback>
                         </Avatar>
                         {participant.unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold animate-pulse">
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold">
                             {participant.unreadCount}
                           </span>
                         )}

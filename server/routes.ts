@@ -18,7 +18,8 @@ import {
   insertJobReviewSchema,
   insertDeliveryEmailSchema,
   insertConversationSchema,
-  insertMessageSchema
+  insertMessageSchema,
+  insertRevisionRequestSchema // Added import for revisionRequestSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -66,6 +67,10 @@ interface AuthenticatedRequest extends Request {
     partnerId?: string;
     role: string;
     email: string;
+    firstName?: string;
+    lastName?: string;
+    studioName?: string;
+    partnerName?: string;
   };
 }
 
@@ -80,7 +85,7 @@ const requireAuth = async (req: any, res: any, next: any) => {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const userDoc = await getUserDocument(uid);
-    
+
     if (!userDoc) {
       return res.status(401).json({ error: "User not found" });
     }
@@ -90,9 +95,13 @@ const requireAuth = async (req: any, res: any, next: any) => {
       uid: userDoc.uid,
       partnerId: userDoc.partnerId,
       role: userDoc.role,
-      email: userDoc.email
+      email: userDoc.email,
+      firstName: userDoc.firstName,
+      lastName: userDoc.lastName,
+      studioName: userDoc.studioName,
+      partnerName: userDoc.partnerName
     };
-    
+
     next();
   } catch (error) {
     console.error("Authentication error:", error);
@@ -104,7 +113,7 @@ const requireAuth = async (req: any, res: any, next: any) => {
 // SECURITY: If Authorization header is present but invalid, returns 401 to prevent security bypass
 const optionalAuth = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
-  
+
   // No auth header - allow unauthenticated access
   if (!authHeader) {
     return next();
@@ -116,7 +125,7 @@ const optionalAuth = async (req: any, res: any, next: any) => {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const userDoc = await getUserDocument(uid);
-    
+
     if (!userDoc) {
       return res.status(401).json({ error: "User not found" });
     }
@@ -128,7 +137,7 @@ const optionalAuth = async (req: any, res: any, next: any) => {
       role: userDoc.role,
       email: userDoc.email
     };
-    
+
     next();
   } catch (error) {
     // If Authorization header exists but token is invalid/expired, reject the request
@@ -176,9 +185,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
       }
-      
+
       const jobs = await storage.getCustomerJobs(req.params.id);
-      
+
       res.json({
         customer,
         jobs
@@ -266,7 +275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: validation.errors 
         });
       }
-      
+
       const job = await storage.createJob(data);
 
       // Log activity: Job Creation
@@ -332,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (job.propertyImage || job.propertyImageThumbnail) {
         try {
           const bucket = getStorage().bucket();
-          
+
           // Helper function to extract storage path from Firebase URL
           const extractStoragePath = (url: string): string | null => {
             try {
@@ -346,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return null;
             }
           };
-          
+
           // Delete original image
           if (job.propertyImage) {
             const storagePath = extractStoragePath(job.propertyImage);
@@ -428,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         partnerId: req.user.partnerId
       };
-      
+
       const validatedData = insertOrderSchema.parse(orderData);
 
       // Validate order data before creation
@@ -439,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: validation.errors 
         });
       }
-      
+
       const order = await storage.createOrder(validatedData);
 
       // Log activity: Order Creation
@@ -482,20 +491,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { id } = req.params;
-      
+
       // Verify order exists and belongs to user's partner (security check)
       const existingOrder = await storage.getOrder(id);
       if (!existingOrder) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       if (existingOrder.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this order" });
       }
 
       // Store original values for change tracking
       const originalStatus = existingOrder.status;
-      
+
       const order = await storage.updateOrder(id, req.body);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
@@ -546,7 +555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/submit", requireAuth, async (req, res) => {
     try {
       const { jobId, customerId, services, createdBy, assignedTo, estimatedTotal } = req.body;
-      
+
       if (!services || !Array.isArray(services) || services.length === 0) {
         return res.status(400).json({ error: "Missing required fields: services" });
       }
@@ -571,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (reservation.userId !== req.user.uid) {
           return res.status(403).json({ error: "Unauthorized: Cannot use another user's reservation" });
         }
-        
+
         // Now confirm the validated reservation
         const confirmed = await storage.confirmReservation(req.body.orderNumber);
         if (!confirmed) {
@@ -582,7 +591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Fallback to old behavior if no reservation provided
         orderNumber = await storage.generateOrderNumber();
       }
-      
+
       // Calculate 14 days from now for file expiry
       const filesExpiryDate = new Date();
       filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
@@ -601,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create order services and files
       for (const service of services) {
         const { serviceId, quantity, instructions, exportTypes, files } = service;
-        
+
         // Create order service record
         const orderService = await storage.createOrderService({
           orderId: order.id,
@@ -616,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const file of files) {
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 14);
-            
+
             await storage.createOrderFile({
               orderId: order.id,
               serviceId: orderService.id,
@@ -632,7 +641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Create notifications for assigned editor
+      // Create notifications for assigned editor or eligible editors
       try {
         if (assignedTo) {
           // Order is assigned to specific editor - notify only them
@@ -646,15 +655,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             jobId: order.jobId,
             read: false
           };
-          
-          await storage.createNotifications([notification]);
+
+          await storage.createNotifications([notification]); // Use createNotifications for consistency
           console.log(`Created notification for assigned editor ${assignedTo} for order ${order.orderNumber}`);
         } else {
-          // Order is not assigned - use existing logic to notify eligible editors
+          // Order is not assigned - notify eligible editors
           const serviceIds = services.map((service: any) => service.serviceId).filter((id: any) => id);
           const partnerships = await getPartnerPartnerships(partnerId);
           const eligibleEditorIds = new Set<string>();
-          
+
           // Find editors who can handle the requested services
           if (serviceIds.length > 0) {
             for (const partnership of partnerships) {
@@ -663,14 +672,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const hasMatchingService = editorServices.some(editorService => 
                   serviceIds.includes(editorService.id) && editorService.isActive
                 );
-                
+
                 if (hasMatchingService) {
                   eligibleEditorIds.add(partnership.editorId);
                 }
               }
             }
           }
-          
+
           // Fallback: if no exact service match, notify all active partnership editors
           if (eligibleEditorIds.size === 0) {
             for (const partnership of partnerships) {
@@ -679,7 +688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
-          
+
           // Create notifications for all eligible editors
           if (eligibleEditorIds.size > 0) {
             const notifications = Array.from(eligibleEditorIds).map(editorId => ({
@@ -692,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               jobId: order.jobId,
               read: false
             }));
-            
+
             await storage.createNotifications(notifications);
             console.log(`Created ${notifications.length} notifications for order ${order.orderNumber}`);
           }
@@ -723,11 +732,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobs = await storage.getJobs();
       const orders = await storage.getOrders();
       const customers = await storage.getCustomers();
-      
+
       const totalJobs = jobs.length;
       const totalOrders = orders.length;
       const totalSales = jobs.reduce((sum, job) => sum + parseFloat(job.totalValue || "0"), 0);
-      
+
       res.json({
         jobs: totalJobs,
         orders: totalOrders,
@@ -748,10 +757,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const { uid, email } = publicSignupSchema.parse(req.body);
-      
+
       // Public signups always create partner accounts
       const docId = await createUserDocument(uid, email, "partner");
-      
+
       res.status(201).json({ 
         success: true, 
         docId, 
@@ -777,13 +786,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/team-signup", async (req, res) => {
     try {
       const { uid, email, inviteToken } = teamSignupSchema.parse(req.body);
-      
+
       // Get pending invite
       const invite = await getPendingInvite(inviteToken);
       if (!invite) {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
-      
+
       if (invite.email.toLowerCase() !== email.toLowerCase()) {
         return res.status(400).json({ 
           error: "Email doesn't match invite", 
@@ -791,13 +800,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           received: email 
         });
       }
-      
+
       // Create user document with invite details
       const docId = await createUserDocument(uid, email, invite.role, invite.partnerId);
-      
+
       // Update invite status
       await updateInviteStatus(inviteToken, "accepted");
-      
+
       res.status(201).json({ 
         success: true, 
         docId,
@@ -824,13 +833,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/complete-invite", async (req, res) => {
     try {
       const { uid, email, token } = completeInviteSchema.parse(req.body);
-      
+
       // 1. Validate invite token
       const invite = await getPendingInvite(token);
       if (!invite) {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
-      
+
       if (invite.email.toLowerCase() !== email.toLowerCase()) {
         return res.status(400).json({ 
           error: "Email doesn't match invite", 
@@ -838,15 +847,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           received: email 
         });
       }
-      
+
       // 2. Create user document with invite role and partnerId
       const docId = await createUserDocument(uid, email, invite.role, invite.partnerId);
-      
+
       // 3. Update invite status to accepted
       await updateInviteStatus(token, "accepted");
-      
+
       console.log(`Team member ${email} completed invite signup with role ${invite.role} for partnerId ${invite.partnerId}`);
-      
+
       res.status(201).json({ 
         success: true,
         message: "Team member account created",
@@ -875,10 +884,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/editor-signup", async (req, res) => {
     try {
       const { uid, email, businessName, specialties, experience, portfolio } = editorSignupSchema.parse(req.body);
-      
+
       // Create editor account (no partnerId needed)
       const docId = await createUserDocument(uid, email, "editor");
-      
+
       // Add additional editor profile data
       await adminDb.collection('editors').doc(uid).set({
         uid,
@@ -890,7 +899,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date(),
         updatedAt: new Date()
       });
-      
+
       res.status(201).json({ 
         success: true, 
         docId, 
@@ -910,12 +919,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/user/:uid", async (req, res) => {
     try {
       const { uid } = req.params;
-      
+
       const userData = await getUserDocument(uid);
       if (!userData) {
         return res.status(404).json({ error: "User not found" });
       }
-      
+
       res.json(userData);
     } catch (error: any) {
       console.error("Error getting user data:", error);
@@ -936,28 +945,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/team/invite", async (req, res) => {
     try {
       const { name, email, role } = inviteSchema.parse(req.body);
-      
+
       // Get current user (should be partner)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       // For now, we'll extract uid from a simple bearer token
       // In production, you'd verify the Firebase ID token
       const uid = authHeader.replace('Bearer ', '');
-      
+
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can invite team members" });
       }
-      
+
       // Create pending invite
       const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId!, uid);
-      
+
       // In a real implementation, you'd send an email here
       const inviteLink = `${req.protocol}://${req.get('host')}/signup?invite=${inviteToken}`;
-      
+
       res.status(201).json({ 
         success: true, 
         inviteToken,
@@ -977,12 +986,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/team/invite-info/:token", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       const invite = await getPendingInvite(token);
       if (!invite || invite.status !== 'pending') {
         return res.status(404).json({ error: "Invalid or expired invite" });
       }
-      
+
       // Return only public info needed for signup page
       res.json({
         email: invite.email,
@@ -1002,17 +1011,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/team/invites/:partnerId", async (req, res) => {
     try {
       const { partnerId } = req.params;
-      
+
       // Get pending invites for this partner
       const invitesSnapshot = await adminDb.collection('pendingInvites')
         .where('partnerId', '==', partnerId)
         .get();
-      
+
       const invites = invitesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      
+
       res.json(invites);
     } catch (error: any) {
       console.error("Error getting team invites:", error);
@@ -1032,7 +1041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const jobs = await storage.getJobs(req.user?.partnerId);
       const orders = await storage.getOrders(req.user?.partnerId);
-      
+
       // Filter jobs to only include those with associated orders
       const jobsWithOrders = jobs.filter(job => {
         return orders.some(order => 
@@ -1040,7 +1049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           order.jobId === job.jobId // Match by NanoID
         );
       });
-      
+
       console.log(`[JOBS-WITH-ORDERS] Found ${jobsWithOrders.length} jobs with orders out of ${jobs.length} total jobs`);
       res.json(jobsWithOrders);
     } catch (error: any) {
@@ -1116,7 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const allOrders = await storage.getOrders();
-      
+
       // Multi-tenant security: Partners see only their orders, admins see all, others denied
       let filteredOrders: typeof allOrders;
       if (req.user?.partnerId) {
@@ -1129,7 +1138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Other roles (editors, etc.): access denied
         return res.status(403).json({ error: "Access denied - insufficient permissions" });
       }
-      
+
       // Enrich orders with job address for display in dropdowns
       const ordersWithJobData = await Promise.all(
         filteredOrders.map(async (order) => {
@@ -1146,7 +1155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(ordersWithJobData);
     } catch (error: any) {
       console.error("Error getting orders:", error);
@@ -1190,7 +1199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.user.uid, 
         req.user.partnerId || ''
       );
-      
+
       res.json(notifications);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -1221,11 +1230,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify ownership before allowing the update
       const notification = await storage.markNotificationRead(req.params.id, req.user.uid);
-      
+
       if (!notification) {
         return res.status(404).json({ error: "Notification not found or access denied" });
       }
-      
+
       res.json(notification);
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
@@ -1251,14 +1260,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Only mark notifications for the authenticated user with proper tenant scoping
       await storage.markAllNotificationsRead(req.user.uid, req.user.partnerId || '');
-      
+
       res.json({ message: "All notifications marked as read" });
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
       res.status(500).json({ error: "Failed to mark all notifications as read" });
     }
   });
-  
+
   // Partnership Management Routes
 
   // Partner invites editor to partnership
@@ -1270,13 +1279,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/partnerships/invite", async (req, res) => {
     try {
       const { editorEmail, editorStudioName } = partnershipInviteSchema.parse(req.body);
-      
+
       // Get current user (should be partner)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
       const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -1285,24 +1294,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can invite editors" });
       }
-      
+
       // Check if partnership already exists
       const existingPartnerships = await getPartnerPartnerships(currentUser.partnerId!);
       const partnershipExists = existingPartnerships.some(p => p.editorEmail === editorEmail);
-      
+
       if (partnershipExists) {
         return res.status(400).json({ error: "Partnership already exists with this editor" });
       }
-      
+
       // Create partnership invite
       const inviteToken = await createPartnershipInvite(
         editorEmail,
         editorStudioName,
         currentUser.partnerId!,
-        `${currentUser.email}`, // Using email as partner name for now
+        `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email, // Using partner's name for now
         currentUser.email
       );
-      
+
       res.status(201).json({ 
         success: true, 
         inviteToken,
@@ -1321,13 +1330,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/partnerships/accept/:token", async (req, res) => {
     try {
       const { token } = req.params;
-      
+
       // Get current user (should be editor)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
       const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -1336,17 +1345,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can accept partnership invites" });
       }
-      
+
       // Get and validate invite
       const invite = await getPartnershipInvite(token);
       if (!invite) {
         return res.status(400).json({ error: "Invalid or expired invite token" });
       }
-      
+
       if (invite.editorEmail.toLowerCase() !== currentUser.email?.toLowerCase()) {
         return res.status(400).json({ error: "This invite is not for your email address" });
       }
-      
+
       // Create active partnership
       const partnershipId = await createPartnership(
         currentUser.uid,
@@ -1356,10 +1365,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         invite.partnerName,
         invite.partnerEmail
       );
-      
-      // Create conversation between partner and editor
+
+      // Create conversation between partner and editor if it doesn't exist
       const existingConversation = await storage.getConversationByParticipants(invite.partnerId, currentUser.uid);
-      
+
       if (!existingConversation) {
         const conversationData = insertConversationSchema.parse({
           partnerId: invite.partnerId,
@@ -1369,13 +1378,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           partnerEmail: invite.partnerEmail,
           editorEmail: currentUser.email,
         });
-        
+
         await storage.createConversation(conversationData);
       }
-      
+
       // Update invite status
       await updatePartnershipInviteStatus(token, "accepted");
-      
+
       res.status(201).json({ 
         success: true,
         partnershipId,
@@ -1398,7 +1407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
       const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -1407,7 +1416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their pending invites" });
       }
-      
+
       const pendingInvites = await getEditorPendingInvites(currentUser.email);
       res.json(pendingInvites);
     } catch (error: any) {
@@ -1427,7 +1436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1435,7 +1444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can view their partnerships" });
       }
-      
+
       const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
       res.json(partnerships);
     } catch (error: any) {
@@ -1455,7 +1464,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1463,7 +1472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their partnerships" });
       }
-      
+
       const partnerships = await getEditorPartnerships(currentUser.uid);
       res.json(partnerships);
     } catch (error: any) {
@@ -1483,7 +1492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       // Verify the Firebase ID token and extract the UID
       const decodedToken = await adminAuth.verifyIdToken(idToken);
@@ -1492,9 +1501,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'partner') {
         return res.status(403).json({ error: "Only partners can view their suppliers" });
       }
-      
+
       const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
-      
+
       // Format for suppliers dropdown
       const suppliers = partnerships.map(partnership => ({
         id: partnership.editorId,
@@ -1504,7 +1513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: 'editor',
         studioName: partnership.editorStudioName
       }));
-      
+
       res.json(suppliers);
     } catch (error: any) {
       console.error("Error getting partner suppliers:", error);
@@ -1516,7 +1525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Team Assignment System Routes
-  
+
   // Get pending orders for team assignment
   app.get("/api/team/pending-orders", async (req, res) => {
     try {
@@ -1525,30 +1534,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
-      
+
       if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
         return res.status(403).json({ error: "Only partners and admins can view pending orders" });
       }
-      
+
       if (!currentUser.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
-      
+
       // Get pending orders for this partner
       const pendingOrders = await storage.getPendingOrders(currentUser.partnerId);
-      
+
       // Enrich orders with customer and job details
       const enrichedOrders = await Promise.all(
         pendingOrders.map(async (order) => {
           const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
           const job = order.jobId ? await storage.getJob(order.jobId) : null;
           const orderServices = await storage.getOrderServices(order.id);
-          
+
           return {
             ...order,
             customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer',
@@ -1559,7 +1568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(enrichedOrders);
     } catch (error: any) {
       console.error("Error getting pending orders:", error);
@@ -1569,7 +1578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
+
   // Get team editors for assignment
   app.get("/api/team/editors", async (req, res) => {
     try {
@@ -1578,23 +1587,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
-      
+
       if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
         return res.status(403).json({ error: "Only partners and admins can view team editors" });
       }
-      
+
       if (!currentUser.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
-      
+
       // Get active partnerships to find team editors
       const partnerships = await getPartnerPartnerships(currentUser.partnerId);
-      
+
       // Format for team assignment dropdown
       const teamEditors = partnerships.map(partnership => ({
         id: partnership.editorId,
@@ -1603,7 +1612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: partnership.editorStudioName,
         isActive: partnership.isActive
       }));
-      
+
       res.json(teamEditors);
     } catch (error: any) {
       console.error("Error getting team editors:", error);
@@ -1613,60 +1622,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
+
   // Assign order to editor
   const assignOrderSchema = z.object({
     orderId: z.string(),
     editorId: z.string()
   });
-  
+
   app.post("/api/team/assign-order", async (req, res) => {
     try {
       const { orderId, editorId } = assignOrderSchema.parse(req.body);
-      
+
       // Get current user (should be partner/admin)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
-      
+
       if (!currentUser || !['partner', 'admin'].includes(currentUser.role)) {
         return res.status(403).json({ error: "Only partners and admins can assign orders" });
       }
-      
+
       if (!currentUser.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
-      
+
       // Verify order exists and belongs to this partner
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       if (order.partnerId !== currentUser.partnerId) {
         return res.status(403).json({ error: "Order does not belong to your organization" });
       }
-      
+
       // Verify editor is part of the team (critical security validation)
       const partnerships = await getPartnerPartnerships(currentUser.partnerId);
       const editorPartnership = partnerships.find(p => p.editorId === editorId && p.isActive);
-      
+
       if (!editorPartnership) {
         return res.status(403).json({ 
           error: "Editor not in your team", 
           message: "The selected editor is not an active member of your team" 
         });
       }
-      
+
       // Attempt atomic assignment
       const assignedOrder = await storage.assignOrderToEditor(orderId, editorId);
-      
+
       if (!assignedOrder) {
         return res.status(409).json({ error: "Order is no longer available for assignment" });
       }
@@ -1698,7 +1707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (activityError) {
         console.error("Failed to log order assignment activity:", activityError);
       }
-      
+
       // Create notification for the assigned editor
       try {
         await storage.createNotification({
@@ -1716,7 +1725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Log error but don't fail the assignment
         console.error("Failed to create assignment notification:", notificationError);
       }
-      
+
       res.json({
         success: true,
         message: `Order ${order.orderNumber} assigned to ${editorPartnership.editorStudioName}`,
@@ -1748,7 +1757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1756,29 +1765,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can accept orders" });
       }
-      
+
       // Get the order
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       // Verify the order is assigned to this editor
       if (order.assignedTo !== uid) {
         return res.status(403).json({ error: "This order is not assigned to you" });
       }
-      
+
       // Verify order is in pending status
       if (order.status !== 'pending') {
         return res.status(400).json({ error: `Order is already ${order.status}` });
       }
-      
+
       // Update order to processing status and set dateAccepted
       const acceptedOrder = await storage.updateOrder(orderId, {
         status: 'processing',
         dateAccepted: new Date()
       });
-      
+
       // Log activity
       try {
         await storage.createActivity({
@@ -1803,12 +1812,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (activityError) {
         console.error("Failed to log order acceptance activity:", activityError);
       }
-      
+
       // Create notification for the partner
       try {
         await storage.createNotification({
           partnerId: order.partnerId,
-          recipientId: order.partnerId,
+          recipientId: order.partnerId, // Partner is the recipient of this notification
           type: 'order_accepted',
           title: 'Order Accepted',
           body: `Order #${order.orderNumber} has been accepted by ${currentUser.studioName || 'editor'} and is now being processed.`,
@@ -1819,7 +1828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (notificationError) {
         console.error("Failed to create acceptance notification:", notificationError);
       }
-      
+
       res.json({
         success: true,
         message: "Order accepted successfully",
@@ -1839,12 +1848,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderId } = req.params;
       const { reason } = req.body; // Optional decline reason
-      
+
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1852,29 +1861,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can decline orders" });
       }
-      
+
       // Get the order
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       // Verify the order is assigned to this editor
       if (order.assignedTo !== uid) {
         return res.status(403).json({ error: "This order is not assigned to you" });
       }
-      
+
       // Verify order is in pending status
       if (order.status !== 'pending') {
         return res.status(400).json({ error: `Order is already ${order.status}` });
       }
-      
+
       // Update order to cancelled status and clear assignedTo
       const declinedOrder = await storage.updateOrder(orderId, {
         status: 'cancelled',
         assignedTo: null // Unassign the order so partner can reassign
       });
-      
+
       // Log activity
       try {
         await storage.createActivity({
@@ -1900,12 +1909,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (activityError) {
         console.error("Failed to log order decline activity:", activityError);
       }
-      
+
       // Create notification for the partner
       try {
         await storage.createNotification({
           partnerId: order.partnerId,
-          recipientId: order.partnerId,
+          recipientId: order.partnerId, // Partner is the recipient of this notification
           type: 'order_declined',
           title: 'Order Declined',
           body: `Order #${order.orderNumber} was declined by ${currentUser.studioName || 'editor'}${reason ? `. Reason: ${reason}` : ''}`,
@@ -1916,7 +1925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (notificationError) {
         console.error("Failed to create decline notification:", notificationError);
       }
-      
+
       res.json({
         success: true,
         message: "Order declined successfully",
@@ -1938,7 +1947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1946,7 +1955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their jobs" });
       }
-      
+
       const jobs = await storage.getEditorJobs(uid);
       res.json(jobs);
     } catch (error: any) {
@@ -1965,7 +1974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -1973,7 +1982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their orders" });
       }
-      
+
       // Get all orders assigned to this editor with job details
       const allOrders = await storage.getOrders();
       const editorOrders = allOrders
@@ -1985,7 +1994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobAddress: order.jobAddress || '',
           status: order.status
         }));
-      
+
       res.json(editorOrders);
     } catch (error: any) {
       console.error("Error getting editor orders:", error);
@@ -2001,12 +2010,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderNumber } = req.params;
       console.log(`[DOWNLOAD] Download request for order: ${orderNumber}`);
-      
+
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2014,33 +2023,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can download order files" });
       }
-      
+
       // Find the order by order number and ensure it's assigned to current editor
       const allOrders = await storage.getOrders();
       const order = allOrders.find(o => o.orderNumber === orderNumber && o.assignedTo === uid);
       if (!order) {
         return res.status(404).json({ error: "Order not found or not assigned to you" });
       }
-      
+
       // Get order files and services (for instructions)
       const orderFiles = await storage.getOrderFiles(order.id);
       const orderServices = await storage.getOrderServices(order.id);
-      
+
       if (!orderFiles || orderFiles.length === 0) {
         return res.status(404).json({ error: "No files found for this order" });
       }
-      
+
       console.log(`Found ${orderFiles.length} files for order ${orderNumber}`);
-      
+
       // Create zip file
       const zip = new JSZip();
       const folderName = orderNumber.replace('#', ''); // Remove # from folder name
-      
+
       // Add order files to zip
       for (const file of orderFiles) {
         try {
           let fileBuffer: Buffer;
-          
+
           if (file.fileContent) {
             // Handle base64 content (legacy)
             fileBuffer = Buffer.from(file.fileContent, 'base64');
@@ -2048,13 +2057,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Fetch file from Firebase Storage
             const url = file.downloadUrl || file.firebaseUrl;
             console.log(`Fetching file ${file.fileName} from: ${url}`);
-            
+
             const response = await fetch(url);
             if (!response.ok) {
               console.error(`Failed to fetch file ${file.fileName}: ${response.status}`);
               continue;
             }
-            
+
             const arrayBuffer = await response.arrayBuffer();
             fileBuffer = Buffer.from(arrayBuffer);
             console.log(`Successfully fetched ${file.fileName} (${fileBuffer.length} bytes)`);
@@ -2062,14 +2071,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`Skipping file ${file.fileName} - no content or URL`);
             continue;
           }
-          
+
           zip.file(`${folderName}/${file.fileName}`, fileBuffer);
         } catch (error) {
           console.error(`Error processing file ${file.fileName}:`, error);
           // Continue with other files even if one fails
         }
       }
-      
+
       // Add instructions if any
       if (orderServices && orderServices.length > 0) {
         const instructions = orderServices.map(service => ({
@@ -2077,13 +2086,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           instructions: service.instructions,
           notes: service.notes
         }));
-        
+
         zip.file(`${folderName}/INSTRUCTIONS.json`, JSON.stringify(instructions, null, 2));
       }
-      
+
       // Generate zip
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-      
+
       // Log activity: File Download
       try {
         await storage.createActivity({
@@ -2115,13 +2124,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to log download activity:", activityError);
         // Don't fail the download if activity logging fails
       }
-      
+
       // Send the zip file
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${folderName}_files.zip"`);
       res.setHeader('Content-Length', zipBuffer.length);
       res.send(zipBuffer);
-      
+
     } catch (error: any) {
       console.error("Error downloading order files:", error);
       res.status(500).json({ 
@@ -2135,12 +2144,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/editor/jobs/:jobId/download", async (req, res) => {
     try {
       const { jobId } = req.params;
-      
+
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2148,32 +2157,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can download job files" });
       }
-      
+
       // Find the job first, then get associated order
       const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Get associated order using jobId - find one assigned to current editor
       const allOrders = await storage.getOrders();
       const order = allOrders.find(o => o.jobId === job.id && o.assignedTo === uid);
       if (!order) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
       }
-      
+
       // Get order files and services (for instructions)
       const orderFiles = await storage.getOrderFiles(order.id);
       const orderServices = await storage.getOrderServices(order.id);
-      
+
       if (orderFiles.length === 0) {
         return res.status(404).json({ error: "No files found for this job" });
       }
-      
+
       // Create zip file
       const zip = new JSZip();
       let zipGenerationFailed = false;
-      
+
       // Add instructions file if any
       if (orderServices.length > 0) {
         let instructionsContent = `Job: ${order.orderNumber}\nInstructions:\n\n`;
@@ -2215,11 +2224,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           instructionsContent += '\n';
         });
-        
+
         zip.file('instructions.txt', instructionsContent);
       }
-      
+
       // Download each file and add to zip
+      let successfulFiles = 0; // Track number of successfully downloaded files
       for (const file of orderFiles) {
         try {
           // Validate URL is from Firebase Storage to prevent SSRF
@@ -2227,18 +2237,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error(`Skipping potentially unsafe URL: ${file.downloadUrl}`);
             continue;
           }
-          
+
           const response = await fetch(file.downloadUrl);
           if (response.ok) {
             const buffer = await response.arrayBuffer();
             zip.file(file.originalName, buffer);
+            successfulFiles++;
+          } else {
+            console.error(`Failed to download file ${file.originalName} with status: ${response.status}`);
           }
         } catch (error) {
-          console.error(`Failed to download file ${file.originalName}:`, error);
+          console.error(`Error downloading file ${file.originalName}:`, error);
           // Continue with other files
         }
       }
-      
+
       // Generate zip buffer
       let zipBuffer;
       try {
@@ -2248,7 +2261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to generate zip file:', error);
         return res.status(500).json({ error: 'Failed to generate download archive' });
       }
-      
+
       // Only mark as downloaded after successful zip generation
       try {
         await storage.markOrderDownloaded(order.id, uid);
@@ -2256,7 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to update download status:', error);
         // Continue with download even if status update fails
       }
-      
+
       // Log activity: File Download (legacy endpoint)
       try {
         const userDoc = await getUserDocument(uid);
@@ -2275,7 +2288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             metadata: JSON.stringify({
               orderNumber: order.orderNumber,
               jobId: jobId,
-              fileCount: successfulFiles,
+              fileCount: successfulFiles, // Use count of successfully downloaded files
               totalSize: zipBuffer.length,
               downloadedAt: new Date().toISOString(),
               endpointType: 'legacy'
@@ -2288,12 +2301,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to log download activity:", activityError);
         // Don't fail the download if activity logging fails
       }
-      
+
       // Set response headers for file download
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="job_${order.orderNumber}_files.zip"`);
       res.setHeader('Content-Length', zipBuffer.length);
-      
+
       res.send(zipBuffer);
     } catch (error: any) {
       console.error("Error downloading job files:", error);
@@ -2311,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2319,7 +2332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their service categories" });
       }
-      
+
       const categories = await storage.getServiceCategories(uid);
       res.json(categories);
     } catch (error: any) {
@@ -2331,7 +2344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get service categories for a specific editor (for upload process)
+  // Get services for a specific editor (for upload process)
   app.get("/api/editor/:editorId/service-categories", async (req, res) => {
     try {
       const { editorId } = req.params;
@@ -2339,7 +2352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2347,7 +2360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
         return res.status(403).json({ error: "Only partners and photographers can view editor service categories" });
       }
-      
+
       const categories = await storage.getServiceCategories(editorId);
       res.json(categories);
     } catch (error: any) {
@@ -2366,7 +2379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2374,12 +2387,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can create service categories" });
       }
-      
+
       const categoryData = insertServiceCategorySchema.parse({
         ...req.body,
         editorId: uid
       });
-      
+
       const category = await storage.createServiceCategory(categoryData);
       res.status(201).json(category);
     } catch (error: any) {
@@ -2399,7 +2412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2407,7 +2420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can update their service categories" });
       }
-      
+
       const category = await storage.updateServiceCategory(id, req.body, uid);
       res.json(category);
     } catch (error: any) {
@@ -2427,7 +2440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2435,7 +2448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can delete their service categories" });
       }
-      
+
       await storage.deleteServiceCategory(id, uid);
       res.status(204).send();
     } catch (error: any) {
@@ -2454,7 +2467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2462,7 +2475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view their services" });
       }
-      
+
       const services = await storage.getEditorServices(uid);
       res.json(services);
     } catch (error: any) {
@@ -2482,7 +2495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2490,7 +2503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
         return res.status(403).json({ error: "Only partners and photographers can view editor services" });
       }
-      
+
       const services = await storage.getEditorServices(editorId);
       res.json(services);
     } catch (error: any) {
@@ -2509,7 +2522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2517,12 +2530,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can create services" });
       }
-      
+
       const serviceData = insertEditorServiceSchema.parse({
         ...req.body,
         editorId: uid
       });
-      
+
       const service = await storage.createEditorService(serviceData);
       res.status(201).json(service);
     } catch (error: any) {
@@ -2542,7 +2555,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2550,7 +2563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can update their services" });
       }
-      
+
       const service = await storage.updateEditorService(id, req.body, uid);
       res.json(service);
     } catch (error: any) {
@@ -2570,7 +2583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2578,7 +2591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!currentUser || currentUser.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can delete their services" });
       }
-      
+
       await storage.deleteEditorService(id, uid);
       res.status(204).send();
     } catch (error: any) {
@@ -2591,7 +2604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Editor Upload System Endpoints
-  
+
   // Get jobs ready for upload (completed processing, assigned to this editor)
   app.get("/api/editor/jobs-ready-for-upload", requireAuth, async (req, res) => {
     try {
@@ -2599,7 +2612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user || user.role !== 'editor') {
         return res.status(403).json({ error: "Only editors can view jobs ready for upload" });
       }
-      
+
       console.log(`[DEBUG] Editor dashboard request from: ${user.uid}, role: ${user.role}`);
       const jobs = await storage.getJobsReadyForUpload(user.uid);
       console.log(`[DEBUG] Returning ${jobs.length} jobs to editor dashboard`);
@@ -2621,7 +2634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2638,7 +2651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: validationResult.error.issues 
         });
       }
-      
+
       const { uploads, notes } = validationResult.data;
 
       // Get job to verify editor assignment and get order info
@@ -2680,7 +2693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const createdUploads = await Promise.all(uploadPromises);
-      
+
       // Mark order as uploaded (status: in_progress → completed)
       try {
         await storage.markOrderUploaded(order.id, uid);
@@ -2689,7 +2702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Failed to update upload status:', error);
         // Continue with success response even if status update fails
       }
-      
+
       res.status(201).json({
         success: true,
         uploads: createdUploads,
@@ -2712,7 +2725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
       }
-      
+
       const idToken = authHeader.replace('Bearer ', '');
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
@@ -2729,7 +2742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: validationResult.error.issues 
         });
       }
-      
+
       const { status } = validationResult.data;
 
       // Get job to verify editor assignment
@@ -2785,15 +2798,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const validateFirebaseStorageUrl = (url: string): boolean => {
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
     if (!bucketName) return false;
-    
+
     // Check if URL matches Firebase Storage pattern
     const firebaseStoragePattern = new RegExp(
-      `^https://storage\.googleapis\.com/${bucketName.replace('.', '\\.')}/.+`
+      `^https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/.+`
     );
     const firebaseDownloadPattern = new RegExp(
-      `^https://firebasestorage\.googleapis\.com/v0/b/${bucketName.replace('.', '\\.')}/o/.+`
+      `^https://firebasestorage\\.googleapis\\.com/v0/b/${bucketName.replace('.', '\\.')}/o/.+`
     );
-    
+
     return firebaseStoragePattern.test(url) || firebaseDownloadPattern.test(url);
   };
 
@@ -2833,9 +2846,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/reserve", async (req, res) => {
     try {
       const { userId, jobId } = reserveOrderSchema.parse(req.body);
-      
+
       const reservation = await storage.reserveOrderNumber(userId, jobId);
-      
+
       res.status(201).json({
         orderNumber: reservation.orderNumber,
         expiresAt: reservation.expiresAt,
@@ -2854,12 +2867,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/orders/reservation/:orderNumber", async (req, res) => {
     try {
       const { orderNumber } = req.params;
-      
+
       const reservation = await storage.getReservation(orderNumber);
       if (!reservation) {
         return res.status(404).json({ error: "Reservation not found" });
       }
-      
+
       res.json({
         orderNumber: reservation.orderNumber,
         expiresAt: reservation.expiresAt,
@@ -2883,12 +2896,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/confirm-reservation", async (req, res) => {
     try {
       const { orderNumber } = confirmReservationSchema.parse(req.body);
-      
+
       const confirmed = await storage.confirmReservation(orderNumber);
       if (!confirmed) {
         return res.status(400).json({ error: "Failed to confirm reservation or reservation expired" });
       }
-      
+
       res.json({ success: true, orderNumber });
     } catch (error: any) {
       console.error("Error confirming reservation:", error);
@@ -2915,14 +2928,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { userId, jobId, orderNumber, uploadType, folderToken, folderPath } = req.body;
-      
+
       // For standalone folders (with folderToken), orderNumber is not required
       if (!userId || !jobId) {
         return res.status(400).json({ 
           error: "Missing required parameters: userId and jobId are required" 
         });
       }
-      
+
       // If no folderToken, orderNumber is required
       if (!folderToken && !orderNumber) {
         return res.status(400).json({ 
@@ -2931,7 +2944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // ENHANCED SECURITY: Comprehensive validation before processing upload
-      
+
       // Step 1: Verify the reservation exists and is valid (skip for standalone folders with folderToken)
       let reservation = null;
       if (!folderToken) {
@@ -2964,7 +2977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
         console.log(`[UPLOAD DEBUG] Available jobs:`, (await storage.getJobs()).map(j => ({ id: j.id, jobId: j.jobId, address: j.address })));
@@ -2981,11 +2994,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         o.jobId === job.jobId || // Match by NanoID
         (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
       );
-      
+
       console.log(`[UPLOAD DEBUG] Available orders: ${allOrders.length}`);
       console.log(`[UPLOAD DEBUG] Job UUID matches: ${allOrders.filter(o => o.jobId === job.id).map(o => o.orderNumber)}`);
       console.log(`[UPLOAD DEBUG] Job NanoID matches: ${allOrders.filter(o => o.jobId === job.jobId).map(o => o.orderNumber)}`);
-      
+
       // Note: orderEntity can be null for new orders - this is allowed
       if (!orderEntity) {
         console.log(`[UPLOAD DEBUG] No existing order for job ${job.id} - will work with reservation data`);
@@ -3057,9 +3070,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
       const sanitizedUserId = userId.replace(/[^a-zA-Z0-9-]/g, '');
       const sanitizedJobId = jobId.replace(/[^a-zA-Z0-9-]/g, '');
-      
+
       let filePath: string;
-      
+
       if (folderToken && folderPath) {
         // Standalone folder upload: use tokenized path
         const sanitizedFolderPath = folderPath.replace(/[^a-zA-Z0-9/-]/g, '_');
@@ -3076,13 +3089,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
-      
+
       const bucket = getStorage().bucket(bucketName);
       const file = bucket.file(filePath);
 
       // Read the uploaded file and upload to Firebase
       const fileBuffer = fs.readFileSync(req.file.path);
-      
+
       await file.save(fileBuffer, {
         metadata: {
           contentType: req.file.mimetype,
@@ -3102,7 +3115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This must happen BEFORE activity logging to ensure data persistence regardless of auth issues
       // Note: job is guaranteed to exist here due to validation at line 2602-2606
       const uploadData = {
-        jobId: job.id,
+        jobId: job.id, // Use the job's internal ID
         orderId: orderEntity?.id || null, // Optional for standalone folders
         editorId: userId,
         fileName: req.file.originalname,
@@ -3114,11 +3127,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folderPath: folderPath || null,
         editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
         folderToken: folderToken || null,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         status: uploadType === 'client' ? 'completed' : 'uploaded',
         notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
       };
-      
+
       await storage.createEditorUpload(uploadData);
 
       // ENHANCED LOGGING: Comprehensive activity tracking with validation results
@@ -3128,7 +3141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const idToken = authHeader.replace('Bearer ', '');
           const decodedToken = await adminAuth.verifyIdToken(idToken);
           const userDoc = await getUserDocument(decodedToken.uid);
-          
+
           if (userDoc?.partnerId) {
 
             // Get validation information for logging
@@ -3141,7 +3154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               orderId: orderEntity?.id,
               userId: userDoc.uid,
               userEmail: userDoc.email,
-              userName: userDoc.email,
+              userName: `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email,
               action: "upload",
               category: "file",
               title: "Secure Editor Upload",
@@ -3153,13 +3166,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 mimeType: req.file.mimetype,
                 filePath: filePath,
                 publicUrl: publicUrl,
-                
+
                 // Job/Order context
                 orderNumber: orderNumber,
                 jobId: jobId,
                 orderDbId: orderEntity?.id,
                 jobDbId: job?.id,
-                
+
                 // Validation results
                 accessValidation: {
                   hasAccess: hasUploadAccess,
@@ -3170,7 +3183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   valid: uploadValidation.valid,
                   errors: uploadValidation.errors
                 },
-                
+
                 // Connection health
                 jobIntegrityValid: jobValidation?.isValid || false,
                 orderIntegrityValid: orderValidation?.isValid || false,
@@ -3178,7 +3191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   ...(jobValidation?.issues || []),
                   ...(orderValidation?.issues || [])
                 ],
-                
+
                 // Security context
                 reservationOrderNumber: reservation?.orderNumber || null,
                 folderToken: folderToken || null,
@@ -3203,7 +3216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error uploading file to Firebase:", error);
-      
+
       // Clean up temporary file on error
       if (req.file?.path) {
         try {
@@ -3212,7 +3225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("Error cleaning up temp file:", unlinkError);
         }
       }
-      
+
       res.status(500).json({ 
         error: "Failed to upload file to Firebase", 
         details: error.message 
@@ -3240,7 +3253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jobId, orderNumber, folderPath, editorFolderName } = req.body;
-      
+
       // Validate that completed files require folder organization
       if (!folderPath || !editorFolderName) {
         return res.status(400).json({
@@ -3248,7 +3261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: "All completed files must be organized in folders"
         });
       }
-      
+
       if (!jobId) {
         return res.status(400).json({ 
           error: "Missing required parameter: jobId is required" 
@@ -3265,57 +3278,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find the job with detailed debugging
       console.log(`[UPLOAD DEBUG] Looking for job with jobId: ${jobId}`);
-      
+
       let job = await storage.getJobByJobId(jobId);
       console.log(`[UPLOAD DEBUG] getJobByJobId result:`, job ? `Found job ${job.id}` : 'Not found');
-      
+
       if (!job) {
         const allJobs = await storage.getJobs();
         console.log(`[UPLOAD DEBUG] Total jobs in system: ${allJobs.length}`);
         console.log(`[UPLOAD DEBUG] Available job IDs:`, allJobs.map(j => ({ id: j.id, jobId: j.jobId || 'no-jobId' })));
-        
+
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
         console.log(`[UPLOAD DEBUG] Fallback search result:`, job ? `Found job ${job.id}` : 'Still not found');
       }
-      
+
       if (!job) {
         console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       console.log(`[UPLOAD DEBUG] Successfully found job:`, { id: job.id, jobId: job.jobId, partnerId: job.partnerId });
 
       // For completed file uploads, find an order assigned to this editor for the job
       const allOrders = await storage.getOrders();
-      
+
       // First try to find by the provided orderNumber if it exists
       let orderEntity = null;
       if (orderNumber) {
         orderEntity = allOrders.find(o => o.orderNumber === orderNumber);
       }
-      
+
       // If order not found by orderNumber, or no orderNumber provided, find any order assigned to this editor for this job
       if (!orderEntity) {
         console.log(`[UPLOAD DEBUG] Order ${orderNumber || 'not provided'} not found, searching for editor's assigned order`);
-        
+
         // Find orders for this job that are assigned to the current editor
         // No partnerId check - editors work across different partners
         const jobOrders = allOrders.filter(o => 
           (o.jobId === job.id || o.jobId === job.jobId) && 
           o.assignedTo === editorId
         );
-        
+
         console.log(`[UPLOAD DEBUG] Found ${jobOrders.length} orders assigned to editor for this job`);
-        
+
         if (jobOrders.length === 0) {
           return res.status(403).json({ error: "No orders assigned to you for this job" });
         }
-        
+
         // Prefer orders in processing status, then in_progress
         orderEntity = jobOrders.find(o => o.status === 'processing') || 
                      jobOrders.find(o => o.status === 'in_progress') ||
                      jobOrders[0]; // fallback to first order
-        
+
         console.log(`[UPLOAD DEBUG] Selected order: ${orderEntity.orderNumber} (${orderEntity.status})`);
       }
 
@@ -3342,13 +3355,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
-      
+
       const bucket = getStorage().bucket(bucketName);
-      
+
       // Create file path with folder structure for completed files
       const timestamp = Date.now();
       const sanitizedFileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-      
+
       // Build file path with optional folder structure
       // Sanitize order number to remove special characters like #
       const sanitizedOrderNumber = orderEntity.orderNumber.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -3363,18 +3376,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .trim() // Remove leading/trailing spaces
             .substring(0, 50); // Limit length
         }).filter(segment => segment.length > 0); // Remove empty segments
-        
+
         if (segments.length > 0) {
           filePath += `/${segments.join('/')}`;
         }
       }
       filePath += `/${timestamp}_${sanitizedFileName}`;
-      
+
       const file = bucket.file(filePath);
 
       // Read the uploaded file and upload to Firebase
       const fileBuffer = fs.readFileSync(req.file.path);
-      
+
       await file.save(fileBuffer, {
         metadata: {
           contentType: req.file.mimetype,
@@ -3395,7 +3408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create editor upload record with folder information
       // Store file path, not signed URL - proxy will generate fresh signed URLs on demand
       await storage.createEditorUpload({
-        jobId: job.id,
+        jobId: job.id, // Use the job's internal ID
         orderId: orderEntity.id,
         editorId: editorId,
         fileName: sanitizedFileName,
@@ -3414,9 +3427,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log activity
       try {
-        if (user?.partnerId) {
+        if (user?.partnerId) { // Check if partnerId exists for logging
           await storage.createActivity({
-            partnerId: orderEntity.partnerId || user.partnerId,
+            partnerId: orderEntity.partnerId || user.partnerId, // Use order's partnerId if available, else user's
             jobId: job.id,
             orderId: orderEntity.id,
             userId: editorId,
@@ -3449,7 +3462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error uploading completed file to Firebase:", error);
-      
+
       // Clean up temporary file on error
       if (req.file?.path) {
         try {
@@ -3458,7 +3471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("Error cleaning up temp file:", unlinkError);
         }
       }
-      
+
       res.status(500).json({ 
         error: "Failed to upload completed file to Firebase", 
         details: error.message 
@@ -3470,7 +3483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/jobs/:jobId/completed-files", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3481,7 +3494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3500,12 +3513,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: u.status || 'no status',
         mimeType: u.mimeType 
       })));
-      
+
       const completedFiles = allUploads.filter(upload => 
         upload.status === 'completed' && 
         upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
       );
-      
+
       console.log(`[DEBUG] Completed files after filtering:`, completedFiles.length);
       console.log(`[DEBUG] Completed file details:`, completedFiles.map(f => ({ 
         id: f.id, 
@@ -3526,7 +3539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enrichedFiles = await Promise.all(
         Object.entries(filesByOrder).map(async ([orderId, files]) => {
           const order = await storage.getOrder(orderId);
-          
+
           // Use proxy URLs instead of direct Firebase URLs
           const filesWithProxyUrls = files.map((file) => ({
             id: file.id,
@@ -3538,7 +3551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             uploadedAt: file.uploadedAt,
             notes: file.notes
           }));
-          
+
           return {
             orderId,
             orderNumber: order?.orderNumber || 'Unknown',
@@ -3561,7 +3574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3572,7 +3585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3584,7 +3597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get folders for this job
       const folders = await storage.getUploadFolders(job.id);
-      
+
       // Replace Firebase Storage URLs with proxy URLs in each folder's files
       const foldersWithProxyUrls = folders.map(folder => ({
         ...folder,
@@ -3593,7 +3606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           downloadUrl: `/api/files/proxy/${file.id}` // Use proxy endpoint
         }))
       }));
-      
+
       res.json(foldersWithProxyUrls);
     } catch (error: any) {
       console.error("Error fetching upload folders:", error);
@@ -3609,7 +3622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const { partnerFolderName } = req.body;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3624,7 +3637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3639,15 +3652,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create the folder in storage (in-memory) without order association
       const createdFolder = await storage.createFolder(job.id, partnerFolderName, undefined, undefined, folderToken);
-      
+
       // Create a Firebase placeholder to establish the folder in Firebase Storage
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
-      
+
       const bucket = getStorage().bucket(bucketName);
-      
+
       // Sanitize folder path with same logic as upload endpoint
       const sanitizedFolderPath = partnerFolderName.split('/').map(segment => {
         return segment
@@ -3656,18 +3669,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .trim() // Remove leading/trailing spaces
           .substring(0, 50); // Limit length
       }).filter(segment => segment.length > 0).join('/');
-      
+
       // Use standalone folder path structure: completed/{jobId}/folders/{token}/{folderPath}
       const placeholderPath = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/.keep`;
       const placeholderFile = bucket.file(placeholderPath);
-      
+
       // Upload empty placeholder file
       await placeholderFile.save('', {
         metadata: {
           contentType: 'application/octet-stream',
         },
       });
-      
+
       res.json({ 
         success: true, 
         message: "Folder created successfully in Firebase",
@@ -3688,7 +3701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const { folderPath } = req.body;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3703,7 +3716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3739,7 +3752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
           if (bucketName) {
             const bucket = getStorage().bucket(bucketName);
-            
+
             // Sanitize folder path for Firebase deletion
             const sanitizedFolderPath = folderPath.split('/').map(segment => {
               return segment
@@ -3748,11 +3761,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .trim()
                 .substring(0, 50);
             }).filter(segment => segment.length > 0).join('/');
-            
+
             // Delete all files in the Firebase folder
             const folderPrefix = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/`;
             const [files] = await bucket.getFiles({ prefix: folderPrefix });
-            
+
             await Promise.all(files.map(file => file.delete()));
             console.log(`Deleted ${files.length} files from Firebase for folder: ${folderPath}`);
           }
@@ -3789,7 +3802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { jobId } = req.params;
       const { folderPath, newPartnerFolderName } = req.body;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3804,7 +3817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3816,7 +3829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update folder name
       await storage.updateFolderName(job.id, folderPath, newPartnerFolderName);
-      
+
       res.json({ success: true, message: "Folder renamed successfully" });
     } catch (error: any) {
       console.error("Error renaming folder:", error);
@@ -3831,15 +3844,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/jobs/:jobId/cover-photo", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      
+
       console.log("[COVER PHOTO] Request body:", req.body);
       console.log("[COVER PHOTO] User:", req.user);
-      
+
       // Validate request body
       const coverPhotoSchema = z.object({
         imageUrl: z.string().min(1, "imageUrl is required"),
       });
-      
+
       const validationResult = coverPhotoSchema.safeParse(req.body);
       if (!validationResult.success) {
         console.log("[COVER PHOTO] Validation failed:", validationResult.error.errors);
@@ -3848,9 +3861,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: validationResult.error.errors 
         });
       }
-      
+
       const { imageUrl } = validationResult.data;
-      
+
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
@@ -3861,7 +3874,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allJobs = await storage.getJobs();
         job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
       }
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -3876,7 +3889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         propertyImage: imageUrl,
         propertyImageThumbnail: imageUrl, // Use same image for thumbnail for now
       });
-      
+
       res.json({ success: true, message: "Cover photo updated successfully" });
     } catch (error: any) {
       console.error("Error updating cover photo:", error);
@@ -3892,63 +3905,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/files/proxy/:fileId", async (req, res) => {
     try {
       const { fileId } = req.params;
-      
+
       // Search through all jobs to find the file
       const allJobs = await storage.getJobs();
       let file: EditorUpload | undefined;
-      
+
       for (const job of allJobs) {
         const uploads = await storage.getEditorUploads(job.id);
         file = uploads.find(u => u.id === fileId);
         if (file) break;
       }
-      
+
       if (!file) {
         return res.status(404).json({ error: "File not found" });
       }
-      
+
       // Get file path - now stored directly, not as signed URL
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
-      
+
       let filePath: string;
-      
+
       // Check if downloadUrl is a file path or a signed URL (for backwards compatibility)
       if (file.downloadUrl.startsWith('http')) {
         // Legacy signed URL - extract the path
         const urlPattern = new RegExp(`https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/(.+?)(?:\\?|$)`);
         const match = file.downloadUrl.match(urlPattern);
-        
+
         if (!match || !match[1]) {
           return res.status(400).json({ error: "Invalid file URL format" });
         }
-        
+
         filePath = decodeURIComponent(match[1]);
       } else {
         // Modern file path stored directly
         filePath = file.downloadUrl;
       }
-      
+
       console.log(`[PROXY] Streaming file: ${filePath}`);
-      
+
       const bucket = getStorage().bucket(bucketName);
       const storageFile = bucket.file(filePath);
-      
+
       // Check if file exists first
       const [exists] = await storageFile.exists();
       if (!exists) {
         console.error(`[PROXY] File does not exist in Firebase Storage: ${filePath}`);
         return res.status(404).json({ error: 'File not found in storage' });
       }
-      
+
       // Get file metadata to set proper Content-Length
       const [metadata] = await storageFile.getMetadata();
       const fileSize = metadata.size;
-      
+
       console.log(`[PROXY] File exists, size: ${fileSize} bytes, mimeType: ${file.mimeType}`);
-      
+
       // Set headers before streaming
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('Content-Length', fileSize);
@@ -3956,10 +3969,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 year cache
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('ETag', `"${fileId}"`); // Use fileId as ETag for cache validation
-      
+
       // Stream the file from Firebase Storage to the client
       const stream = storageFile.createReadStream();
-      
+
       stream.on('error', (error) => {
         console.error('[PROXY] Error streaming file:', error);
         if (!res.headersSent) {
@@ -3968,11 +3981,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           res.end();
         }
       });
-      
+
       stream.on('end', () => {
         console.log(`[PROXY] Successfully streamed file: ${file.fileName}`);
       });
-      
+
       stream.pipe(res);
     } catch (error: any) {
       console.error('Error in file proxy:', error);
@@ -3987,7 +4000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find job by delivery token (secure, unguessable credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Delivery not found" });
       }
@@ -4027,7 +4040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               originalName: file.originalName,
               fileSize: file.fileSize,
               mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl,
+              downloadUrl: file.downloadUrl, // This should be the file path for the proxy
               uploadedAt: file.uploadedAt,
               notes: file.notes
             }))
@@ -4037,10 +4050,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get folder structure with files
       const folders = await storage.getUploadFolders(job.id);
-      
+
       // Get all file comments for this job
       const allComments = await storage.getJobFileComments(job.id);
-      
+
       // Create a map of file IDs to comment counts
       const commentCounts = allComments.reduce((acc, comment) => {
         acc[comment.fileId] = (acc[comment.fileId] || 0) + 1;
@@ -4050,7 +4063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get order information and revision status
       const orders = await storage.getOrders(job.partnerId);
       const jobOrders = orders.filter(o => o.jobId === job.id);
-      
+
       // Get revision status for each order (with defensive coding)
       const revisionStatuses = await Promise.all(
         jobOrders.map(async (order) => {
@@ -4122,7 +4135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find job by jobId (supports both nanoId and UUID) and verify ownership
       const job = await storage.getJobByJobId(jobId);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -4166,7 +4179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               originalName: file.originalName,
               fileSize: file.fileSize,
               mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl,
+              downloadUrl: file.downloadUrl, // This should be the file path for the proxy
               uploadedAt: file.uploadedAt,
               notes: file.notes
             }))
@@ -4176,10 +4189,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get folder structure with files
       const folders = await storage.getUploadFolders(job.id);
-      
+
       // Get all file comments for this job
       const allComments = await storage.getJobFileComments(job.id);
-      
+
       // Create a map of file IDs to comment counts
       const commentCounts = allComments.reduce((acc, comment) => {
         acc[comment.fileId] = (acc[comment.fileId] || 0) + 1;
@@ -4189,7 +4202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get order information and revision status
       const orders = await storage.getOrders(job.partnerId);
       const jobOrders = orders.filter(o => o.jobId === job.id);
-      
+
       // Get revision status for each order
       const revisionStatuses = await Promise.all(
         jobOrders.map(async (order) => {
@@ -4272,11 +4285,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verify file belongs to this job
       const jobUploads = await storage.getEditorUploads(job.id);
       const file = jobUploads.find(f => f.id === fileId);
-      
+
       if (!file) {
         return res.status(404).json({ error: "File not found in this job" });
       }
-      
+
       // Get comments scoped to this file
       const comments = await storage.getFileComments(fileId);
       res.json(comments);
@@ -4308,11 +4321,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verify file belongs to this job
       const jobUploads = await storage.getEditorUploads(job.id);
       const file = jobUploads.find(f => f.id === fileId);
-      
+
       if (!file) {
         return res.status(404).json({ error: "File not found in this job" });
       }
-      
+
       // Create comment scoped to this job/file
       const validated = insertFileCommentSchema.parse({
         fileId,
@@ -4323,7 +4336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authorRole,
         message,
       });
-      
+
       const comment = await storage.createFileComment(validated);
       res.status(201).json(comment);
     } catch (error: any) {
@@ -4360,6 +4373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate and create review
       const validated = insertJobReviewSchema.parse({
         jobId: job.id,
+        partnerId: job.partnerId, // Include partnerId for security/auditing
         rating,
         review,
         submittedBy,
@@ -4399,7 +4413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify order belongs to this job
       const order = await storage.getOrder(orderId);
-      if (!order || order.jobId !== job.id) {
+      if (!order || (order.jobId !== job.id && order.jobId !== job.jobId)) { // Allow match by UUID or NanoID
         return res.status(404).json({ error: "Order not found for this job" });
       }
 
@@ -4407,7 +4421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobUploads = await storage.getEditorUploads(job.id);
       const validFileIds = jobUploads.map(f => f.id);
       const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
-      
+
       if (invalidFiles.length > 0) {
         return res.status(400).json({ error: "Some files do not belong to this job" });
       }
@@ -4444,22 +4458,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/delivery/:token/files/:fileId/comments", async (req, res) => {
     try {
       const { token, fileId } = req.params;
-      
+
       // Verify job exists first (deliveryToken is the access credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Verify file belongs to this job
       const jobUploads = await storage.getEditorUploads(job.id);
       const file = jobUploads.find(f => f.id === fileId);
-      
+
       if (!file) {
         return res.status(404).json({ error: "File not found in this job" });
       }
-      
+
       // Get comments scoped to this file
       const comments = await storage.getFileComments(fileId);
       res.json(comments);
@@ -4477,25 +4491,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token, fileId } = req.params;
       const { authorId, authorName, authorRole, message } = req.body;
-      
+
       // Verify job exists first (deliveryToken is the access credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Verify file belongs to this job
       const jobUploads = await storage.getEditorUploads(job.id);
       const file = jobUploads.find(f => f.id === fileId);
-      
+
       if (!file) {
         return res.status(404).json({ error: "File not found in this job" });
       }
-      
+
       // Get the order for this file
       const order = await storage.getOrder(file.orderId);
-      
+
       // Create comment scoped to this job/file
       const validated = insertFileCommentSchema.parse({
         fileId,
@@ -4506,7 +4520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authorRole,
         message,
       });
-      
+
       const comment = await storage.createFileComment(validated);
       res.status(201).json(comment);
     } catch (error: any) {
@@ -4523,25 +4537,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { commentId } = req.params;
       const { status } = req.body;
-      
+
       if (!['pending', 'in-progress', 'resolved'].includes(status)) {
         return res.status(400).json({ error: "Invalid status value" });
       }
-      
+
       // Get the comment to verify access
-      const existingComments = await storage.getJobFileComments(''); // Will need improvement
-      const comment = existingComments.find(c => c.id === commentId);
-      
+      // NOTE: This storage call needs to be improved to fetch a single comment efficiently
+      // For now, fetching all comments and filtering is a workaround.
+      const allComments = await storage.getJobFileComments(''); // Empty jobId to fetch all, needs optimization
+      const comment = allComments.find(c => c.id === commentId);
+
       if (!comment) {
         return res.status(404).json({ error: "Comment not found" });
       }
-      
+
       // Verify job/partner access
       const job = await storage.getJob(comment.jobId);
       if (!job || (req.user?.partnerId && job.partnerId !== req.user.partnerId)) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       const updatedComment = await storage.updateFileCommentStatus(commentId, status);
       res.json(updatedComment);
     } catch (error: any) {
@@ -4558,30 +4574,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token } = req.params;
       const { rating, review, submittedBy, submittedByEmail } = req.body;
-      
+
       // Verify job exists first (deliveryToken is the access credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Check if review already exists
       const existingReview = await storage.getJobReview(job.id);
       if (existingReview) {
         return res.status(400).json({ error: "Review already submitted for this job" });
       }
-      
+
       // Create review scoped to this job
       const validated = insertJobReviewSchema.parse({
         jobId: job.id,
-        partnerId: job.partnerId,
+        partnerId: job.partnerId, // Include partnerId for security/auditing
         rating,
         review,
         submittedBy,
         submittedByEmail,
       });
-      
+
       const newReview = await storage.createJobReview(validated);
       res.status(201).json(newReview);
     } catch (error: any) {
@@ -4597,23 +4613,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/jobs/:jobId/generate-delivery-token", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      
+
       // Verify job exists and belongs to partner
       const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (req.user?.partnerId && job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       // Generate or get existing delivery token
-      const token = await storage.generateDeliveryToken(jobId);
-      
+      const token = await storage.generateDeliveryToken(job.jobId || job.id); // Use NanoID or UUID
+
       // Construct the delivery link
       const deliveryLink = `${req.protocol}://${req.get('host')}/delivery/${token}`;
-      
+
       res.status(200).json({ token, deliveryLink });
     } catch (error: any) {
       console.error("Error generating delivery token:", error);
@@ -4628,30 +4644,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/delivery-emails", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const validated = insertDeliveryEmailSchema.parse(req.body);
-      
+
       // Verify job exists and belongs to partner
       const job = await storage.getJob(validated.jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (req.user?.partnerId && job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       // Generate delivery token if it doesn't exist
-      const token = await storage.generateDeliveryToken(job.jobId || job.id);
+      const token = await storage.generateDeliveryToken(job.jobId || job.id); // Use NanoID or UUID
       const deliveryLink = `${req.protocol}://${req.get('host')}/delivery/${token}`;
-      
+
       // Set sentBy from authenticated user and include the secure delivery link
       const emailData = {
         ...validated,
-        sentBy: req.user?.uid || 'system',
+        sentBy: req.user?.uid || 'system', // Use UID for sentBy
         deliveryLink, // Override with secure tokenized link
       };
-      
+
       const email = await storage.createDeliveryEmail(emailData);
-      
+
       // TODO: Integrate with actual email service here
       // For now, just log the email
       console.log('Delivery email created:', {
@@ -4659,7 +4675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subject: email.subject,
         link: email.deliveryLink
       });
-      
+
       res.status(201).json(email);
     } catch (error: any) {
       console.error("Error sending delivery email:", error);
@@ -4675,42 +4691,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { token } = req.params;
       const { orderId, fileIds, comments } = req.body;
-      
+
       if (!orderId || !fileIds || !Array.isArray(fileIds)) {
         return res.status(400).json({ error: "orderId and fileIds array required" });
       }
-      
+
       // Verify job exists first (deliveryToken is the access credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Verify order belongs to this job
       const order = await storage.getOrder(orderId);
-      if (!order || order.jobId !== job.id) {
+      if (!order || (order.jobId !== job.id && order.jobId !== job.jobId)) { // Allow match by UUID or NanoID
         return res.status(404).json({ error: "Order not found for this job" });
       }
-      
+
       // Verify all files belong to this job
       const jobUploads = await storage.getEditorUploads(job.id);
       const validFileIds = jobUploads.map(f => f.id);
       const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
-      
+
       if (invalidFiles.length > 0) {
         return res.status(400).json({ error: "Some files do not belong to this job" });
       }
-      
+
       // Increment revision round for the order
       const updatedOrder = await storage.incrementRevisionRound(orderId);
       if (!updatedOrder) {
         return res.status(404).json({ error: "Failed to update order" });
       }
-      
+
       // Update order status to 'in_revision'
       await storage.updateOrderStatus(orderId, 'in_revision');
-      
+
       // Create comment entries for each file if comments provided
       if (comments && Array.isArray(comments)) {
         await Promise.all(
@@ -4723,14 +4739,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
       }
-      
+
       // Get customer info for notifications
       const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
       const customerName = customer ? `${customer.firstName} ${customer.lastName}` : 'Client';
-      
+
       // Create notifications for editor and partner
       const notifications = [];
-      
+
       // Notify the assigned editor if exists
       if (order.assignedTo) {
         notifications.push(insertNotificationSchema.parse({
@@ -4743,20 +4759,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobId: job.id,
         }));
       }
-      
+
       // Notify the partner
       notifications.push(insertNotificationSchema.parse({
         partnerId: job.partnerId,
-        recipientId: job.partnerId,
+        recipientId: job.partnerId, // Partner is the recipient of this notification
         type: 'revision_request',
         title: 'Revision Requested',
         body: `${customerName} has requested revisions for ${job.address} (Order ${order.orderNumber})`,
         orderId: orderId,
         jobId: job.id,
       }));
-      
+
       await storage.createNotifications(notifications);
-      
+
       res.json({ 
         success: true, 
         order: updatedOrder,
@@ -4775,25 +4791,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/delivery/:token/orders/:orderId/revision-status", async (req, res) => {
     try {
       const { token, orderId } = req.params;
-      
+
       // Verify job exists first (deliveryToken is the access credential)
       const job = await storage.getJobByDeliveryToken(token);
-      
+
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       // Verify order belongs to this job
       const order = await storage.getOrder(orderId);
-      if (!order || order.jobId !== job.id) {
+      if (!order || (order.jobId !== job.id && order.jobId !== job.jobId)) { // Allow match by UUID or NanoID
         return res.status(404).json({ error: "Order not found for this job" });
       }
-      
+
       const status = await storage.getOrderRevisionStatus(orderId);
       if (!status) {
         return res.status(404).json({ error: "Revision status not found" });
       }
-      
+
       res.json(status);
     } catch (error: any) {
       console.error("Error fetching revision status:", error);
@@ -4808,7 +4824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/delete-firebase", async (req, res) => {
     try {
       const { path: filePath } = req.body;
-      
+
       if (!filePath) {
         return res.status(400).json({ error: "File path required" });
       }
@@ -4818,7 +4834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
-      
+
       const bucket = getStorage().bucket(bucketName);
       const file = bucket.file(filePath);
 
@@ -4863,7 +4879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse and validate activity data
       const activityData = insertActivitySchema.parse({
         ...req.body,
-        partnerId: req.user.partnerId,
+        partnerId: req.user.partnerId, // Force partnerId from auth context
         userId: req.user.uid,
         userEmail: req.user.email,
         userName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
@@ -4898,13 +4914,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse and validate query parameters
       const filters = activityFiltersSchema.parse(req.query);
-      
-      // Convert date strings to Date objects
+
+      // Build filters with mandatory partnerId for security
       const searchFilters: any = {
-        partnerId: req.user.partnerId,
+        partnerId: req.user.partnerId, // CRITICAL: Always filter by user's partnerId
         ...filters
       };
-      
+
+      // Convert date strings to Date objects
       if (filters.startDate) {
         searchFilters.startDate = new Date(filters.startDate);
       }
@@ -4938,13 +4955,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jobId } = req.params;
-      
+
       // Verify job exists and belongs to user's partner
       const job = await storage.getJob(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this job" });
       }
@@ -4968,13 +4985,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId } = req.params;
-      
+
       // Verify order exists and belongs to user's partner
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       if (order.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this order" });
       }
@@ -4997,8 +5014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
 
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      
+      const limit = Math.min(Number(req.query.limit) || 50, 100); // Default to 50, max 100
       const activities = await storage.getUserActivities(req.user.uid, req.user.partnerId, limit);
       res.json(activities);
     } catch (error: any) {
@@ -5017,9 +5033,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
 
-      // Parse optional time range
+      // Build time range filters if provided
       let timeRange: { start: Date; end: Date } | undefined;
-      if (req.query.startDate && req.query.endDate) {
+      if (req.query.startDate && typeof req.query.startDate === 'string' &&
+          req.query.endDate && typeof req.query.endDate === 'string') {
         timeRange = {
           start: new Date(req.query.startDate as string),
           end: new Date(req.query.endDate as string)
@@ -5045,13 +5062,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jobId } = req.params;
-      
+
       // Get job by jobId (NanoID, not UUID)
       const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this job" });
       }
@@ -5080,7 +5097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activity Tracking Endpoints - CRITICAL SECURITY: All protected with requireAuth and partnerId filtering
-  
+
   // GET /api/activities - Get activities with proper tenant isolation
   app.get("/api/activities", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -5118,13 +5135,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (endDate && typeof endDate === 'string') filters.endDate = new Date(endDate);
 
       const activities = await storage.getActivities(filters);
-      
+
       res.json({
         activities,
         pagination: {
           limit: filters.limit,
           offset: filters.offset,
-          total: activities.length
+          total: activities.length // NOTE: This total is for the current page, not total available
         }
       });
     } catch (error: any) {
@@ -5144,13 +5161,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { id } = req.params;
-      
+
       // Verify job belongs to user's partner (security check)
       const job = await storage.getJob(id);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this job" });
       }
@@ -5174,13 +5191,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { id } = req.params;
-      
+
       // Verify order belongs to user's partner (security check)
       const order = await storage.getOrder(id);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       if (order.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this order" });
       }
@@ -5205,7 +5222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const limit = Math.min(Number(req.query.limit) || 50, 100);
       const activities = await storage.getUserActivities(req.user.uid, req.user.partnerId, limit);
-      
+
       res.json(activities);
     } catch (error: any) {
       console.error("Error fetching user activities:", error);
@@ -5224,22 +5241,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Build time range filters if provided
-      const filters: any = { partnerId: req.user.partnerId };
-      
-      if (req.query.startDate && typeof req.query.startDate === 'string') {
-        filters.startDate = new Date(req.query.startDate);
-      }
-      if (req.query.endDate && typeof req.query.endDate === 'string') {
-        filters.endDate = new Date(req.query.endDate);
+      let timeRange: { start: Date; end: Date } | undefined;
+      if (req.query.startDate && typeof req.query.startDate === 'string' &&
+          req.query.endDate && typeof req.query.endDate === 'string') {
+        timeRange = {
+          start: new Date(req.query.startDate as string),
+          end: new Date(req.query.endDate as string)
+        };
       }
 
-      const analytics = await storage.getActivityCountByType(req.user.partnerId, 
-        (filters.startDate || filters.endDate) ? {
-          start: filters.startDate,
-          end: filters.endDate
-        } : undefined
-      );
-      
+      const analytics = await storage.getActivityCountByType(req.user.partnerId, timeRange);
       res.json(analytics);
     } catch (error: any) {
       console.error("Error fetching activity analytics:", error);
@@ -5263,7 +5274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         partnerId: req.user.partnerId, // Force partnerId from auth context
         userId: req.user.uid,
         userEmail: req.user.email,
-        userName: req.user.email,
+        userName: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
       });
@@ -5286,7 +5297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const partnerId = req.user?.partnerId;
       const healthCheck = await storage.performHealthCheck(partnerId);
-      
+
       res.json({
         timestamp: new Date().toISOString(),
         partnerId: partnerId || 'all',
@@ -5309,19 +5320,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jobId } = req.params;
-      
+
       // Verify job belongs to user's partner (tenant isolation)
       const job = await storage.getJob(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
-      
+
       if (job.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied: job belongs to different partner" });
       }
 
       const validation = await storage.validateJobIntegrity(jobId);
-      
+
       res.json({
         jobId,
         partnerId: req.user.partnerId,
@@ -5345,19 +5356,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId } = req.params;
-      
+
       // Verify order belongs to user's partner (tenant isolation)
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       if (order.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied: order belongs to different partner" });
       }
 
       const validation = await storage.validateOrderIntegrity(orderId);
-      
+
       res.json({
         orderId,
         partnerId: req.user.partnerId,
@@ -5382,7 +5393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { jobId } = req.params;
       const validation = await storage.validateEditorWorkflowAccess(req.user.uid, jobId);
-      
+
       res.json({
         editorId: req.user.uid,
         jobId,
@@ -5406,13 +5417,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { orderId, correctJobId } = req.body;
-      
+
       if (!orderId || !correctJobId) {
         return res.status(400).json({ error: "orderId and correctJobId are required" });
       }
 
       const result = await storage.repairOrphanedOrder(orderId, correctJobId);
-      
+
       // Log the repair action
       if (result.success) {
         try {
@@ -5468,7 +5479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const validation = await storage.validateEditorUpload(uploadData);
-      
+
       res.json({
         timestamp: new Date().toISOString(),
         editorId: req.user.uid,
@@ -5604,12 +5615,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!customer || customer.partnerId !== req.user.partnerId) {
         return res.status(404).json({ error: "Customer not found" });
       }
-      
+
       const [options, preferences] = await Promise.all([
         storage.getEditingOptions(req.user.partnerId),
         storage.getCustomerEditingPreferences(req.params.customerId)
       ]);
-      
+
       // Map preferences to options with enabled status
       const detailedPreferences = options.map(option => {
         const pref = preferences.find(p => p.editingOptionId === option.id);
@@ -5620,7 +5631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           preferenceId: pref?.id || null
         };
       });
-      
+
       res.json(detailedPreferences);
     } catch (error: any) {
       console.error("Error fetching detailed preferences:", error);
@@ -5637,12 +5648,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const settings = await storage.getPartnerSettings(req.user.partnerId);
-      
+
       if (!settings) {
         return res.json({
           businessProfile: null,
           personalProfile: null,
-          businessHours: null
+          businessHours: null,
+          defaultMaxRevisionRounds: 2
         });
       }
 
@@ -5767,7 +5779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!conversation) {
         // Get partner name from user document
         const userDoc = await getUserDocument(uid);
-        const partnerName = userDoc ? `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() : email;
+        const partnerName = userDoc ? `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || email : email;
 
         // Create new conversation
         const conversationData = insertConversationSchema.parse({
@@ -5840,39 +5852,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         let recipientId: string;
         const recipientName = isPartner ? conversation.editorName : conversation.partnerName;
-        
+
         if (isPartner) {
-          // Sender is partner, recipient is editor
-          recipientId = conversation.editorId; // editorId is already a Firebase UID
-        } else {
-          // Sender is editor, recipient is partner
-          // Need to look up partner's Firebase UID from their partnerId
-          const partnerUser = await getUserByPartnerId(conversation.partnerId);
-          if (!partnerUser) {
-            console.error(`Could not find partner user for partnerId: ${conversation.partnerId}`);
-            throw new Error('Partner user not found');
+          // Partner sent message, notify editor (if editor is different from sender)
+          if (conversation.editorId !== uid) {
+            recipientId = conversation.editorId; // editorId is already a Firebase UID
+            
+            const notificationData = insertNotificationSchema.parse({
+              partnerId,
+              recipientId,
+              type: 'message_received',
+              title: 'New Message',
+              body: `${senderName} sent you a message`,
+              orderId: conversation.orderId,
+              jobId: null,
+              read: false
+            });
+
+            await storage.createNotification(notificationData);
+            console.log(`Created notification for ${conversation.editorName} (uid: ${conversation.editorId}) about new message from ${senderName}`);
+          } else {
+            console.log(`Skipping notification creation - sender and recipient are the same user (${uid})`);
           }
-          recipientId = partnerUser.uid; // Use partner's Firebase UID
-        }
-        
-        // CRITICAL: Only create notification if recipientId is different from senderId
-        // This prevents the sender from seeing a notification for their own sent message
-        if (recipientId !== uid) {
-          const notificationData = insertNotificationSchema.parse({
-            partnerId: conversation.partnerId,
-            recipientId,
-            type: 'new_message',
-            title: `New message from ${senderName}`,
-            body: content.trim().length > 100 ? content.trim().substring(0, 100) + '...' : content.trim(),
+        } else {
+          // Editor sent message, notify ALL users in the partner organization
+          // Get all users in the partner organization
+          const partnerUsers = await storage.getUsers();
+          const orgUsers = partnerUsers.filter(u => u.partnerId === partnerId && u.uid !== uid);
+
+          // Create notifications for all partner organization users
+          const notifications = orgUsers.map(user => insertNotificationSchema.parse({
+            partnerId,
+            recipientId: user.uid,
+            type: 'message_received',
+            title: 'New Message',
+            body: `${senderName} sent you a message`,
             orderId: conversation.orderId,
             jobId: null,
             read: false
-          });
+          }));
 
-          await storage.createNotification(notificationData);
-          console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${senderName}`);
-        } else {
-          console.log(`Skipping notification creation - sender and recipient are the same user (${uid})`);
+          if (notifications.length > 0) {
+            await storage.createNotifications(notifications); // Use createNotifications for consistency
+            console.log(`Created ${notifications.length} notifications for partner organization about new message from ${senderName}`);
+          }
         }
       } catch (notifError) {
         console.error("Error creating message notification:", notifError);
