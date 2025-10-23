@@ -2634,6 +2634,19 @@
       "id": "d99036ad-8950-41af-b9db-5838654b0577",
       "createdAt": "2025-10-23T09:00:30.667Z",
       "readAt": "2025-10-23T09:01:25.044Z"
+    },
+    "981e9167-a052-4cfd-8c31-a06fbbdc6d19": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "new_message",
+      "title": "New message from adamson652@gmail.com",
+      "body": "hello",
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "jobId": null,
+      "read": true,
+      "id": "981e9167-a052-4cfd-8c31-a06fbbdc6d19",
+      "createdAt": "2025-10-23T09:17:04.747Z",
+      "readAt": "2025-10-23T09:18:02.504Z"
     }
   },
   "activities": {
@@ -3526,10 +3539,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T09:14:09.031Z",
-      "lastMessageText": "hi",
+      "lastMessageAt": "2025-10-23T09:18:39.249Z",
+      "lastMessageText": "hello",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 13,
+      "editorUnreadCount": 15,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -4083,6 +4096,28 @@
       "id": "28b30ae1-6c73-4c9f-acb2-2098c504e602",
       "readAt": null,
       "createdAt": "2025-10-23T09:14:09.025Z"
+    },
+    "c653fc33-1120-4ec8-a9a5-910c92116e28": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "hello",
+      "id": "c653fc33-1120-4ec8-a9a5-910c92116e28",
+      "readAt": null,
+      "createdAt": "2025-10-23T09:17:04.730Z"
+    },
+    "a87a458e-424f-44d6-8785-d1b96891e51d": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "hello",
+      "id": "a87a458e-424f-44d6-8785-d1b96891e51d",
+      "readAt": null,
+      "createdAt": "2025-10-23T09:18:39.245Z"
     }
   },
   "orderCounter": 16,
