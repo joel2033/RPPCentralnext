@@ -215,7 +215,7 @@ export interface IStorage {
   // Messaging
   getUserConversations(userId: string, partnerId?: string): Promise<Conversation[]>;
   getConversation(id: string): Promise<Conversation | undefined>;
-  getConversationByParticipants(partnerId: string, editorId: string): Promise<Conversation | undefined>;
+  getConversationByParticipants(partnerId: string, editorId: string, orderId?: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversationLastMessage(conversationId: string, lastMessageText: string, isPartnerSender: boolean): Promise<void>;
   markConversationAsRead(conversationId: string, isPartnerReading: boolean): Promise<void>;
@@ -2320,9 +2320,17 @@ export class MemStorage implements IStorage {
     return this.conversations.get(id);
   }
 
-  async getConversationByParticipants(partnerId: string, editorId: string): Promise<Conversation | undefined> {
+  async getConversationByParticipants(partnerId: string, editorId: string, orderId?: string): Promise<Conversation | undefined> {
     return Array.from(this.conversations.values())
-      .find(conv => conv.partnerId === partnerId && conv.editorId === editorId);
+      .find(conv => {
+        const matchesParticipants = conv.partnerId === partnerId && conv.editorId === editorId;
+        if (orderId) {
+          // If orderId is provided, match conversations for that specific order
+          return matchesParticipants && conv.orderId === orderId;
+        }
+        // If no orderId, only match general conversations (conversations without an orderId)
+        return matchesParticipants && !conv.orderId;
+      });
   }
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {

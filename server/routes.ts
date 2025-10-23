@@ -5649,14 +5649,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { uid, partnerId, email } = req.user!;
-      const { editorId, editorEmail, editorName } = req.body;
+      const { editorId, editorEmail, editorName, orderId } = req.body;
 
       if (!editorId || !editorEmail) {
         return res.status(400).json({ error: "Editor ID and email are required" });
       }
 
-      // Check if conversation already exists
-      let conversation = await storage.getConversationByParticipants(partnerId!, editorId);
+      // Check if conversation already exists for this contact and order combination
+      let conversation = await storage.getConversationByParticipants(partnerId!, editorId, orderId);
 
       if (!conversation) {
         // Get partner name from user document
@@ -5667,6 +5667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const conversationData = insertConversationSchema.parse({
           partnerId: partnerId!,
           editorId,
+          orderId: orderId || null, // Link to order if provided
           partnerName,
           editorName,
           partnerEmail: email,

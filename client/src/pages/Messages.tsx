@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { getAuth } from "firebase/auth";
 import { cn } from "@/lib/utils";
@@ -293,27 +294,7 @@ export default function Messages() {
       return;
     }
 
-    // Check if conversation already exists with this contact
-    const contact = contacts.find(c => c.id === selectedContactId);
-    if (contact) {
-      const existingConversation = conversations.find(
-        c => c.editorEmail === contact.email || c.partnerEmail === contact.email
-      );
-      
-      if (existingConversation) {
-        setSelectedConversationId(existingConversation.id);
-        setNewConversationDialogOpen(false);
-        setSelectedOrderId("");
-        setSelectedContactId("");
-        setIsGeneralConversation(false);
-        toast({
-          title: "Existing Conversation",
-          description: "Opening your existing conversation with this contact.",
-        });
-        return;
-      }
-    }
-
+    // Backend will handle duplicate conversation checking
     createConversationMutation.mutate({
       contactId: selectedContactId,
       orderId: isGeneralConversation ? undefined : selectedOrderId,
@@ -363,9 +344,9 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] rounded-lg overflow-hidden shadow-lg bg-background">
+    <div className="flex h-[calc(100vh-12rem)] gap-4">
       {/* Conversations List */}
-      <div className="w-80 border-r flex flex-col bg-gradient-to-b from-background to-muted/20">
+      <Card className="w-80 flex flex-col overflow-hidden shadow-lg">
         <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
@@ -416,7 +397,7 @@ export default function Messages() {
                       <SelectContent>
                         {orders.map((order) => (
                           <SelectItem key={order.orderId} value={order.orderId}>
-                            {order.orderNumber} - {order.jobAddress}
+                            {order.orderNumber} • {order.jobAddress}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -444,10 +425,10 @@ export default function Messages() {
                     </div>
                   </div>
 
-                  {/* Editor Selection */}
+                  {/* Contact Selection */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="editor-select">Select Editor</Label>
+                      <Label htmlFor="contact-select">Select Contact</Label>
                       <span className="text-red-500 text-sm">*</span>
                     </div>
                     <Select 
@@ -455,17 +436,32 @@ export default function Messages() {
                       onValueChange={setSelectedContactId}
                     >
                       <SelectTrigger 
-                        id="editor-select"
+                        id="contact-select"
                         data-testid="select-contact"
                       >
-                        <SelectValue placeholder="Choose an editor..." />
+                        <SelectValue placeholder="Choose a contact..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {contacts.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>
-                            {contact.name} ({contact.type === "editor" ? "Editor" : "Team Member"})
-                          </SelectItem>
-                        ))}
+                        {contacts.filter(c => c.type === "editor").length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Editors</SelectLabel>
+                            {contacts.filter(c => c.type === "editor").map((contact) => (
+                              <SelectItem key={contact.id} value={contact.id}>
+                                {contact.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {contacts.filter(c => c.type === "team").length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Team Members</SelectLabel>
+                            {contacts.filter(c => c.type === "team").map((contact) => (
+                              <SelectItem key={contact.id} value={contact.id}>
+                                {contact.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -595,14 +591,14 @@ export default function Messages() {
             </div>
           )}
         </ScrollArea>
-      </div>
+      </Card>
 
       {/* Messages Area */}
-      <div className="flex-1 flex flex-col">
+      <Card className="flex-1 flex flex-col overflow-hidden shadow-lg">
         {selectedConversationId ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b bg-gradient-to-r from-background to-muted/10 shadow-sm">
+            <div className="p-4 border-b bg-muted/30">
               {conversationData && (
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
@@ -670,7 +666,7 @@ export default function Messages() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="p-4 border-t bg-gradient-to-r from-background to-muted/5">
+            <div className="p-4 border-t bg-muted/20">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -703,7 +699,7 @@ export default function Messages() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground bg-gradient-to-br from-background to-muted/10">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center p-8">
               <div className="inline-block p-6 rounded-full bg-muted/30 mb-4">
                 <MessageSquare className="h-16 w-16 opacity-40" />
@@ -715,7 +711,7 @@ export default function Messages() {
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

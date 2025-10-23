@@ -288,6 +288,7 @@ export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   editorId: text("editor_id").notNull(), // Firebase UID of editor
+  orderId: varchar("order_id").references(() => orders.id), // Optional - link conversation to specific order
   partnerName: text("partner_name").notNull(), // Display name of partner
   editorName: text("editor_name").notNull(), // Display name of editor
   partnerEmail: text("partner_email").notNull(),
