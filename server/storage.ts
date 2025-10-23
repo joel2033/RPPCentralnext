@@ -1454,11 +1454,10 @@ export class MemStorage implements IStorage {
   }
 
   async getNotificationsForUser(recipientId: string, partnerId: string): Promise<Notification[]> {
+    // Filter by recipientId only - the partnerId parameter is kept for backwards compatibility
+    // but not used in filtering since it causes issues with editors who also have a partnerId
     return Array.from(this.notifications.values())
-      .filter(notification => 
-        notification.recipientId === recipientId && 
-        notification.partnerId === partnerId
-      )
+      .filter(notification => notification.recipientId === recipientId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Latest first
   }
 
@@ -1481,10 +1480,9 @@ export class MemStorage implements IStorage {
   async markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void> {
     let hasChanges = false;
     
+    // Filter by recipientId only - partnerId parameter kept for backwards compatibility
     for (const [id, notification] of this.notifications.entries()) {
-      if (notification.recipientId === recipientId && 
-          notification.partnerId === partnerId && 
-          !notification.read) {
+      if (notification.recipientId === recipientId && !notification.read) {
         const updated = {
           ...notification,
           read: true,
