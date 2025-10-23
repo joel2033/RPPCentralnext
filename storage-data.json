@@ -3392,11 +3392,26 @@
       "partnerEmail": "May@maystudios.com",
       "editorEmail": "May@maystudios.com",
       "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
-      "lastMessageAt": "2025-10-22T23:39:31.210Z",
-      "lastMessageText": "hi",
+      "lastMessageAt": "2025-10-23T01:38:23.501Z",
+      "lastMessageText": "Hello! This is a general conversation test.",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 4,
+      "editorUnreadCount": 5,
       "createdAt": "2025-10-21T10:45:20.233Z"
+    },
+    "cf6d548d-b553-4924-924b-8d2e3a7caa98": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "orderId": "33ee8ee8-17fb-4129-91ef-94a9e4fa05ea",
+      "partnerName": "",
+      "editorName": "May Studios",
+      "partnerEmail": "adamson652@gmail.com",
+      "editorEmail": "May@maystudios.com",
+      "id": "cf6d548d-b553-4924-924b-8d2e3a7caa98",
+      "lastMessageAt": "2025-10-23T01:54:17.297Z",
+      "lastMessageText": "Test message for order-specific conversation",
+      "partnerUnreadCount": 0,
+      "editorUnreadCount": 1,
+      "createdAt": "2025-10-23T01:53:43.593Z"
     }
   },
   "messages": {
@@ -3443,6 +3458,28 @@
       "id": "fdec7aa5-d4c4-496f-ba39-36a10718ed6a",
       "readAt": null,
       "createdAt": "2025-10-22T23:39:31.208Z"
+    },
+    "09c6b610-1c4d-4311-88bb-5ddac5acd727": {
+      "conversationId": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "Hello! This is a general conversation test.",
+      "id": "09c6b610-1c4d-4311-88bb-5ddac5acd727",
+      "readAt": null,
+      "createdAt": "2025-10-23T01:38:23.499Z"
+    },
+    "c4e616e1-20b7-4744-bf11-1ca5e4736c5a": {
+      "conversationId": "cf6d548d-b553-4924-924b-8d2e3a7caa98",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "Test message for order-specific conversation",
+      "id": "c4e616e1-20b7-4744-bf11-1ca5e4736c5a",
+      "readAt": null,
+      "createdAt": "2025-10-23T01:54:17.292Z"
     }
   },
   "orderCounter": 16,

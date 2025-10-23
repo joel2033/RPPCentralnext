@@ -63,7 +63,7 @@ interface Partnership {
 }
 
 interface Order {
-  orderId: string;
+  id: string;
   orderNumber: string;
   jobId: string;
   jobAddress: string;
@@ -396,7 +396,7 @@ export default function Messages() {
                       </SelectTrigger>
                       <SelectContent>
                         {orders.map((order) => (
-                          <SelectItem key={order.orderId} value={order.orderId}>
+                          <SelectItem key={order.id} value={order.id}>
                             {order.orderNumber} • {order.jobAddress}
                           </SelectItem>
                         ))}
