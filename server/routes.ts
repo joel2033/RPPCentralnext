@@ -26,6 +26,7 @@ import {
   getPendingInvite, 
   updateInviteStatus,
   getUserDocument,
+  getUserByPartnerId,
   updateUserPartnerId,
   createPartnershipInvite,
   getPartnershipInvite,
@@ -5837,8 +5838,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for the recipient
       try {
-        const recipientId = isPartner ? conversation.editorId : conversation.partnerId;
+        let recipientId: string;
         const recipientName = isPartner ? conversation.editorName : conversation.partnerName;
+        
+        if (isPartner) {
+          // Sender is partner, recipient is editor
+          recipientId = conversation.editorId; // editorId is already a Firebase UID
+        } else {
+          // Sender is editor, recipient is partner
+          // Need to look up partner's Firebase UID from their partnerId
+          const partnerUser = await getUserByPartnerId(conversation.partnerId);
+          if (!partnerUser) {
+            console.error(`Could not find partner user for partnerId: ${conversation.partnerId}`);
+            throw new Error('Partner user not found');
+          }
+          recipientId = partnerUser.uid; // Use partner's Firebase UID
+        }
         
         const notificationData = insertNotificationSchema.parse({
           partnerId: conversation.partnerId,
@@ -5852,7 +5867,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         await storage.createNotification(notificationData);
-        console.log(`Created notification for ${recipientName} about new message from ${senderName}`);
+        console.log(`Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${senderName}`);
       } catch (notifError) {
         console.error("Error creating message notification:", notifError);
         // Don't fail the message send if notification fails

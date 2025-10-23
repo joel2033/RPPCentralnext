@@ -178,6 +178,25 @@ export const getUserDocument = async (uid: string): Promise<UserData | null> => 
   }
 };
 
+// Get user document by partnerId
+export const getUserByPartnerId = async (partnerId: string): Promise<UserData | null> => {
+  try {
+    const usersSnapshot = await adminDb.collection('users')
+      .where('partnerId', '==', partnerId)
+      .limit(1)
+      .get();
+    
+    if (usersSnapshot.empty) {
+      return null;
+    }
+    
+    return usersSnapshot.docs[0].data() as UserData;
+  } catch (error) {
+    console.error('Error getting user by partnerId:', error);
+    throw error;
+  }
+};
+
 // Update user document with partnerId (for editors who get assigned to partners)
 export const updateUserPartnerId = async (uid: string, partnerId: string): Promise<void> => {
   try {
