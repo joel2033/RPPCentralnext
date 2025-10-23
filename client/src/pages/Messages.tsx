@@ -643,7 +643,7 @@ export default function Messages() {
               ) : (
                 <div className="space-y-3 pb-4">
                   {conversationData?.messages.map((message, index) => {
-                    const isCurrentUser = message.senderEmail === currentUserEmail;
+                    const isCurrentUser = message.senderEmail?.toLowerCase() === currentUserEmail?.toLowerCase();
                     return (
                       <div
                         key={message.id}

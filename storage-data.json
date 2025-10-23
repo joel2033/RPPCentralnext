@@ -3392,10 +3392,10 @@
       "partnerEmail": "May@maystudios.com",
       "editorEmail": "May@maystudios.com",
       "id": "41529384-55f9-4d0c-ae25-4ef962795c44",
-      "lastMessageAt": "2025-10-23T04:46:12.180Z",
-      "lastMessageText": "hi",
+      "lastMessageAt": "2025-10-23T04:47:19.949Z",
+      "lastMessageText": "message 5",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 24,
+      "editorUnreadCount": 25,
       "createdAt": "2025-10-21T10:45:20.233Z"
     },
     "cf6d548d-b553-4924-924b-8d2e3a7caa98": {
@@ -3726,6 +3726,17 @@
       "id": "846cce11-d07b-4d81-b5fb-d465b9411e75",
       "readAt": null,
       "createdAt": "2025-10-23T04:46:12.175Z"
+    },
+    "4c8de503-2d4d-4bbd-aade-322098001bd3": {
+      "conversationId": "41529384-55f9-4d0c-ae25-4ef962795c44",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "message 5",
+      "id": "4c8de503-2d4d-4bbd-aade-322098001bd3",
+      "readAt": null,
+      "createdAt": "2025-10-23T04:47:19.946Z"
     }
   },
   "orderCounter": 16,
