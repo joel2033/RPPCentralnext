@@ -99,6 +99,9 @@ export default function Messages() {
   const { userData: partnerData } = useAuth();
   const { userData: editorData } = useEditorAuth();
 
+  // Determine current user's email based on role
+  const currentUserEmail = currentUser?.email || editorData?.email || partnerData?.email;
+
   // Fetch all conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
@@ -640,7 +643,7 @@ export default function Messages() {
               ) : (
                 <div className="space-y-3 pb-4">
                   {conversationData?.messages.map((message, index) => {
-                    const isCurrentUser = message.senderEmail === currentUser?.email;
+                    const isCurrentUser = message.senderEmail === currentUserEmail;
                     return (
                       <div
                         key={message.id}
