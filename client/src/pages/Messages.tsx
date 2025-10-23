@@ -134,10 +134,19 @@ export default function Messages() {
   });
 
   // Fetch orders (for partners only)
-  const { data: orders = [] } = useQuery<Order[]>({
+  const { data: partnerOrders = [] } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
     enabled: isPartner,
   });
+
+  // Fetch orders for editors
+  const { data: editorOrders = [] } = useQuery<Order[]>({
+    queryKey: ["/api/editor/orders"],
+    enabled: isEditor,
+  });
+
+  // Use appropriate orders list based on role
+  const orders = isEditor ? editorOrders : partnerOrders;
 
   // Fetch team members (for partners only)
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
@@ -148,21 +157,29 @@ export default function Messages() {
   // Use the appropriate partnerships list based on user role
   const partnerships = isEditor ? editorPartnerships : partnerPartnerships;
 
-  // Combine editors and team members into contacts list
-  const contacts: Contact[] = [
-    ...partnerPartnerships.filter(p => p.isActive).map(p => ({
-      id: p.editorId,
-      name: p.editorStudioName,
-      email: p.editorEmail,
-      type: "editor" as const,
-    })),
-    ...teamMembers.filter(tm => tm.status === 'active').map(tm => ({
-      id: tm.email,
-      name: tm.name,
-      email: tm.email,
-      type: "team" as const,
-    })),
-  ];
+  // Combine editors and team members into contacts list (for partners)
+  // For editors, combine partners into contacts list
+  const contacts: Contact[] = isEditor
+    ? editorPartnerships.filter(p => p.isActive).map(p => ({
+        id: p.partnerId,
+        name: p.partnerName,
+        email: p.partnerEmail,
+        type: "editor" as const, // Use "editor" type for consistency, even though these are partners
+      }))
+    : [
+        ...partnerPartnerships.filter(p => p.isActive).map(p => ({
+          id: p.editorId,
+          name: p.editorStudioName,
+          email: p.editorEmail,
+          type: "editor" as const,
+        })),
+        ...teamMembers.filter(tm => tm.status === 'active').map(tm => ({
+          id: tm.email,
+          name: tm.name,
+          email: tm.email,
+          type: "team" as const,
+        })),
+      ];
 
   // Mark conversation as read when selected
   const markAsReadMutation = useMutation({
@@ -225,7 +242,7 @@ export default function Messages() {
     mutationFn: async ({ contactId, orderId }: { contactId: string; orderId?: string }) => {
       const token = await auth.currentUser?.getIdToken();
       
-      // Find the contact (editor or team member)
+      // Find the contact (editor/partner or team member)
       const contact = contacts.find(c => c.id === contactId);
       if (!contact) throw new Error("Contact not found");
 
@@ -235,12 +252,23 @@ export default function Messages() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          editorId: contact.id,
-          editorEmail: contact.email,
-          editorName: contact.name,
-          orderId: orderId || undefined,
-        }),
+        body: JSON.stringify(
+          isEditor
+            ? {
+                // Editor creating conversation with partner
+                partnerId: contact.id,
+                partnerEmail: contact.email,
+                partnerName: contact.name,
+                orderId: orderId || undefined,
+              }
+            : {
+                // Partner creating conversation with editor
+                editorId: contact.id,
+                editorEmail: contact.email,
+                editorName: contact.name,
+                orderId: orderId || undefined,
+              }
+        ),
       });
       if (!response.ok) throw new Error("Failed to create conversation");
       return response.json();
@@ -344,7 +372,7 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation: Conversation) => {
-    const isPartner = conversation.partnerEmail === currentUser?.email;
+    const isPartner = conversation.partnerEmail?.toLowerCase() === currentUser?.email?.toLowerCase();
     return {
       name: isPartner ? conversation.editorName : conversation.partnerName,
       email: isPartner ? conversation.editorEmail : conversation.partnerEmail,
@@ -369,7 +397,7 @@ export default function Messages() {
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
             Messages
           </h2>
-          {isPartner && (
+          {(isPartner || isEditor) && partnerships.length > 0 && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
                 <Button 
@@ -389,7 +417,9 @@ export default function Messages() {
                   </DialogTitle>
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
-                  Select an order and editor to begin messaging
+                  {isEditor 
+                    ? "Select an order and partner to begin messaging"
+                    : "Select an order and editor to begin messaging"}
                 </p>
                 
                 <div className="space-y-4 py-4">
@@ -445,7 +475,9 @@ export default function Messages() {
                   {/* Contact Selection */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="contact-select">Select Contact</Label>
+                      <Label htmlFor="contact-select">
+                        {isEditor ? "Select Partner" : "Select Contact"}
+                      </Label>
                       <span className="text-red-500 text-sm">*</span>
                     </div>
                     <Select 
@@ -456,28 +488,40 @@ export default function Messages() {
                         id="contact-select"
                         data-testid="select-contact"
                       >
-                        <SelectValue placeholder="Choose a contact..." />
+                        <SelectValue placeholder={isEditor ? "Choose a partner..." : "Choose a contact..."} />
                       </SelectTrigger>
                       <SelectContent>
-                        {contacts.filter(c => c.type === "editor").length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel>Editors</SelectLabel>
-                            {contacts.filter(c => c.type === "editor").map((contact) => (
-                              <SelectItem key={contact.id} value={contact.id}>
-                                {contact.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        )}
-                        {contacts.filter(c => c.type === "team").length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel>Team Members</SelectLabel>
-                            {contacts.filter(c => c.type === "team").map((contact) => (
-                              <SelectItem key={contact.id} value={contact.id}>
-                                {contact.name}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
+                        {isEditor ? (
+                          // For editors, show partners
+                          contacts.map((contact) => (
+                            <SelectItem key={contact.id} value={contact.id}>
+                              {contact.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          // For partners, show editors and team members grouped
+                          <>
+                            {contacts.filter(c => c.type === "editor").length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Editors</SelectLabel>
+                                {contacts.filter(c => c.type === "editor").map((contact) => (
+                                  <SelectItem key={contact.id} value={contact.id}>
+                                    {contact.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                            {contacts.filter(c => c.type === "team").length > 0 && (
+                              <SelectGroup>
+                                <SelectLabel>Team Members</SelectLabel>
+                                {contacts.filter(c => c.type === "team").map((contact) => (
+                                  <SelectItem key={contact.id} value={contact.id}>
+                                    {contact.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            )}
+                          </>
                         )}
                       </SelectContent>
                     </Select>

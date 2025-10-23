@@ -1957,6 +1957,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all orders assigned to an editor
+  app.get("/api/editor/orders", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+      
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can view their orders" });
+      }
+      
+      // Get all orders assigned to this editor with job details
+      const allOrders = await storage.getOrders();
+      const editorOrders = allOrders
+        .filter(o => o.assignedTo === uid)
+        .map(order => ({
+          id: order.id,
+          orderNumber: order.orderNumber,
+          jobId: order.jobId,
+          jobAddress: order.jobAddress || '',
+          status: order.status
+        }));
+      
+      res.json(editorOrders);
+    } catch (error: any) {
+      console.error("Error getting editor orders:", error);
+      res.status(500).json({ 
+        error: "Failed to get editor orders", 
+        details: error.message 
+      });
+    }
+  });
 
   // Download order files as zip by order number  
   app.get("/api/editor/orders/:orderNumber/download", async (req, res) => {
