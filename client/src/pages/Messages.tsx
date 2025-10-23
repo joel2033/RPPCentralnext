@@ -376,7 +376,7 @@ export default function Messages() {
               <DialogTrigger asChild>
                 <Button 
                   size="sm" 
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  className="!bg-[#f2572c] hover:!bg-rpp-red-dark text-white"
                   data-testid="button-new-conversation"
                 >
                   <Plus className="h-4 w-4 mr-1" />
