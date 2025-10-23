@@ -79,19 +79,34 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
 - **Messaging System**: Bidirectional messaging functionality between partners and editors with order-aware conversations:
   - **Order-Aware Conversations**: Conversations can be linked to specific orders via optional `orderId` field. Database enforces uniqueness: only 1 conversation per (contact + order) pair, but allows multiple general conversations per contact.
   - **Automatic Conversation Creation**: When editors accept partnership invitations, a conversation is automatically created between the partner and editor
-  - **Manual Conversation Initiation**: Partners can start new conversations with editors or team members via "New Conversation" button. Supports both order-specific and general conversations.
+  - **Manual Conversation Initiation**: Both partners and editors can start new conversations via "+New" button. Supports both order-specific and general conversations.
+    - Partners can message editors or team members
+    - Editors can message partners
+    - Order selection filtered to only assigned orders for editors
   - **Conversation Types**:
     - **Order-Specific**: Linked to a specific order for discussing editing requirements, progress, and feedback
     - **General**: Not linked to any order, for general communication between partners and contacts
-  - **Role-Adaptive UI**: Messages component adapts based on user role - shows editors for partners, partners for editors
-  - **Partnership-Gated Access**: "New Conversation" button only appears when user has at least one active partnership
+  - **Role-Adaptive UI**: Messages component adapts based on user role:
+    - Partners see editors and team members in contact dropdown (grouped)
+    - Editors see partners in contact dropdown (ungrouped)
+    - Modal text adapts: "Select an order and partner" for editors vs "Select an order and editor" for partners
+    - Message alignment uses case-insensitive email comparison for reliability
+  - **Partnership-Gated Access**: "+New Conversation" button only appears when user has at least one active partnership
   - **UI Improvements** (October 2025):
     - Card-based visual separation for conversation list and messages area
     - Order dropdown displays "order number • address" format (e.g., "#00001 • 123 Main St")
-    - Contact dropdown organized with "Editors" and "Team Members" sections using SelectGroup
+    - Contact dropdown organized with "Editors" and "Team Members" sections for partners
     - Team members included in contact list alongside editors for unified messaging
+    - Message bubbles: sent messages (peachy #fcdcd4, right-aligned), received messages (light grey, left-aligned)
+    - Case-insensitive email comparison throughout for correct message alignment and unread counts
   - **Storage**: Conversations and messages stored in PostgreSQL, partnerships stored in Firestore
-  - **API Endpoints**: GET /api/partnerships (partners), GET /api/editor/partnerships (editors), POST /api/conversations (both roles), GET /api/team/invites/:partnerId (team members)
+  - **API Endpoints**: 
+    - GET /api/partnerships (partners)
+    - GET /api/editor/partnerships (editors)
+    - GET /api/orders (partners - all orders)
+    - GET /api/editor/orders (editors - only assigned orders)
+    - POST /api/conversations (both roles)
+    - GET /api/team/invites/:partnerId (team members)
 
 # External Dependencies
 
