@@ -18,6 +18,10 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
 - Partner Account:
   - Email: adamson652@gmail.com
   - Password: benjiman1993
+  
+- Editor Account:
+  - Email: May@maystudios.com
+  - Password: benjiman1993
 
 # System Architecture
 
