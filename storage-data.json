@@ -2385,10 +2385,10 @@
       "body": "Order ##12350 has been assigned to you and is ready for processing.",
       "orderId": "546ded0d-952f-422b-ba12-c7031ff9244c",
       "jobId": "3N4R7qcGUiQyOzWpgZm3N",
-      "read": false,
+      "read": true,
       "id": "985e5423-9077-4d92-8c71-f503e754b6e5",
       "createdAt": "2025-09-22T09:04:11.432Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "2b7fc2a5-a12d-4d09-8612-d2c45f6bcc19": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2398,10 +2398,10 @@
       "body": "Order ##00008 has been assigned to you and is ready for processing.",
       "orderId": "8a231843-0556-4221-833d-ea364f8f988a",
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "read": false,
+      "read": true,
       "id": "2b7fc2a5-a12d-4d09-8612-d2c45f6bcc19",
       "createdAt": "2025-09-22T09:31:01.981Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "191ea8a5-0a5d-4852-b996-6fc596011ad5": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2411,10 +2411,10 @@
       "body": "Order ##00009 has been assigned to you and is ready for processing.",
       "orderId": "85fdbb32-5067-4437-8185-a54d6f0cb631",
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "read": false,
+      "read": true,
       "id": "191ea8a5-0a5d-4852-b996-6fc596011ad5",
       "createdAt": "2025-09-22T09:37:57.055Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "f726c4ce-feee-4644-83ed-8647ebc8dc8b": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2424,10 +2424,10 @@
       "body": "Order ##00010 has been assigned to you and is ready for processing.",
       "orderId": "4e47679f-0c46-4d3f-a403-fdfecddae70e",
       "jobId": "4a04b9b0-3692-4682-baaa-9a1d5eacd9db",
-      "read": false,
+      "read": true,
       "id": "f726c4ce-feee-4644-83ed-8647ebc8dc8b",
       "createdAt": "2025-09-22T09:45:55.723Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "cd1c31f6-12d8-430a-b886-6844a4b72086": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2437,10 +2437,10 @@
       "body": "Order ##00011 has been assigned to you and is ready for processing.",
       "orderId": "b5d02684-a32c-466a-9d37-5d2220c603e4",
       "jobId": "AngIgN8qzyFuBWw7k1JP3",
-      "read": false,
+      "read": true,
       "id": "cd1c31f6-12d8-430a-b886-6844a4b72086",
       "createdAt": "2025-09-22T10:00:58.135Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "7938f191-c584-4939-9936-bcd581eb279f": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2450,10 +2450,10 @@
       "body": "Order ##00006 has been assigned to you and is ready for processing.",
       "orderId": "b82486cd-69fe-4ddf-b65f-42a1f709eb54",
       "jobId": "OvghgL0MZna5VDxKycwFq",
-      "read": false,
+      "read": true,
       "id": "7938f191-c584-4939-9936-bcd581eb279f",
       "createdAt": "2025-09-23T08:44:55.754Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "4b4a5959-daef-4c32-b4b7-ec9cd83cc810": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2463,10 +2463,10 @@
       "body": "Order ##00004 has been assigned to you and is ready for processing.",
       "orderId": "a9d49007-2177-44bc-b7de-158af8849447",
       "jobId": "Lkm3Ynx1gZm6tDgZ6ZGLw",
-      "read": false,
+      "read": true,
       "id": "4b4a5959-daef-4c32-b4b7-ec9cd83cc810",
       "createdAt": "2025-10-17T10:15:08.733Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "72498e0b-1b00-49e3-9f92-b942d061e2ca": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2476,10 +2476,10 @@
       "body": "Order ##00013 has been assigned to you and is ready for processing.",
       "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
       "jobId": "f419b821-944b-46aa-bb52-094af317f499",
-      "read": false,
+      "read": true,
       "id": "72498e0b-1b00-49e3-9f92-b942d061e2ca",
       "createdAt": "2025-10-17T11:09:00.221Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "5dc3084d-19f3-48a7-aee5-107efd8495c8": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2515,10 +2515,10 @@
       "body": "Order ##00014 has been assigned to you and is ready for processing.",
       "orderId": "028fc324-f149-4900-a3a7-2ce74ca6390a",
       "jobId": "vQkP2MkvShJhrweBsCJ5J",
-      "read": false,
+      "read": true,
       "id": "0853e290-953e-42d4-b65d-ca63af3c21b0",
       "createdAt": "2025-10-19T00:38:44.456Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "ae68a6e5-9bf0-4b6a-8b37-45a2b29b76d3": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -2528,10 +2528,10 @@
       "body": "Order ##00015 has been assigned to you and is ready for processing.",
       "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
       "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
-      "read": false,
+      "read": true,
       "id": "ae68a6e5-9bf0-4b6a-8b37-45a2b29b76d3",
       "createdAt": "2025-10-19T00:49:00.901Z",
-      "readAt": null
+      "readAt": "2025-10-23T08:03:13.685Z"
     },
     "cb46b1db-cb0a-4987-a639-d38a15044687": {
       "partnerId": "partner_192l9bh1xmduwueha",
@@ -3448,10 +3448,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T07:41:42.393Z",
-      "lastMessageText": "hopefully this give you a notification!!",
+      "lastMessageAt": "2025-10-23T08:01:55.144Z",
+      "lastMessageText": "nope didnt get one",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 1,
+      "editorUnreadCount": 3,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -3873,6 +3873,28 @@
       "id": "cdf796c6-a80f-4e02-bde5-d0ba4a028f01",
       "readAt": null,
       "createdAt": "2025-10-23T07:41:42.391Z"
+    },
+    "2a573f53-0655-4e61-93db-97acf5c956f9": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "how about now",
+      "id": "2a573f53-0655-4e61-93db-97acf5c956f9",
+      "readAt": null,
+      "createdAt": "2025-10-23T08:00:19.314Z"
+    },
+    "d8b63b81-caa0-452a-9865-5bbb209b972e": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "nope didnt get one",
+      "id": "d8b63b81-caa0-452a-9865-5bbb209b972e",
+      "readAt": null,
+      "createdAt": "2025-10-23T08:01:55.141Z"
     }
   },
   "orderCounter": 16,

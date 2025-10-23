@@ -164,12 +164,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   Notifications
                 </h4>
               </div>
-              {notifications.length === 0 ? (
+              {unreadNotificationsCount === 0 ? (
                 <div className="px-3 py-4 text-center text-sm text-rpp-grey-light" data-testid="text-no-notifications">
-                  No notifications yet
+                  No new notifications
                 </div>
               ) : (
-                notifications.slice(0, 10).map((notification: any) => (
+                notifications.filter(n => !n.read).slice(0, 10).map((notification: any) => (
                   <DropdownMenuItem
                     key={notification.id}
                     className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-rpp-red-lighter' : ''}`}
@@ -195,7 +195,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   </DropdownMenuItem>
                 ))
               )}
-              {notifications.length > 10 && (
+              {unreadNotificationsCount > 10 && (
                 <DropdownMenuItem 
                   className="px-3 py-2 text-center text-sm text-rpp-red-main cursor-pointer border-t"
                   onClick={() => {
