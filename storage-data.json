@@ -3526,10 +3526,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T09:01:17.500Z",
+      "lastMessageAt": "2025-10-23T09:05:55.970Z",
       "lastMessageText": "hello",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 10,
+      "editorUnreadCount": 12,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -4050,6 +4050,28 @@
       "id": "aed800a8-15b5-435e-8b58-d824e95f50d7",
       "readAt": null,
       "createdAt": "2025-10-23T09:01:17.496Z"
+    },
+    "fa34f1ea-7047-49c7-8501-460ed885ec39": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "hellloooo",
+      "id": "fa34f1ea-7047-49c7-8501-460ed885ec39",
+      "readAt": null,
+      "createdAt": "2025-10-23T09:04:43.206Z"
+    },
+    "df5c307a-a11e-4e9a-8ff4-7076216289c4": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "hello",
+      "id": "df5c307a-a11e-4e9a-8ff4-7076216289c4",
+      "readAt": null,
+      "createdAt": "2025-10-23T09:05:55.958Z"
     }
   },
   "orderCounter": 16,
