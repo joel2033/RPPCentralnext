@@ -5835,6 +5835,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update conversation's last message and unread count
       await storage.updateConversationLastMessage(id, content.trim(), isPartner);
 
+      // Create notification for the recipient
+      try {
+        const recipientId = isPartner ? conversation.editorId : conversation.partnerId;
+        const recipientName = isPartner ? conversation.editorName : conversation.partnerName;
+        
+        const notificationData = insertNotificationSchema.parse({
+          partnerId: conversation.partnerId,
+          recipientId,
+          type: 'new_message',
+          title: `New message from ${senderName}`,
+          body: content.trim().length > 100 ? content.trim().substring(0, 100) + '...' : content.trim(),
+          orderId: conversation.orderId,
+          jobId: null,
+          read: false
+        });
+
+        await storage.createNotification(notificationData);
+        console.log(`Created notification for ${recipientName} about new message from ${senderName}`);
+      } catch (notifError) {
+        console.error("Error creating message notification:", notifError);
+        // Don't fail the message send if notification fails
+      }
+
       res.json(message);
     } catch (error: any) {
       console.error("Error sending message:", error);
