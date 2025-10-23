@@ -641,10 +641,12 @@ export default function Messages() {
                     className={cn(
                       "w-full p-3 rounded-lg text-left transition-all duration-200",
                       "hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
-                      "border border-transparent",
+                      "border",
                       isSelected 
                         ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md" 
-                        : "hover:bg-accent hover:border-muted-foreground/20"
+                        : participant.unreadCount > 0
+                          ? "bg-rpp-red-lighter/30 border-rpp-red-main/30 shadow-sm"
+                          : "border-transparent hover:bg-accent hover:border-muted-foreground/20"
                     )}
                     data-testid={`conversation-card-${conversation.id}`}
                   >
