@@ -2405,15 +2405,17 @@ export class MemStorage implements IStorage {
     const conversations = await this.getUserConversations(userId, partnerId);
 
     return conversations.reduce((total, conv) => {
-      // If user is the partner, count partner's unread messages
-      if (partnerId && conv.partnerId === partnerId) {
+      // Check if user is the editor by comparing userId with conversation's editorId
+      // Don't use partnerId check because editors also have partnerId (their assigned partner)
+      const isEditor = conv.editorId === userId;
+      
+      if (isEditor) {
+        // User is editor - count editor's unread messages
+        return total + (conv.editorUnreadCount || 0);
+      } else {
+        // User is partner - count partner's unread messages
         return total + (conv.partnerUnreadCount || 0);
       }
-      // If user is the editor, count editor's unread messages
-      if (conv.editorId === userId) {
-        return total + (conv.editorUnreadCount || 0);
-      }
-      return total;
     }, 0);
   }
 

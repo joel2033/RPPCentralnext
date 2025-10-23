@@ -2876,6 +2876,54 @@
       "id": "dbd229bf-c4c5-491a-9f5e-9c3fc2de3a68",
       "createdAt": "2025-10-23T12:22:29.151Z",
       "readAt": null
+    },
+    "c37fb5aa-2bcf-44f2-83ab-a8ae70270797": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "type": "new_message",
+      "title": "New Message",
+      "body": "You have a new message from May@maystudios.com",
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "read": false,
+      "id": "c37fb5aa-2bcf-44f2-83ab-a8ae70270797",
+      "createdAt": "2025-10-23T12:26:39.364Z",
+      "readAt": null
+    },
+    "477c3bf8-7af6-4b53-a0ae-9a0464ef28ce": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "type": "new_message",
+      "title": "New Message",
+      "body": "You have a new message from May@maystudios.com",
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "read": false,
+      "id": "477c3bf8-7af6-4b53-a0ae-9a0464ef28ce",
+      "createdAt": "2025-10-23T12:26:53.293Z",
+      "readAt": null
+    },
+    "f9980ef1-0222-4cec-9a3c-ad15dc762310": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "new_message",
+      "title": "New Message",
+      "body": "You have a new message from adamson652@gmail.com",
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "read": false,
+      "id": "f9980ef1-0222-4cec-9a3c-ad15dc762310",
+      "createdAt": "2025-10-23T12:34:21.394Z",
+      "readAt": null
+    },
+    "fc2b0a64-6474-414e-b41a-439c2761005f": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "new_message",
+      "title": "New Message",
+      "body": "You have a new message from adamson652@gmail.com",
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "read": false,
+      "id": "fc2b0a64-6474-414e-b41a-439c2761005f",
+      "createdAt": "2025-10-23T12:40:15.509Z",
+      "readAt": null
     }
   },
   "activities": {
@@ -3768,10 +3816,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T12:22:29.132Z",
-      "lastMessageText": "hello",
+      "lastMessageAt": "2025-10-23T12:40:15.495Z",
+      "lastMessageText": "Simple editor unread test",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 22,
+      "editorUnreadCount": 24,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -4699,6 +4747,50 @@
       "id": "9e44f0e2-81a6-41b3-8558-691e712bd2a2",
       "readAt": null,
       "createdAt": "2025-10-23T12:22:29.127Z"
+    },
+    "ed1c63c6-6ff3-4458-b871-ce2db6078d7e": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "editor",
+      "content": "hello",
+      "id": "ed1c63c6-6ff3-4458-b871-ce2db6078d7e",
+      "readAt": "2025-10-23T12:33:58.656Z",
+      "createdAt": "2025-10-23T12:26:39.286Z"
+    },
+    "6abe68cd-5f0c-4a6e-87c7-3f0c20ca25ca": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "editor",
+      "content": "hello",
+      "id": "6abe68cd-5f0c-4a6e-87c7-3f0c20ca25ca",
+      "readAt": "2025-10-23T12:33:58.656Z",
+      "createdAt": "2025-10-23T12:26:53.168Z"
+    },
+    "ef1b63eb-4335-4610-a2c8-fe8bc97f7507": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "TEST EDITOR UNREAD COUNT FIX",
+      "id": "ef1b63eb-4335-4610-a2c8-fe8bc97f7507",
+      "readAt": null,
+      "createdAt": "2025-10-23T12:34:21.340Z"
+    },
+    "3155c577-3c4c-4dcf-9a85-93cf88a81e10": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "Simple editor unread test",
+      "id": "3155c577-3c4c-4dcf-9a85-93cf88a81e10",
+      "readAt": null,
+      "createdAt": "2025-10-23T12:40:15.483Z"
     }
   },
   "orderCounter": 16,
