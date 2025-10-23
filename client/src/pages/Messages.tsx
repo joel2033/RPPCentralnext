@@ -99,8 +99,10 @@ export default function Messages() {
   const { userData: partnerData } = useAuth();
   const { userData: editorData } = useEditorAuth();
 
-  // Determine current user's email based on role
+  // Determine current user's email and ID based on role
   const currentUserEmail = currentUser?.email || editorData?.email || partnerData?.email;
+  const currentUserId = currentUser?.uid || editorData?.uid;
+  const currentUserPartnerId = partnerData?.partnerId;
 
   // Fetch all conversations
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
@@ -195,9 +197,47 @@ export default function Messages() {
       if (!response.ok) throw new Error("Failed to mark as read");
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations/unread-count"] });
+    onMutate: async (conversationId) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/conversations"] });
+      
+      // Snapshot the previous value
+      const previousConversations = queryClient.getQueryData<Conversation[]>(["/api/conversations"]);
+      
+      // Optimistically update the conversation's unread count to 0
+      queryClient.setQueryData<Conversation[]>(["/api/conversations"], (old) => {
+        if (!old) return old;
+        return old.map((conv) => {
+          if (conv.id === conversationId) {
+            // Use partnerId for more reliable comparison (email can have case issues or data corruption)
+            const isPartner = currentUserPartnerId 
+              ? conv.partnerId === currentUserPartnerId
+              : conv.editorId !== currentUserId; // Fallback: if not editor, assume partner
+            return {
+              ...conv,
+              partnerUnreadCount: isPartner ? 0 : conv.partnerUnreadCount,
+              editorUnreadCount: isPartner ? conv.editorUnreadCount : 0,
+            };
+          }
+          return conv;
+        });
+      });
+      
+      // Return context with previous data for rollback on error
+      return { previousConversations };
+    },
+    onError: (err, conversationId, context) => {
+      // Rollback to previous data on error
+      if (context?.previousConversations) {
+        queryClient.setQueryData(["/api/conversations"], context.previousConversations);
+      }
+    },
+    onSettled: async () => {
+      // Always refetch after mutation to ensure we have server state
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["/api/conversations"], exact: true }),
+        queryClient.refetchQueries({ queryKey: ["/api/conversations/unread-count"], exact: true }),
+      ]);
     },
   });
 
@@ -372,7 +412,10 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation: Conversation) => {
-    const isPartner = conversation.partnerEmail?.toLowerCase() === currentUser?.email?.toLowerCase();
+    // Use partnerId for more reliable comparison (email can have case issues or data corruption)
+    const isPartner = currentUserPartnerId 
+      ? conversation.partnerId === currentUserPartnerId
+      : conversation.editorId !== currentUserId; // Fallback: if not editor, assume partner
     return {
       name: isPartner ? conversation.editorName : conversation.partnerName,
       email: isPartner ? conversation.editorEmail : conversation.partnerEmail,

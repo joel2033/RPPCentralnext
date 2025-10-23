@@ -103,7 +103,11 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
     - Contact dropdown organized with "Editors" and "Team Members" sections for partners
     - Team members included in contact list alongside editors for unified messaging
     - Message bubbles: sent messages (peachy #fcdcd4, right-aligned), received messages (light grey, left-aligned)
-    - Case-insensitive email comparison throughout for correct message alignment and unread counts
+  - **Optimistic Updates**: Implemented TanStack Query optimistic updates for mark-as-read functionality
+    - Unread badges disappear instantly when clicking a conversation (no waiting for server response)
+    - Uses `partnerId` and `editorId` for participant identification instead of email comparison (more reliable, handles data corruption)
+    - Automatic rollback on error, with server confirmation via refetch
+    - Provides immediate UI feedback while maintaining data consistency
   - **Storage**: Conversations and messages stored in PostgreSQL, partnerships stored in Firestore
   - **API Endpoints**: 
     - GET /api/partnerships (partners)
