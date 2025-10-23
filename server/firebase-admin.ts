@@ -179,10 +179,12 @@ export const getUserDocument = async (uid: string): Promise<UserData | null> => 
 };
 
 // Get user document by partnerId
+// Returns the primary partner user (role='partner'), not team members
 export const getUserByPartnerId = async (partnerId: string): Promise<UserData | null> => {
   try {
     const usersSnapshot = await adminDb.collection('users')
       .where('partnerId', '==', partnerId)
+      .where('role', '==', 'partner') // Only get the primary partner, not team members
       .limit(1)
       .get();
     

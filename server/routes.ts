@@ -5866,28 +5866,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[MESSAGE NOTIFICATION] Conversation: partnerId=${conversation.partnerId}, editorId=${conversation.editorId}`);
 
-      // Determine sender role and recipient based on the conversation structure
-      // Partners are identified by partnerId, editors by editorId
-      const isPartnerSender = senderRole === 'partner';
-      const recipientId = isPartnerSender ? conversation.editorId : conversation.partnerId;
+      // Determine sender role from conversation participants, not from the senderRole field
+      // which may be unreliable. Check if the senderId matches the editorId in the conversation.
+      const isEditorSender = uid === conversation.editorId;
+      const isPartnerSender = !isEditorSender;
       const recipientName = isPartnerSender ? conversation.editorName : conversation.partnerName;
-
-      console.log(`[MESSAGE NOTIFICATION] isPartnerSender=${isPartnerSender}, recipientId=${recipientId}, recipientName=${recipientName}`);
-
-      // Only create notification if sender and recipient are different
-      // Check if sender is sending to themselves (which would be a bug in the conversation setup)
-      // For now, we'll allow all messages between different roles to create notifications
-      // since a conversation should always be between a partner and an editor
       
-      console.log(`[MESSAGE NOTIFICATION] Sender role: ${isPartnerSender ? 'partner' : 'editor'}`);
-      console.log(`[MESSAGE NOTIFICATION] Recipient ID: ${recipientId}, Recipient Name: ${recipientName}`);
+      console.log(`[MESSAGE NOTIFICATION] Role determination: senderId=${uid}, editorId=${conversation.editorId}, isEditorSender=${isEditorSender}, isPartnerSender=${isPartnerSender}`);
       
-      // Always create notification for cross-role messages (partner→editor or editor→partner)
-      // A conversation should never have the same person as both partner and editor
+      // Get the recipient's Firebase UID
+      // For partner recipients, we need to look up their Firebase UID from partnerId
+      // For editor recipients, we already have their Firebase UID in conversation.editorId
+      let recipientFirebaseUid: string;
+      
+      console.log(`[MESSAGE NOTIFICATION] Determining recipient - isPartnerSender: ${isPartnerSender}`);
+      
+      if (isPartnerSender) {
+        // Partner is sending to editor - use editor's Firebase UID directly
+        recipientFirebaseUid = conversation.editorId;
+        console.log(`[MESSAGE NOTIFICATION] Partner→Editor: Using conversation.editorId = ${recipientFirebaseUid}`);
+      } else {
+        // Editor is sending to partner - look up partner's Firebase UID from partnerId
+        console.log(`[MESSAGE NOTIFICATION] Editor→Partner: Looking up partner user for partnerId = ${conversation.partnerId}`);
+        const partnerUser = await getUserByPartnerId(conversation.partnerId);
+        if (!partnerUser) {
+          console.error(`[MESSAGE NOTIFICATION] ✗ Could not find partner user for partnerId: ${conversation.partnerId}`);
+          return;
+        }
+        console.log(`[MESSAGE NOTIFICATION] Found partner user: uid=${partnerUser.uid}, email=${partnerUser.email}`);
+        recipientFirebaseUid = partnerUser.uid;
+      }
+
+      console.log(`[MESSAGE NOTIFICATION] Final recipient: Firebase UID=${recipientFirebaseUid}, Name=${recipientName}`);
 
       await storage.createNotification({
         partnerId: conversation.partnerId,
-        recipientId: recipientId,
+        recipientId: recipientFirebaseUid, // Use Firebase UID for notifications
         type: 'new_message',
         title: 'New Message',
         body: `You have a new message from ${senderName}`,
@@ -5895,7 +5909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         read: false
       });
 
-      console.log(`[MESSAGE NOTIFICATION] ✓ Created notification for ${recipientName} (uid: ${recipientId}) about new message from ${email}`);
+      console.log(`[MESSAGE NOTIFICATION] ✓ Created notification for ${recipientName} (Firebase UID: ${recipientFirebaseUid}) about new message from ${email}`);
     } catch (notificationError) {
       console.error('[MESSAGE NOTIFICATION] ✗ Failed to create message notification:', notificationError);
       // Don't fail the message creation if notification fails
