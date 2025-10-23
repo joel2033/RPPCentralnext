@@ -512,7 +512,7 @@ export default function Messages() {
                   <Button
                     onClick={handleStartConversation}
                     disabled={createConversationMutation.isPending || !selectedContactId || (!isGeneralConversation && !selectedOrderId)}
-                    className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                    className="hover:bg-rpp-red-dark text-white bg-[#f47b5c]"
                     data-testid="button-start-conversation"
                   >
                     {createConversationMutation.isPending ? (
