@@ -18,8 +18,7 @@ import {
   insertJobReviewSchema,
   insertDeliveryEmailSchema,
   insertConversationSchema,
-  insertMessageSchema,
-  insertRevisionRequestSchema // Added import for revisionRequestSchema
+  insertMessageSchema
 } from "@shared/schema";
 import { 
   createUserDocument, 
@@ -4392,67 +4391,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Request revisions (authenticated preview mode)
-  app.post("/api/jobs/:jobId/revisions/request", requireAuth, async (req, res) => {
-    try {
-      const { jobId } = req.params;
-      const { partnerId } = req.user;
-      const { orderId, fileIds, comments } = req.body;
+  // TODO: This endpoint needs to be implemented using file comments system
+  // app.post("/api/jobs/:jobId/revisions/request", requireAuth, async (req, res) => {
+  //   try {
+  //     const { jobId } = req.params;
+  //     const { partnerId } = req.user;
+  //     const { orderId, fileIds, comments } = req.body;
 
-      if (!orderId || !fileIds || !Array.isArray(fileIds)) {
-        return res.status(400).json({ error: "orderId and fileIds array required" });
-      }
+  //     if (!orderId || !fileIds || !Array.isArray(fileIds)) {
+  //       return res.status(400).json({ error: "orderId and fileIds array required" });
+  //     }
 
-      // Get job (supports both nanoId and UUID) and verify ownership
-      const job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        return res.status(404).json({ error: "Job not found" });
-      }
-      if (job.partnerId !== partnerId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
+  //     // Get job (supports both nanoId and UUID) and verify ownership
+  //     const job = await storage.getJobByJobId(jobId);
+  //     if (!job) {
+  //       return res.status(404).json({ error: "Job not found" });
+  //     }
+  //     if (job.partnerId !== partnerId) {
+  //       return res.status(403).json({ error: "Access denied" });
+  //     }
 
-      // Verify order belongs to this job
-      const order = await storage.getOrder(orderId);
-      if (!order || (order.jobId !== job.id && order.jobId !== job.jobId)) { // Allow match by UUID or NanoID
-        return res.status(404).json({ error: "Order not found for this job" });
-      }
+  //     // Verify order belongs to this job
+  //     const order = await storage.getOrder(orderId);
+  //     if (!order || (order.jobId !== job.id && order.jobId !== job.jobId)) { // Allow match by UUID or NanoID
+  //       return res.status(404).json({ error: "Order not found for this job" });
+  //     }
 
-      // Verify all files belong to this job
-      const jobUploads = await storage.getEditorUploads(job.id);
-      const validFileIds = jobUploads.map(f => f.id);
-      const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
+  //     // Verify all files belong to this job
+  //     const jobUploads = await storage.getEditorUploads(job.id);
+  //     const validFileIds = jobUploads.map(f => f.id);
+  //     const invalidFiles = fileIds.filter(fid => !validFileIds.includes(fid));
 
-      if (invalidFiles.length > 0) {
-        return res.status(400).json({ error: "Some files do not belong to this job" });
-      }
+  //     if (invalidFiles.length > 0) {
+  //       return res.status(400).json({ error: "Some files do not belong to this job" });
+  //     }
 
-      // Check revision limits
-      const revisionStatus = await storage.getOrderRevisionStatus(orderId);
-      if (revisionStatus && revisionStatus.remainingRounds <= 0) {
-        return res.status(400).json({ 
-          error: "No revision rounds remaining",
-          revisionStatus 
-        });
-      }
+  //     // Check revision limits
+  //     const revisionStatus = await storage.getOrderRevisionStatus(orderId);
+  //     if (revisionStatus && revisionStatus.remainingRounds <= 0) {
+  //       return res.status(400).json({ 
+  //         error: "No revision rounds remaining",
+  //         revisionStatus 
+  //       });
+  //     }
 
-      // Create revision request
-      const validated = insertRevisionRequestSchema.parse({
-        orderId,
-        fileIds,
-        comments,
-        status: 'pending',
-      });
-
-      const revision = await storage.createRevisionRequest(validated);
-      res.status(201).json(revision);
-    } catch (error: any) {
-      console.error("Error creating revision request:", error);
-      res.status(400).json({ 
-        error: "Failed to create revision request", 
-        details: error.message 
-      });
-    }
-  });
+  //     // Create revision request using file comments
+  //     // TODO: Implement using insertFileCommentSchema and storage.createFileComment
+  //     res.status(501).json({ error: "Not implemented" });
+  //   } catch (error: any) {
+  //     console.error("Error creating revision request:", error);
+  //     res.status(400).json({ 
+  //       error: "Failed to create revision request", 
+  //       details: error.message 
+  //     });
+  //   }
+  // });
 
   // Get file comments for a specific file within a job (token scopes access)
   app.get("/api/delivery/:token/files/:fileId/comments", async (req, res) => {
