@@ -3438,6 +3438,21 @@
       "partnerUnreadCount": 0,
       "editorUnreadCount": 3,
       "createdAt": "2025-10-23T04:29:05.879Z"
+    },
+    "5d5180b2-3c67-47c4-8c96-84a5f77f25b3": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "editorId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "partnerName": "",
+      "editorName": "May Studios",
+      "partnerEmail": "adamson652@gmail.com",
+      "editorEmail": "May@maystudios.com",
+      "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "lastMessageAt": "2025-10-23T07:41:42.393Z",
+      "lastMessageText": "hopefully this give you a notification!!",
+      "partnerUnreadCount": 0,
+      "editorUnreadCount": 1,
+      "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
   "messages": {
@@ -3847,6 +3862,17 @@
       "id": "8f1ef0d3-b071-4f35-800a-2f5d094d83af",
       "readAt": null,
       "createdAt": "2025-10-23T07:26:27.994Z"
+    },
+    "cdf796c6-a80f-4e02-bde5-d0ba4a028f01": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "hopefully this give you a notification!!",
+      "id": "cdf796c6-a80f-4e02-bde5-d0ba4a028f01",
+      "readAt": null,
+      "createdAt": "2025-10-23T07:41:42.391Z"
     }
   },
   "orderCounter": 16,
