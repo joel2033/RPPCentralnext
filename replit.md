@@ -60,9 +60,12 @@ Preferred communication style: Simple, everyday language.
     - **Message Notifications**: Unread counts displayed in notification bell. Polls every 8 seconds.
     - **Optimistic Updates**: TanStack Query optimistic updates for mark-as-read functionality.
     - **Notification System**: Automatic notification creation when messages are sent (editor→partner, partner→editor).
-    - **Unread Count Bug Fixes (October 23, 2025)**:
-        - **Partner Dashboard Fix**: Fixed sender role identification in message creation (server/routes.ts line 5838). Changed `isPartner` logic from comparing `conversation.partnerId === partnerId` to `conversation.editorId !== uid`. This fixed the issue where editors were misidentified as partners (because editors have a partnerId field), causing wrong unread count increments. Now partner dashboards correctly show unread badges when editors send messages.
-        - **Editor Dashboard Fix**: Fixed `getUnreadMessageCount` function (server/storage.ts line 2407) where editors saw unread counts when THEY sent messages instead of when they RECEIVED messages. Changed logic from checking `partnerId && conv.partnerId === partnerId` to `conv.editorId === userId` to correctly identify if the caller is an editor. This ensures editors only see unread counts when partners send them messages.
+    - **Unread Count Bug Fixes (October 23, 2025)**: Fixed a systemic bug where `partnerId` comparison was used to determine user role, but editors ALSO have a `partnerId` field (their assigned partner), causing incorrect role identification. This resulted in editors seeing unread badges when THEY sent messages instead of when they RECEIVED messages. Fixed in 4 locations:
+        - **Partner Dashboard (Backend)**: Fixed sender role identification in message creation (server/routes.ts line 5838). Changed `isPartner` logic from `conversation.partnerId === partnerId` to `conversation.editorId !== uid`. Now partner dashboards correctly show unread badges when editors send messages.
+        - **Editor Unread Count (Backend)**: Fixed `getUnreadMessageCount` function (server/storage.ts line 2407) to check `conv.editorId === userId` instead of comparing partnerId values. Ensures editors only see unread counts when partners send them messages.
+        - **Badge Display (Frontend)**: Fixed `getOtherParticipant` function (client/src/pages/Messages.tsx line 417) to use `conversation.editorId === currentUserId` for role detection. Displays correct unread counts for conversation badges.
+        - **Mark-as-Read (Backend)**: Fixed PATCH `/api/conversations/:id/read` endpoint (server/routes.ts line 5945) to determine role via `conversation.editorId === uid`. Ensures mark-as-read clears the correct unread count field.
+        - **Optimistic Update (Frontend)**: Fixed `markAsReadMutation` (client/src/pages/Messages.tsx line 215) to clear the correct unread count when editor clicks conversation.
     - **Storage**: Conversations and messages in PostgreSQL, partnerships in Firestore.
 
 # External Dependencies
