@@ -2556,6 +2556,19 @@
       "id": "partner-test-notif-1",
       "createdAt": "2025-10-23T07:21:27.517Z",
       "readAt": "2025-10-23T07:26:52.613Z"
+    },
+    "268076e6-5ce7-409d-a202-14d9c4f6e5c6": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "recipientId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "type": "new_message",
+      "title": "New message from adamson652@gmail.com",
+      "body": "Testing notification system KaoZTB",
+      "orderId": "a6f1314f-7f6f-4dd4-aaf7-e0d9d21b2447",
+      "jobId": null,
+      "read": false,
+      "id": "268076e6-5ce7-409d-a202-14d9c4f6e5c6",
+      "createdAt": "2025-10-23T08:10:03.652Z",
+      "readAt": null
     }
   },
   "activities": {
@@ -3448,10 +3461,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
-      "lastMessageAt": "2025-10-23T08:01:55.144Z",
-      "lastMessageText": "nope didnt get one",
+      "lastMessageAt": "2025-10-23T08:10:03.639Z",
+      "lastMessageText": "Testing notification system KaoZTB",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 3,
+      "editorUnreadCount": 4,
       "createdAt": "2025-10-23T07:41:31.752Z"
     }
   },
@@ -3895,6 +3908,17 @@
       "id": "d8b63b81-caa0-452a-9865-5bbb209b972e",
       "readAt": null,
       "createdAt": "2025-10-23T08:01:55.141Z"
+    },
+    "d3328bff-3a00-4ee3-9ab9-9c0e4ccd8f4c": {
+      "conversationId": "5d5180b2-3c67-47c4-8c96-84a5f77f25b3",
+      "senderId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "senderEmail": "adamson652@gmail.com",
+      "senderName": "adamson652@gmail.com",
+      "senderRole": "partner",
+      "content": "Testing notification system KaoZTB",
+      "id": "d3328bff-3a00-4ee3-9ab9-9c0e4ccd8f4c",
+      "readAt": null,
+      "createdAt": "2025-10-23T08:10:03.634Z"
     }
   },
   "orderCounter": 16,
