@@ -112,6 +112,18 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
     - Uses `partnerId` and `editorId` for participant identification instead of email comparison (more reliable, handles data corruption)
     - Automatic rollback on error, with server confirmation via refetch
     - Provides immediate UI feedback while maintaining data consistency
+  - **Message Notifications**: Automatic notification creation when messages are sent
+    - When editor sends message → notification created for partner (shows in bell badge)
+    - When partner sends message → notification created for editor (shows in bell badge)
+    - **Notification System Fixes (October 2025)**:
+      1. Fixed "senderId is not defined" error in notification creation
+      2. Removed faulty self-check logic that prevented all editor→partner notifications
+      3. Fixed recipientId to use Firebase UID instead of partnerId string
+      4. Fixed sender role determination to derive from conversation participants (uid === conversation.editorId) instead of trusting unreliable senderRole field
+      5. Fixed getUserByPartnerId() to filter for role='partner' to return primary partner, not team members
+    - Notifications stored in MemStorage (storage-data.json) with partnerId + recipientId (Firebase UID)
+    - Badge count combines system notifications + unread message count
+    - Polls every 5 seconds for real-time updates
   - **Storage**: Conversations and messages stored in PostgreSQL, partnerships stored in Firestore
   - **API Endpoints**: 
     - GET /api/partnerships (partners)
@@ -120,6 +132,8 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
     - GET /api/editor/orders (editors - only assigned orders)
     - POST /api/conversations (both roles)
     - GET /api/team/invites/:partnerId (team members)
+    - POST /api/conversations/:id/messages (create notification for recipient)
+    - GET /api/notifications (query by recipientId + partnerId)
 
 # External Dependencies
 
