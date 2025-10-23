@@ -358,7 +358,7 @@ export default function Messages() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] gap-4">
+    <div className="flex h-[calc(100vh-12rem)] gap-4 px-6">
       {/* Conversations List */}
       <Card className="w-96 flex flex-col overflow-hidden shadow-lg">
         <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
