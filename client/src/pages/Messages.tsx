@@ -360,7 +360,7 @@ export default function Messages() {
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-4">
       {/* Conversations List */}
-      <Card className="w-64 flex flex-col overflow-hidden shadow-lg">
+      <Card className="w-96 flex flex-col overflow-hidden shadow-lg">
         <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
