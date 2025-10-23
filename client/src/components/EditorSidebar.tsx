@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { signOut } from "@/lib/firebaseAuth";
+import { useQuery } from "@tanstack/react-query";
 
 interface EditorSidebarProps {
   isOpen: boolean;
@@ -42,6 +43,12 @@ const menuItems: MenuItem[] = [
 export default function EditorSidebar({ isOpen, onClose }: EditorSidebarProps) {
   const [location] = useLocation();
   const { userData } = useEditorAuth();
+
+  // Fetch unread message count
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/conversations/unread-count"],
+    refetchInterval: 5000, // Poll every 5 seconds for updates
+  });
 
   const handleSignOut = async () => {
     try {
@@ -96,13 +103,20 @@ export default function EditorSidebar({ isOpen, onClose }: EditorSidebarProps) {
                   <Link
                     href={item.path}
                     onClick={onClose}
-                    className={`nav-item flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors ${
+                    className={`nav-item flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors ${
                       isActive(item.path) ? 'bg-blue-600 text-white' : 'text-gray-300'
                     }`}
                     data-testid={`nav-${item.title.toLowerCase().replace(' ', '-')}`}
                   >
-                    <Icon className="w-5 h-5 mr-3" />
-                    <span>{item.title}</span>
+                    <div className="flex items-center">
+                      <Icon className="w-5 h-5 mr-3" />
+                      <span>{item.title}</span>
+                    </div>
+                    {item.title === "Messages" && unreadData && unreadData.count > 0 && (
+                      <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-rpp-red-main text-white text-xs font-bold rounded-full">
+                        {unreadData.count > 99 ? '99+' : unreadData.count}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

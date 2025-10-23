@@ -3522,10 +3522,10 @@
       "partnerEmail": "adamson652@gmail.com",
       "editorEmail": "May@maystudios.com",
       "id": "cf6d548d-b553-4924-924b-8d2e3a7caa98",
-      "lastMessageAt": "2025-10-23T09:35:20.700Z",
-      "lastMessageText": "hello",
+      "lastMessageAt": "2025-10-23T09:46:12.118Z",
+      "lastMessageText": "heya",
       "partnerUnreadCount": 0,
-      "editorUnreadCount": 2,
+      "editorUnreadCount": 3,
       "createdAt": "2025-10-23T01:53:43.593Z"
     },
     "cb708dfe-c7e0-4d51-bfb1-da14f7c79b8e": {
@@ -4186,6 +4186,17 @@
       "id": "eb3532a5-135c-413a-9968-ea3ad96684e1",
       "readAt": null,
       "createdAt": "2025-10-23T09:35:20.697Z"
+    },
+    "b7a2281e-760a-451b-9289-9a4c1d25ef27": {
+      "conversationId": "cf6d548d-b553-4924-924b-8d2e3a7caa98",
+      "senderId": "imLvMh2sJHcfU5VhQmR1c9MO0N12",
+      "senderEmail": "May@maystudios.com",
+      "senderName": "May@maystudios.com",
+      "senderRole": "partner",
+      "content": "heya",
+      "id": "b7a2281e-760a-451b-9289-9a4c1d25ef27",
+      "readAt": null,
+      "createdAt": "2025-10-23T09:46:12.116Z"
     }
   },
   "orderCounter": 16,
