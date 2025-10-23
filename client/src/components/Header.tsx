@@ -172,7 +172,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 notifications.filter(n => !n.read).slice(0, 10).map((notification: any) => (
                   <DropdownMenuItem
                     key={notification.id}
-                    className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-rpp-red-lighter' : ''}`}
+                    className="relative flex select-none items-center gap-2 rounded-sm text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 px-3 py-3 cursor-pointer bg-[#f0f1f2]"
                     onClick={() => handleNotificationClick(notification)}
                     data-testid={`notification-item-${notification.id}`}
                   >
