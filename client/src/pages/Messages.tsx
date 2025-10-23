@@ -651,15 +651,25 @@ export default function Messages() {
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         <div
-                          className="max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md rounded-br-sm text-[#a3a4a5] bg-[#fcdcd4]"
+                          className={cn(
+                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md rounded-br-sm",
+                            isCurrentUser 
+                              ? "bg-[#fcdcd4] text-[#a3a4a5]" 
+                              : "bg-gray-200 dark:bg-gray-700"
+                          )}
                         >
-                          <p className="whitespace-pre-wrap break-words text-[18px] text-[#313941] bg-[#fcdcd4]">
+                          <p className={cn(
+                            "whitespace-pre-wrap break-words text-[18px]",
+                            isCurrentUser 
+                              ? "text-[#313941]" 
+                              : "text-gray-900 dark:text-gray-100"
+                          )}>
                             {message.content}
                           </p>
                           <p
                             className={cn(
                               "text-xs mt-1.5 flex items-center gap-1",
-                              isCurrentUser ? "text-white/70 justify-end" : "text-muted-foreground"
+                              isCurrentUser ? "text-white/70 justify-end" : "text-gray-600 dark:text-gray-400"
                             )}
                           >
                             {formatTime(message.createdAt)}
