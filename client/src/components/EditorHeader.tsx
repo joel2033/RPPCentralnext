@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { getAuth } from "firebase/auth";
+import { useLocation } from "wouter";
 
 const auth = getAuth();
 
@@ -15,6 +16,7 @@ interface EditorHeaderProps {
 export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
   const { userData } = useEditorAuth();
   const currentUser = auth.currentUser;
+  const [, setLocation] = useLocation();
 
   // Fetch unread message count
   const { data: unreadMessagesData } = useQuery<{ count: number }>({
@@ -58,6 +60,7 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
             variant="ghost"
             size="sm"
             className="relative"
+            onClick={() => setLocation('/editor/messages')}
             data-testid="button-notifications"
           >
             <Bell className="w-5 h-5 text-gray-600" />
