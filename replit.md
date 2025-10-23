@@ -92,6 +92,11 @@ The Settings page has been reorganized from 13 tabs into 5 logical groups for be
     - Modal text adapts: "Select an order and partner" for editors vs "Select an order and editor" for partners
     - Message alignment uses case-insensitive email comparison for reliability
   - **Partnership-Gated Access**: "+New Conversation" button only appears when user has at least one active partnership
+  - **Message Notifications**: Unread message counts displayed in notification bell icon for both partner and editor dashboards
+    - Partner bell shows combined count of system notifications + unread messages
+    - Editor bell shows unread message count only
+    - Polls every 8 seconds for real-time updates (synchronized with notification polling)
+    - Badge displays count up to 99, shows "99+" for higher counts
   - **UI Improvements** (October 2025):
     - Card-based visual separation for conversation list and messages area
     - Order dropdown displays "order number • address" format (e.g., "#00001 • 123 Main St")
