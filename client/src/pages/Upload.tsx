@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectLabel, SelectSeparator, SelectGroup } from "@/components/ui/select";
-import { Upload as UploadIcon, FileImage, X, Plus, Minus, MapPin, Building2, FileText, Camera, Sparkles, Palette, Home, Cloud, Plane, Video, Check } from "lucide-react";
+import { Upload as UploadIcon, FileImage, X, Plus, Minus, MapPin, Building2, FileText, Camera, Sparkles, Palette, Home, Cloud, Plane, Video, Check, ChevronDown } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -462,13 +463,16 @@ export default function Upload() {
               ) : Object.keys(groupedServices).length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">No services available</p>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.values(groupedServices).flat().map((service: any) => {
-                    const isSelected = selectedServices.some(s => s.service.id === service.id);
-                    const iconProps = { className: "w-5 h-5" };
+                <Accordion type="multiple" className="w-full">
+                  {Object.entries(groupedServices).map(([categoryId, services]) => {
+                    // Find category name
+                    const category = serviceCategories.find((cat: any) => cat.id === categoryId);
+                    const categoryName = category ? category.name : (categoryId === 'uncategorized' ? 'Other Services' : 'Services');
+                    const categoryDescription = category?.description;
                     
                     // Map service names to icons and colors
                     const getServiceIcon = (name: string) => {
+                      const iconProps = { className: "w-5 h-5" };
                       const lowerName = name.toLowerCase();
                       if (lowerName.includes('enhancement') || lowerName.includes('photography')) return <Camera {...iconProps} />;
                       if (lowerName.includes('floor')) return <FileText {...iconProps} />;
@@ -495,36 +499,56 @@ export default function Upload() {
                     };
                     
                     return (
-                      <button
-                        key={service.id}
-                        onClick={() => {
-                          if (isSelected) {
-                            const selectedService = selectedServices.find(s => s.service.id === service.id);
-                            if (selectedService) removeService(selectedService.id);
-                          } else {
-                            addService(service);
-                          }
-                        }}
-                        className="relative p-2.5 rounded-lg border-2 transition-all text-left border-gray-200 hover:border-gray-300 bg-white ml-[0px] mr-[0px] mt-[0px] mb-[0px] pt-[14px] pb-[14px] pl-[14px] pr-[14px]"
-                        data-testid={`service-card-${service.id}`}
-                      >
-                        {isSelected && (
-                          <div className="absolute top-1.5 right-1.5 bg-orange-500 rounded-full p-0.5">
-                            <Check className="w-2.5 h-2.5 text-white" />
+                      <AccordionItem key={categoryId} value={categoryId} className="border-b-0">
+                        <AccordionTrigger className="hover:no-underline py-3 px-4 hover:bg-gray-50 rounded-lg" data-testid={`category-trigger-${categoryId}`}>
+                          <div className="flex flex-col items-start text-left">
+                            <span className="font-medium text-gray-900">{categoryName}</span>
+                            {categoryDescription && (
+                              <span className="text-xs text-gray-500 mt-0.5">{categoryDescription}</span>
+                            )}
                           </div>
-                        )}
-                        <div className={`w-8 h-8 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-1.5`}>
-                          {getServiceIcon(service.name)}
-                        </div>
-                        <div className="font-medium text-gray-900 text-xs mb-0.5">{service.name}</div>
-                        <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">{service.description || service.pricePer}</div>
-                        <div className="text-orange-600 font-semibold text-xs">
-                          ${parseFloat(service.basePrice).toFixed(2)}
-                        </div>
-                      </button>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4 pt-2">
+                          <div className="grid grid-cols-2 gap-3">
+                            {services.map((service: any) => {
+                              const isSelected = selectedServices.some(s => s.service.id === service.id);
+                              
+                              return (
+                                <button
+                                  key={service.id}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      const selectedService = selectedServices.find(s => s.service.id === service.id);
+                                      if (selectedService) removeService(selectedService.id);
+                                    } else {
+                                      addService(service);
+                                    }
+                                  }}
+                                  className="relative p-2.5 rounded-lg border-2 transition-all text-left border-gray-200 hover:border-gray-300 bg-white ml-[0px] mr-[0px] mt-[0px] mb-[0px] pt-[14px] pb-[14px] pl-[14px] pr-[14px]"
+                                  data-testid={`service-card-${service.id}`}
+                                >
+                                  {isSelected && (
+                                    <div className="absolute top-1.5 right-1.5 bg-orange-500 rounded-full p-0.5">
+                                      <Check className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  )}
+                                  <div className={`w-8 h-8 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-1.5`}>
+                                    {getServiceIcon(service.name)}
+                                  </div>
+                                  <div className="font-medium text-gray-900 text-xs mb-0.5">{service.name}</div>
+                                  <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">{service.description || service.pricePer}</div>
+                                  <div className="text-orange-600 font-semibold text-xs">
+                                    ${parseFloat(service.basePrice).toFixed(2)}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
                     );
                   })}
-                </div>
+                </Accordion>
               )}
             </CardContent>
           </Card>
