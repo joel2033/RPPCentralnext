@@ -2,6 +2,48 @@
 
 This project is a full-stack SaaS platform for Real Property Photography (RPP) businesses. It provides a comprehensive solution for managing photography jobs, customers, products, orders, and the entire production workflow. The platform aims to streamline operations for RPP businesses through efficient job and customer management, order processing, and product catalog maintenance. Key capabilities include multi-tenant support, secure authentication, and integration with external services. The ultimate goal is to deliver a robust, scalable, and user-friendly system tailored to the RPP industry, enhancing operational efficiency and client satisfaction.
 
+# Recent Changes
+
+## Real-Time Firestore Messaging Migration (October 24, 2025)
+
+**Completed**: Migrated messaging system from PostgreSQL with polling to Firestore with real-time listeners for instant updates.
+
+### Implementation Details:
+
+1. **FirestoreStorage Class** (`server/firestore-storage.ts`):
+   - Comprehensive implementation of `IStorage` interface using Firebase Admin SDK
+   - Full CRUD operations for conversations, messages, notifications, jobs, orders, etc.
+   - Timestamp conversion utilities (`timestampToDate`, `prepareForFirestore`) for proper Date handling
+   - Multi-tenant data isolation maintained with `partnerId` filtering
+
+2. **Real-Time React Hooks** (`client/src/hooks/useFirestoreRealtime.ts`):
+   - `useRealtimeMessages`: Live message updates via `onSnapshot` listener on messages collection
+   - `useRealtimeConversations`: Live conversation list with dual query merging (partner + editor queries)
+   - `useRealtimeNotifications`: Live notification updates (not yet integrated into UI)
+   - **Critical Bug Fix**: Conversation maps now rebuild from scratch on each snapshot instead of mutating persistent maps, ensuring deleted conversations are immediately removed from UI
+
+3. **Backend Routes Migration** (`server/routes.ts`):
+   - Updated all conversation endpoints to use `firestoreStorage` instead of in-memory storage
+   - Maintained separation of concerns: backend handles writes with validation, frontend uses Firestore SDK for real-time reads
+
+4. **Messages Page Migration** (`client/src/pages/Messages.tsx`):
+   - Replaced React Query polling with real-time Firestore hooks
+   - Updated type definitions to handle Firestore Date objects instead of strings
+   - Instant message delivery with no polling delays
+
+### Testing Status:
+- ✅ Code architecture reviewed and approved by architect
+- ✅ Critical bugs fixed (conversation map rebuilding)
+- ✅ All TypeScript LSP errors resolved
+- ❌ Automated e2e tests blocked by Firebase Authentication (see Testing Limitation above)
+- Manual verification required for real-time messaging functionality
+
+### Remaining Work:
+- Migrate notifications UI to use `useRealtimeNotifications` hook
+- Migrate job delivery and file upload pages to use real-time Firestore listeners
+- Update remaining backend routes to use FirestoreStorage for all features
+- Comprehensive manual testing of all real-time features
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -40,6 +82,7 @@ Preferred communication style: Simple, everyday language.
 - **Role Management**: Comprehensive role system (partner, admin, photographer).
 - **Authorization**: Role-based route protection and multi-tenant data isolation using `partnerId`.
 - **Team Management**: Partner signup, team member invitation system, and management interface.
+- **Testing Limitation**: Firebase Authentication blocks Playwright-based automated testing (similar to Google OAuth). End-to-end tests requiring authentication must be performed manually. Alternative approaches: unit/integration tests with mocked Firebase Admin tokens, or migration to Replit Auth for automated testing support.
 
 ## File Storage
 - **Provider**: Firebase Storage.
