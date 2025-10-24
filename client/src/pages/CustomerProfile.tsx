@@ -60,7 +60,8 @@ export default function CustomerProfile() {
     dueDate: job.dueDate ? `Due ${formatDate(job.dueDate)}` : '',
     status: job.status || 'Pending',
     statusColor: getStatusColor(job.status),
-    price: job.totalPrice ? `$${parseFloat(job.totalPrice).toFixed(2)}` : '$0.00'
+    price: job.totalPrice ? `$${parseFloat(job.totalPrice).toFixed(2)}` : '$0.00',
+    propertyImage: job.propertyImageThumbnail || job.propertyImage
   }));
 
   const initials = customer.firstName && customer.lastName 
@@ -174,8 +175,18 @@ export default function CustomerProfile() {
                         data-testid={`job-item-${job.jobId || job.id}`}
                         onClick={() => setLocation(`/jobs/${job.id}`)}
                       >
-                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                          <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
+                        <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden">
+                          {job.propertyImage ? (
+                            <img 
+                              src={job.propertyImage} 
+                              alt={job.address}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-orange-100 flex items-center justify-center">
+                              <div className="w-2 h-2 rounded-full bg-rpp-red-main"></div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-rpp-grey-dark mb-1 font-medium" data-testid={`text-job-address-${job.jobId || job.id}`}>{job.address}</p>
