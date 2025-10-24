@@ -226,11 +226,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   <div className="text-sm font-medium text-rpp-grey-dark">
                     {userData?.email || 'User'}
                   </div>
-                  <Badge 
-                    className={`text-xs mt-1 ${userData ? getRoleColor(userData.role) : 'bg-rpp-grey-bg text-rpp-grey-dark'}`}
-                  >
-                    {userData?.role || 'Unknown'}
-                  </Badge>
                 </div>
                 <ChevronDown className="w-4 h-4 text-rpp-grey-light" />
               </button>
