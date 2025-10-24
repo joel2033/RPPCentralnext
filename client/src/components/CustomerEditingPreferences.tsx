@@ -335,7 +335,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                 <Button
                   onClick={handleSave}
                   disabled={!hasChanges || saveMutation.isPending}
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl shadow-sm"
+                  className="hover:bg-rpp-red-dark text-white rounded-xl shadow-sm bg-[#f05a2a]"
                   data-testid="button-save-preferences"
                 >
                   <Check className="w-4 h-4 mr-2" />
