@@ -24,10 +24,15 @@ Preferred communication style: Simple, everyday language.
 - **Request Handling**: Express middleware for logging, JSON parsing, and error handling.
 
 ## Database
-- **ORM**: Drizzle ORM with PostgreSQL dialect.
-- **Connection**: Neon Database serverless PostgreSQL.
-- **Schema**: Tables for users, customers, products, jobs, orders with multi-tenancy (`partnerId`), Firebase integration (`folderToken`), and accounting integration fields.
-- **Migrations**: Drizzle Kit.
+- **Primary Database**: Firebase Firestore (real-time NoSQL database).
+- **Migration Status**: Transitioning from PostgreSQL (Neon) to Firestore exclusively.
+- **Schema**: Collections for users, customers, products, jobs, orders, notifications, messages, conversations, and more. All with multi-tenancy (`partnerId`) and real-time capabilities.
+- **Storage Implementation**: 
+  - Created comprehensive `FirestoreStorage` class implementing `IStorage` interface (server/firestore-storage.ts).
+  - Supports all CRUD operations with Firebase Admin SDK.
+  - Real-time listeners via `onSnapshot` for instant UI updates.
+- **Legacy Support**: PostgreSQL schema and types maintained in `shared/schema.ts` for gradual migration.
+- **Real-Time Features**: All data updates propagate instantly across connected clients using Firestore's real-time listeners.
 
 ## Authentication & Authorization
 - **Provider**: Firebase Authentication (Email/Password).
