@@ -293,12 +293,13 @@ export class FirestoreStorage implements IStorage {
     const newOrder: Order = {
       ...order,
       jobId: order.jobId || null,
-      editorId: order.editorId || null,
+      customerId: order.customerId || null,
       status: order.status || null,
+      assignedTo: order.assignedTo || null,
+      createdBy: order.createdBy || null,
+      estimatedTotal: order.estimatedTotal || null,
       maxRevisionRounds: order.maxRevisionRounds || null,
-      currentRevisionRound: order.currentRevisionRound || null,
-      totalPrice: order.totalPrice || null,
-      estimatedTurnaround: order.estimatedTurnaround || null,
+      usedRevisionRounds: order.usedRevisionRounds || null,
       id,
       orderNumber,
       filesExpiryDate,
@@ -419,9 +420,7 @@ export class FirestoreStorage implements IStorage {
     const id = nanoid();
     const newOrderFile: OrderFile = {
       ...orderFile,
-      orderNumber: orderFile.orderNumber || null,
-      folderToken: orderFile.folderToken || null,
-      folderPath: orderFile.folderPath || null,
+      serviceId: orderFile.serviceId || null,
       id,
       uploadedAt: new Date()
     };
@@ -449,7 +448,7 @@ export class FirestoreStorage implements IStorage {
 
   async updateOrderStatus(orderId: string, status: string, editorId: string): Promise<Order | undefined> {
     const order = await this.getOrder(orderId);
-    if (!order || order.editorId !== editorId) {
+    if (!order || order.assignedTo !== editorId) {
       throw new Error("Order not found or access denied");
     }
 
@@ -472,6 +471,8 @@ export class FirestoreStorage implements IStorage {
     const newCategory: ServiceCategory = {
       ...category,
       description: category.description || null,
+      isActive: category.isActive !== undefined ? category.isActive : true,
+      displayOrder: category.displayOrder !== undefined ? category.displayOrder : 0,
       id,
       createdAt: new Date()
     };
@@ -511,7 +512,10 @@ export class FirestoreStorage implements IStorage {
       ...service,
       description: service.description || null,
       categoryId: service.categoryId || null,
-      turnaroundDays: service.turnaroundDays || null,
+      pricePer: service.pricePer || null,
+      estimatedTurnaround: service.estimatedTurnaround || null,
+      isActive: service.isActive !== undefined ? service.isActive : true,
+      displayOrder: service.displayOrder !== undefined ? service.displayOrder : 0,
       id,
       createdAt: new Date()
     };
@@ -562,11 +566,13 @@ export class FirestoreStorage implements IStorage {
     const id = nanoid();
     const newUpload: EditorUpload = {
       ...editorUpload,
-      orderNumber: editorUpload.orderNumber || null,
-      folderToken: editorUpload.folderToken || null,
+      orderId: editorUpload.orderId || null,
       folderPath: editorUpload.folderPath || null,
       editorFolderName: editorUpload.editorFolderName || null,
       partnerFolderName: editorUpload.partnerFolderName || null,
+      folderToken: editorUpload.folderToken || null,
+      status: editorUpload.status || null,
+      notes: editorUpload.notes || null,
       id,
       uploadedAt: new Date()
     };
@@ -593,7 +599,7 @@ export class FirestoreStorage implements IStorage {
           folderPath: upload.folderPath,
           editorFolderName: upload.editorFolderName || "",
           partnerFolderName: upload.partnerFolderName,
-          orderNumber: upload.orderNumber,
+          orderNumber: undefined, // EditorUploads don't have orderNumber - would need to lookup from orderId
           fileCount: 0,
           files: []
         });
@@ -658,7 +664,7 @@ export class FirestoreStorage implements IStorage {
   }
 
   async assignOrderToEditor(orderId: string, editorId: string): Promise<Order | undefined> {
-    return this.updateOrder(orderId, { editorId });
+    return this.updateOrder(orderId, { assignedTo: editorId });
   }
 
   // Notifications
@@ -668,7 +674,7 @@ export class FirestoreStorage implements IStorage {
       ...notification,
       jobId: notification.jobId || null,
       orderId: notification.orderId || null,
-      metadata: notification.metadata || null,
+      read: notification.read !== undefined ? notification.read : false,
       id,
       createdAt: new Date(),
       readAt: null
@@ -687,7 +693,7 @@ export class FirestoreStorage implements IStorage {
         ...notification,
         jobId: notification.jobId || null,
         orderId: notification.orderId || null,
-        metadata: notification.metadata || null,
+        read: notification.read !== undefined ? notification.read : false,
         id,
         createdAt: new Date(),
         readAt: null
@@ -759,8 +765,12 @@ export class FirestoreStorage implements IStorage {
     const newActivity: Activity = {
       ...activity,
       jobId: activity.jobId || null,
+      customerId: activity.customerId || null,
       orderId: activity.orderId || null,
+      description: activity.description || null,
       metadata: activity.metadata || null,
+      ipAddress: activity.ipAddress || null,
+      userAgent: activity.userAgent || null,
       id,
       createdAt: new Date()
     };
@@ -777,8 +787,12 @@ export class FirestoreStorage implements IStorage {
       const newActivity: Activity = {
         ...activity,
         jobId: activity.jobId || null,
+        customerId: activity.customerId || null,
         orderId: activity.orderId || null,
+        description: activity.description || null,
         metadata: activity.metadata || null,
+        ipAddress: activity.ipAddress || null,
+        userAgent: activity.userAgent || null,
         id,
         createdAt: new Date()
       };
@@ -831,7 +845,7 @@ export class FirestoreStorage implements IStorage {
   async getActivityCountByType(partnerId: string, timeRange?: { start: Date; end: Date }): Promise<{ [key: string]: number }> {
     const activities = await this.getActivities({ partnerId });
     const filtered = timeRange 
-      ? activities.filter(a => a.createdAt >= timeRange.start && a.createdAt <= timeRange.end)
+      ? activities.filter(a => a.createdAt && a.createdAt >= timeRange.start && a.createdAt <= timeRange.end)
       : activities;
 
     const counts: { [key: string]: number } = {};
@@ -1007,6 +1021,10 @@ export class FirestoreStorage implements IStorage {
     const newOption: EditingOption = {
       ...option,
       description: option.description || null,
+      icon: option.icon || null,
+      iconColor: option.iconColor || null,
+      isActive: option.isActive !== undefined ? option.isActive : true,
+      displayOrder: option.displayOrder !== undefined ? option.displayOrder : 0,
       id,
       createdAt: new Date()
     };
@@ -1042,10 +1060,14 @@ export class FirestoreStorage implements IStorage {
 
   async setCustomerEditingPreference(preference: InsertCustomerEditingPreference): Promise<CustomerEditingPreference> {
     const id = nanoid();
+    const now = new Date();
     const newPreference: CustomerEditingPreference = {
       ...preference,
+      isEnabled: preference.isEnabled !== undefined ? preference.isEnabled : true,
       notes: preference.notes || null,
-      id
+      id,
+      createdAt: now,
+      updatedAt: now
     };
     await this.db.collection("customerEditingPreferences").doc(id).set(prepareForFirestore(newPreference));
     return newPreference;
@@ -1064,15 +1086,23 @@ export class FirestoreStorage implements IStorage {
   async saveCustomerPreferences(customerId: string, preferences: { editingOptionId: string; isEnabled: boolean; notes?: string }[]): Promise<void> {
     const existing = await this.getCustomerEditingPreferences(customerId);
     const batch = this.db.batch();
+    const now = Timestamp.now();
     
     for (const pref of preferences) {
       const existingPref = existing.find(p => p.editingOptionId === pref.editingOptionId);
       
       if (existingPref) {
-        batch.update(this.db.collection("customerEditingPreferences").doc(existingPref.id), prepareForFirestore(pref));
+        batch.update(this.db.collection("customerEditingPreferences").doc(existingPref.id), prepareForFirestore({ ...pref, updatedAt: now.toDate() }));
       } else {
         const id = nanoid();
-        batch.set(this.db.collection("customerEditingPreferences").doc(id), prepareForFirestore({ ...pref, customerId, id, notes: pref.notes || null }));
+        batch.set(this.db.collection("customerEditingPreferences").doc(id), prepareForFirestore({ 
+          ...pref, 
+          customerId, 
+          id, 
+          notes: pref.notes || null,
+          createdAt: now.toDate(),
+          updatedAt: now.toDate()
+        }));
       }
     }
     
@@ -1087,24 +1117,24 @@ export class FirestoreStorage implements IStorage {
 
   async savePartnerSettings(partnerId: string, settings: InsertPartnerSettings): Promise<PartnerSettings> {
     const existing = await this.getPartnerSettings(partnerId);
+    const now = new Date();
     
     if (existing) {
-      await this.db.collection("partnerSettings").doc(existing.id).update(prepareForFirestore(settings));
+      await this.db.collection("partnerSettings").doc(existing.id).update(prepareForFirestore({ ...settings, updatedAt: now }));
       const docSnap = await this.db.collection("partnerSettings").doc(existing.id).get();
       return docToObject<PartnerSettings>(docSnap);
     } else {
       const id = nanoid();
       const newSettings: PartnerSettings = {
         ...settings,
-        businessName: settings.businessName || null,
-        address: settings.address || null,
-        phone: settings.phone || null,
-        email: settings.email || null,
-        abn: settings.abn || null,
-        logo: settings.logo || null,
-        websiteUrl: settings.websiteUrl || null,
+        businessProfile: settings.businessProfile || null,
+        personalProfile: settings.personalProfile || null,
+        businessHours: settings.businessHours || null,
+        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds !== undefined ? settings.defaultMaxRevisionRounds : 2,
         id,
-        partnerId
+        partnerId,
+        createdAt: now,
+        updatedAt: now
       };
       await this.db.collection("partnerSettings").doc(id).set(prepareForFirestore(newSettings));
       return newSettings;
@@ -1124,10 +1154,14 @@ export class FirestoreStorage implements IStorage {
 
   async createFileComment(comment: InsertFileComment): Promise<FileComment> {
     const id = nanoid();
+    const now = new Date();
     const newComment: FileComment = {
       ...comment,
+      orderId: comment.orderId || null,
+      status: comment.status || null,
       id,
-      createdAt: new Date()
+      createdAt: now,
+      updatedAt: now
     };
     await this.db.collection("fileComments").doc(id).set(prepareForFirestore(newComment));
     return newComment;
@@ -1149,7 +1183,9 @@ export class FirestoreStorage implements IStorage {
     const id = nanoid();
     const newReview: JobReview = {
       ...review,
-      feedback: review.feedback || null,
+      review: review.review || null,
+      submittedBy: review.submittedBy || null,
+      submittedByEmail: review.submittedByEmail || null,
       id,
       createdAt: new Date()
     };
@@ -1168,7 +1204,7 @@ export class FirestoreStorage implements IStorage {
     const newEmail: DeliveryEmail = {
       ...email,
       id,
-      createdAt: new Date()
+      sentAt: new Date()
     };
     await this.db.collection("deliveryEmails").doc(id).set(prepareForFirestore(newEmail));
     return newEmail;
@@ -1179,14 +1215,14 @@ export class FirestoreStorage implements IStorage {
     const order = await this.getOrder(orderId);
     if (!order) return undefined;
 
-    const currentRound = order.currentRevisionRound || 0;
+    const usedRounds = order.usedRevisionRounds || 0;
     const maxRounds = order.maxRevisionRounds || 2;
 
-    if (currentRound >= maxRounds) {
+    if (usedRounds >= maxRounds) {
       throw new Error("Maximum revision rounds reached");
     }
 
-    return this.updateOrder(orderId, { currentRevisionRound: currentRound + 1 });
+    return this.updateOrder(orderId, { usedRevisionRounds: usedRounds + 1 });
   }
 
   async getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined> {
@@ -1194,7 +1230,7 @@ export class FirestoreStorage implements IStorage {
     if (!order) return undefined;
 
     const maxRounds = order.maxRevisionRounds || 2;
-    const usedRounds = order.currentRevisionRound || 0;
+    const usedRounds = order.usedRevisionRounds || 0;
     const remainingRounds = maxRounds - usedRounds;
 
     return { maxRounds, usedRounds, remainingRounds };
@@ -1219,9 +1255,11 @@ export class FirestoreStorage implements IStorage {
       conversations.set(conv.id, conv);
     });
 
-    return Array.from(conversations.values()).sort((a, b) => 
-      b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
-    );
+    return Array.from(conversations.values()).sort((a, b) => {
+      const aTime = a.lastMessageAt?.getTime() || 0;
+      const bTime = b.lastMessageAt?.getTime() || 0;
+      return bTime - aTime;
+    });
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {
