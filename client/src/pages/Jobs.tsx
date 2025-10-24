@@ -444,7 +444,7 @@ export default function Jobs() {
                           e.stopPropagation();
                           setDeliveryModalJob(job);
                         }}
-                        className="bg-gradient-to-r from-primary to-primary/90 hover:shadow-lg transition-shadow"
+                        className="from-primary to-primary/90 hover:shadow-lg transition-shadow bg-[#f05a2a]"
                         size="sm"
                         data-testid={`button-deliver-${job.id}`}
                       >
