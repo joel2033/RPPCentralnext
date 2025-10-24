@@ -4060,6 +4060,17 @@
       "isActive": true,
       "displayOrder": 0,
       "createdAt": "2025-10-15T03:06:24.851Z"
+    },
+    "9a07ddcc-7610-4ab8-a3f5-ca23ff07b4dc": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "name": "Warmer tones",
+      "description": "retain the warmth in the whites and mid tones",
+      "icon": "Sun",
+      "iconColor": "bg-orange-100 text-orange-600",
+      "id": "9a07ddcc-7610-4ab8-a3f5-ca23ff07b4dc",
+      "isActive": true,
+      "displayOrder": 0,
+      "createdAt": "2025-10-24T09:47:46.658Z"
     }
   },
   "customerEditingPreferences": {
