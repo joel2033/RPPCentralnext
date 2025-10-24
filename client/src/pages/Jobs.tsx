@@ -224,7 +224,7 @@ export default function Jobs() {
             </div>
             <Button 
               onClick={() => setShowCreateModal(true)}
-              className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl font-semibold"
+              className="hover:bg-rpp-red-dark text-white rounded-xl font-semibold bg-[#f05a2a]"
               data-testid="button-create-job"
             >
               <Plus className="w-4 h-4 mr-2" />

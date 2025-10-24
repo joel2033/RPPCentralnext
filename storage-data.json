@@ -82,6 +82,32 @@
       "averageJobValue": "0",
       "jobsCompleted": 0,
       "createdAt": "2025-08-03T14:02:30.398Z"
+    },
+    "72318961-d109-42f9-a4e5-04cbcc14a0d5": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "firstName": "Harvey",
+      "lastName": "Adamson",
+      "email": "harvey@realestate.com",
+      "phone": "+61 0412 389 098",
+      "company": "Harvey Realty",
+      "category": "residential",
+      "profileImage": null,
+      "notes": null,
+      "billingEmail": null,
+      "billingAddress": null,
+      "city": null,
+      "state": null,
+      "postcode": null,
+      "paymentTerms": null,
+      "taxId": null,
+      "teamMembers": null,
+      "accountingIntegration": null,
+      "accountingContactId": null,
+      "id": "72318961-d109-42f9-a4e5-04cbcc14a0d5",
+      "totalValue": "0",
+      "averageJobValue": "0",
+      "jobsCompleted": 0,
+      "createdAt": "2025-10-24T11:48:50.329Z"
     }
   },
   "products": {
