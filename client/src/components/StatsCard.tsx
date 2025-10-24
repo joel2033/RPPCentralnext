@@ -32,7 +32,7 @@ export function StatsCard({ title, value, change, changeType, icon: Icon, iconBg
             </div>
           </div>
           <div className="space-y-1">
-            <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">{title}</p>
+            <p className="text-xs font-medium text-rpp-grey-medium uppercase tracking-wider">JOBS</p>
             <p className="text-3xl font-bold text-rpp-grey-dark leading-none">{value}</p>
             <p className="text-xs text-rpp-grey-light">vs last month</p>
           </div>
