@@ -10,6 +10,7 @@ import { getAuth } from "firebase/auth";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
+import { useRealtimeNotifications } from "@/hooks/useFirestoreRealtime";
 
 const auth = getAuth();
 
@@ -23,8 +24,8 @@ interface Notification {
   orderId?: string;
   jobId?: string;
   read: boolean;
-  createdAt: string;
-  readAt?: string | null;
+  createdAt: Date | null;
+  readAt?: Date | null;
 }
 
 interface EditorHeaderProps {
@@ -37,12 +38,10 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
   const [, setLocation] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Fetch notifications
-  const { data: notifications = [] } = useQuery<Notification[]>({
-    queryKey: ['/api/notifications'],
-    enabled: !!currentUser,
-    refetchInterval: 8000 // Poll every 8 seconds for near real-time updates
-  });
+  // Real-time notifications from Firestore
+  const { notifications = [], unreadCount: unreadNotificationsCount } = useRealtimeNotifications(
+    currentUser?.uid || null
+  );
 
   // Fetch unread message count
   const { data: unreadMessagesData } = useQuery<{ count: number }>({
@@ -51,8 +50,7 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
     refetchInterval: 8000 // Poll every 8 seconds for real-time updates
   });
 
-  // Calculate unread count (notifications + messages)
-  const unreadNotificationsCount = notifications.filter((notification) => !notification.read).length;
+  // Calculate total unread count (notifications + messages)
   const unreadMessagesCount = unreadMessagesData?.count || 0;
   const unreadCount = unreadNotificationsCount + unreadMessagesCount;
 
@@ -175,7 +173,7 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
                         {notification.body}
                       </p>
                       <p className="text-xs text-gray-400" data-testid={`text-notification-time-${notification.id}`}>
-                        {new Date(notification.createdAt).toLocaleString()}
+                        {notification.createdAt ? notification.createdAt.toLocaleString() : ''}
                       </p>
                     </div>
                   </DropdownMenuItem>

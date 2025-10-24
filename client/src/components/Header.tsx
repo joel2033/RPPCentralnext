@@ -7,6 +7,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
+import { useRealtimeNotifications } from "@/hooks/useFirestoreRealtime";
 
 interface Notification {
   id: string;
@@ -18,8 +19,8 @@ interface Notification {
   orderId?: string;
   jobId?: string;
   read: boolean;
-  createdAt: string;
-  readAt?: string | null;
+  createdAt: Date | null;
+  readAt?: Date | null;
 }
 
 interface HeaderProps {
@@ -31,12 +32,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [, setLocation] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Fetch notifications
-  const { data: notifications = [], isLoading, error } = useQuery<Notification[]>({
-    queryKey: ['/api/notifications'],
-    enabled: !!currentUser,
-    refetchInterval: 8000 // Poll every 8 seconds for near real-time updates
-  });
+  // Real-time notifications from Firestore
+  const { notifications = [], unreadCount: unreadNotificationsCount } = useRealtimeNotifications(
+    currentUser?.uid || null
+  );
 
   // Fetch unread message count
   const { data: unreadMessagesData } = useQuery<{ count: number }>({
@@ -45,8 +44,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
     refetchInterval: 8000 // Poll every 8 seconds to sync with notifications
   });
 
-  // Calculate unread count (notifications + messages)
-  const unreadNotificationsCount = notifications.filter((notification) => !notification.read).length;
+  // Calculate total unread count (notifications + messages)
   const unreadMessagesCount = unreadMessagesData?.count || 0;
   const unreadCount = unreadNotificationsCount + unreadMessagesCount;
 
@@ -189,7 +187,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                         {notification.body}
                       </p>
                       <p className="text-xs text-rpp-grey-light" data-testid={`text-notification-time-${notification.id}`}>
-                        {new Date(notification.createdAt).toLocaleString()}
+                        {notification.createdAt ? notification.createdAt.toLocaleString() : ''}
                       </p>
                     </div>
                   </DropdownMenuItem>
