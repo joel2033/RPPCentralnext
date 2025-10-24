@@ -78,10 +78,12 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!userId) {
       setConversations([]);
+      setUnreadCount(0);
       setLoading(false);
       return;
     }
@@ -118,7 +120,17 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
         return bTime - aTime;
       });
       
+      // Calculate total unread message count for this user
+      const totalUnread = sorted.reduce((count, conv) => {
+        // Check if current user is the editor in this conversation
+        const isEditor = conv.editorId === userId;
+        // Add the appropriate unread count based on user role
+        const unread = isEditor ? (conv.editorUnreadCount || 0) : (conv.partnerUnreadCount || 0);
+        return count + unread;
+      }, 0);
+      
       setConversations(sorted);
+      setUnreadCount(totalUnread);
       setLoading(false);
       setError(null);
     };
@@ -171,7 +183,7 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
     };
   }, [userId, partnerId]);
 
-  return { conversations, loading, error };
+  return { conversations, loading, error, unreadCount };
 }
 
 // Real-time notifications for a user
