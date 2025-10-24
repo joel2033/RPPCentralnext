@@ -188,7 +188,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                   <Settings className="w-6 h-6 text-rpp-red-main" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900">Editing Preferences</h3>
+                  <h3 className="font-medium text-[18px] text-[#5c6165]">Editing Preferences</h3>
                   <p className="text-sm text-gray-600">
                     Automatic post-production edits applied to all {customerName || 'this customer'}'s photos
                   </p>
