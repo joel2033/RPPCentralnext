@@ -47,7 +47,7 @@ export default function Dashboard() {
         {/* Stats Cards - 4 columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
-            title="Active Projects"
+            title="JOBS"
             value={activeProjects.toString()}
             change="+12%"
             changeType="positive"
@@ -56,7 +56,7 @@ export default function Dashboard() {
             iconColor="text-rpp-red-main"
           />
           <StatsCard
-            title="Media Assets"
+            title="ORDERS"
             value={totalLeads.toString()}
             change="+23%"
             changeType="positive"
@@ -65,7 +65,7 @@ export default function Dashboard() {
             iconColor="text-support-green"
           />
           <StatsCard
-            title="Monthly Revenue"
+            title="REVENUE"
             value={`$${monthlyRevenue}k`}
             change="+8%"
             changeType="positive"
@@ -74,7 +74,7 @@ export default function Dashboard() {
             iconColor="text-rpp-red-main"
           />
           <StatsCard
-            title="Active Clients"
+            title="ACTIVE CLIENTS"
             value={activeClients.toString()}
             change="+5%"
             changeType="positive"
