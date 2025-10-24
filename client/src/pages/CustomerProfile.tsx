@@ -103,7 +103,7 @@ export default function CustomerProfile() {
           {stats.map((stat, index) => (
             <Card key={index} className="bg-white border border-gray-200 rounded-2xl shadow-sm">
               <CardContent className="p-6 text-center">
-                <div className="text-3xl text-rpp-red-main mb-1 font-medium">
+                <div className="text-3xl mb-1 font-medium text-[#f05a2a]">
                   {stat.value}
                 </div>
                 <div className="text-sm text-gray-600">{stat.label}</div>
