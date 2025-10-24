@@ -260,7 +260,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                           <Switch
                             checked={isEnabled}
                             onCheckedChange={(checked) => handleToggle(pref.id, checked)}
-                            className="flex-shrink-0 data-[state=checked]:bg-rpp-red-main hover:data-[state=checked]:bg-rpp-red-dark data-[state=unchecked]:bg-gray-300 hover:data-[state=unchecked]:bg-gray-400 transition-colors"
+                            className="flex-shrink-0 data-[state=checked]:bg-rpp-red-main hover:data-[state=checked]:bg-rpp-red-dark data-[state=unchecked]:bg-gray-300 hover:data-[state=unchecked]:bg-gray-400 transition-colors bg-[#f05a2a]"
                             data-testid={`switch-${pref.id}`}
                           />
                         </div>
