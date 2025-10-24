@@ -729,19 +729,25 @@ export class FirestoreStorage implements IStorage {
       throw new Error("Access denied");
     }
 
-    await this.db.collection("notifications").doc(id).update({ readAt: Timestamp.now() });
+    await this.db.collection("notifications").doc(id).update({ 
+      read: true,
+      readAt: Timestamp.now() 
+    });
     return this.getNotifications().then(notifications => notifications.find(n => n.id === id));
   }
 
   async markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void> {
     const snapshot = await this.db.collection("notifications")
       .where("recipientId", "==", recipientId)
-      .where("readAt", "==", null)
+      .where("read", "==", false)
       .get();
     
     const batch = this.db.batch();
     snapshot.docs.forEach(doc => {
-      batch.update(doc.ref, { readAt: Timestamp.now() });
+      batch.update(doc.ref, { 
+        read: true,
+        readAt: Timestamp.now() 
+      });
     });
     
     await batch.commit();
