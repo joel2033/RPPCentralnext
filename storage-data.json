@@ -2374,6 +2374,25 @@
       "status": "uploaded",
       "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified, Folder Token: fJtdwLScKQ",
       "uploadedAt": "2025-10-20T01:16:03.232Z"
+    },
+    "3b294bcf-416e-45ed-9078-b1a09f377f56": {
+      "id": "3b294bcf-416e-45ed-9078-b1a09f377f56",
+      "jobId": "7a778e97-6fbb-4694-917c-e7fbd2362657",
+      "orderId": "2cbc44a2-d2fc-44b0-84ed-d27b831792cc",
+      "editorId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "fileName": "RPP06540.jpg",
+      "originalName": "RPP06540.jpg",
+      "fileSize": 1983183,
+      "mimeType": "image/jpeg",
+      "firebaseUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00016/1761295220866_RPP06540.jpg",
+      "downloadUrl": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/orders/yJB4OZsZ1nZEp2MlUwyRbWG3JDx1/Mo6JlZ3shUHNSRd1RiwRs/00016/1761295220866_RPP06540.jpg",
+      "folderPath": "Photos",
+      "editorFolderName": "Photos",
+      "folderToken": null,
+      "expiresAt": "2025-10-25T08:40:24.599Z",
+      "status": "uploaded",
+      "notes": "Uploaded with role-based validation - Role: partner, Access: true, Upload Valid: true, Upload Type: not specified",
+      "uploadedAt": "2025-10-24T08:40:24.599Z"
     }
   },
   "notifications": {
@@ -5481,7 +5500,7 @@
       "createdAt": "2025-10-24T03:37:47.325Z"
     }
   },
-  "orderCounter": 16,
+  "orderCounter": 17,
   "orderReservations": {
     "#00001": {
       "orderNumber": "#00001",
@@ -5562,6 +5581,14 @@
       "reservedAt": "2025-10-19T00:44:57.742Z",
       "expiresAt": "2025-10-19T02:44:57.742Z",
       "status": "confirmed"
+    },
+    "#00016": {
+      "orderNumber": "#00016",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "jobId": "Mo6JlZ3shUHNSRd1RiwRs",
+      "reservedAt": "2025-10-24T08:40:19.171Z",
+      "expiresAt": "2025-10-24T10:40:19.171Z",
+      "status": "reserved"
     }
   }
 }

@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to get user's partner ID from users collection
+    function getUserPartnerID() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId;
+    }
+
+    // Users collection - users can read/write their own document
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Conversations - users can read conversations where they are partner or editor
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        resource.data.editorId == request.auth.uid
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        resource.data.editorId == request.auth.uid
+      );
+    }
+
+    // Messages - users can read/write messages in conversations they have access to
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (
+        get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.partnerId == getUserPartnerID() ||
+        get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.editorId == request.auth.uid
+      );
+      allow create: if isAuthenticated();
+    }
+
+    // Notifications - users can read notifications where they are the recipient
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow write: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+    }
+
+    // Jobs - partners can read/write their own jobs
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+    }
+
+    // Orders - partners and assigned editors can read orders
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        resource.data.editorId == request.auth.uid
+      );
+      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+    }
+
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
