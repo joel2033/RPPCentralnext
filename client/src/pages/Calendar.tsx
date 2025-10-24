@@ -495,7 +495,6 @@ export default function Calendar() {
           </div>
         </div>
       </div>
-
       {/* Main Calendar Area */}
       <div className="flex-1 p-6 overflow-hidden">
         <div className="mb-6">
@@ -508,7 +507,7 @@ export default function Calendar() {
                   variant={viewMode === 'month' ? 'ghost' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('month')}
-                  className={`text-xs px-3 py-1 ${viewMode === 'month' ? 'bg-rpp-red-main text-white hover:bg-rpp-red-dark' : ''}`}
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:text-accent-foreground h-9 rounded-lg text-xs px-3 py-1 hover:bg-rpp-red-dark bg-[#f9fafb] text-[#323a42]"
                   data-testid="view-month"
                 >
                   Month
@@ -569,16 +568,13 @@ export default function Calendar() {
           {viewMode === 'day' && renderDayView()}
         </div>
       </div>
-
       {/* Modals */}
       {showCreateJobModal && (
         <CreateJobModal onClose={() => setShowCreateJobModal(false)} />
       )}
-
       {showCreateEventModal && (
         <CreateEventModal onClose={() => setShowCreateEventModal(false)} />
       )}
-
       {showAppointmentModal && selectedAppointment && (
         <AppointmentDetailsModal
           appointment={selectedAppointment}
