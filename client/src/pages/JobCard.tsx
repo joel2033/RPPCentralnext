@@ -186,7 +186,7 @@ export default function JobCard() {
             </Button>
             <Button 
               size="sm"
-              className="!bg-rpp-red-main hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed"
+              className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
               data-testid="button-delivery"
               disabled={jobData.status !== 'completed'}
               onClick={(e) => {
