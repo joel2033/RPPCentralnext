@@ -5,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEditorAuth } from "@/contexts/EditorAuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { getAuth } from "firebase/auth";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
-import { useRealtimeNotifications } from "@/hooks/useFirestoreRealtime";
+import { useRealtimeNotifications, useRealtimeConversations } from "@/hooks/useFirestoreRealtime";
 
 const auth = getAuth();
 
@@ -43,15 +43,13 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
     currentUser?.uid || null
   );
 
-  // Fetch unread message count
-  const { data: unreadMessagesData } = useQuery<{ count: number }>({
-    queryKey: ['/api/conversations/unread-count'],
-    enabled: !!currentUser,
-    refetchInterval: 8000 // Poll every 8 seconds for real-time updates
-  });
+  // Real-time unread message count from conversations
+  const { unreadCount: unreadMessagesCount } = useRealtimeConversations(
+    currentUser?.uid || null,
+    userData?.partnerId
+  );
 
   // Calculate total unread count (notifications + messages)
-  const unreadMessagesCount = unreadMessagesData?.count || 0;
   const unreadCount = unreadNotificationsCount + unreadMessagesCount;
 
   // Mark notification as read mutation
