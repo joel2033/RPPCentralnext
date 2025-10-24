@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, MessageSquare, Loader2, Plus, Info } from "lucide-react";
+import { useRealtimeConversations, useRealtimeMessages } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,11 +27,12 @@ interface Conversation {
   editorName: string;
   partnerEmail: string;
   editorEmail: string;
-  lastMessageAt: string;
+  lastMessageAt: Date | null;
   lastMessageText: string | null;
-  partnerUnreadCount: number;
-  editorUnreadCount: number;
-  createdAt: string;
+  partnerUnreadCount: number | null;
+  editorUnreadCount: number | null;
+  createdAt: Date | null;
+  orderId: string | null;
 }
 
 interface Message {
@@ -41,8 +43,8 @@ interface Message {
   senderName: string;
   senderRole: "partner" | "editor";
   content: string;
-  readAt: string | null;
-  createdAt: string;
+  readAt: Date | null;
+  createdAt: Date | null;
 }
 
 interface ConversationWithMessages {
@@ -104,20 +106,17 @@ export default function Messages() {
   const currentUserId = currentUser?.uid || editorData?.uid;
   const currentUserPartnerId = partnerData?.partnerId;
 
-  // Fetch all conversations
-  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
-    queryKey: ["/api/conversations"],
-    refetchInterval: 3000, // Sync with message polling
-    refetchIntervalInBackground: true,
-  });
+  // Real-time conversations with Firestore
+  const { conversations = [], loading: conversationsLoading } = useRealtimeConversations(
+    currentUserId || null,
+    currentUserPartnerId
+  );
 
-  // Fetch selected conversation with messages
-  const { data: conversationData, isLoading: messagesLoading } = useQuery<ConversationWithMessages>({
-    queryKey: [`/api/conversations/${selectedConversationId}`],
-    enabled: !!selectedConversationId,
-    refetchInterval: 2000, // Poll every 2 seconds for faster updates
-    refetchIntervalInBackground: true, // Continue polling even when tab is inactive
-  });
+  // Real-time messages with Firestore
+  const { messages = [], loading: messagesLoading } = useRealtimeMessages(selectedConversationId);
+
+  // Get the selected conversation from the conversations array
+  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
 
   // Determine if current user is an editor or partner
   const isEditor = editorData?.role === "editor";
@@ -334,13 +333,13 @@ export default function Messages() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    if (conversationData?.messages && conversationData.messages.length > 0) {
+    if (messages && messages.length > 0) {
       // Small delay to ensure DOM has updated
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  }, [conversationData?.messages, conversationData?.messages?.length]);
+  }, [messages, messages.length]);
 
   // Mark conversation as read when opened
   useEffect(() => {
@@ -393,8 +392,9 @@ export default function Messages() {
       .slice(0, 2);
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatTime = (dateInput: string | Date | null) => {
+    if (!dateInput) return '';
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
@@ -416,7 +416,7 @@ export default function Messages() {
     return {
       name: isPartner ? conversation.editorName : conversation.partnerName,
       email: isPartner ? conversation.editorEmail : conversation.partnerEmail,
-      unreadCount: isPartner ? conversation.partnerUnreadCount : conversation.editorUnreadCount,
+      unreadCount: isPartner ? (conversation.partnerUnreadCount || 0) : (conversation.editorUnreadCount || 0),
     };
   };
 
@@ -701,19 +701,19 @@ export default function Messages() {
           <>
             {/* Conversation Header */}
             <div className="p-4 border-b bg-muted/30">
-              {conversationData && (
+              {selectedConversation && (
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
                     <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
-                      {getInitials(getOtherParticipant(conversationData.conversation).name)}
+                      {getInitials(getOtherParticipant(selectedConversation).name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-semibold text-base">
-                      {getOtherParticipant(conversationData.conversation).name}
+                      {getOtherParticipant(selectedConversation).name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {getOtherParticipant(conversationData.conversation).email}
+                      {getOtherParticipant(selectedConversation).email}
                     </p>
                   </div>
                 </div>
@@ -728,7 +728,7 @@ export default function Messages() {
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
-                  {conversationData?.messages.map((message, index) => {
+                  {messages.map((message, index) => {
                     const isCurrentUser = message.senderEmail?.toLowerCase() === currentUserEmail?.toLowerCase();
                     return (
                       <div

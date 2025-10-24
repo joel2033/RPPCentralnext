@@ -99,28 +99,43 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
       where('editorId', '==', userId)
     );
 
-    // We need to merge results from both queries
-    let convMap = new Map<string, Conversation>();
-    let unsubscribeCount = 0;
+    // Track conversations from both queries
+    let partnerConvs = new Map<string, Conversation>();
+    let editorConvs = new Map<string, Conversation>();
+    let receivedSnapshots = 0;
     
-    const updateConversations = () => {
+    const mergeAndUpdateConversations = () => {
+      // Rebuild the conversation map from scratch on each update
+      const convMap = new Map<string, Conversation>();
+      
+      // Add conversations from both queries, using Map to deduplicate
+      partnerConvs.forEach((conv, id) => convMap.set(id, conv));
+      editorConvs.forEach((conv, id) => convMap.set(id, conv));
+      
       const sorted = Array.from(convMap.values()).sort((a, b) => {
         const aTime = a.lastMessageAt?.getTime() || 0;
         const bTime = b.lastMessageAt?.getTime() || 0;
         return bTime - aTime;
       });
+      
       setConversations(sorted);
       setLoading(false);
+      setError(null);
     };
 
     const unsubscribe1 = onSnapshot(
       q1,
       (snapshot) => {
+        // Rebuild partner conversations map from current snapshot
+        partnerConvs = new Map<string, Conversation>();
         snapshot.docs.forEach(doc => {
-          convMap.set(doc.id, convertTimestamps(doc) as Conversation);
+          partnerConvs.set(doc.id, convertTimestamps(doc) as Conversation);
         });
-        unsubscribeCount++;
-        if (unsubscribeCount >= 2) updateConversations();
+        receivedSnapshots++;
+        // Only update after receiving at least one snapshot from each query
+        if (receivedSnapshots >= 2) {
+          mergeAndUpdateConversations();
+        }
       },
       (err) => {
         console.error('Error listening to partner conversations:', err);
@@ -132,11 +147,16 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
     const unsubscribe2 = onSnapshot(
       q2,
       (snapshot) => {
+        // Rebuild editor conversations map from current snapshot
+        editorConvs = new Map<string, Conversation>();
         snapshot.docs.forEach(doc => {
-          convMap.set(doc.id, convertTimestamps(doc) as Conversation);
+          editorConvs.set(doc.id, convertTimestamps(doc) as Conversation);
         });
-        unsubscribeCount++;
-        if (unsubscribeCount >= 2) updateConversations();
+        receivedSnapshots++;
+        // Only update after receiving at least one snapshot from each query
+        if (receivedSnapshots >= 2) {
+          mergeAndUpdateConversations();
+        }
       },
       (err) => {
         console.error('Error listening to editor conversations:', err);
