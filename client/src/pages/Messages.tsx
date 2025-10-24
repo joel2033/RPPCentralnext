@@ -740,22 +740,22 @@ export default function Messages() {
                           className={cn(
                             "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                             isCurrentUser 
-                              ? "bg-[#fcdcd4] text-[#a3a4a5] rounded-br-sm" 
+                              ? "bg-rpp-red-main/10 rounded-br-sm" 
                               : "bg-gray-200 dark:bg-gray-700 rounded-bl-sm"
                           )}
                         >
                           <p className={cn(
                             "whitespace-pre-wrap break-words text-[18px]",
                             isCurrentUser 
-                              ? "text-[#313941]" 
+                              ? "text-gray-900 dark:text-gray-100" 
                               : "text-gray-900 dark:text-gray-100"
                           )}>
                             {message.content}
                           </p>
                           <p
                             className={cn(
-                              "text-xs mt-1.5 flex items-center gap-1 text-[#090a0b]",
-                              isCurrentUser ? "justify-end" : "justify-start"
+                              "text-xs mt-1.5 flex items-center gap-1",
+                              isCurrentUser ? "justify-end text-gray-600 dark:text-gray-400" : "justify-start text-gray-600 dark:text-gray-400"
                             )}
                           >
                             {formatTime(message.createdAt)}
