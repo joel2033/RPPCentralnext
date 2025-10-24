@@ -681,7 +681,7 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
               <Button 
                 onClick={handleSubmit}
                 disabled={createCustomerMutation.isPending}
-                className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                className="hover:bg-rpp-red-dark text-white bg-[#ea580b]"
                 data-testid="button-create-customer"
               >
                 {createCustomerMutation.isPending ? "Creating..." : "Create Customer"}
