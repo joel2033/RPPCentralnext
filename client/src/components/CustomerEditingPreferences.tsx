@@ -232,17 +232,17 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                       key={pref.id}
                       className={`group relative overflow-hidden rounded-xl border transition-all bg-white ${
                         isEnabled
-                          ? 'border-rpp-red-light/40 shadow-sm'
+                          ? 'border-[#f05a2a]/30 shadow-[0_0_0_3px_rgba(240,90,42,0.1)]'
                           : 'border-gray-200/60 hover:border-gray-300'
                       }`}
                       data-testid={`preference-option-${pref.id}`}
                     >
                       {/* Subtle gradient for enabled state */}
                       {isEnabled && (
-                        <div className="absolute inset-0 bg-gradient-to-br from-rpp-red-main/[0.02] via-rpp-red-main/[0.01] to-transparent pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#f05a2a]/[0.02] via-[#f05a2a]/[0.01] to-transparent pointer-events-none" />
                       )}
                       
-                      <div className="relative p-4">
+                      <div className="relative p-3">
                         <div className="flex items-start gap-3">
                           <div className={`w-12 h-12 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
                             <IconComponent className={`w-6 h-6 ${pref.iconColor || 'text-gray-700'}`} />
