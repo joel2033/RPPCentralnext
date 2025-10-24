@@ -248,7 +248,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <h4 className="text-sm font-semibold text-gray-900 truncate">{pref.name}</h4>
+                              <h4 className="text-gray-900 truncate font-medium text-[16px]">{pref.name}</h4>
                             </div>
                             {pref.description && (
                               <p className="text-gray-600 text-[14px]">
