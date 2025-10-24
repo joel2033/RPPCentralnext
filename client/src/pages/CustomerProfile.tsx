@@ -205,7 +205,7 @@ export default function CustomerProfile() {
 
                 {/* Avatar and Name */}
                 <div className="flex flex-col items-center mb-6">
-                  <div className="w-20 h-20 rounded-2xl bg-rpp-red-main flex items-center justify-center mb-3 shadow-sm">
+                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-3 shadow-sm bg-[#f05a2a]">
                     <span className="text-2xl font-bold text-white">{initials}</span>
                   </div>
                   <h4 className="text-lg font-semibold text-gray-900">
