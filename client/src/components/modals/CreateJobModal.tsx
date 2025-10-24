@@ -464,68 +464,6 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                 </div>
               </div>
 
-              {/* Cover Image Upload */}
-              <div className="space-y-2">
-                <Label htmlFor="cover-image">Cover Image (Optional)</Label>
-                <div className="flex items-center gap-4">
-                  {/* Image Preview */}
-                  <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl overflow-hidden flex-shrink-0">
-                    {coverImage ? (
-                      <img 
-                        src={coverImage} 
-                        alt="Cover preview" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-3xl">🏠</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Upload Button */}
-                  <div className="flex-1">
-                    <input
-                      type="file"
-                      id="cover-image-upload"
-                      accept="image/*"
-                      onChange={handleCoverImageUpload}
-                      className="hidden"
-                      data-testid="input-cover-image"
-                    />
-                    <label htmlFor="cover-image-upload">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm"
-                        disabled={uploadingCoverImage}
-                        asChild
-                        data-testid="button-upload-cover-image"
-                      >
-                        <span>
-                          {uploadingCoverImage ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Uploading...
-                            </>
-                          ) : coverImage ? (
-                            <>Change Cover Image</>
-                          ) : (
-                            <>
-                              <Plus className="w-4 h-4 mr-2" />
-                              Add Cover Image
-                            </>
-                          )}
-                        </span>
-                      </Button>
-                    </label>
-                    <p className="text-xs text-rpp-grey-light mt-1">
-                      Add a photo of the property to help identify the job
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {/* Location */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
