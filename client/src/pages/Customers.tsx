@@ -71,7 +71,7 @@ export default function Customers() {
         </div>
         <Button 
           onClick={() => setShowCreateModal(true)}
-          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-full px-6"
+          className="hover:bg-rpp-red-dark text-white rounded-full px-6 bg-[#f05a2a]"
           data-testid="button-new-customer"
         >
           <Plus className="w-4 h-4 mr-2" />
