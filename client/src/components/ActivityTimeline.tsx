@@ -56,8 +56,8 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
       q = query(q, where("orderId", "==", orderId));
     }
     
-    // Order by creation time (newest first)
-    q = query(q, orderBy("createdAt", "desc"));
+    // Order by creation time (oldest first - so job creation is always first)
+    q = query(q, orderBy("createdAt", "asc"));
 
     // Subscribe to real-time updates
     const unsubscribe = onSnapshot(

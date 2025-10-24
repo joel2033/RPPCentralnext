@@ -266,6 +266,21 @@
       "id": "7a778e97-6fbb-4694-917c-e7fbd2362657",
       "createdAt": "2025-10-19T00:44:18.164Z",
       "propertyImageThumbnail": "/api/files/proxy/14d1ab19-c3e8-4330-9ee9-47f32f3a689c"
+    },
+    "d99a1e23-2b60-4f65-a6cf-51f57acc5f5e": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "38 Richardson Road, San Remo NSW, Australia",
+      "customerId": "b6d52535-4427-418a-ad32-419c8742bb5a",
+      "appointmentDate": "2025-10-30T12:15:00.000Z",
+      "assignedTo": null,
+      "notes": "collect the keys",
+      "totalValue": "NaN",
+      "jobId": "jNkBJO9GHo5GhZdYZFa7c",
+      "status": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "id": "d99a1e23-2b60-4f65-a6cf-51f57acc5f5e",
+      "createdAt": "2025-10-24T21:16:18.123Z"
     }
   },
   "orders": {
@@ -4007,6 +4022,22 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "473c82c5-a1c6-4119-a84e-753a0fd3f977",
       "createdAt": "2025-10-19T01:12:53.153Z"
+    },
+    "634d34fa-91b7-4c3a-b5de-25a35499e11f": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "d99a1e23-2b60-4f65-a6cf-51f57acc5f5e",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "job",
+      "title": "Job Created",
+      "description": "New job created at 38 Richardson Road, San Remo NSW, Australia",
+      "metadata": "{\"jobId\":\"jNkBJO9GHo5GhZdYZFa7c\",\"address\":\"38 Richardson Road, San Remo NSW, Australia\",\"status\":null,\"customerId\":\"b6d52535-4427-418a-ad32-419c8742bb5a\",\"totalValue\":\"NaN\"}",
+      "ipAddress": "172.31.93.66",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "634d34fa-91b7-4c3a-b5de-25a35499e11f",
+      "createdAt": "2025-10-24T21:16:18.128Z"
     }
   },
   "editingOptions": {
