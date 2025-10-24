@@ -119,8 +119,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
           >
             <Menu className="w-5 h-5 text-rpp-grey-dark" />
           </button>
-          {/* Page Title */}
-          <h1 className="text-rpp-grey-dark text-[32px] font-medium">Dashboard</h1>
         </div>
 
         {/* Right Side */}
