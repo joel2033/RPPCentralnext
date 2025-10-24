@@ -5906,7 +5906,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'new_message',
         title: 'New Message',
         body: `You have a new message from ${senderName}`,
-        conversationId: id,
         read: false
       });
 

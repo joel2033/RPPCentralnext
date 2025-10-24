@@ -159,7 +159,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <span className="font-medium">{item.title}</span>
           </div>
           {item.title === "Messages" && unreadData && unreadData.count > 0 && (
-            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-rpp-red-main text-white text-xs font-bold rounded-full">
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-200 text-black text-xs font-bold rounded-full border-2 border-red-600 shadow-sm">
               {unreadData.count > 99 ? '99+' : unreadData.count}
             </span>
           )}
