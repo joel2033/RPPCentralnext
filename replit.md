@@ -54,6 +54,11 @@ Preferred communication style: Simple, everyday language.
     - **Manual Initiation**: Both partners and editors can initiate new conversations.
     - **Role-Adaptive UI**: UI adapts contact displays and message alignment based on the user's role.
     - **Real-time Notifications**: Unread counts and notifications are updated instantly via Firestore listeners.
+- **Activity Tracking System**: Real-time activity timeline using Firestore listeners.
+    - **Real-time Updates**: Activities appear instantly without polling using Firestore `onSnapshot` listeners.
+    - **Selective Tracking**: Only tracks major events (job creation, status changes, assignments) to keep timeline clean.
+    - **File Upload Exclusion**: Individual file uploads are not tracked to prevent timeline clutter.
+    - **Context Filtering**: Activities can be filtered by `jobId` or `orderId` for context-specific timelines.
 
 # External Dependencies
 

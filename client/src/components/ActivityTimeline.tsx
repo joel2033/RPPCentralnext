@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus } from "lucide-react";
 import { format } from "date-fns";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { collection, query, where, orderBy, onSnapshot, Query } from "firebase/firestore";
 
 interface ActivityData {
   id: string;
@@ -30,35 +31,72 @@ interface ActivityTimelineProps {
 }
 
 export default function ActivityTimeline({ jobId, orderId, className }: ActivityTimelineProps) {
-  // Build query parameters based on available IDs
-  const queryParams = new URLSearchParams();
-  if (jobId) queryParams.set('jobId', jobId);
-  if (orderId) queryParams.set('orderId', orderId);
+  const [activities, setActivities] = useState<ActivityData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  const { data: activities = [], isLoading, error } = useQuery<ActivityData[]>({
-    queryKey: ['/api/activities', { jobId, orderId }],
-    queryFn: async () => {
-      const headers: HeadersInit = {};
-      
-      // Add Firebase Auth token if user is authenticated
-      if (auth.currentUser) {
-        const token = await auth.currentUser.getIdToken();
-        headers.Authorization = `Bearer ${token}`;
+  useEffect(() => {
+    // Don't subscribe if we don't have a jobId or orderId
+    if (!jobId && !orderId) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    // Build Firestore query with filters
+    let q: Query = collection(db, "activities");
+    
+    // Filter by jobId or orderId
+    if (jobId) {
+      q = query(q, where("jobId", "==", jobId));
+    }
+    if (orderId) {
+      q = query(q, where("orderId", "==", orderId));
+    }
+    
+    // Order by creation time (newest first)
+    q = query(q, orderBy("createdAt", "desc"));
+
+    // Subscribe to real-time updates
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const activitiesData: ActivityData[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            partnerId: data.partnerId,
+            jobId: data.jobId || null,
+            orderId: data.orderId || null,
+            userId: data.userId,
+            userEmail: data.userEmail,
+            userName: data.userName,
+            action: data.action,
+            category: data.category,
+            title: data.title,
+            description: data.description,
+            metadata: data.metadata || null,
+            ipAddress: data.ipAddress || null,
+            userAgent: data.userAgent || null,
+            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt)
+          };
+        });
+        
+        setActivities(activitiesData);
+        setIsLoading(false);
+      },
+      (err) => {
+        console.error("Error listening to activities:", err);
+        setError(err as Error);
+        setIsLoading(false);
       }
-      
-      const response = await fetch(`/api/activities?${queryParams.toString()}`, {
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch activities');
-      }
-      
-      return response.json();
-    },
-    enabled: !!(jobId || orderId),
-    refetchInterval: 10000, // Auto-refresh every 10 seconds for real-time updates
-  });
+    );
+
+    // Cleanup: unsubscribe when component unmounts or dependencies change
+    return () => unsubscribe();
+  }, [jobId, orderId]);
 
   const getActivityIcon = (action: string, category: string) => {
     switch (action) {
