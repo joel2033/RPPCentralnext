@@ -3133,78 +3133,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.createEditorUpload(uploadData);
 
-      // ENHANCED LOGGING: Comprehensive activity tracking with validation results
-      try {
-        const authHeader = req.headers.authorization;
-        if (authHeader) {
-          const idToken = authHeader.replace('Bearer ', '');
-          const decodedToken = await adminAuth.verifyIdToken(idToken);
-          const userDoc = await getUserDocument(decodedToken.uid);
-
-          if (userDoc?.partnerId) {
-
-            // Get validation information for logging
-            const jobValidation = job ? await storage.validateJobIntegrity(job.id) : null;
-            const orderValidation = orderEntity ? await storage.validateOrderIntegrity(orderEntity.id) : null;
-
-            await storage.createActivity({
-              partnerId: userDoc.partnerId,
-              jobId: job?.id,
-              orderId: orderEntity?.id,
-              userId: userDoc.uid,
-              userEmail: userDoc.email,
-              userName: `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email,
-              action: "upload",
-              category: "file",
-              title: "Secure Editor Upload",
-              description: `Editor uploaded ${req.file.originalname} with comprehensive validation`,
-              metadata: JSON.stringify({
-                // File information
-                fileName: req.file.originalname,
-                fileSize: req.file.size,
-                mimeType: req.file.mimetype,
-                filePath: filePath,
-                publicUrl: publicUrl,
-
-                // Job/Order context
-                orderNumber: orderNumber,
-                jobId: jobId,
-                orderDbId: orderEntity?.id,
-                jobDbId: job?.id,
-
-                // Validation results
-                accessValidation: {
-                  hasAccess: hasUploadAccess,
-                  reason: accessReason,
-                  userRole: user.role
-                },
-                uploadValidation: {
-                  valid: uploadValidation.valid,
-                  errors: uploadValidation.errors
-                },
-
-                // Connection health
-                jobIntegrityValid: jobValidation?.isValid || false,
-                orderIntegrityValid: orderValidation?.isValid || false,
-                connectionIssues: [
-                  ...(jobValidation?.issues || []),
-                  ...(orderValidation?.issues || [])
-                ],
-
-                // Security context
-                reservationOrderNumber: reservation?.orderNumber || null,
-                folderToken: folderToken || null,
-                uploadTimestamp: timestamp,
-                securityLevel: 'enhanced_validation'
-              }),
-              ipAddress: req.ip,
-              userAgent: req.get('User-Agent')
-            });
-          }
-        }
-      } catch (activityError) {
-        console.error("Failed to log enhanced file upload activity:", activityError);
-      }
+      // ENHANCED LOGGING: Activity tracking disabled for individual file uploads per user preference
+      // Individual file uploads are no longer tracked to reduce activity timeline clutter
+      // Only major events like job creation, status changes, and assignments are tracked
 
       res.json({
         url: publicUrl,
@@ -3424,33 +3355,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: 'Completed deliverable uploaded by editor'
       });
 
-      // Log activity
-      try {
-        if (user?.partnerId) { // Check if partnerId exists for logging
-          await storage.createActivity({
-            partnerId: orderEntity.partnerId || user.partnerId, // Use order's partnerId if available, else user's
-            jobId: job.id,
-            orderId: orderEntity.id,
-            userId: editorId,
-            userEmail: user.email,
-            userName: user.email,
-            action: "upload_completed",
-            category: "deliverable",
-            title: "Completed File Upload",
-            description: `Editor uploaded completed deliverable: ${req.file.originalname}`,
-            metadata: JSON.stringify({
-              fileName: req.file.originalname,
-              fileSize: req.file.size,
-              uploadPath: filePath,
-              orderNumber: orderNumber
-            }),
-            ipAddress: req.ip,
-            userAgent: req.get('User-Agent')
-          });
-        }
-      } catch (activityError) {
-        console.error("Failed to log completed file upload activity:", activityError);
-      }
+      // Activity logging disabled for individual completed file uploads per user preference
+      // This reduces activity timeline clutter while still tracking major job events
 
       res.json({
         url: publicUrl,

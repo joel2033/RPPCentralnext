@@ -57,6 +57,7 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
       return response.json();
     },
     enabled: !!(jobId || orderId),
+    refetchInterval: 10000, // Auto-refresh every 10 seconds for real-time updates
   });
 
   const getActivityIcon = (action: string, category: string) => {
