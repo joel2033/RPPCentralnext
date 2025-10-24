@@ -1318,21 +1318,6 @@ export class FirestoreStorage implements IStorage {
     await this.db.collection("conversations").doc(conversationId).update({ [field]: 0 });
   }
 
-  async getUnreadMessageCount(userId: string, partnerId?: string): Promise<number> {
-    const conversations = await this.getUserConversations(userId, partnerId);
-    
-    let totalUnread = 0;
-    conversations.forEach(conv => {
-      if (conv.editorId === userId) {
-        totalUnread += conv.editorUnreadCount || 0;
-      } else if (conv.partnerId === partnerId) {
-        totalUnread += conv.partnerUnreadCount || 0;
-      }
-    });
-
-    return totalUnread;
-  }
-
   async getConversationMessages(conversationId: string): Promise<Message[]> {
     const snapshot = await this.db.collection("messages")
       .where("conversationId", "==", conversationId)

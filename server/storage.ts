@@ -219,7 +219,6 @@ export interface IStorage {
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversationLastMessage(conversationId: string, lastMessageText: string, isPartnerSender: boolean): Promise<void>;
   markConversationAsRead(conversationId: string, isPartnerReading: boolean): Promise<void>;
-  getUnreadMessageCount(userId: string, partnerId?: string): Promise<number>;
   getConversationMessages(conversationId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
 }
@@ -2397,24 +2396,6 @@ export class MemStorage implements IStorage {
 
     this.conversations.set(conversationId, updatedConversation);
     this.saveToFile();
-  }
-
-  async getUnreadMessageCount(userId: string, partnerId?: string): Promise<number> {
-    const conversations = await this.getUserConversations(userId, partnerId);
-
-    return conversations.reduce((total, conv) => {
-      // Check if user is the editor by comparing userId with conversation's editorId
-      // Don't use partnerId check because editors also have partnerId (their assigned partner)
-      const isEditor = conv.editorId === userId;
-      
-      if (isEditor) {
-        // User is editor - count editor's unread messages
-        return total + (conv.editorUnreadCount || 0);
-      } else {
-        // User is partner - count partner's unread messages
-        return total + (conv.partnerUnreadCount || 0);
-      }
-    }, 0);
   }
 
   async getConversationMessages(conversationId: string): Promise<Message[]> {

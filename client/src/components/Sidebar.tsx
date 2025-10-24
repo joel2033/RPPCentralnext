@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useRealtimeConversations } from "@/hooks/useFirestoreRealtime";
 import {
   Home,
   Users,
@@ -69,13 +69,16 @@ const menuItems: MenuItem[] = [
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const { logout } = useAuth();
+  const { logout, currentUser, userData } = useAuth();
 
-  // Fetch unread message count
-  const { data: unreadData } = useQuery<{ count: number }>({
-    queryKey: ["/api/conversations/unread-count"],
-    refetchInterval: 5000, // Poll every 5 seconds for updates
-  });
+  // Real-time unread message count from conversations
+  const { unreadCount, loading: conversationsLoading } = useRealtimeConversations(
+    currentUser?.uid || null,
+    userData?.partnerId
+  );
+
+  // Only show badge when user is authenticated and data is loaded
+  const showUnreadBadge = currentUser && !conversationsLoading && unreadCount > 0;
 
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev => 
@@ -158,9 +161,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Icon className="w-5 h-5 mr-3" />
             <span className="font-medium">{item.title}</span>
           </div>
-          {item.title === "Messages" && unreadData && unreadData.count > 0 && (
+          {item.title === "Messages" && showUnreadBadge && (
             <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-200 text-black text-xs font-bold rounded-full border-2 border-red-600 shadow-sm">
-              {unreadData.count > 99 ? '99+' : unreadData.count}
+              {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
         </Link>

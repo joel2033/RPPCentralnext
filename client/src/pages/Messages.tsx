@@ -231,10 +231,7 @@ export default function Messages() {
     },
     onSettled: async () => {
       // Always refetch after mutation to ensure we have server state
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["/api/conversations"], exact: true }),
-        queryClient.refetchQueries({ queryKey: ["/api/conversations/unread-count"], exact: true }),
-      ]);
+      await queryClient.refetchQueries({ queryKey: ["/api/conversations"], exact: true });
     },
   });
 
