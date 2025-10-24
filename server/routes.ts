@@ -655,7 +655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             read: false
           };
 
-          await storage.createNotifications([notification]); // Use createNotifications for consistency
+          await firestoreStorage.createNotifications([notification]); // Use createNotifications for consistency
           console.log(`Created notification for assigned editor ${assignedTo} for order ${order.orderNumber}`);
         } else {
           // Order is not assigned - notify eligible editors
@@ -701,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               read: false
             }));
 
-            await storage.createNotifications(notifications);
+            await firestoreStorage.createNotifications(notifications);
             console.log(`Created ${notifications.length} notifications for order ${order.orderNumber}`);
           }
         }
@@ -1194,7 +1194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Only return notifications for the authenticated user with proper tenant filtering
-      const notifications = await storage.getNotificationsForUser(
+      const notifications = await firestoreStorage.getNotificationsForUser(
         req.user.uid, 
         req.user.partnerId || ''
       );
@@ -1228,7 +1228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify ownership before allowing the update
-      const notification = await storage.markNotificationRead(req.params.id, req.user.uid);
+      const notification = await firestoreStorage.markNotificationRead(req.params.id, req.user.uid);
 
       if (!notification) {
         return res.status(404).json({ error: "Notification not found or access denied" });
@@ -1258,7 +1258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Only mark notifications for the authenticated user with proper tenant scoping
-      await storage.markAllNotificationsRead(req.user.uid, req.user.partnerId || '');
+      await firestoreStorage.markAllNotificationsRead(req.user.uid, req.user.partnerId || '');
 
       res.json({ message: "All notifications marked as read" });
     } catch (error) {
@@ -1709,7 +1709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for the assigned editor
       try {
-        await storage.createNotification({
+        await firestoreStorage.createNotification({
           partnerId: currentUser.partnerId,
           recipientId: editorId,
           type: 'order_assigned',
@@ -1814,7 +1814,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for the partner
       try {
-        await storage.createNotification({
+        await firestoreStorage.createNotification({
           partnerId: order.partnerId,
           recipientId: order.partnerId, // Partner is the recipient of this notification
           type: 'order_accepted',
@@ -1911,7 +1911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create notification for the partner
       try {
-        await storage.createNotification({
+        await firestoreStorage.createNotification({
           partnerId: order.partnerId,
           recipientId: order.partnerId, // Partner is the recipient of this notification
           type: 'order_declined',
@@ -4776,7 +4776,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         jobId: job.id,
       }));
 
-      await storage.createNotifications(notifications);
+      await firestoreStorage.createNotifications(notifications);
 
       res.json({ 
         success: true, 
