@@ -241,7 +241,6 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                       {isEnabled && (
                         <div className="absolute inset-0 bg-gradient-to-br from-[#f05a2a]/[0.02] via-[#f05a2a]/[0.01] to-transparent pointer-events-none" />
                       )}
-                      
                       <div className="relative p-3">
                         <div className="flex items-start gap-3">
                           <div className={`w-12 h-12 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
@@ -252,7 +251,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                               <h4 className="text-sm font-semibold text-gray-900 truncate">{pref.name}</h4>
                             </div>
                             {pref.description && (
-                              <p className="text-xs text-gray-600 leading-relaxed">
+                              <p className="text-gray-600 text-[14px]">
                                 {pref.description}
                               </p>
                             )}
