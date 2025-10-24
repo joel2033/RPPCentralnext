@@ -408,7 +408,7 @@ export default function Calendar() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white" data-testid="create-button">
+              <Button className="w-full hover:bg-rpp-red-dark text-white bg-[#f05a2a]" data-testid="create-button">
                 <Plus className="w-4 h-4 mr-2" />
                 Create
                 <ChevronDown className="w-4 h-4 ml-auto" />
