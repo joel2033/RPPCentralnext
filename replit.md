@@ -38,8 +38,32 @@ This project is a full-stack SaaS platform for Real Property Photography (RPP) b
 - ❌ Automated e2e tests blocked by Firebase Authentication (see Testing Limitation above)
 - Manual verification required for real-time messaging functionality
 
+## Real-Time Notifications Migration (October 24, 2025)
+
+**Completed**: Migrated notification displays in Header and EditorHeader components from React Query polling to Firestore real-time listeners.
+
+### Implementation Details:
+
+1. **Header.tsx** (Partner notifications):
+   - Replaced `useQuery` with 8-second polling interval
+   - Now uses `useRealtimeNotifications(currentUser?.uid || null)`
+   - Instant notification badge updates via onSnapshot listener
+   - Updated type definitions to handle Firestore Date objects
+
+2. **EditorHeader.tsx** (Editor notifications):
+   - Same migration pattern as Header.tsx
+   - Real-time notification dropdown updates
+   - Unread count automatically calculated by hook
+   - Mark-as-read mutations continue to work seamlessly
+
+3. **Verification**:
+   - ✅ Architect reviewed and approved implementation
+   - ✅ All LSP errors resolved
+   - ✅ Application running successfully
+   - ✅ Unread counts merge correctly (notifications + messages)
+
 ### Remaining Work:
-- Migrate notifications UI to use `useRealtimeNotifications` hook
+- Migrate unread conversation count from React Query polling to real-time calculation
 - Migrate job delivery and file upload pages to use real-time Firestore listeners
 - Update remaining backend routes to use FirestoreStorage for all features
 - Comprehensive manual testing of all real-time features
