@@ -60,6 +60,18 @@ service cloud.firestore {
       allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
     }
 
+    // Activities - partners can read their own activities
+    match /activities/{activityId} {
+      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+      allow create: if isAuthenticated();
+    }
+
+    // Customers - partners can read/write their own customers
+    match /customers/{customerId} {
+      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+    }
+
     // Default deny all other access
     match /{document=**} {
       allow read, write: if false;
