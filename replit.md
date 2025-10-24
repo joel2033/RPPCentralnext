@@ -1,72 +1,6 @@
 # Overview
 
-This project is a full-stack SaaS platform for Real Property Photography (RPP) businesses. It provides a comprehensive solution for managing photography jobs, customers, products, orders, and the entire production workflow. The platform aims to streamline operations for RPP businesses through efficient job and customer management, order processing, and product catalog maintenance. Key capabilities include multi-tenant support, secure authentication, and integration with external services. The ultimate goal is to deliver a robust, scalable, and user-friendly system tailored to the RPP industry, enhancing operational efficiency and client satisfaction.
-
-# Recent Changes
-
-## Real-Time Firestore Messaging Migration (October 24, 2025)
-
-**Completed**: Migrated messaging system from PostgreSQL with polling to Firestore with real-time listeners for instant updates.
-
-### Implementation Details:
-
-1. **FirestoreStorage Class** (`server/firestore-storage.ts`):
-   - Comprehensive implementation of `IStorage` interface using Firebase Admin SDK
-   - Full CRUD operations for conversations, messages, notifications, jobs, orders, etc.
-   - Timestamp conversion utilities (`timestampToDate`, `prepareForFirestore`) for proper Date handling
-   - Multi-tenant data isolation maintained with `partnerId` filtering
-
-2. **Real-Time React Hooks** (`client/src/hooks/useFirestoreRealtime.ts`):
-   - `useRealtimeMessages`: Live message updates via `onSnapshot` listener on messages collection
-   - `useRealtimeConversations`: Live conversation list with dual query merging (partner + editor queries)
-   - `useRealtimeNotifications`: Live notification updates (not yet integrated into UI)
-   - **Critical Bug Fix**: Conversation maps now rebuild from scratch on each snapshot instead of mutating persistent maps, ensuring deleted conversations are immediately removed from UI
-
-3. **Backend Routes Migration** (`server/routes.ts`):
-   - Updated all conversation endpoints to use `firestoreStorage` instead of in-memory storage
-   - Maintained separation of concerns: backend handles writes with validation, frontend uses Firestore SDK for real-time reads
-
-4. **Messages Page Migration** (`client/src/pages/Messages.tsx`):
-   - Replaced React Query polling with real-time Firestore hooks
-   - Updated type definitions to handle Firestore Date objects instead of strings
-   - Instant message delivery with no polling delays
-
-### Testing Status:
-- ✅ Code architecture reviewed and approved by architect
-- ✅ Critical bugs fixed (conversation map rebuilding)
-- ✅ All TypeScript LSP errors resolved
-- ❌ Automated e2e tests blocked by Firebase Authentication (see Testing Limitation above)
-- Manual verification required for real-time messaging functionality
-
-## Real-Time Notifications Migration (October 24, 2025)
-
-**Completed**: Migrated notification displays in Header and EditorHeader components from React Query polling to Firestore real-time listeners.
-
-### Implementation Details:
-
-1. **Header.tsx** (Partner notifications):
-   - Replaced `useQuery` with 8-second polling interval
-   - Now uses `useRealtimeNotifications(currentUser?.uid || null)`
-   - Instant notification badge updates via onSnapshot listener
-   - Updated type definitions to handle Firestore Date objects
-
-2. **EditorHeader.tsx** (Editor notifications):
-   - Same migration pattern as Header.tsx
-   - Real-time notification dropdown updates
-   - Unread count automatically calculated by hook
-   - Mark-as-read mutations continue to work seamlessly
-
-3. **Verification**:
-   - ✅ Architect reviewed and approved implementation
-   - ✅ All LSP errors resolved
-   - ✅ Application running successfully
-   - ✅ Unread counts merge correctly (notifications + messages)
-
-### Remaining Work:
-- Migrate unread conversation count from React Query polling to real-time calculation
-- Migrate job delivery and file upload pages to use real-time Firestore listeners
-- Update remaining backend routes to use FirestoreStorage for all features
-- Comprehensive manual testing of all real-time features
+This project is a full-stack SaaS platform designed for Real Property Photography (RPP) businesses. Its primary goal is to provide a comprehensive solution for managing photography jobs, customers, products, and orders, thereby streamlining the entire production workflow. The platform supports multi-tenancy, secure authentication, and integrates with external services to offer a robust, scalable, and user-friendly system. It aims to enhance operational efficiency and client satisfaction within the RPP industry.
 
 # User Preferences
 
@@ -75,73 +9,51 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## Frontend
-- **Framework**: React 18 with TypeScript, using Vite.
-- **Styling**: TailwindCSS with shadcn/ui.
+- **Framework**: React 18 with TypeScript, powered by Vite.
+- **Styling**: TailwindCSS, complemented by shadcn/ui.
 - **Routing**: Wouter.
 - **State Management**: TanStack Query (React Query).
-- **Authentication**: Firebase Auth with React Firebase Hooks.
-- **Layout**: Fixed sidebar navigation, responsive mobile drawer, header for search and notifications.
-- **UI/UX Decisions**: Professional, card-based layouts, comprehensive modals, status badges, and color-coded indicators. Google Maps integration for job locations.
+- **Authentication**: Firebase Auth, integrated via React Firebase Hooks.
+- **UI/UX Decisions**: Features professional, card-based layouts, comprehensive modals, status badges, color-coded indicators, and Google Maps integration for job locations. Navigation includes a fixed sidebar, responsive mobile drawer, and a header for search and notifications.
 
 ## Backend
 - **Runtime**: Node.js with Express.js (TypeScript).
 - **API Design**: RESTful API.
-- **Storage Layer**: Abstract storage interface (currently in-memory `MemStorage`, designed for persistent database).
+- **Storage Layer**: Abstract `IStorage` interface, currently implemented by `FirestoreStorage`.
 - **Request Handling**: Express middleware for logging, JSON parsing, and error handling.
 
 ## Database
-- **Primary Database**: Firebase Firestore (real-time NoSQL database).
-- **Migration Status**: Transitioning from PostgreSQL (Neon) to Firestore exclusively.
-- **Schema**: Collections for users, customers, products, jobs, orders, notifications, messages, conversations, and more. All with multi-tenancy (`partnerId`) and real-time capabilities.
-- **Storage Implementation**: 
-  - Created comprehensive `FirestoreStorage` class implementing `IStorage` interface (server/firestore-storage.ts).
-  - Supports all CRUD operations with Firebase Admin SDK.
-  - Real-time listeners via `onSnapshot` for instant UI updates.
-- **Legacy Support**: PostgreSQL schema and types maintained in `shared/schema.ts` for gradual migration.
-- **Real-Time Features**: All data updates propagate instantly across connected clients using Firestore's real-time listeners.
+- **Primary Database**: Firebase Firestore (real-time NoSQL database), actively migrating from PostgreSQL.
+- **Schema**: Collections for users, customers, products, jobs, orders, notifications, messages, and conversations, all supporting multi-tenancy (`partnerId`) and real-time updates.
+- **Storage Implementation**: `FirestoreStorage` class provides full CRUD operations using Firebase Admin SDK, with real-time listeners for instant UI updates.
 
 ## Authentication & Authorization
 - **Provider**: Firebase Authentication (Email/Password).
 - **Session Management**: Firebase Auth state persistence.
-- **Role Management**: Comprehensive role system (partner, admin, photographer).
-- **Authorization**: Role-based route protection and multi-tenant data isolation using `partnerId`.
-- **Team Management**: Partner signup, team member invitation system, and management interface.
-- **Testing Limitation**: Firebase Authentication blocks Playwright-based automated testing (similar to Google OAuth). End-to-end tests requiring authentication must be performed manually. Alternative approaches: unit/integration tests with mocked Firebase Admin tokens, or migration to Replit Auth for automated testing support.
+- **Role Management**: Comprehensive role system (partner, admin, photographer) with role-based route protection.
+- **Authorization**: Multi-tenant data isolation using `partnerId`.
+- **Team Management**: Supports partner signup, team member invitations, and management.
 
 ## File Storage
 - **Provider**: Firebase Storage.
-- **Use Cases**: Profile images, product images, business logos, job cover images, completed deliverables, general file uploads.
-- **Integration**: Direct Firebase SDK integration for organizing files with job-specific and tokenized folder structures.
-- **Hardcoded Business Logo**: RPP logo (`/assets/rpp-logo.png`) is permanently set; no upload functionality.
-- **Cover Images**: Optional job cover images stored in `cover-images/`. Thumbnails (400x400px, 80% quality) generated client-side and stored in `cover-images/thumbnails/`.
+- **Use Cases**: Stores profile images, product images, business logos, job cover images, and general file uploads.
+- **Integration**: Direct Firebase SDK integration for structured file organization based on jobs and tokenized folder structures.
 
 ## System Design Choices
-- **Multi-Tenancy**: `partnerId`-based data isolation for customers, jobs, orders, and products.
-- **Job Management**: Complete job creation, listing, and detailed management with unique NanoIDs and optional cover images.
-- **Order-Independent File Uploads**: Standalone folder creation and file uploads supported without an associated order.
-- **Accounting Integration Foundation**: UI and database schema for future integration with accounting software (e.g., Xero).
-- **Multi-Step Order Creation**: Redesigned "Upload to Editors" modal with a 3-step wizard (Job/Supplier selection → Service selection → Per-service configuration). Includes live cost calculations.
-- **Order Status Flow**: Two-step acceptance workflow: "pending" upon creation, then "processing" once accepted by editor.
-- **Order Numbering**: Sequential order numbers starting from #00001, automatically incremented.
-- **Delivery Preview System**: Dual-access model for job delivery pages: public access via `deliveryToken` and authenticated partner preview via `jobId`. Smart routing detects auth state for previews.
-- **Messaging System**: Bidirectional, order-aware messaging between partners and editors.
-    - **Conversation Types**: Order-specific and general conversations.
-    - **Automatic Creation**: Conversations auto-created upon editor partnership acceptance.
+- **Multi-Tenancy**: Data isolation based on `partnerId` across core entities like customers, jobs, orders, and products.
+- **Job Management**: Full lifecycle management for jobs, including creation, listing, and detailed views, using unique NanoIDs.
+- **Order-Independent File Uploads**: Allows standalone folder creation and file uploads.
+- **Accounting Integration Foundation**: UI and database schema designed for future accounting software integration.
+- **Multi-Step Order Creation**: A wizard-based approach for order creation, including live cost calculations.
+- **Order Status Flow**: A two-step acceptance workflow: "pending" to "processing".
+- **Order Numbering**: Automatic sequential order numbering.
+- **Delivery Preview System**: Dual-access model for job delivery pages, using `deliveryToken` for public access and `jobId` for authenticated partner previews.
+- **Messaging System**: Bidirectional, order-aware messaging between partners and editors with real-time updates.
+    - **Conversation Types**: Supports both order-specific and general conversations.
+    - **Automatic Creation**: Conversations are auto-created upon editor partnership acceptance.
     - **Manual Initiation**: Both partners and editors can initiate new conversations.
-    - **Role-Adaptive UI**: Adapts contact dropdowns and message alignment based on user role.
-    - **Message Notifications**: Unread counts displayed in notification bell. Polls every 8 seconds.
-    - **Optimistic Updates**: TanStack Query optimistic updates for mark-as-read functionality.
-    - **Notification System**: Automatic notification creation when messages are sent (editor→partner, partner→editor).
-    - **Notification Filtering Fix (October 23, 2025)**: Fixed notification badge count issues by changing `getNotificationsForUser` and `markAllNotificationsRead` functions (server/storage.ts lines 1459, 1483) to filter by `recipientId` only, removing the problematic `partnerId` filter. The double-filter was causing editors to see incorrect notification counts and partners to not see notification badges. Now both dashboards correctly display notification badges based on the recipient's Firebase UID.
-    - **Partner Notification Badge Fix (October 24, 2025)**: Fixed critical bug preventing partner notification badges from appearing. The notification creation code (server/routes.ts line 5909) was passing an invalid `conversationId` field not present in the notifications schema, causing silent failures. Notifications were logged as "created" but never saved to storage. Removed the invalid field; notifications now persist correctly with proper recipientId.
-    - **Sidebar Message Badge Styling (October 24, 2025)**: Updated unread message badge styling in sidebar (client/src/components/Sidebar.tsx line 165) from `bg-rpp-red-main text-white` to `bg-red-200 text-black border-2 border-red-600 shadow-sm` for improved visibility and accessibility. New design provides 14.9:1 contrast ratio (exceeds WCAG AAA) with black text on light red background, dark red border for prominence, and subtle shadow.
-    - **Unread Count Bug Fixes (October 23, 2025)**: Fixed a systemic bug where `partnerId` comparison was used to determine user role, but editors ALSO have a `partnerId` field (their assigned partner), causing incorrect role identification. This resulted in editors seeing unread badges when THEY sent messages instead of when they RECEIVED messages. Fixed in 4 locations:
-        - **Partner Dashboard (Backend)**: Fixed sender role identification in message creation (server/routes.ts line 5838). Changed `isPartner` logic from `conversation.partnerId === partnerId` to `conversation.editorId !== uid`. Now partner dashboards correctly show unread badges when editors send messages.
-        - **Editor Unread Count (Backend)**: Fixed `getUnreadMessageCount` function (server/storage.ts line 2407) to check `conv.editorId === userId` instead of comparing partnerId values. Ensures editors only see unread counts when partners send them messages.
-        - **Badge Display (Frontend)**: Fixed `getOtherParticipant` function (client/src/pages/Messages.tsx line 417) to use `conversation.editorId === currentUserId` for role detection. Displays correct unread counts for conversation badges.
-        - **Mark-as-Read (Backend)**: Fixed PATCH `/api/conversations/:id/read` endpoint (server/routes.ts line 5945) to determine role via `conversation.editorId === uid`. Ensures mark-as-read clears the correct unread count field.
-        - **Optimistic Update (Frontend)**: Fixed `markAsReadMutation` (client/src/pages/Messages.tsx line 215) to clear the correct unread count when editor clicks conversation.
-    - **Storage**: Conversations and messages in PostgreSQL, partnerships in Firestore.
+    - **Role-Adaptive UI**: UI adapts contact displays and message alignment based on the user's role.
+    - **Real-time Notifications**: Unread counts and notifications are updated instantly via Firestore listeners.
 
 # External Dependencies
 
@@ -157,9 +69,6 @@ Preferred communication style: Simple, everyday language.
 
 ## Backend
 - **Express.js**: Web framework.
-- **Drizzle ORM**: For PostgreSQL.
-- **Neon Database**: Serverless PostgreSQL.
-- **Connect PG Simple**: PostgreSQL session store.
 
 ## Authentication & Database
 - **Firebase**: Authentication, Firestore, and Storage.
