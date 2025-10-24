@@ -244,9 +244,6 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                       
                       <div className="relative p-3">
                         <div className="flex items-start gap-3">
-                          <div className={`w-12 h-12 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-                            <IconComponent className={`w-6 h-6 ${pref.iconColor || 'text-gray-700'}`} />
-                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="text-sm font-semibold text-gray-900 truncate">{pref.name}</h4>
