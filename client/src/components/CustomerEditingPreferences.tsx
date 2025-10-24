@@ -184,7 +184,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
           <CardHeader className="p-5 cursor-pointer hover:bg-gray-50/50 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-rpp-red-lighter flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center bg-[#fde6df] text-[#f05a2a]">
                   <Settings className="w-6 h-6 text-rpp-red-main" />
                 </div>
                 <div>
