@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, firestoreStorage } from "./storage";
 import {
   insertCustomerSchema,
   insertProductSchema,
@@ -5714,7 +5714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { uid, partnerId } = req.user!;
 
       // Get conversations where user is either partner or editor
-      const conversations = await storage.getUserConversations(uid, partnerId);
+      const conversations = await firestoreStorage.getUserConversations(uid, partnerId);
 
       res.json(conversations);
     } catch (error: any) {
@@ -5728,7 +5728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { uid, partnerId } = req.user!;
 
-      const count = await storage.getUnreadMessageCount(uid, partnerId);
+      const count = await firestoreStorage.getUnreadMessageCount(uid, partnerId);
 
       res.json({ count });
     } catch (error: any) {
@@ -5744,7 +5744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { uid, partnerId } = req.user!;
 
       // Get conversation
-      const conversation = await storage.getConversation(id);
+      const conversation = await firestoreStorage.getConversation(id);
 
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -5756,7 +5756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get messages for this conversation
-      const messages = await storage.getConversationMessages(id);
+      const messages = await firestoreStorage.getConversationMessages(id);
 
       res.json({
         conversation,
@@ -5779,7 +5779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if conversation already exists for this contact and order combination
-      let conversation = await storage.getConversationByParticipants(partnerId!, editorId, orderId);
+      let conversation = await firestoreStorage.getConversationByParticipants(partnerId!, editorId, orderId);
 
       if (!conversation) {
         // Get partner name from user document
@@ -5797,7 +5797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           editorEmail,
         });
 
-        conversation = await storage.createConversation(conversationData);
+        conversation = await firestoreStorage.createConversation(conversationData);
       }
 
       res.json(conversation);
@@ -5819,7 +5819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get conversation
-      const conversation = await storage.getConversation(id);
+      const conversation = await firestoreStorage.getConversation(id);
 
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -5849,17 +5849,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: content.trim()
       });
 
-      const message = await storage.createMessage(messageData);
+      const message = await firestoreStorage.createMessage(messageData);
 
       // Update conversation's last message and unread count
-      await storage.updateConversationLastMessage(id, content.trim(), isPartner);
+      await firestoreStorage.updateConversationLastMessage(id, content.trim(), isPartner);
 
       // Create notification for the recipient (the other party in the conversation)
     try {
       console.log(`[MESSAGE NOTIFICATION] Starting notification creation for message in conversation ${id}`);
       console.log(`[MESSAGE NOTIFICATION] Sender: uid=${uid}, partnerId=${partnerId}, email=${email}, role=${senderRole}`);
       
-      const conversation = await storage.getConversation(id);
+      const conversation = await firestoreStorage.getConversation(id);
       if (!conversation) {
         console.error('Conversation not found for notification creation');
         return;
@@ -5900,7 +5900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[MESSAGE NOTIFICATION] Final recipient: Firebase UID=${recipientFirebaseUid}, Name=${recipientName}`);
 
-      await storage.createNotification({
+      await firestoreStorage.createNotification({
         partnerId: conversation.partnerId,
         recipientId: recipientFirebaseUid, // Use Firebase UID for notifications
         type: 'new_message',
@@ -5929,7 +5929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { uid, partnerId } = req.user!;
 
       // Get conversation
-      const conversation = await storage.getConversation(id);
+      const conversation = await firestoreStorage.getConversation(id);
 
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -5945,7 +5945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isPartner = !isEditor;
 
       // Mark messages as read
-      await storage.markConversationAsRead(id, isPartner);
+      await firestoreStorage.markConversationAsRead(id, isPartner);
 
       res.json({ success: true });
     } catch (error: any) {
