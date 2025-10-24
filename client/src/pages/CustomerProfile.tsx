@@ -90,7 +90,7 @@ export default function CustomerProfile() {
             </div>
           </div>
           <Button 
-            className="bg-rpp-red-main hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium"
+            className="hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium bg-[#f05a2a]"
             onClick={() => setLocation("/jobs/new")}
           >
             <Plus className="w-4 h-4 mr-2" />
