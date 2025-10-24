@@ -195,7 +195,7 @@ export default function CustomerEditingPreferences({ customerId, customerName }:
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0 px-3 py-1 font-normal">
+                <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-0 px-3 py-1 font-normal pl-[16px] pr-[16px] pt-[6px] pb-[6px] text-[14px]">
                   {enabledCount} active
                 </Badge>
                 {isExpanded ? (
