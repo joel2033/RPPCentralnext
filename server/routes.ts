@@ -281,7 +281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await storage.createActivity({
           partnerId: req.user.partnerId,
-          jobId: job.id,
+          jobId: job.jobId, // Use NanoID for consistency with frontend
           userId: req.user.uid,
           userEmail: req.user.email,
           userName: req.user.email, // Use email as userName since firstName/lastName aren't in user context
@@ -390,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         await storage.createActivity({
           partnerId: req.user?.partnerId || job.partnerId,
-          jobId: job.id,
+          jobId: job.jobId, // Use NanoID for consistency with frontend
           userId: req.user?.uid || '',
           userEmail: req.user?.email || '',
           userName: req.user?.email || '',
