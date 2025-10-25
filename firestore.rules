@@ -62,7 +62,7 @@ service cloud.firestore {
 
     // Activities - partners can read their own activities
     match /activities/{activityId} {
-      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+      allow read, list: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
       allow create: if isAuthenticated();
     }
 
