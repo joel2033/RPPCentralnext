@@ -279,7 +279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log activity: Job Creation
       try {
-        await storage.createActivity({
+        await firestoreStorage.createActivity({
           partnerId: req.user.partnerId,
           jobId: job.jobId, // Use NanoID for consistency with frontend
           userId: req.user.uid,
@@ -299,6 +299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ipAddress: req.ip,
           userAgent: req.get('User-Agent')
         });
+        console.log(`[ACTIVITY] Created job creation activity for jobId: ${job.jobId}`);
       } catch (activityError) {
         console.error("Failed to log job creation activity:", activityError);
         // Don't fail the job creation if activity logging fails
