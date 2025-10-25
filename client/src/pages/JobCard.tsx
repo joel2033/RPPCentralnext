@@ -346,7 +346,7 @@ export default function JobCard() {
           </Card>
 
           {/* Activity Timeline */}
-          <ActivityTimeline jobId={jobData.id} />
+          <ActivityTimeline jobId={jobData.jobId} />
         </div>
       </div>
 

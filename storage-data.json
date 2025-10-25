@@ -296,6 +296,21 @@
       "notes": null,
       "id": "aa955cb7-ef39-4067-9d25-2b8f09c792f1",
       "createdAt": "2025-10-25T01:40:05.993Z"
+    },
+    "c9f1fcc0-223c-4553-bd29-d8836f5666ea": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "57 Richardson Road, San Remo NSW, Australia",
+      "customerId": "24733f65-7db4-4778-8228-9cbf6b87c469",
+      "appointmentDate": "2025-11-05T15:15:00.000Z",
+      "assignedTo": null,
+      "totalValue": "NaN",
+      "jobId": "fV0B_4lMeZ8GLLf622YIy",
+      "status": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "notes": null,
+      "id": "c9f1fcc0-223c-4553-bd29-d8836f5666ea",
+      "createdAt": "2025-10-25T02:24:24.711Z"
     }
   },
   "orders": {
@@ -4069,6 +4084,22 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "ecf23822-8c3e-46ac-9897-d8f98feb60a2",
       "createdAt": "2025-10-25T01:40:05.998Z"
+    },
+    "fa2e8a84-8d9c-4934-89b2-ed8d8916a99f": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "c9f1fcc0-223c-4553-bd29-d8836f5666ea",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "job",
+      "title": "Job Created",
+      "description": "New job created at 57 Richardson Road, San Remo NSW, Australia",
+      "metadata": "{\"jobId\":\"fV0B_4lMeZ8GLLf622YIy\",\"address\":\"57 Richardson Road, San Remo NSW, Australia\",\"status\":null,\"customerId\":\"24733f65-7db4-4778-8228-9cbf6b87c469\",\"totalValue\":\"NaN\"}",
+      "ipAddress": "172.31.95.34",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "fa2e8a84-8d9c-4934-89b2-ed8d8916a99f",
+      "createdAt": "2025-10-25T02:24:24.725Z"
     }
   },
   "editingOptions": {
