@@ -89,6 +89,9 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
       },
       (err) => {
         console.error("Error listening to activities:", err);
+        console.error("Error code:", (err as any).code);
+        console.error("Error message:", (err as any).message);
+        console.error("Query details:", { jobId, orderId });
         setError(err as Error);
         setIsLoading(false);
       }
