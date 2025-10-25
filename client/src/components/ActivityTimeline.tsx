@@ -64,12 +64,31 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
     // Order by creation time (oldest first - so job creation is always first)
     q = query(q, orderBy("createdAt", "asc"));
 
+    console.log("[ActivityTimeline] Subscribing with:", { 
+      partnerId: userData.partnerId, 
+      jobId, 
+      orderId 
+    });
+
     // Subscribe to real-time updates
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        console.log("[ActivityTimeline] Received snapshot:", {
+          docCount: snapshot.docs.length,
+          jobId,
+          orderId
+        });
+
         const activitiesData: ActivityData[] = snapshot.docs.map(doc => {
           const data = doc.data();
+          console.log("[ActivityTimeline] Activity doc:", {
+            id: doc.id,
+            jobId: data.jobId,
+            title: data.title,
+            createdAt: data.createdAt
+          });
+          
           return {
             id: doc.id,
             partnerId: data.partnerId,
@@ -89,6 +108,7 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
           };
         });
         
+        console.log("[ActivityTimeline] Setting activities:", activitiesData);
         setActivities(activitiesData);
         setIsLoading(false);
       },
