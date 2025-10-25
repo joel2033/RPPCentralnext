@@ -281,6 +281,21 @@
       "propertyImage": null,
       "id": "d99a1e23-2b60-4f65-a6cf-51f57acc5f5e",
       "createdAt": "2025-10-24T21:16:18.123Z"
+    },
+    "aa955cb7-ef39-4067-9d25-2b8f09c792f1": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "address": "17 Hamlyn Road, Hamlyn Terrace NSW, Australia",
+      "customerId": "72318961-d109-42f9-a4e5-04cbcc14a0d5",
+      "appointmentDate": "2025-10-30T14:40:00.000Z",
+      "assignedTo": null,
+      "totalValue": "NaN",
+      "jobId": "5Aby5uFnQ6Q_dBAM5DC16",
+      "status": null,
+      "dueDate": null,
+      "propertyImage": null,
+      "notes": null,
+      "id": "aa955cb7-ef39-4067-9d25-2b8f09c792f1",
+      "createdAt": "2025-10-25T01:40:05.993Z"
     }
   },
   "orders": {
@@ -4038,6 +4053,22 @@
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       "id": "634d34fa-91b7-4c3a-b5de-25a35499e11f",
       "createdAt": "2025-10-24T21:16:18.128Z"
+    },
+    "ecf23822-8c3e-46ac-9897-d8f98feb60a2": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "jobId": "aa955cb7-ef39-4067-9d25-2b8f09c792f1",
+      "userId": "yJB4OZsZ1nZEp2MlUwyRbWG3JDx1",
+      "userEmail": "adamson652@gmail.com",
+      "userName": "adamson652@gmail.com",
+      "action": "creation",
+      "category": "job",
+      "title": "Job Created",
+      "description": "New job created at 17 Hamlyn Road, Hamlyn Terrace NSW, Australia",
+      "metadata": "{\"jobId\":\"5Aby5uFnQ6Q_dBAM5DC16\",\"address\":\"17 Hamlyn Road, Hamlyn Terrace NSW, Australia\",\"status\":null,\"customerId\":\"72318961-d109-42f9-a4e5-04cbcc14a0d5\",\"totalValue\":\"NaN\"}",
+      "ipAddress": "172.31.95.34",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "id": "ecf23822-8c3e-46ac-9897-d8f98feb60a2",
+      "createdAt": "2025-10-25T01:40:05.998Z"
     }
   },
   "editingOptions": {
