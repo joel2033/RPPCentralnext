@@ -5,6 +5,7 @@ import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCi
 import { format } from "date-fns";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Query } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ActivityData {
   id: string;
@@ -34,10 +35,11 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { userData } = useAuth();
 
   useEffect(() => {
-    // Don't subscribe if we don't have a jobId or orderId
-    if (!jobId && !orderId) {
+    // Don't subscribe if we don't have a jobId or orderId or partnerId
+    if ((!jobId && !orderId) || !userData?.partnerId) {
       setIsLoading(false);
       return;
     }
@@ -47,6 +49,9 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
 
     // Build Firestore query with filters
     let q: Query = collection(db, "activities");
+    
+    // CRITICAL: Filter by partnerId FIRST (required by security rules for queries)
+    q = query(q, where("partnerId", "==", userData.partnerId));
     
     // Filter by jobId or orderId
     if (jobId) {
@@ -99,7 +104,7 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
 
     // Cleanup: unsubscribe when component unmounts or dependencies change
     return () => unsubscribe();
-  }, [jobId, orderId]);
+  }, [jobId, orderId, userData?.partnerId]);
 
   const getActivityIcon = (action: string, category: string) => {
     switch (action) {

@@ -47,6 +47,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "partnerId",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "jobId",
           "order": "ASCENDING"
         },
@@ -60,6 +64,10 @@
       "collectionGroup": "activities",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "partnerId",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "orderId",
           "order": "ASCENDING"
