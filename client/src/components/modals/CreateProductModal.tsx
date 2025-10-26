@@ -1,16 +1,25 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { X, CloudUpload } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { X, CloudUpload, Plus, Trash2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface CreateProductModalProps {
   onClose: () => void;
+}
+
+interface ProductVariation {
+  name: string;
+  price: string;
+  appointmentDuration: string;
+  noCharge: boolean;
 }
 
 export default function CreateProductModal({ onClose }: CreateProductModalProps) {
@@ -22,16 +31,29 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
     price: "",
     taxRate: "10",
     hasVariations: false,
-    variants: 0,
+    productType: "onsite",
+    requiresAppointment: true,
+    appointmentDuration: "60",
+    exclusivityType: "none",
     isActive: true,
     isLive: true
   });
 
+  const [variations, setVariations] = useState<ProductVariation[]>([
+    { name: "", price: "", appointmentDuration: "60", noCharge: false }
+  ]);
+  
   const [productImage, setProductImage] = useState<File | null>(null);
   const [noCharge, setNoCharge] = useState(false);
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Fetch customers for exclusivity
+  const { data: customers = [] } = useQuery<any[]>({
+    queryKey: ["/api/customers"],
+  });
 
   const createProductMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -80,6 +102,22 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
     }
   };
 
+  const addVariation = () => {
+    setVariations([...variations, { name: "", price: "", appointmentDuration: "60", noCharge: false }]);
+  };
+
+  const removeVariation = (index: number) => {
+    if (variations.length > 1) {
+      setVariations(variations.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateVariation = (index: number, field: keyof ProductVariation, value: any) => {
+    const newVariations = [...variations];
+    newVariations[index] = { ...newVariations[index], [field]: value };
+    setVariations(newVariations);
+  };
+
   const handleSubmit = () => {
     if (!productData.title || !productData.type) {
       toast({
@@ -90,7 +128,20 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       return;
     }
 
-    if (!noCharge && !productData.price) {
+    // Validate variations if enabled
+    if (productData.hasVariations) {
+      const invalidVariation = variations.find(v => !v.name || (!v.noCharge && !v.price));
+      if (invalidVariation) {
+        toast({
+          title: "Invalid Variation",
+          description: "Please fill in all variation details.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (!noCharge && !productData.price && !productData.hasVariations) {
       toast({
         title: "Missing Price",
         description: "Please enter a price or mark as no charge.",
@@ -99,17 +150,31 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       return;
     }
 
+    // Prepare variations data
+    const variationsData = productData.hasVariations ? variations.map(v => ({
+      name: v.name,
+      price: v.noCharge ? "0.00" : v.price,
+      appointmentDuration: parseInt(v.appointmentDuration) || 60,
+      noCharge: v.noCharge
+    })) : null;
+
     // Add partnerId to product data for multi-tenancy
     const finalData = {
       partnerId: "partner_192l9bh1xmduwueha", // Use actual partnerId from auth context
       title: productData.title,
       type: productData.type,
       description: productData.description || null,
-      price: noCharge ? "0.00" : productData.price,
+      price: noCharge ? "0.00" : (productData.hasVariations ? "0.00" : productData.price),
       category: productData.category || null,
-      taxRate: productData.taxRate || null,
-      hasVariations: productData.hasVariations || null,
-      variants: productData.hasVariations ? productData.variants : null,
+      taxRate: productData.taxRate || "10",
+      hasVariations: productData.hasVariations,
+      variants: productData.hasVariations ? variations.length : 0,
+      variations: variationsData ? JSON.stringify(variationsData) : null,
+      productType: productData.productType,
+      requiresAppointment: productData.productType === "onsite" ? true : false,
+      appointmentDuration: parseInt(productData.appointmentDuration) || 60,
+      exclusivityType: productData.exclusivityType,
+      exclusiveCustomerIds: productData.exclusivityType === "exclusive" ? JSON.stringify(selectedCustomers) : null,
       isActive: productData.isActive,
       isLive: productData.isLive,
       image: null // Handle image upload later
@@ -130,20 +195,23 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
               Once saved, you'll be able to seamlessly manage all advanced settings in one place.
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" data-testid="button-close-modal">
             <X className="w-5 h-5 text-rpp-grey-light" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6">
+        <div className="p-6 space-y-6">
           {/* Product Type */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
               Product Type
             </label>
-            <Select value={productData.type} onValueChange={(value) => setProductData(prev => ({ ...prev, type: value }))}>
-              <SelectTrigger className="border-rpp-grey-border">
+            <Select 
+              value={productData.type} 
+              onValueChange={(value) => setProductData(prev => ({ ...prev, type: value }))}
+            >
+              <SelectTrigger className="border-rpp-grey-border" data-testid="select-product-type">
                 <SelectValue placeholder="Select A Product Type" />
               </SelectTrigger>
               <SelectContent>
@@ -155,7 +223,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
           </div>
 
           {/* Product Title */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
               Product Title
             </label>
@@ -165,11 +233,12 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
               value={productData.title}
               onChange={(e) => setProductData(prev => ({ ...prev, title: e.target.value }))}
               className="border-rpp-grey-border focus:ring-rpp-red-main"
+              data-testid="input-product-title"
             />
           </div>
 
           {/* Product Description */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
               Product Description (optional)
             </label>
@@ -179,6 +248,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
               value={productData.description}
               onChange={(e) => setProductData(prev => ({ ...prev, description: e.target.value }))}
               className="border-rpp-grey-border focus:ring-rpp-red-main resize-none"
+              data-testid="textarea-product-description"
             />
             <div className="flex justify-end mt-1">
               <span className="text-xs text-rpp-grey-light">
@@ -188,7 +258,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
           </div>
 
           {/* Product Picture */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
               Product Picture (Optional)
             </label>
@@ -209,6 +279,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
                     variant="outline" 
                     onClick={() => setProductImage(null)}
                     className="border-rpp-grey-border"
+                    data-testid="button-remove-image"
                   >
                     Remove Image
                   </Button>
@@ -222,6 +293,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
                     onChange={handleImageUpload}
                     className="hidden"
                     id="product-image-upload"
+                    data-testid="input-product-image"
                   />
                   <label htmlFor="product-image-upload">
                     <Button variant="outline" className="border-rpp-grey-border" asChild>
@@ -237,12 +309,15 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
           </div>
 
           {/* Product Category */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
               Product Category(s) (optional)
             </label>
-            <Select value={productData.category} onValueChange={(value) => setProductData(prev => ({ ...prev, category: value }))}>
-              <SelectTrigger className="border-rpp-grey-border">
+            <Select 
+              value={productData.category} 
+              onValueChange={(value) => setProductData(prev => ({ ...prev, category: value }))}
+            >
+              <SelectTrigger className="border-rpp-grey-border" data-testid="select-product-category">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
@@ -256,90 +331,308 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
             </Select>
           </div>
 
+          {/* Onsite or Digital Product */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">
+              Onsite or Digital Product
+            </h3>
+            <p className="text-sm text-rpp-grey-light mb-4">
+              Does this product require physical attendance by you, or can it be offered as a digital product only?
+            </p>
+            <RadioGroup 
+              value={productData.productType} 
+              onValueChange={(value) => setProductData(prev => ({ ...prev, productType: value }))}
+            >
+              <div className="flex items-center space-x-2 mb-3">
+                <RadioGroupItem value="digital" id="digital" data-testid="radio-digital-product" />
+                <Label htmlFor="digital" className="text-sm font-normal cursor-pointer">
+                  Digital product only
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="onsite" id="onsite" data-testid="radio-onsite-product" />
+                <Label htmlFor="onsite" className="text-sm font-normal cursor-pointer">
+                  Requires onsite attendance
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Product Exclusivity */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">
+              Product Exclusivity
+            </h3>
+            <p className="text-sm text-rpp-grey-light mb-4">
+              Make this product exclusive to one or more customers, or make it available to all.
+            </p>
+            <RadioGroup 
+              value={productData.exclusivityType} 
+              onValueChange={(value) => setProductData(prev => ({ ...prev, exclusivityType: value }))}
+            >
+              <div className="flex items-center space-x-2 mb-3">
+                <RadioGroupItem value="none" id="no-exclusivity" data-testid="radio-no-exclusivity" />
+                <Label htmlFor="no-exclusivity" className="text-sm font-normal cursor-pointer">
+                  No exclusivity
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="exclusive" id="set-exclusivity" data-testid="radio-set-exclusivity" />
+                <Label htmlFor="set-exclusivity" className="text-sm font-normal cursor-pointer">
+                  Set exclusivity
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {productData.exclusivityType === "exclusive" && (
+              <div className="mt-4">
+                <Label className="text-sm font-medium text-rpp-grey-dark mb-2">
+                  Select Exclusive Customers
+                </Label>
+                <Select 
+                  onValueChange={(value) => {
+                    if (!selectedCustomers.includes(value)) {
+                      setSelectedCustomers([...selectedCustomers, value]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="border-rpp-grey-border mt-2" data-testid="select-exclusive-customers">
+                    <SelectValue placeholder="Select customers..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer: any) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.firstName} {customer.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {selectedCustomers.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedCustomers.map((customerId) => {
+                      const customer = customers.find((c: any) => c.id === customerId);
+                      return (
+                        <div 
+                          key={customerId} 
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
+                        >
+                          <span>{customer?.firstName} {customer?.lastName}</span>
+                          <button
+                            onClick={() => setSelectedCustomers(selectedCustomers.filter(id => id !== customerId))}
+                            className="hover:text-blue-900"
+                            data-testid={`button-remove-customer-${customerId}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Variations */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">
               Variations
-            </label>
+            </h3>
             <p className="text-sm text-rpp-grey-light mb-3">
               Does this product have variations?
             </p>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 mb-4">
               <Checkbox
                 id="has-variations"
                 checked={productData.hasVariations}
                 onCheckedChange={(checked) => setProductData(prev => ({ ...prev, hasVariations: !!checked }))}
+                data-testid="checkbox-has-variations"
               />
-              <label htmlFor="has-variations" className="text-sm text-rpp-grey-dark">
+              <label htmlFor="has-variations" className="text-sm text-rpp-grey-dark cursor-pointer">
                 Yes
               </label>
             </div>
             
             {productData.hasVariations && (
-              <div className="mt-3">
-                <Input
-                  type="number"
-                  placeholder="Number of variations"
-                  value={productData.variants}
-                  onChange={(e) => setProductData(prev => ({ ...prev, variants: parseInt(e.target.value) || 0 }))}
-                  className="border-rpp-grey-border focus:ring-rpp-red-main w-32"
-                />
+              <div className="space-y-4 mt-4">
+                {variations.map((variation, index) => (
+                  <div key={index} className="border border-rpp-grey-border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-medium text-rpp-grey-dark">Option {index + 1}</h4>
+                      {variations.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeVariation(index)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 px-2"
+                          data-testid={`button-remove-variation-${index}`}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-rpp-grey-dark">
+                        Option Name
+                      </Label>
+                      <Input
+                        type="text"
+                        placeholder="Option name"
+                        value={variation.name}
+                        onChange={(e) => updateVariation(index, 'name', e.target.value)}
+                        className="border-rpp-grey-border mt-1"
+                        data-testid={`input-variation-name-${index}`}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-sm font-medium text-rpp-grey-dark">
+                          Price (before tax)
+                        </Label>
+                        <div className="flex mt-1">
+                          <span className="inline-flex items-center px-3 py-2 border border-r-0 border-rpp-grey-border bg-rpp-grey-surface rounded-l-lg text-sm text-rpp-grey-dark">
+                            AUD $
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={variation.price}
+                            onChange={(e) => updateVariation(index, 'price', e.target.value)}
+                            disabled={variation.noCharge}
+                            className="flex-1 border-rpp-grey-border rounded-l-none"
+                            data-testid={`input-variation-price-${index}`}
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Checkbox
+                            id={`no-charge-${index}`}
+                            checked={variation.noCharge}
+                            onCheckedChange={(checked) => {
+                              updateVariation(index, 'noCharge', !!checked);
+                              if (checked) {
+                                updateVariation(index, 'price', '0');
+                              }
+                            }}
+                            data-testid={`checkbox-no-charge-${index}`}
+                          />
+                          <label htmlFor={`no-charge-${index}`} className="text-sm text-rpp-grey-dark cursor-pointer">
+                            No charge
+                          </label>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-rpp-grey-dark">
+                          Appointment Duration (minutes)
+                        </Label>
+                        <Input
+                          type="number"
+                          placeholder="60"
+                          value={variation.appointmentDuration}
+                          onChange={(e) => updateVariation(index, 'appointmentDuration', e.target.value)}
+                          className="border-rpp-grey-border mt-1"
+                          data-testid={`input-variation-duration-${index}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addVariation}
+                  className="w-full border-dashed border-rpp-grey-border hover:border-blue-400 hover:bg-blue-50"
+                  data-testid="button-add-variation"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New option
+                </Button>
               </div>
             )}
           </div>
 
-          {/* Pricing */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Price (before tax)
-              </label>
-              <div className="flex">
-                <span className="inline-flex items-center px-3 py-2 border border-r-0 border-rpp-grey-border bg-rpp-grey-surface rounded-l-lg text-sm text-rpp-grey-dark">
-                  AUD $
-                </span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={productData.price}
-                  onChange={(e) => setProductData(prev => ({ ...prev, price: e.target.value }))}
-                  disabled={noCharge}
-                  className="flex-1 border-rpp-grey-border rounded-l-none focus:ring-rpp-red-main"
-                />
-              </div>
-              <div className="flex items-center space-x-2 mt-2">
-                <Checkbox
-                  id="no-charge"
-                  checked={noCharge}
-                  onCheckedChange={(checked) => {
-                    setNoCharge(!!checked);
-                    if (checked) {
-                      setProductData(prev => ({ ...prev, price: "0" }));
-                    }
-                  }}
-                />
-                <label htmlFor="no-charge" className="text-sm text-rpp-grey-dark">
-                  No charge
+          {/* Pricing (only shown if no variations) */}
+          {!productData.hasVariations && (
+            <div className="grid grid-cols-2 gap-4 border-t pt-6">
+              <div>
+                <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                  Price (before tax)
                 </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 py-2 border border-r-0 border-rpp-grey-border bg-rpp-grey-surface rounded-l-lg text-sm text-rpp-grey-dark">
+                    AUD $
+                  </span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={productData.price}
+                    onChange={(e) => setProductData(prev => ({ ...prev, price: e.target.value }))}
+                    disabled={noCharge}
+                    className="flex-1 border-rpp-grey-border rounded-l-none focus:ring-rpp-red-main"
+                    data-testid="input-product-price"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Checkbox
+                    id="no-charge"
+                    checked={noCharge}
+                    onCheckedChange={(checked) => {
+                      setNoCharge(!!checked);
+                      if (checked) {
+                        setProductData(prev => ({ ...prev, price: "0" }));
+                      }
+                    }}
+                    data-testid="checkbox-no-charge-base"
+                  />
+                  <label htmlFor="no-charge" className="text-sm text-rpp-grey-dark cursor-pointer">
+                    No charge
+                  </label>
+                </div>
               </div>
+              
+              {productData.productType === "onsite" && (
+                <div>
+                  <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
+                    Appointment Duration (minutes)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="60"
+                    value={productData.appointmentDuration}
+                    onChange={(e) => setProductData(prev => ({ ...prev, appointmentDuration: e.target.value }))}
+                    className="border-rpp-grey-border focus:ring-rpp-red-main"
+                    data-testid="input-appointment-duration"
+                  />
+                </div>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
-                Tax Rate
-              </label>
-              <Select value={productData.taxRate} onValueChange={(value) => setProductData(prev => ({ ...prev, taxRate: value }))}>
-                <SelectTrigger className="border-rpp-grey-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">GST (10%)</SelectItem>
-                  <SelectItem value="0">No Tax</SelectItem>
-                  <SelectItem value="5">5%</SelectItem>
-                  <SelectItem value="15">15%</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          )}
+
+          {/* Tax Rate */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">
+              Tax Rate
+            </h3>
+            <Select 
+              value={productData.taxRate} 
+              onValueChange={(value) => setProductData(prev => ({ ...prev, taxRate: value }))}
+            >
+              <SelectTrigger className="border-rpp-grey-border" data-testid="select-tax-rate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">GST (10%)</SelectItem>
+                <SelectItem value="0">No Tax</SelectItem>
+                <SelectItem value="5">5%</SelectItem>
+                <SelectItem value="15">15%</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -349,6 +642,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
             variant="ghost" 
             onClick={onClose}
             className="text-rpp-red-main hover:text-rpp-red-dark"
+            data-testid="button-cancel"
           >
             Cancel
           </Button>
@@ -356,6 +650,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
             onClick={handleSubmit}
             disabled={createProductMutation.isPending}
             className="bg-rpp-grey-medium hover:bg-rpp-grey-dark text-white"
+            data-testid="button-save-product"
           >
             {createProductMutation.isPending ? "Saving..." : "Save"}
           </Button>

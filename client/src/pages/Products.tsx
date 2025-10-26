@@ -11,7 +11,7 @@ export default function Products() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const queryClient = useQueryClient();
   
-  const { data: products = [], isLoading } = useQuery({
+  const { data: products = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/products"],
   });
 
