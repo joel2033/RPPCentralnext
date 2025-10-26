@@ -60,6 +60,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
 
   const createProductMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log("Creating product with data:", data);
       return apiRequest("POST", "/api/products", data);
     },
     onSuccess: () => {
@@ -70,10 +71,12 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       });
       onClose();
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Product creation error:", error);
+      const errorMessage = error?.message || error?.toString() || "Unknown error occurred";
       toast({
-        title: "Error",
-        description: "Failed to create product. Please try again.",
+        title: "Error Creating Product",
+        description: errorMessage,
         variant: "destructive",
       });
     },
