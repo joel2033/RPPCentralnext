@@ -61,7 +61,7 @@ export default function Products() {
         </div>
         <Button 
           onClick={() => setShowCreateModal(true)}
-          className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+          className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
         >
           <Plus className="w-4 h-4 mr-2" />
           New product
