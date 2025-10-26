@@ -159,10 +159,10 @@ export default function Jobs() {
     }
   };
 
-  // Sort jobs: newest first (by appointment date, then creation date)
+  // Sort jobs: newest first (by creation date)
   const sortedJobs = [...jobs].sort((a, b) => {
-    const dateA = new Date(a.appointmentDate || a.createdAt || 0).getTime();
-    const dateB = new Date(b.appointmentDate || b.createdAt || 0).getTime();
+    const dateA = new Date(a.createdAt || 0).getTime();
+    const dateB = new Date(b.createdAt || 0).getTime();
     return dateB - dateA; // Newest first
   });
 
