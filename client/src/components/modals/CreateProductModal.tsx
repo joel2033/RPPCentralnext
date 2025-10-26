@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { X, CloudUpload, Plus, Trash2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateProductModalProps {
   onClose: () => void;
@@ -23,6 +24,8 @@ interface ProductVariation {
 }
 
 export default function CreateProductModal({ onClose }: CreateProductModalProps) {
+  const { userData } = useAuth();
+  
   const [productData, setProductData] = useState({
     title: "",
     description: "",
@@ -158,9 +161,19 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       noCharge: v.noCharge
     })) : null;
 
+    // Validate partnerId exists
+    if (!userData?.partnerId) {
+      toast({
+        title: "Authentication Error",
+        description: "Unable to determine your partner ID. Please try logging out and back in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Add partnerId to product data for multi-tenancy
     const finalData = {
-      partnerId: "partner_192l9bh1xmduwueha", // Use actual partnerId from auth context
+      partnerId: userData.partnerId,
       title: productData.title,
       type: productData.type,
       description: productData.description || null,
@@ -170,11 +183,11 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
       hasVariations: productData.hasVariations,
       variants: productData.hasVariations ? variations.length : 0,
       variations: variationsData ? JSON.stringify(variationsData) : null,
-      productType: productData.productType,
-      requiresAppointment: productData.productType === "onsite" ? true : false,
+      productType: productData.productType || "onsite",
+      requiresAppointment: productData.requiresAppointment,
       appointmentDuration: parseInt(productData.appointmentDuration) || 60,
-      exclusivityType: productData.exclusivityType,
-      exclusiveCustomerIds: productData.exclusivityType === "exclusive" ? JSON.stringify(selectedCustomers) : null,
+      exclusivityType: productData.exclusivityType || "none",
+      exclusiveCustomerIds: productData.exclusivityType === "exclusive" && selectedCustomers.length > 0 ? JSON.stringify(selectedCustomers) : null,
       isActive: productData.isActive,
       isLive: productData.isLive,
       image: null // Handle image upload later
@@ -341,7 +354,11 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
             </p>
             <RadioGroup 
               value={productData.productType} 
-              onValueChange={(value) => setProductData(prev => ({ ...prev, productType: value }))}
+              onValueChange={(value) => setProductData(prev => ({ 
+                ...prev, 
+                productType: value,
+                requiresAppointment: value === "onsite"
+              }))}
             >
               <div className="flex items-center space-x-2 mb-3">
                 <RadioGroupItem value="digital" id="digital" data-testid="radio-digital-product" />

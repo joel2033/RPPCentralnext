@@ -216,15 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/products", async (req, res) => {
-    try {
-      const validatedData = insertProductSchema.parse(req.body);
-      const product = await storage.createProduct(validatedData);
-      res.status(201).json(product);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid product data" });
-    }
-  });
+  // Product creation moved to line 1103 with better error handling
 
   app.patch("/api/products/:id", async (req, res) => {
     try {
