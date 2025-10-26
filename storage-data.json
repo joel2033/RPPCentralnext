@@ -126,6 +126,28 @@
       "isLive": null,
       "id": "f5973e49-3911-426a-aac8-21636cf42502",
       "createdAt": "2025-08-03T14:00:24.783Z"
+    },
+    "0d8fef03-6d5c-4495-9750-15d7952cb134": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "title": "Photography",
+      "description": "Next Day Delivery",
+      "type": "product",
+      "category": "photography",
+      "price": "0.00",
+      "taxRate": "10",
+      "hasVariations": true,
+      "variants": 2,
+      "variations": "[{\"name\":\"Mini\",\"price\":\"131.82\",\"appointmentDuration\":25,\"noCharge\":false},{\"name\":\"Lite\",\"price\":\"177.82\",\"appointmentDuration\":45,\"noCharge\":false}]",
+      "productType": "onsite",
+      "requiresAppointment": true,
+      "appointmentDuration": 60,
+      "exclusivityType": "none",
+      "exclusiveCustomerIds": null,
+      "isActive": true,
+      "isLive": true,
+      "image": null,
+      "id": "0d8fef03-6d5c-4495-9750-15d7952cb134",
+      "createdAt": "2025-10-26T20:25:52.238Z"
     }
   },
   "jobs": {
