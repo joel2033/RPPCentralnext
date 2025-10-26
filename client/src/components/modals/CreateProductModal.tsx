@@ -61,7 +61,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
   const createProductMutation = useMutation({
     mutationFn: async (data: any) => {
       console.log("Creating product with data:", data);
-      return apiRequest("POST", "/api/products", data);
+      return apiRequest("/api/products", "POST", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
