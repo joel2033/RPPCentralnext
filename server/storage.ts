@@ -85,7 +85,8 @@ export interface IStorage {
 
   // Orders
   getOrder(id: string): Promise<Order | undefined>;
-  getOrders(partnerId?: string): Promise<Order[]>; // TODO: Make required after refactoring editor routes to use getOrdersForEditor(editorId)
+  getOrders(partnerId: string): Promise<Order[]>; // REQUIRED: Enforces tenant isolation
+  getOrdersForEditor(editorId: string): Promise<Order[]>; // Editor-specific: Returns orders assigned to this editor
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
   generateOrderNumber(): Promise<string>;

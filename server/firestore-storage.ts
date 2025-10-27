@@ -270,12 +270,16 @@ export class FirestoreStorage implements IStorage {
     return docSnap.exists ? docToObject<Order>(docSnap) : undefined;
   }
 
-  async getOrders(partnerId?: string): Promise<Order[]> {
+  async getOrders(partnerId: string): Promise<Order[]> {
     const ref = this.db.collection("orders");
-    // TODO: Remove optional partnerId after refactoring editor routes
-    const snapshot = partnerId 
-      ? await ref.where("partnerId", "==", partnerId).get()
-      : await ref.get();
+    const snapshot = await ref.where("partnerId", "==", partnerId).get();
+    return snapshot.docs.map(doc => docToObject<Order>(doc));
+  }
+
+  async getOrdersForEditor(editorId: string): Promise<Order[]> {
+    // Editor-specific: Filter by assignedTo field to only return orders assigned to this editor
+    const ref = this.db.collection("orders");
+    const snapshot = await ref.where("assignedTo", "==", editorId).get();
     return snapshot.docs.map(doc => docToObject<Order>(doc));
   }
 

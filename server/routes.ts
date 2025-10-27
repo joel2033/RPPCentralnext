@@ -1201,20 +1201,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Orders endpoints - Requires authentication for multi-tenant security
   app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const allOrders = await storage.getOrders();
-
-      // Multi-tenant security: Partners see only their orders, admins see all, others denied
-      let filteredOrders: typeof allOrders;
-      if (req.user?.partnerId) {
-        // Partners: filter by their partnerId
-        filteredOrders = allOrders.filter(order => order.partnerId === req.user?.partnerId);
-      } else if (req.user?.role === 'admin') {
-        // Admins: see all orders
-        filteredOrders = allOrders;
-      } else {
-        // Other roles (editors, etc.): access denied
-        return res.status(403).json({ error: "Access denied - insufficient permissions" });
+      // SECURED: Always use partnerId for tenant isolation
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
       }
+      
+      const filteredOrders = await storage.getOrders(req.user.partnerId);
 
       // Enrich orders with job address for display in dropdowns
       const ordersWithJobData = await Promise.all(
@@ -2042,9 +2034,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all orders assigned to this editor with job details
-      const allOrders = await storage.getOrders();
-      const editorOrders = allOrders
-        .filter(o => o.assignedTo === uid)
+      const editorOrders = await storage.getOrdersForEditor(uid);
+      const enrichedOrders = editorOrders
         .map(order => ({
           id: order.id,
           orderNumber: order.orderNumber,
@@ -2083,8 +2074,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the order by order number and ensure it's assigned to current editor
-      const allOrders = await storage.getOrders();
-      const order = allOrders.find(o => o.orderNumber === orderNumber && o.assignedTo === uid);
+      const editorOrders = await storage.getOrdersForEditor(uid);
+      const order = editorOrders.find(o => o.orderNumber === orderNumber);
       if (!order) {
         return res.status(404).json({ error: "Order not found or not assigned to you" });
       }
@@ -2223,8 +2214,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get associated order using jobId - find one assigned to current editor
-      const allOrders = await storage.getOrders();
-      const order = allOrders.find(o => o.jobId === job.id && o.assignedTo === uid);
+      const editorOrders = await storage.getOrdersForEditor(uid);
+      const order = editorOrders.find(o => o.jobId === job.id);
       if (!order) {
         return res.status(404).json({ error: "Job not found or not assigned to you" });
       }
@@ -2719,10 +2710,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get associated orders to verify assignment
-      const allOrders = await storage.getOrders();
+      const editorOrders = await storage.getOrdersForEditor(uid);
       // Match by job.id (UUID) or job.jobId (NanoID) - both are used in different contexts
-      const jobOrders = allOrders.filter(o => o.jobId === job.id || o.jobId === job.jobId);
-      const assignedOrder = jobOrders.find(order => order.assignedTo === uid);
+      const assignedOrder = editorOrders.find(o => o.jobId === job.id || o.jobId === job.jobId);
       if (!assignedOrder) {
         console.log(`[UPLOAD ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
         return res.status(403).json({ error: "You are not assigned to this job" });
@@ -2810,10 +2800,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verify assignment through order and tenant isolation
-      const allOrders = await storage.getOrders();
+      const editorOrders = await storage.getOrdersForEditor(uid);
       // Match by job.id (UUID) or job.jobId (NanoID) - both are used in different contexts
-      const jobOrders = allOrders.filter(o => o.jobId === job.id || o.jobId === job.jobId);
-      const assignedOrder = jobOrders.find(order => order.assignedTo === uid);
+      const assignedOrder = editorOrders.find(o => o.jobId === job.id || o.jobId === job.jobId);
       if (!assignedOrder) {
         console.log(`[STATUS UPDATE ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
         return res.status(403).json({ error: "You are not assigned to this job" });
@@ -3029,16 +3018,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get job and order information for validation  
       // Try to find job by jobId (could be UUID or NanoID)
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        // If not found by jobId, try looking by UUID in the jobs map
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
-
+      const job = await storage.getJobByJobId(jobId);
+      
       if (!job) {
         console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
-        console.log(`[UPLOAD DEBUG] Available jobs:`, (await storage.getJobs()).map(j => ({ id: j.id, jobId: j.jobId, address: j.address })));
         return res.status(404).json({ error: "Job not found" });
       }
 
@@ -3046,16 +3029,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Find the order associated with this job
       // Orders may reference jobs by either UUID (job.id) or NanoID (job.jobId)
-      const allOrders = await storage.getOrders();
-      const orderEntity = allOrders.find(o => 
-        o.jobId === job.id || // Match by UUID
-        o.jobId === job.jobId || // Match by NanoID
-        (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
-      );
+      // For editors, we only need to check their assigned orders
+      let editorOrders: any[] = [];
+      let orderEntity = null;
+      
+      if (user.role === 'editor') {
+        editorOrders = await storage.getOrdersForEditor(userId);
+        orderEntity = editorOrders.find(o => 
+          o.jobId === job.id || // Match by UUID
+          o.jobId === job.jobId || // Match by NanoID
+          (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
+        );
+        console.log(`[UPLOAD DEBUG] Editor has ${editorOrders.length} assigned orders`);
+      } else {
+        // For partners/admins, get orders by their partnerId
+        const partnerOrders = await storage.getOrders(user.partnerId);
+        orderEntity = partnerOrders.find(o => 
+          o.jobId === job.id || // Match by UUID
+          o.jobId === job.jobId || // Match by NanoID
+          (job.jobId && o.jobId === job.jobId) // Explicit NanoID match
+        );
+        console.log(`[UPLOAD DEBUG] Partner has ${partnerOrders.length} orders`);
+      }
 
-      console.log(`[UPLOAD DEBUG] Available orders: ${allOrders.length}`);
-      console.log(`[UPLOAD DEBUG] Job UUID matches: ${allOrders.filter(o => o.jobId === job.id).map(o => o.orderNumber)}`);
-      console.log(`[UPLOAD DEBUG] Job NanoID matches: ${allOrders.filter(o => o.jobId === job.jobId).map(o => o.orderNumber)}`);
+      console.log(`[UPLOAD DEBUG] Job UUID/NanoID match: ${orderEntity ? orderEntity.orderNumber : 'none'}`);
 
       // Note: orderEntity can be null for new orders - this is allowed
       if (!orderEntity) {
@@ -3268,17 +3265,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Find the job with detailed debugging
       console.log(`[UPLOAD DEBUG] Looking for job with jobId: ${jobId}`);
 
-      let job = await storage.getJobByJobId(jobId);
+      const job = await storage.getJobByJobId(jobId);
       console.log(`[UPLOAD DEBUG] getJobByJobId result:`, job ? `Found job ${job.id}` : 'Not found');
-
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        console.log(`[UPLOAD DEBUG] Total jobs in system: ${allJobs.length}`);
-        console.log(`[UPLOAD DEBUG] Available job IDs:`, allJobs.map(j => ({ id: j.id, jobId: j.jobId || 'no-jobId' })));
-
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-        console.log(`[UPLOAD DEBUG] Fallback search result:`, job ? `Found job ${job.id}` : 'Still not found');
-      }
 
       if (!job) {
         console.log(`[UPLOAD DEBUG] Job not found for jobId: ${jobId}`);
@@ -3288,12 +3276,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[UPLOAD DEBUG] Successfully found job:`, { id: job.id, jobId: job.jobId, partnerId: job.partnerId });
 
       // For completed file uploads, find an order assigned to this editor for the job
-      const allOrders = await storage.getOrders();
+      const editorOrders = await storage.getOrdersForEditor(editorId);
 
       // First try to find by the provided orderNumber if it exists
       let orderEntity = null;
       if (orderNumber) {
-        orderEntity = allOrders.find(o => o.orderNumber === orderNumber);
+        orderEntity = editorOrders.find(o => o.orderNumber === orderNumber);
       }
 
       // If order not found by orderNumber, or no orderNumber provided, find any order assigned to this editor for this job
@@ -3301,10 +3289,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[UPLOAD DEBUG] Order ${orderNumber || 'not provided'} not found, searching for editor's assigned order`);
 
         // Find orders for this job that are assigned to the current editor
-        // No partnerId check - editors work across different partners
-        const jobOrders = allOrders.filter(o => 
-          (o.jobId === job.id || o.jobId === job.jobId) && 
-          o.assignedTo === editorId
+        const jobOrders = editorOrders.filter(o => 
+          o.jobId === job.id || o.jobId === job.jobId
         );
 
         console.log(`[UPLOAD DEBUG] Found ${jobOrders.length} orders assigned to editor for this job`);
@@ -3453,11 +3439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3544,11 +3526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3596,11 +3574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3675,11 +3649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3776,11 +3746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3833,11 +3799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find the job
-      let job = await storage.getJobByJobId(jobId);
-      if (!job) {
-        const allJobs = await storage.getJobs();
-        job = allJobs.find(j => j.id === jobId || j.jobId === jobId);
-      }
+      const job = await storage.getJobByJobId(jobId);
 
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
@@ -3864,14 +3826,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Proxy endpoint to serve files from Firebase Storage
-  // This bypasses browser issues with # character in URLs
+  // DISABLED: Proxy endpoint to serve files from Firebase Storage
+  // This endpoint was disabled for security - it required scanning all jobs which is insecure
+  // TODO: Reimplement with proper jobId parameter requirement
   app.get("/api/files/proxy/:fileId", async (req, res) => {
     try {
+      return res.status(501).json({ 
+        error: "This endpoint has been disabled for security. Please update your client to include jobId in the request.",
+        message: "File proxy endpoint requires refactoring for multi-tenant security"
+      });
+      
+      /* ORIGINAL INSECURE CODE - DO NOT UNCOMMENT
       const { fileId } = req.params;
-
-      // Search through all jobs to find the file
-      const allJobs = await storage.getJobs();
+      const allJobs = await storage.getJobs(); // INSECURE: scans all tenants
       let file: EditorUpload | undefined;
 
       for (const job of allJobs) {
@@ -3951,6 +3918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       stream.pipe(res);
+      */
     } catch (error: any) {
       console.error('Error in file proxy:', error);
       res.status(500).json({ error: 'Failed to proxy file', details: error.message });
