@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Trash2, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,14 +36,9 @@ export default function ProductDetails() {
     queryKey: ["/api/customers"],
   });
 
-  // Debug logging
-  console.log("ProductDetails Debug:", { 
-    id, 
-    product, 
-    isLoading, 
-    error,
-    productType: typeof product,
-    errorMessage: error?.message 
+  // Fetch team members
+  const { data: teamMembers = [] } = useQuery<any[]>({
+    queryKey: ["/api/team/editors"],
   });
 
   // Local state for editing
@@ -51,6 +46,7 @@ export default function ProductDetails() {
   const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Initialize form data when product loads or changes
   useEffect(() => {
@@ -71,6 +67,11 @@ export default function ProductDetails() {
         isActive: productData.isActive !== undefined ? productData.isActive : true,
         isLive: productData.isLive !== undefined ? productData.isLive : true,
       });
+
+      // Set image preview if exists
+      if (productData.image) {
+        setImagePreview(productData.image);
+      }
 
       // Parse variations if they exist
       if (productData.variations) {
@@ -160,6 +161,23 @@ export default function ProductDetails() {
     setVariations(newVariations);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProductImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setProductImage(null);
+    setImagePreview(null);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -244,33 +262,48 @@ export default function ProductDetails() {
               {/* Product Image Upload */}
               <div className="mb-6">
                 <Label className="text-sm font-medium text-rpp-grey-dark mb-2">
-                  Product Pictures (Optional - Max 6)
+                  Product Image (Optional)
                 </Label>
                 <p className="text-xs text-rpp-grey-light mb-3">
-                  Capture attention and showcase your product effectively by uploading an eye-catching image
+                  Upload an image to display as a thumbnail for the booking page and form
                 </p>
-                <div className="border-2 border-dashed border-rpp-grey-border rounded-lg p-6 flex flex-col items-center justify-center bg-rpp-grey-surface/50">
-                  <Upload className="w-8 h-8 text-rpp-grey-light mb-2" />
-                  <p className="text-sm text-rpp-grey-light mb-1">
-                    Max file size: 2MB image. Accepted: jpg, png
-                  </p>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setProductImage(file);
-                    }}
-                    className="hidden"
-                    id="product-image-upload"
-                  />
-                  <label
-                    htmlFor="product-image-upload"
-                    className="text-sm text-[#f05a2a] hover:underline cursor-pointer"
-                  >
-                    Choose file
-                  </label>
-                </div>
+                {imagePreview ? (
+                  <div className="relative inline-block">
+                    <img
+                      src={imagePreview}
+                      alt="Product thumbnail"
+                      className="w-32 h-32 object-cover rounded-lg border border-rpp-grey-border"
+                    />
+                    <button
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      data-testid="button-remove-image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-rpp-grey-border rounded-lg p-6 flex flex-col items-center justify-center bg-rpp-grey-surface/50">
+                    <Upload className="w-8 h-8 text-rpp-grey-light mb-2" />
+                    <p className="text-sm text-rpp-grey-light mb-1">
+                      Max file size: 2MB image. Accepted: jpg, png
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg"
+                      onChange={handleImageChange}
+                      className="hidden"
+                      id="product-image-upload"
+                      data-testid="input-product-image"
+                    />
+                    <label
+                      htmlFor="product-image-upload"
+                      className="text-sm text-[#f05a2a] hover:underline cursor-pointer"
+                    >
+                      Choose file
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Product Title */}
@@ -325,6 +358,56 @@ export default function ProductDetails() {
                 </Select>
               </div>
 
+              {/* Onsite or Digital Product - Moved before Variations */}
+              <div className="border-t border-rpp-grey-border pt-6 mb-6">
+                <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">
+                  Product Type
+                </h3>
+                <p className="text-sm text-rpp-grey-light mb-4">
+                  Does this product require physical attendance by you, or can it be offered as a digital product only?
+                </p>
+                <RadioGroup
+                  value={formData.productType}
+                  onValueChange={(value) => setFormData({
+                    ...formData,
+                    productType: value,
+                    requiresAppointment: value === "onsite"
+                  })}
+                >
+                  <div className="flex items-center space-x-2 mb-3">
+                    <RadioGroupItem value="onsite" id="onsite" data-testid="radio-onsite" />
+                    <Label htmlFor="onsite" className="text-sm font-normal cursor-pointer">
+                      Requires onsite attendance
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="digital" id="digital" data-testid="radio-digital" />
+                    <Label htmlFor="digital" className="text-sm font-normal cursor-pointer">
+                      Digital product only
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {/* Duration field - only shown and editable when onsite is selected */}
+                {formData.productType === "onsite" && !formData.hasVariations && (
+                  <div className="mt-4">
+                    <Label className="text-sm font-medium text-rpp-grey-dark mb-2">
+                      Appointment Duration
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={formData.appointmentDuration}
+                        onChange={(e) => setFormData({ ...formData, appointmentDuration: parseInt(e.target.value) || 60 })}
+                        className="border-rpp-grey-border w-24"
+                        data-testid="input-appointment-duration"
+                      />
+                      <span className="text-sm text-rpp-grey-light">minutes</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Variations Section */}
               <div className="border-t border-rpp-grey-border pt-6">
                 <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Variations</h3>
@@ -360,9 +443,11 @@ export default function ProductDetails() {
                             <th className="text-left py-3 px-4 text-sm font-medium text-rpp-grey-dark">
                               Price (Before tax)
                             </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-rpp-grey-dark">
-                              Duration
-                            </th>
+                            {formData.productType === "onsite" && (
+                              <th className="text-left py-3 px-4 text-sm font-medium text-rpp-grey-dark">
+                                Duration
+                              </th>
+                            )}
                             <th className="text-left py-3 px-4 text-sm font-medium text-rpp-grey-dark">
                               No charge
                             </th>
@@ -395,19 +480,21 @@ export default function ProductDetails() {
                                   />
                                 </div>
                               </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  <Input
-                                    type="number"
-                                    value={variation.appointmentDuration}
-                                    onChange={(e) => updateVariation(index, "appointmentDuration", parseInt(e.target.value) || 60)}
-                                    placeholder="60"
-                                    className="border-rpp-grey-border w-20"
-                                    data-testid={`input-variation-duration-${index}`}
-                                  />
-                                  <span className="text-sm text-rpp-grey-light">min.</span>
-                                </div>
-                              </td>
+                              {formData.productType === "onsite" && (
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      value={variation.appointmentDuration}
+                                      onChange={(e) => updateVariation(index, "appointmentDuration", parseInt(e.target.value) || 60)}
+                                      placeholder="60"
+                                      className="border-rpp-grey-border w-20"
+                                      data-testid={`input-variation-duration-${index}`}
+                                    />
+                                    <span className="text-sm text-rpp-grey-light">min.</span>
+                                  </div>
+                                </td>
+                              )}
                               <td className="py-3 px-4">
                                 <Checkbox
                                   checked={variation.noCharge}
@@ -470,53 +557,6 @@ export default function ProductDetails() {
                 </Select>
               </div>
             </div>
-
-            {/* Onsite or Digital Product */}
-            <div className="bg-white rounded-xl border border-rpp-grey-border p-6">
-              <h3 className="text-lg font-semibold text-rpp-grey-dark mb-2">
-                Onsite or Digital Product
-              </h3>
-              <p className="text-sm text-rpp-grey-light mb-4">
-                Does this product require physical attendance by you, or can it be offered as a digital product only?
-              </p>
-              <RadioGroup
-                value={formData.productType}
-                onValueChange={(value) => setFormData({
-                  ...formData,
-                  productType: value,
-                  requiresAppointment: value === "onsite"
-                })}
-              >
-                <div className="flex items-center space-x-2 mb-3">
-                  <RadioGroupItem value="digital" id="digital" data-testid="radio-digital" />
-                  <Label htmlFor="digital" className="text-sm font-normal cursor-pointer">
-                    Digital product only
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="onsite" id="onsite" data-testid="radio-onsite" />
-                  <Label htmlFor="onsite" className="text-sm font-normal cursor-pointer">
-                    Requires onsite attendance
-                  </Label>
-                </div>
-              </RadioGroup>
-
-              {formData.productType === "onsite" && formData.hasVariations && variations.length > 0 && (
-                <div className="mt-6 p-4 bg-rpp-grey-surface rounded-lg">
-                  <p className="text-sm text-rpp-grey-dark mb-4">
-                    <strong>Appointment durations by variation:</strong>
-                  </p>
-                  <div className="space-y-2">
-                    {variations.map((v, index) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span className="text-rpp-grey-light">{v.name || `Option ${index + 1}`}</span>
-                        <span className="font-medium text-rpp-grey-dark">{v.appointmentDuration} min.</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Right Column - Additional Settings */}
@@ -527,20 +567,26 @@ export default function ProductDetails() {
               <p className="text-sm text-rpp-grey-light mb-4">
                 Choose the team members eligible to provide this product. By default, all team members will be selected.
               </p>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="provider-all" defaultChecked data-testid="checkbox-provider-all" />
-                  <Label htmlFor="provider-all" className="text-sm font-normal cursor-pointer">
-                    Jacob M
-                  </Label>
+              {teamMembers.length > 0 ? (
+                <div className="space-y-2">
+                  {teamMembers.map((member: any) => (
+                    <div key={member.id} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`provider-${member.id}`} 
+                        defaultChecked 
+                        data-testid={`checkbox-provider-${member.id}`} 
+                      />
+                      <Label htmlFor={`provider-${member.id}`} className="text-sm font-normal cursor-pointer">
+                        {member.name || member.email}
+                      </Label>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2 text-rpp-grey-light">
-                  <Checkbox id="provider-joel" disabled />
-                  <Label htmlFor="provider-joel" className="text-sm font-normal">
-                    Joel Adamson
-                  </Label>
-                </div>
-              </div>
+              ) : (
+                <p className="text-sm text-rpp-grey-light italic">
+                  No team members found. Add team members to assign them to products.
+                </p>
+              )}
             </div>
 
             {/* Service Area Availability */}
@@ -549,19 +595,10 @@ export default function ProductDetails() {
               <p className="text-sm text-rpp-grey-light mb-4">
                 Select which service areas this product will be made available.
               </p>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="area-newcastle" defaultChecked data-testid="checkbox-area-newcastle" />
-                  <Label htmlFor="area-newcastle" className="text-sm font-normal cursor-pointer">
-                    Newcastle
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="area-central" defaultChecked data-testid="checkbox-area-central" />
-                  <Label htmlFor="area-central" className="text-sm font-normal cursor-pointer">
-                    Central Coast
-                  </Label>
-                </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  This feature will be connected to the service areas settings page when it's created.
+                </p>
               </div>
             </div>
 
@@ -623,6 +660,7 @@ export default function ProductDetails() {
                             <button
                               onClick={() => setSelectedCustomers(selectedCustomers.filter(id => id !== customerId))}
                               className="text-red-500 hover:text-red-700"
+                              data-testid={`button-remove-customer-${customerId}`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -663,15 +701,11 @@ export default function ProductDetails() {
               <p className="text-sm text-rpp-grey-light mb-4">
                 Choose an account and tax to assign this product for XERO invoicing.
               </p>
-              <Select defaultValue="201">
-                <SelectTrigger className="border-rpp-grey-border" data-testid="select-product-mapping">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="201">201 - Photography</SelectItem>
-                  <SelectItem value="202">202 - GST On Income</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-800">
+                  This feature will be connected when Xero integration is set up.
+                </p>
+              </div>
             </div>
           </div>
         </div>
