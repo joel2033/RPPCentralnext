@@ -210,7 +210,7 @@ export default function Products() {
                           className="text-red-600 focus:text-red-600"
                         >
                           <Archive className="w-4 h-4 mr-2" />
-                          Archive {product.type || 'Product'}
+                          Archive
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
