@@ -203,7 +203,7 @@ export default function Products() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEditProduct(product.id)}>
                           <Edit className="w-4 h-4 mr-2" />
-                          Edit {product.type || 'Product'}
+                          Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleArchiveProduct(product.id)}
