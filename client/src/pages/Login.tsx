@@ -4,16 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { signInUser } from '@/lib/firebaseAuth';
+import { signInUser, signUpUser } from '@/lib/firebaseAuth';
 import { Eye, EyeOff, Camera, Video, Layout, Home } from 'lucide-react';
 import rppLogo from '@assets/RPP Logo_2020_1761124400304.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [error, setError] = useState('');
   const [, setLocation] = useLocation();
   const [logoUrl, setLogoUrl] = useState(rppLogo);
 
@@ -36,27 +40,51 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
 
     try {
-      const user = await signInUser(email, password);
+      if (isSignUp) {
+        // Validate passwords match
+        if (password !== confirmPassword) {
+          setError('Passwords do not match');
+          setLoading(false);
+          return;
+        }
 
-      // Get user data to determine role and redirect accordingly
-      const response = await fetch(`/api/auth/user/${user.uid}`);
-      if (response.ok) {
-        const userData = await response.json();
-        if (userData.role === 'editor') {
-          setLocation('/editor/dashboard');
+        // Validate password length
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters');
+          setLoading(false);
+          return;
+        }
+
+        // Sign up new user
+        const user = await signUpUser(email, password);
+        
+        // Redirect to dashboard after successful signup
+        setLocation('/dashboard');
+      } else {
+        // Sign in existing user
+        const user = await signInUser(email, password);
+
+        // Get user data to determine role and redirect accordingly
+        const response = await fetch(`/api/auth/user/${user.uid}`);
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData.role === 'editor') {
+            setLocation('/editor/dashboard');
+          } else {
+            setLocation('/dashboard');
+          }
         } else {
+          // Fallback to partner dashboard if role check fails
           setLocation('/dashboard');
         }
-      } else {
-        // Fallback to partner dashboard if role check fails
-        setLocation('/dashboard');
       }
     } catch (err: any) {
-      // Error will be handled by the form
-      console.error('Login error:', err);
+      setError(err.message || (isSignUp ? 'Failed to create account' : 'Failed to sign in'));
+      console.error(isSignUp ? 'Signup error:' : 'Login error:', err);
     } finally {
       setLoading(false);
     }
@@ -80,14 +108,25 @@ export default function Login() {
 
           {/* Header Section */}
           <div className="space-y-2">
-            <h1 className="text-3xl font-medium text-foreground">Welcome back</h1>
+            <h1 className="text-3xl font-medium text-foreground">
+              {isSignUp ? 'Create your account' : 'Welcome back'}
+            </h1>
             <p className="text-muted-foreground">
-              Sign in to your Real Property Photography dashboard
+              {isSignUp 
+                ? 'Get started with Real Property Photography platform' 
+                : 'Sign in to your Real Property Photography dashboard'}
             </p>
           </div>
 
-          {/* Login Form */}
+          {/* Login/Signup Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600" data-testid="error-message">
+                {error}
+              </div>
+            )}
+
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email">Email address</Label>
@@ -107,18 +146,20 @@ export default function Login() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <button
-                  type="button"
-                  className="text-sm text-primary hover:text-primary/80 transition-colors"
-                >
-                  Forgot password?
-                </button>
+                {!isSignUp && (
+                  <button
+                    type="button"
+                    className="text-sm text-primary hover:text-primary/80 transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={isSignUp ? "Create a password (min. 6 characters)" : "Enter your password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -136,41 +177,77 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="remember"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-              />
-              <label
-                htmlFor="remember"
-                className="text-sm text-muted-foreground cursor-pointer select-none"
-              >
-                Remember me for 30 days
-              </label>
-            </div>
+            {/* Confirm Password Field - Only for Sign Up */}
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors pr-10"
+                    data-testid="input-confirm-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Remember Me Checkbox - Only for Sign In */}
+            {!isSignUp && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <label
+                  htmlFor="remember"
+                  className="text-sm text-muted-foreground cursor-pointer select-none"
+                >
+                  Remember me for 30 days
+                </label>
+              </div>
+            )}
 
             {/* Submit Button */}
             <Button
               type="submit"
               disabled={loading}
               className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 rounded-xl"
-              data-testid="button-signin"
+              data-testid={isSignUp ? "button-signup" : "button-signin"}
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? (isSignUp ? "Creating account..." : "Signing in...") : (isSignUp ? "Create account" : "Sign in")}
             </Button>
           </form>
 
-          {/* Footer Section */}
+          {/* Footer Section - Toggle between Sign In and Sign Up */}
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 type="button"
-                className="text-primary hover:text-primary/80 transition-colors"
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setError('');
+                  setPassword('');
+                  setConfirmPassword('');
+                }}
+                className="text-primary hover:text-primary/80 transition-colors font-medium"
+                data-testid="button-toggle-mode"
               >
-                Contact sales
+                {isSignUp ? "Sign in" : "Create account"}
               </button>
             </p>
           </div>
