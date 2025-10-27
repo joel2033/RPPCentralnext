@@ -669,7 +669,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
           <Button 
             onClick={handleSubmit}
             disabled={createProductMutation.isPending}
-            className="hover:bg-rpp-grey-dark text-white bg-[#f2572c]"
+            className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
             data-testid="button-save-product"
           >
             {createProductMutation.isPending ? "Saving..." : "Save"}

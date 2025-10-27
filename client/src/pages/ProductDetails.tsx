@@ -497,6 +497,101 @@ export default function ProductDetails() {
                 </Select>
               </div>
 
+              {/* Inclusions Section */}
+              <div className="border-t border-rpp-grey-border pt-6 mb-6">
+                <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Inclusions</h3>
+                <p className="text-sm text-rpp-grey-light mb-4">
+                  Manage what products your package or add-on includes
+                </p>
+                <Select
+                  onValueChange={(value) => {
+                    if (!includedProducts.find(p => p.productId === value)) {
+                      setIncludedProducts([...includedProducts, { productId: value, quantity: 1 }]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="border-rpp-grey-border mb-4" data-testid="select-included-products">
+                    <SelectValue placeholder="Select product/s" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allProducts
+                      .filter((p: any) => p.id !== id) // Don't allow selecting itself
+                      .map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+
+                {includedProducts.length > 0 && (
+                  <div className="space-y-2">
+                    {includedProducts.map((inclusion, index) => {
+                      const product = allProducts.find((p: any) => p.id === inclusion.productId);
+                      if (!product) return null;
+
+                      // Calculate price based on variations or base price
+                      let displayPrice = "0.00";
+                      if (product.hasVariations && product.variations) {
+                        try {
+                          const variations = typeof product.variations === 'string' 
+                            ? JSON.parse(product.variations) 
+                            : product.variations;
+                          if (variations.length > 0) {
+                            const prices = variations.map((v: any) => parseFloat(v.price || 0));
+                            displayPrice = Math.min(...prices).toFixed(2);
+                          }
+                        } catch (e) {
+                          displayPrice = parseFloat(product.price || 0).toFixed(2);
+                        }
+                      } else {
+                        displayPrice = parseFloat(product.price || 0).toFixed(2);
+                      }
+
+                      return (
+                        <div
+                          key={inclusion.productId}
+                          className="flex items-center justify-between bg-rpp-grey-surface p-3 rounded-lg border border-rpp-grey-border"
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <button
+                              onClick={() => setIncludedProducts(includedProducts.filter((_, i) => i !== index))}
+                              className="text-red-500 hover:text-red-700"
+                              data-testid={`button-remove-inclusion-${index}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={inclusion.quantity}
+                              onChange={(e) => {
+                                const newInclusions = [...includedProducts];
+                                newInclusions[index].quantity = parseInt(e.target.value) || 1;
+                                setIncludedProducts(newInclusions);
+                              }}
+                              className="w-16 border-rpp-grey-border"
+                              data-testid={`input-inclusion-quantity-${index}`}
+                            />
+                            <span className="text-sm font-medium text-rpp-grey-dark">
+                              {product.title}
+                              {product.hasVariations && (
+                                <span className="text-xs text-rpp-grey-light ml-2">
+                                  [{product.variants || 0} variations]
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <span className="text-sm font-medium text-rpp-grey-dark">
+                            ${displayPrice}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Onsite or Digital Product - Moved before Variations */}
               <div className="border-t border-rpp-grey-border pt-6 mb-6">
                 <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">
@@ -550,7 +645,26 @@ export default function ProductDetails() {
               {/* Pricing & Tax Section - Only shown when product doesn't have variations */}
               {!formData.hasVariations && (
                 <div className="border-t border-rpp-grey-border pt-6">
-                  <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Pricing & Tax</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-md font-semibold text-rpp-grey-dark">Pricing & Tax</h3>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="no-charge"
+                        checked={formData.noCharge}
+                        onCheckedChange={(checked) => {
+                          setFormData({ 
+                            ...formData, 
+                            noCharge: checked as boolean,
+                            price: checked ? "0.00" : formData.price 
+                          });
+                        }}
+                        data-testid="checkbox-no-charge"
+                      />
+                      <Label htmlFor="no-charge" className="text-sm font-normal cursor-pointer">
+                        No charge
+                      </Label>
+                    </div>
+                  </div>
                   <p className="text-sm text-rpp-grey-light mb-4">
                     Update your product's price and tax
                   </p>
@@ -591,23 +705,6 @@ export default function ProductDetails() {
                       </Select>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 mt-4">
-                    <Checkbox
-                      id="no-charge"
-                      checked={formData.noCharge}
-                      onCheckedChange={(checked) => {
-                        setFormData({ 
-                          ...formData, 
-                          noCharge: checked as boolean,
-                          price: checked ? "0.00" : formData.price 
-                        });
-                      }}
-                      data-testid="checkbox-no-charge"
-                    />
-                    <Label htmlFor="no-charge" className="text-sm font-normal cursor-pointer">
-                      No charge
-                    </Label>
-                  </div>
                 </div>
               )}
 
@@ -617,22 +714,29 @@ export default function ProductDetails() {
                 <p className="text-sm text-rpp-grey-light mb-4">
                   Does this product have variations?
                 </p>
-                <div className="flex items-center space-x-2 mb-4">
-                  <Checkbox
-                    id="has-variations"
-                    checked={formData.hasVariations}
-                    onCheckedChange={(checked) => {
-                      setFormData({ ...formData, hasVariations: checked as boolean });
-                      if (!checked) {
-                        setVariations([{ name: "", price: "", appointmentDuration: 60, noCharge: false }]);
-                      }
-                    }}
-                    data-testid="checkbox-has-variations"
-                  />
-                  <Label htmlFor="has-variations" className="text-sm font-normal cursor-pointer">
-                    Yes
-                  </Label>
-                </div>
+                <RadioGroup
+                  value={formData.hasVariations ? "yes" : "no"}
+                  onValueChange={(value) => {
+                    const hasVariations = value === "yes";
+                    setFormData({ ...formData, hasVariations });
+                    if (!hasVariations) {
+                      setVariations([{ name: "", price: "", appointmentDuration: 60, noCharge: false }]);
+                    }
+                  }}
+                >
+                  <div className="flex items-center space-x-2 mb-3">
+                    <RadioGroupItem value="yes" id="variations-yes" data-testid="radio-variations-yes" />
+                    <Label htmlFor="variations-yes" className="text-sm font-normal cursor-pointer">
+                      Yes
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <RadioGroupItem value="no" id="variations-no" data-testid="radio-variations-no" />
+                    <Label htmlFor="variations-no" className="text-sm font-normal cursor-pointer">
+                      No
+                    </Label>
+                  </div>
+                </RadioGroup>
 
                 {formData.hasVariations && (
                   <div className="space-y-4">
@@ -736,101 +840,6 @@ export default function ProductDetails() {
                       <Plus className="w-4 h-4 mr-2" />
                       New option
                     </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Inclusions Section */}
-              <div className="border-t border-rpp-grey-border pt-6">
-                <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Inclusions</h3>
-                <p className="text-sm text-rpp-grey-light mb-4">
-                  Manage what products your package or add-on includes
-                </p>
-                <Select
-                  onValueChange={(value) => {
-                    if (!includedProducts.find(p => p.productId === value)) {
-                      setIncludedProducts([...includedProducts, { productId: value, quantity: 1 }]);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="border-rpp-grey-border mb-4" data-testid="select-included-products">
-                    <SelectValue placeholder="Select product/s" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allProducts
-                      .filter((p: any) => p.id !== id) // Don't allow selecting itself
-                      .map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.title}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-
-                {includedProducts.length > 0 && (
-                  <div className="space-y-2">
-                    {includedProducts.map((inclusion, index) => {
-                      const product = allProducts.find((p: any) => p.id === inclusion.productId);
-                      if (!product) return null;
-
-                      // Calculate price based on variations or base price
-                      let displayPrice = "0.00";
-                      if (product.hasVariations && product.variations) {
-                        try {
-                          const variations = typeof product.variations === 'string' 
-                            ? JSON.parse(product.variations) 
-                            : product.variations;
-                          if (variations.length > 0) {
-                            const prices = variations.map((v: any) => parseFloat(v.price || 0));
-                            displayPrice = Math.min(...prices).toFixed(2);
-                          }
-                        } catch (e) {
-                          displayPrice = parseFloat(product.price || 0).toFixed(2);
-                        }
-                      } else {
-                        displayPrice = parseFloat(product.price || 0).toFixed(2);
-                      }
-
-                      return (
-                        <div
-                          key={inclusion.productId}
-                          className="flex items-center justify-between bg-rpp-grey-surface p-3 rounded-lg border border-rpp-grey-border"
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <button
-                              onClick={() => setIncludedProducts(includedProducts.filter((_, i) => i !== index))}
-                              className="text-red-500 hover:text-red-700"
-                              data-testid={`button-remove-inclusion-${index}`}
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={inclusion.quantity}
-                              onChange={(e) => {
-                                const newInclusions = [...includedProducts];
-                                newInclusions[index].quantity = parseInt(e.target.value) || 1;
-                                setIncludedProducts(newInclusions);
-                              }}
-                              className="w-16 border-rpp-grey-border"
-                              data-testid={`input-inclusion-quantity-${index}`}
-                            />
-                            <span className="text-sm font-medium text-rpp-grey-dark">
-                              {product.title}
-                              {product.hasVariations && (
-                                <span className="text-xs text-rpp-grey-light ml-2">
-                                  [{product.variants || 0} variations]
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <span className="text-sm font-medium text-rpp-grey-dark">
-                            ${displayPrice}
-                          </span>
-                        </div>
-                      );
-                    })}
                   </div>
                 )}
               </div>

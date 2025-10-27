@@ -160,13 +160,13 @@
     "2a90cb34-cd12-4411-a32e-5632da7831c9": {
       "partnerId": "partner_192l9bh1xmduwueha",
       "title": "Starter",
-      "description": null,
+      "description": "8 Photos\n2D Floor plan\n2 Drone images",
       "type": "package",
-      "category": null,
+      "category": "",
       "price": "359.09",
       "taxRate": "10",
-      "hasVariations": null,
-      "variants": null,
+      "hasVariations": false,
+      "variants": 0,
       "variations": null,
       "productType": "onsite",
       "requiresAppointment": true,
@@ -175,9 +175,11 @@
       "exclusiveCustomerIds": null,
       "isActive": true,
       "isLive": true,
-      "image": null,
+      "image": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/product-images/thumbnails/product-O_TPn18vgKnHVEp7_63Rm.jpg",
       "id": "2a90cb34-cd12-4411-a32e-5632da7831c9",
-      "createdAt": "2025-10-27T13:01:46.484Z"
+      "createdAt": "2025-10-27T13:01:46.484Z",
+      "noCharge": false,
+      "includedProducts": "[{\"productId\":\"0d8fef03-6d5c-4495-9750-15d7952cb134\",\"quantity\":1}]"
     }
   },
   "jobs": {
