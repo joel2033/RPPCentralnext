@@ -37,7 +37,14 @@ export default function ProductDetails() {
   });
 
   // Debug logging
-  console.log("ProductDetails Debug:", { id, product, isLoading, error });
+  console.log("ProductDetails Debug:", { 
+    id, 
+    product, 
+    isLoading, 
+    error,
+    productType: typeof product,
+    errorMessage: error?.message 
+  });
 
   // Local state for editing
   const [formData, setFormData] = useState<any>(null);
