@@ -59,18 +59,18 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  getUsers(partnerId?: string): Promise<User[]>;
+  getUsers(partnerId: string): Promise<User[]>; // REQUIRED: Enforces tenant isolation
   createUser(user: InsertUser): Promise<User>;
 
   // Customers
   getCustomer(id: string): Promise<Customer | undefined>;
-  getCustomers(partnerId?: string): Promise<Customer[]>;
+  getCustomers(partnerId: string): Promise<Customer[]>; // REQUIRED: Enforces tenant isolation
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: string, customer: Partial<Customer>): Promise<Customer | undefined>;
 
   // Products
   getProduct(id: string): Promise<Product | undefined>;
-  getProducts(partnerId?: string): Promise<Product[]>;
+  getProducts(partnerId: string): Promise<Product[]>; // REQUIRED: Enforces tenant isolation
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: string, product: Partial<Product>): Promise<Product | undefined>;
 
@@ -79,13 +79,13 @@ export interface IStorage {
   getJobByJobId(jobId: string): Promise<Job | undefined>;
   getJobByDeliveryToken(token: string): Promise<Job | undefined>;
   generateDeliveryToken(jobId: string): Promise<string>;
-  getJobs(partnerId?: string): Promise<Job[]>;
+  getJobs(partnerId: string): Promise<Job[]>; // REQUIRED: Enforces tenant isolation
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: string, job: Partial<Job>): Promise<Job | undefined>;
 
   // Orders
   getOrder(id: string): Promise<Order | undefined>;
-  getOrders(partnerId?: string): Promise<Order[]>;
+  getOrders(partnerId?: string): Promise<Order[]>; // TODO: Make required after refactoring editor routes to use getOrdersForEditor(editorId)
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: string, order: Partial<Order>): Promise<Order | undefined>;
   generateOrderNumber(): Promise<string>;
@@ -97,11 +97,11 @@ export interface IStorage {
   cleanupExpiredReservations(): Promise<void>;
   
   // Order Services
-  getOrderServices(orderId: string): Promise<OrderService[]>;
+  getOrderServices(orderId: string, partnerId: string): Promise<OrderService[]>; // REQUIRED: Enforces tenant isolation
   createOrderService(orderService: InsertOrderService): Promise<OrderService>;
   
   // Order Files
-  getOrderFiles(orderId: string): Promise<OrderFile[]>;
+  getOrderFiles(orderId: string, partnerId: string): Promise<OrderFile[]>; // REQUIRED: Enforces tenant isolation
   createOrderFile(orderFile: InsertOrderFile): Promise<OrderFile>;
 
   // Editor Job Management
@@ -121,7 +121,7 @@ export interface IStorage {
   deleteEditorService(id: string, editorId: string): Promise<void>;
   
   // Customer Profile
-  getCustomerJobs(customerId: string): Promise<Job[]>;
+  getCustomerJobs(customerId: string, partnerId: string): Promise<Job[]>; // REQUIRED: Enforces tenant isolation
   
   // Editor Uploads
   getJobsReadyForUpload(editorId: string): Promise<any[]>; // Jobs assigned to editor that are ready for upload
@@ -213,7 +213,7 @@ export interface IStorage {
   getOrderRevisionStatus(orderId: string): Promise<{ maxRounds: number; usedRounds: number; remainingRounds: number } | undefined>;
 
   // Messaging
-  getUserConversations(userId: string, partnerId?: string): Promise<Conversation[]>;
+  getUserConversations(userId: string, partnerId: string): Promise<Conversation[]>; // REQUIRED: Enforces tenant isolation
   getConversation(id: string): Promise<Conversation | undefined>;
   getConversationByParticipants(partnerId: string, editorId: string, orderId?: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;

@@ -198,7 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const jobs = await storage.getCustomerJobs(req.params.id);
+      const jobs = await storage.getCustomerJobs(req.params.id, req.user?.partnerId || '');
 
       res.json({
         customer,
@@ -745,8 +745,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Return the complete order details
-      const orderServices = await storage.getOrderServices(order.id);
-      const orderFiles = await storage.getOrderFiles(order.id);
+      const orderServices = await storage.getOrderServices(order.id, order.partnerId);
+      const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
 
       res.status(201).json({
         order,
@@ -1614,7 +1614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pendingOrders.map(async (order) => {
           const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
           const job = order.jobId ? await storage.getJob(order.jobId) : null;
-          const orderServices = await storage.getOrderServices(order.id);
+          const orderServices = await storage.getOrderServices(order.id, order.partnerId);
 
           return {
             ...order,
@@ -2090,8 +2090,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get order files and services (for instructions)
-      const orderFiles = await storage.getOrderFiles(order.id);
-      const orderServices = await storage.getOrderServices(order.id);
+      const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
+      const orderServices = await storage.getOrderServices(order.id, order.partnerId);
 
       if (!orderFiles || orderFiles.length === 0) {
         return res.status(404).json({ error: "No files found for this order" });
@@ -2230,8 +2230,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get order files and services (for instructions)
-      const orderFiles = await storage.getOrderFiles(order.id);
-      const orderServices = await storage.getOrderServices(order.id);
+      const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
+      const orderServices = await storage.getOrderServices(order.id, order.partnerId);
 
       if (orderFiles.length === 0) {
         return res.status(404).json({ error: "No files found for this job" });

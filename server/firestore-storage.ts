@@ -102,11 +102,9 @@ export class FirestoreStorage implements IStorage {
     return snapshot.empty ? undefined : docToObject<User>(snapshot.docs[0]);
   }
 
-  async getUsers(partnerId?: string): Promise<User[]> {
+  async getUsers(partnerId: string): Promise<User[]> {
     const ref = this.db.collection("users");
-    const snapshot = partnerId 
-      ? await ref.where("partnerId", "==", partnerId).get()
-      : await ref.get();
+    const snapshot = await ref.where("partnerId", "==", partnerId).get();
     return snapshot.docs.map(doc => docToObject<User>(doc));
   }
 
@@ -130,11 +128,9 @@ export class FirestoreStorage implements IStorage {
     return docSnap.exists ? docToObject<Customer>(docSnap) : undefined;
   }
 
-  async getCustomers(partnerId?: string): Promise<Customer[]> {
+  async getCustomers(partnerId: string): Promise<Customer[]> {
     const ref = this.db.collection("customers");
-    const snapshot = partnerId 
-      ? await ref.where("partnerId", "==", partnerId).get()
-      : await ref.get();
+    const snapshot = await ref.where("partnerId", "==", partnerId).get();
     return snapshot.docs.map(doc => docToObject<Customer>(doc));
   }
 
@@ -178,11 +174,9 @@ export class FirestoreStorage implements IStorage {
     return docSnap.exists ? docToObject<Product>(docSnap) : undefined;
   }
 
-  async getProducts(partnerId?: string): Promise<Product[]> {
+  async getProducts(partnerId: string): Promise<Product[]> {
     const ref = this.db.collection("products");
-    const snapshot = partnerId 
-      ? await ref.where("partnerId", "==", partnerId).get()
-      : await ref.get();
+    const snapshot = await ref.where("partnerId", "==", partnerId).get();
     return snapshot.docs.map(doc => docToObject<Product>(doc));
   }
 
@@ -198,6 +192,10 @@ export class FirestoreStorage implements IStorage {
       isActive: product.isActive || null,
       isLive: product.isLive || null,
       image: product.image || null,
+      variations: product.variations || null,
+      exclusiveCustomerIds: product.exclusiveCustomerIds || null,
+      includedProducts: product.includedProducts || null,
+      noCharge: product.noCharge ?? null,
       id,
       createdAt: new Date()
     };
@@ -232,11 +230,9 @@ export class FirestoreStorage implements IStorage {
     return token;
   }
 
-  async getJobs(partnerId?: string): Promise<Job[]> {
+  async getJobs(partnerId: string): Promise<Job[]> {
     const ref = this.db.collection("jobs");
-    const snapshot = partnerId 
-      ? await ref.where("partnerId", "==", partnerId).get()
-      : await ref.get();
+    const snapshot = await ref.where("partnerId", "==", partnerId).get();
     return snapshot.docs.map(doc => docToObject<Job>(doc));
   }
 
@@ -276,6 +272,7 @@ export class FirestoreStorage implements IStorage {
 
   async getOrders(partnerId?: string): Promise<Order[]> {
     const ref = this.db.collection("orders");
+    // TODO: Remove optional partnerId after refactoring editor routes
     const snapshot = partnerId 
       ? await ref.where("partnerId", "==", partnerId).get()
       : await ref.get();
@@ -391,7 +388,12 @@ export class FirestoreStorage implements IStorage {
   }
 
   // Order Services
-  async getOrderServices(orderId: string): Promise<OrderService[]> {
+  async getOrderServices(orderId: string, partnerId: string): Promise<OrderService[]> {
+    // Get the order first to verify it belongs to this tenant
+    const order = await this.getOrder(orderId);
+    if (!order || order.partnerId !== partnerId) {
+      return []; // Prevent cross-tenant data access
+    }
     const snapshot = await this.db.collection("orderServices").where("orderId", "==", orderId).get();
     return snapshot.docs.map(doc => docToObject<OrderService>(doc));
   }
@@ -411,7 +413,12 @@ export class FirestoreStorage implements IStorage {
   }
 
   // Order Files
-  async getOrderFiles(orderId: string): Promise<OrderFile[]> {
+  async getOrderFiles(orderId: string, partnerId: string): Promise<OrderFile[]> {
+    // Get the order first to verify it belongs to this tenant
+    const order = await this.getOrder(orderId);
+    if (!order || order.partnerId !== partnerId) {
+      return []; // Prevent cross-tenant data access
+    }
     const snapshot = await this.db.collection("orderFiles").where("orderId", "==", orderId).get();
     return snapshot.docs.map(doc => docToObject<OrderFile>(doc));
   }
@@ -544,8 +551,12 @@ export class FirestoreStorage implements IStorage {
   }
 
   // Customer Profile
-  async getCustomerJobs(customerId: string): Promise<Job[]> {
-    const snapshot = await this.db.collection("jobs").where("customerId", "==", customerId).get();
+  async getCustomerJobs(customerId: string, partnerId: string): Promise<Job[]> {
+    // Filter by both customerId AND partnerId for tenant isolation
+    const snapshot = await this.db.collection("jobs")
+      .where("customerId", "==", customerId)
+      .where("partnerId", "==", partnerId)
+      .get();
     return snapshot.docs.map(doc => docToObject<Job>(doc));
   }
 
@@ -899,8 +910,9 @@ export class FirestoreStorage implements IStorage {
       }
     }
 
-    const services = await this.getOrderServices(orderId);
-    const files = await this.getOrderFiles(orderId);
+    // Use order's partnerId for tenant-scoped queries
+    const services = await this.getOrderServices(orderId, order.partnerId);
+    const files = await this.getOrderFiles(orderId, order.partnerId);
 
     return {
       isValid: issues.length === 0,
@@ -1243,9 +1255,9 @@ export class FirestoreStorage implements IStorage {
   }
 
   // Messaging
-  async getUserConversations(userId: string, partnerId?: string): Promise<Conversation[]> {
+  async getUserConversations(userId: string, partnerId: string): Promise<Conversation[]> {
     const [snap1, snap2] = await Promise.all([
-      this.db.collection("conversations").where("partnerId", "==", partnerId || userId).get(),
+      this.db.collection("conversations").where("partnerId", "==", partnerId).get(),
       this.db.collection("conversations").where("editorId", "==", userId).get()
     ]);
     
