@@ -95,11 +95,13 @@ export default function Products() {
               {(products || []).map((product: any) => (
                 <tr
                   key={product.id}
-                  className="border-b border-rpp-grey-border hover:bg-gray-50 cursor-pointer"
-                  onClick={() => setLocation(`/products/${product.id}`)}
+                  className="border-b border-rpp-grey-border hover:bg-gray-50"
                   data-testid={`row-product-${product.id}`}
                 >
-                  <td className="py-3 px-4">
+                  <td 
+                    className="py-3 px-4 cursor-pointer"
+                    onClick={() => setLocation(`/products/${product.id}`)}
+                  >
                     <div className="flex items-center space-x-2">
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center flex-shrink-0">
                         {product.image ? (
@@ -157,7 +159,7 @@ export default function Products() {
                   <td className="py-3 px-3 text-xs text-rpp-grey-light">
                     {product.hasVariations ? `${product.variants} variations` : 'N/A'}
                   </td>
-                  <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="py-3 px-3 text-center">
                     <Switch
                       checked={product.isLive}
                       onCheckedChange={() => toggleProductStatus(product.id, 'isLive', product.isLive)}
@@ -166,7 +168,7 @@ export default function Products() {
                   <td className="py-3 px-3">
                     {getStatusBadge(product.isActive)}
                   </td>
-                  <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="py-3 px-3">
                     <button className="text-rpp-grey-light hover:text-rpp-grey-dark">
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
