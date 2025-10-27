@@ -145,7 +145,7 @@
       "exclusiveCustomerIds": null,
       "isActive": true,
       "isLive": true,
-      "image": null,
+      "image": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/product-images/thumbnails/product-w_c7IaLUOdDwgQutA7e81.jpg",
       "id": "0d8fef03-6d5c-4495-9750-15d7952cb134",
       "createdAt": "2025-10-26T20:25:52.238Z"
     }
