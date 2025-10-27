@@ -709,7 +709,7 @@ export default function ProductDetails() {
               )}
 
               {/* Variations Section */}
-              <div className="border-t border-rpp-grey-border pt-6">
+              <div className="border-t border-rpp-grey-border pt-6 mt-6">
                 <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Variations</h3>
                 <p className="text-sm text-rpp-grey-light mb-4">
                   Does this product have variations?
