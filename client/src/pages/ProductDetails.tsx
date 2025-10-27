@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Upload, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Trash2, X, Check } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { uploadImageWithThumbnail } from "@/lib/image-utils";
@@ -52,6 +52,7 @@ export default function ProductDetails() {
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Initialize form data when product loads or changes
@@ -74,9 +75,10 @@ export default function ProductDetails() {
         isLive: productData.isLive !== undefined ? productData.isLive : true,
       });
 
-      // Set image preview if exists
+      // Set image preview and uploaded URL if exists
       if (productData.image) {
         setImagePreview(productData.image);
+        setUploadedImageUrl(productData.image);
       }
 
       // Parse variations if they exist
@@ -129,56 +131,59 @@ export default function ProductDetails() {
     },
   });
 
+  const handleImageUpload = async () => {
+    if (!productImage) return;
+
+    setIsUploadingImage(true);
+    try {
+      const fileName = `product-${nanoid()}.jpg`;
+      const { thumbnailUrl } = await uploadImageWithThumbnail(
+        productImage,
+        'product-images',
+        fileName
+      );
+      
+      setUploadedImageUrl(thumbnailUrl);
+      setImagePreview(thumbnailUrl);
+      setProductImage(null); // Clear the file after successful upload
+      
+      toast({
+        title: "Image Uploaded",
+        description: "Product image uploaded successfully. Click 'Save changes' to update the product.",
+      });
+    } catch (uploadError) {
+      console.error("Image upload error:", uploadError);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload product image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSaveChanges = async () => {
     if (!formData) return;
 
-    try {
-      let imageUrl = imagePreview;
+    const variationsData = formData.hasVariations ? variations.map(v => ({
+      name: v.name,
+      price: v.noCharge ? "0.00" : v.price,
+      appointmentDuration: v.appointmentDuration || 60,
+      noCharge: v.noCharge
+    })) : null;
 
-      // Upload image if a new one was selected
-      if (productImage) {
-        setIsUploadingImage(true);
-        try {
-          const fileName = `product-${nanoid()}.jpg`;
-          const { thumbnailUrl } = await uploadImageWithThumbnail(
-            productImage,
-            'product-images',
-            fileName
-          );
-          imageUrl = thumbnailUrl;
-        } catch (uploadError) {
-          console.error("Image upload error:", uploadError);
-          toast({
-            title: "Image Upload Failed",
-            description: "Failed to upload product image. Saving other changes...",
-            variant: "destructive",
-          });
-        } finally {
-          setIsUploadingImage(false);
-        }
-      }
+    const updateData = {
+      ...formData,
+      variations: variationsData ? JSON.stringify(variationsData) : null,
+      variants: formData.hasVariations ? variations.length : 0,
+      exclusiveCustomerIds: formData.exclusivityType === "exclusive" && selectedCustomers.length > 0 
+        ? JSON.stringify(selectedCustomers) 
+        : null,
+      image: uploadedImageUrl || null,
+    };
 
-      const variationsData = formData.hasVariations ? variations.map(v => ({
-        name: v.name,
-        price: v.noCharge ? "0.00" : v.price,
-        appointmentDuration: v.appointmentDuration || 60,
-        noCharge: v.noCharge
-      })) : null;
-
-      const updateData = {
-        ...formData,
-        variations: variationsData ? JSON.stringify(variationsData) : null,
-        variants: formData.hasVariations ? variations.length : 0,
-        exclusiveCustomerIds: formData.exclusivityType === "exclusive" && selectedCustomers.length > 0 
-          ? JSON.stringify(selectedCustomers) 
-          : null,
-        image: imageUrl || null,
-      };
-
-      updateProductMutation.mutate(updateData);
-    } catch (error) {
-      console.error("Save error:", error);
-    }
+    updateProductMutation.mutate(updateData);
   };
 
   const addVariation = () => {
@@ -216,12 +221,15 @@ export default function ProductDetails() {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      // Clear the uploaded URL since this is a new selection
+      setUploadedImageUrl(null);
     }
   };
 
   const removeImage = () => {
     setProductImage(null);
     setImagePreview(null);
+    setUploadedImageUrl(null);
   };
 
   if (isLoading) {
@@ -282,11 +290,11 @@ export default function ProductDetails() {
           </div>
           <Button
             onClick={handleSaveChanges}
-            disabled={updateProductMutation.isPending || isUploadingImage}
+            disabled={updateProductMutation.isPending}
             className="bg-[#f05a2a] hover:bg-rpp-red-dark text-white"
             data-testid="button-save-changes"
           >
-            {isUploadingImage ? "Uploading image..." : updateProductMutation.isPending ? "Saving..." : "Save changes"}
+            {updateProductMutation.isPending ? "Saving..." : "Save changes"}
           </Button>
         </div>
       </div>
@@ -314,19 +322,52 @@ export default function ProductDetails() {
                   Upload an image to display as a thumbnail for the booking page and form
                 </p>
                 {imagePreview ? (
-                  <div className="relative inline-block">
-                    <img
-                      src={imagePreview}
-                      alt="Product thumbnail"
-                      className="w-32 h-32 object-cover rounded-lg border border-rpp-grey-border"
-                    />
-                    <button
-                      onClick={removeImage}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                      data-testid="button-remove-image"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div className="space-y-3">
+                    <div className="relative inline-block">
+                      <img
+                        src={imagePreview}
+                        alt="Product thumbnail"
+                        className="w-32 h-32 object-cover rounded-lg border border-rpp-grey-border"
+                      />
+                      <button
+                        onClick={removeImage}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        data-testid="button-remove-image"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      {uploadedImageUrl && (
+                        <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full p-1">
+                          <Check className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                    {productImage && !uploadedImageUrl && (
+                      <Button
+                        onClick={handleImageUpload}
+                        disabled={isUploadingImage}
+                        className="bg-[#f05a2a] hover:bg-rpp-red-dark text-white"
+                        data-testid="button-upload-image"
+                      >
+                        {isUploadingImage ? (
+                          <>
+                            <Upload className="w-4 h-4 mr-2 animate-pulse" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Image
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {uploadedImageUrl && (
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <Check className="w-4 h-4" />
+                        Image uploaded successfully
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="border-2 border-dashed border-rpp-grey-border rounded-lg p-6 flex flex-col items-center justify-center bg-rpp-grey-surface/50">
