@@ -225,7 +225,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(product);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch product" });
+      console.error("Error fetching product:", error);
+      res.status(500).json({ error: "Failed to fetch product", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
