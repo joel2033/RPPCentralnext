@@ -835,7 +835,7 @@ export default function Settings() {
                 </Avatar>
                 <div>
                   <Label>Profile Picture</Label>
-                  <p className="text-xs text-gray-500 mt-1">Coming soon</p>
+                  <p className="text-xs text-gray-500 mt-1">{businessProfile.businessName}</p>
                 </div>
               </div>
 
