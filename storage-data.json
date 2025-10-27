@@ -144,8 +144,8 @@
       "price": "0.00",
       "taxRate": "10",
       "hasVariations": true,
-      "variants": 2,
-      "variations": "[{\"name\":\"Mini\",\"price\":\"131.31\",\"appointmentDuration\":25,\"noCharge\":false},{\"name\":\"Lite\",\"price\":\"177.82\",\"appointmentDuration\":45,\"noCharge\":false}]",
+      "variants": 4,
+      "variations": "[{\"name\":\"Mini\",\"price\":\"131.31\",\"appointmentDuration\":25,\"noCharge\":false},{\"name\":\"Lite\",\"price\":\"177.82\",\"appointmentDuration\":45,\"noCharge\":false},{\"name\":\"Standard\",\"price\":\"220\",\"appointmentDuration\":60,\"noCharge\":false},{\"name\":\"Premium\",\"price\":\"280\",\"appointmentDuration\":60,\"noCharge\":false}]",
       "productType": "onsite",
       "requiresAppointment": true,
       "appointmentDuration": 60,
@@ -155,7 +155,9 @@
       "isLive": true,
       "image": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/product-images/thumbnails/product-w_c7IaLUOdDwgQutA7e81.jpg",
       "id": "0d8fef03-6d5c-4495-9750-15d7952cb134",
-      "createdAt": "2025-10-26T20:25:52.238Z"
+      "createdAt": "2025-10-26T20:25:52.238Z",
+      "noCharge": false,
+      "includedProducts": null
     },
     "2a90cb34-cd12-4411-a32e-5632da7831c9": {
       "partnerId": "partner_192l9bh1xmduwueha",
