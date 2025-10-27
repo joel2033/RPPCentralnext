@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 export default function Products() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   
   const { data: products = [], isLoading } = useQuery<any[]>({
@@ -86,7 +88,12 @@ export default function Products() {
             </thead>
             <tbody>
               {(products || []).map((product: any) => (
-                <tr key={product.id} className="border-b border-rpp-grey-border hover:bg-gray-50">
+                <tr 
+                  key={product.id} 
+                  className="border-b border-rpp-grey-border hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setLocation(`/products/${product.id}`)}
+                  data-testid={`row-product-${product.id}`}
+                >
                   <td className="py-4 px-6">
                     <div className="flex items-center space-x-3">
                       <div className="w-12 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center">
@@ -112,7 +119,7 @@ export default function Products() {
                   <td className="py-4 px-6 text-sm">
                     {product.hasVariations ? `${product.variants} variations` : 'N/A'}
                   </td>
-                  <td className="py-4 px-6">
+                  <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={product.isLive}
                       onCheckedChange={() => toggleProductStatus(product.id, 'isLive', product.isLive)}
@@ -121,7 +128,7 @@ export default function Products() {
                   <td className="py-4 px-6">
                     {getStatusBadge(product.isActive)}
                   </td>
-                  <td className="py-4 px-6">
+                  <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
                     <button className="text-rpp-grey-light hover:text-rpp-grey-dark">
                       <MoreHorizontal className="w-4 h-4" />
                     </button>

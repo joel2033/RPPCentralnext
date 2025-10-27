@@ -18,6 +18,7 @@ import JobCard from "@/pages/JobCard";
 import Customers from "@/pages/Customers";
 import CustomerProfile from "@/pages/CustomerProfile";
 import Products from "@/pages/Products";
+import ProductDetails from "@/pages/ProductDetails";
 import Orders from "@/pages/Orders";
 import Calendar from "@/pages/Calendar";
 import Upload from "@/pages/Upload";
@@ -174,6 +175,14 @@ function Router() {
         <ProtectedRoute route="/products">
           <Layout>
             <Products />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/products/:id">
+        <ProtectedRoute route="/products">
+          <Layout>
+            <ProductDetails />
           </Layout>
         </ProtectedRoute>
       </Route>
