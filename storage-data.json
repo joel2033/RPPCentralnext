@@ -137,7 +137,7 @@
       "taxRate": "10",
       "hasVariations": true,
       "variants": 2,
-      "variations": "[{\"name\":\"Mini\",\"price\":\"131.82\",\"appointmentDuration\":25,\"noCharge\":false},{\"name\":\"Lite\",\"price\":\"177.82\",\"appointmentDuration\":45,\"noCharge\":false}]",
+      "variations": "[{\"name\":\"Mini\",\"price\":\"131.31\",\"appointmentDuration\":25,\"noCharge\":false},{\"name\":\"Lite\",\"price\":\"177.82\",\"appointmentDuration\":45,\"noCharge\":false}]",
       "productType": "onsite",
       "requiresAppointment": true,
       "appointmentDuration": 60,

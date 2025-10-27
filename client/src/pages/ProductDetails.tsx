@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Upload, Plus, Trash2, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { uploadImageWithThumbnail } from "@/lib/image-utils";
+import { nanoid } from "nanoid";
 
 interface ProductVariation {
   name: string;
@@ -36,10 +38,13 @@ export default function ProductDetails() {
     queryKey: ["/api/customers"],
   });
 
-  // Fetch team members
-  const { data: teamMembers = [] } = useQuery<any[]>({
-    queryKey: ["/api/team/editors"],
+  // Fetch team members (photographers only)
+  const { data: allUsers = [] } = useQuery<any[]>({
+    queryKey: ["/api/users"],
   });
+
+  // Filter for photographers only
+  const teamMembers = allUsers.filter((user: any) => user.role === 'photographer');
 
   // Local state for editing
   const [formData, setFormData] = useState<any>(null);
@@ -47,6 +52,7 @@ export default function ProductDetails() {
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Initialize form data when product loads or changes
   useEffect(() => {
@@ -123,26 +129,56 @@ export default function ProductDetails() {
     },
   });
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!formData) return;
 
-    const variationsData = formData.hasVariations ? variations.map(v => ({
-      name: v.name,
-      price: v.noCharge ? "0.00" : v.price,
-      appointmentDuration: v.appointmentDuration || 60,
-      noCharge: v.noCharge
-    })) : null;
+    try {
+      let imageUrl = imagePreview;
 
-    const updateData = {
-      ...formData,
-      variations: variationsData ? JSON.stringify(variationsData) : null,
-      variants: formData.hasVariations ? variations.length : 0,
-      exclusiveCustomerIds: formData.exclusivityType === "exclusive" && selectedCustomers.length > 0 
-        ? JSON.stringify(selectedCustomers) 
-        : null,
-    };
+      // Upload image if a new one was selected
+      if (productImage) {
+        setIsUploadingImage(true);
+        try {
+          const fileName = `product-${nanoid()}.jpg`;
+          const { thumbnailUrl } = await uploadImageWithThumbnail(
+            productImage,
+            'product-images',
+            fileName
+          );
+          imageUrl = thumbnailUrl;
+        } catch (uploadError) {
+          console.error("Image upload error:", uploadError);
+          toast({
+            title: "Image Upload Failed",
+            description: "Failed to upload product image. Saving other changes...",
+            variant: "destructive",
+          });
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
 
-    updateProductMutation.mutate(updateData);
+      const variationsData = formData.hasVariations ? variations.map(v => ({
+        name: v.name,
+        price: v.noCharge ? "0.00" : v.price,
+        appointmentDuration: v.appointmentDuration || 60,
+        noCharge: v.noCharge
+      })) : null;
+
+      const updateData = {
+        ...formData,
+        variations: variationsData ? JSON.stringify(variationsData) : null,
+        variants: formData.hasVariations ? variations.length : 0,
+        exclusiveCustomerIds: formData.exclusivityType === "exclusive" && selectedCustomers.length > 0 
+          ? JSON.stringify(selectedCustomers) 
+          : null,
+        image: imageUrl || null,
+      };
+
+      updateProductMutation.mutate(updateData);
+    } catch (error) {
+      console.error("Save error:", error);
+    }
   };
 
   const addVariation = () => {
@@ -164,6 +200,16 @@ export default function ProductDetails() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file size (2MB max)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Please select an image smaller than 2MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setProductImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -236,11 +282,11 @@ export default function ProductDetails() {
           </div>
           <Button
             onClick={handleSaveChanges}
-            disabled={updateProductMutation.isPending}
+            disabled={updateProductMutation.isPending || isUploadingImage}
             className="bg-[#f05a2a] hover:bg-rpp-red-dark text-white"
             data-testid="button-save-changes"
           >
-            {updateProductMutation.isPending ? "Saving..." : "Save changes"}
+            {isUploadingImage ? "Uploading image..." : updateProductMutation.isPending ? "Saving..." : "Save changes"}
           </Button>
         </div>
       </div>
@@ -565,7 +611,7 @@ export default function ProductDetails() {
             <div className="bg-white rounded-xl border border-rpp-grey-border p-6">
               <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Team Providers</h3>
               <p className="text-sm text-rpp-grey-light mb-4">
-                Choose the team members eligible to provide this product. By default, all team members will be selected.
+                Choose the photographer team members eligible to provide this product. By default, all team members will be selected.
               </p>
               {teamMembers.length > 0 ? (
                 <div className="space-y-2">
@@ -577,14 +623,14 @@ export default function ProductDetails() {
                         data-testid={`checkbox-provider-${member.id}`} 
                       />
                       <Label htmlFor={`provider-${member.id}`} className="text-sm font-normal cursor-pointer">
-                        {member.name || member.email}
+                        {member.firstName && member.lastName ? `${member.firstName} ${member.lastName}` : member.email}
                       </Label>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-rpp-grey-light italic">
-                  No team members found. Add team members to assign them to products.
+                  No photographer team members found. Add photographers to assign them to products.
                 </p>
               )}
             </div>
