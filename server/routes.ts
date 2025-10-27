@@ -46,6 +46,7 @@ import { getStorage } from 'firebase-admin/storage';
 import fs from 'fs';
 import JSZip from 'jszip';
 import { nanoid } from 'nanoid';
+import sharp from 'sharp';
 
 // Initialize Firebase Admin if not already done
 if (getApps().length === 0) {
@@ -1168,7 +1169,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[PRODUCT IMAGE] Original uploaded:", originalUrl);
 
       // Create and upload thumbnail (400x400)
-      const sharp = require('sharp');
       const thumbnailBuffer = await sharp(imageBuffer)
         .resize(400, 400, {
           fit: 'inside',
