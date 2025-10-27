@@ -122,21 +122,14 @@ export default function Products() {
                   <td className="py-4 px-6 text-sm">{product.category || '-'}</td>
                   <td className="py-4 px-6 text-sm">
                     {(() => {
-                      // Debug log for this specific product
-                      console.log('Product pricing debug:', {
-                        id: product.id,
-                        title: product.title,
-                        hasVariations: product.hasVariations,
-                        variations: product.variations,
-                        basePrice: product.price
-                      });
-
                       if (product.hasVariations && product.variations) {
                         try {
-                          // Handle variations as either array or object
+                          // Parse variations if it's a JSON string
                           let variationsArray: any[] = [];
                           
-                          if (Array.isArray(product.variations)) {
+                          if (typeof product.variations === 'string') {
+                            variationsArray = JSON.parse(product.variations);
+                          } else if (Array.isArray(product.variations)) {
                             variationsArray = product.variations;
                           } else if (typeof product.variations === 'object') {
                             variationsArray = Object.values(product.variations);
@@ -144,13 +137,8 @@ export default function Products() {
 
                           if (variationsArray.length > 0) {
                             const prices = variationsArray
-                              .map((v: any) => {
-                                const price = parseFloat(v?.price || 0);
-                                return price;
-                              })
+                              .map((v: any) => parseFloat(v?.price || 0))
                               .filter((p: number) => !isNaN(p) && p > 0);
-
-                            console.log('Extracted prices:', prices);
 
                             if (prices.length > 0) {
                               return `From $${Math.min(...prices).toFixed(2)}`;
