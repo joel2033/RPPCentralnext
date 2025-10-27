@@ -34,6 +34,16 @@ Preferred communication style: Simple, everyday language.
 - **Authorization**: Multi-tenant data isolation using `partnerId`.
 - **Team Management**: Supports partner signup, team member invitations, and management.
 
+### Multi-Tenant Security (Production-Hardened)
+- **Route-Level Protection**: All partner-facing API endpoints enforce authentication via `requireAuth` middleware and tenant isolation via `partnerId` filtering.
+- **Storage-Level Enforcement**: All tenant-scoped storage methods (getUsers, getCustomers, getProducts, getJobs, getOrders) require `partnerId` as a mandatory parameter - TypeScript prevents accidental omission.
+- **Ownership Verification**: All GET-by-ID endpoints verify tenant ownership and return 403 Forbidden on mismatch.
+- **Write Protection**: All POST/PATCH endpoints inject `partnerId` from authenticated user context to prevent cross-tenant data poisoning.
+- **Helper Method Security**: Helper methods (getOrderServices, getOrderFiles, getCustomerJobs, getUserConversations) require `partnerId` and verify tenant ownership before returning data.
+- **Editor Isolation**: Dedicated `getOrdersForEditor(editorId)` method prevents editors from accessing orders outside their assignments.
+- **No Cross-Tenant Scans**: All insecure patterns (global data scans, fallback searches across tenants) eliminated from codebase.
+- **Disabled Endpoints**: `/api/files/proxy/:fileId` endpoint disabled (returns 501) until refactored with proper tenant-scoped security.
+
 ## File Storage
 - **Provider**: Firebase Storage.
 - **Use Cases**: Stores profile images, product images, business logos, job cover images, and general file uploads.
