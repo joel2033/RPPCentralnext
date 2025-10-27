@@ -150,12 +150,37 @@ export default function ProductDetails() {
     setVariations(newVariations);
   };
 
-  if (isLoading || !formData) {
+  if (isLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-rpp-grey-border rounded w-1/4"></div>
           <div className="h-96 bg-rpp-grey-border rounded-xl"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-red-600">Product not found</h2>
+          <p className="text-rpp-grey-light mt-2">This product doesn't exist or has been deleted.</p>
+          <Button onClick={() => setLocation("/products")} className="mt-4">
+            Back to Products
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!formData) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-blue-600">Loading product data...</h2>
+          <p className="text-rpp-grey-light mt-2">Please wait while we load the product information.</p>
         </div>
       </div>
     );
