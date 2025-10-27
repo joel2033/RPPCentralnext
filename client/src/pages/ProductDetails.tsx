@@ -11,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Upload, Plus, Trash2, X, Check } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { uploadImageWithThumbnail } from "@/lib/image-utils";
 import { nanoid } from "nanoid";
 
 interface ProductVariation {
@@ -144,11 +143,32 @@ export default function ProductDetails() {
       const fileName = `product-${nanoid()}.jpg`;
       console.log("Uploading with filename:", fileName);
       
-      const { thumbnailUrl } = await uploadImageWithThumbnail(
-        productImage,
-        'product-images',
-        fileName
-      );
+      // Convert image to base64
+      const reader = new FileReader();
+      const imageData = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(productImage);
+      });
+
+      // Upload via backend endpoint (bypasses CORS)
+      const response = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageData,
+          fileName
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const { thumbnailUrl } = await response.json();
       
       console.log("Upload successful! URL:", thumbnailUrl);
       setUploadedImageUrl(thumbnailUrl);

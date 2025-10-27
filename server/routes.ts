@@ -1127,6 +1127,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Product image upload endpoint
+  app.post("/api/products/upload-image", async (req, res) => {
+    try {
+      const { imageData, fileName } = req.body;
+
+      if (!imageData || !fileName) {
+        return res.status(400).json({ error: "Missing imageData or fileName" });
+      }
+
+      console.log("[PRODUCT IMAGE] Starting upload for:", fileName);
+
+      // Get Firebase Admin Storage
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+
+      const bucket = getStorage().bucket(bucketName);
+
+      // Convert base64 to buffer
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      console.log("[PRODUCT IMAGE] Image buffer size:", imageBuffer.length);
+
+      // Upload original image
+      const originalPath = `product-images/${fileName}`;
+      const originalFile = bucket.file(originalPath);
+      
+      await originalFile.save(imageBuffer, {
+        metadata: {
+          contentType: 'image/jpeg',
+        },
+      });
+
+      await originalFile.makePublic();
+      const originalUrl = `https://storage.googleapis.com/${bucketName}/${originalPath}`;
+
+      console.log("[PRODUCT IMAGE] Original uploaded:", originalUrl);
+
+      // Create and upload thumbnail (400x400)
+      const sharp = require('sharp');
+      const thumbnailBuffer = await sharp(imageBuffer)
+        .resize(400, 400, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      const thumbnailPath = `product-images/thumbnails/${fileName}`;
+      const thumbnailFile = bucket.file(thumbnailPath);
+      
+      await thumbnailFile.save(thumbnailBuffer, {
+        metadata: {
+          contentType: 'image/jpeg',
+        },
+      });
+
+      await thumbnailFile.makePublic();
+      const thumbnailUrl = `https://storage.googleapis.com/${bucketName}/${thumbnailPath}`;
+
+      console.log("[PRODUCT IMAGE] Thumbnail uploaded:", thumbnailUrl);
+
+      res.json({ 
+        success: true,
+        originalUrl,
+        thumbnailUrl 
+      });
+    } catch (error: any) {
+      console.error("Product image upload error:", error);
+      res.status(500).json({ 
+        error: "Failed to upload product image", 
+        details: error.message 
+      });
+    }
+  });
+
   // Orders endpoints - Requires authentication for multi-tenant security
   app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
