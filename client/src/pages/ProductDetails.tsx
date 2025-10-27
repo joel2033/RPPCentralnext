@@ -27,7 +27,7 @@ export default function ProductDetails() {
 
   // Fetch product data
   const { data: product, isLoading } = useQuery({
-    queryKey: ["/api/products", id],
+    queryKey: [`/api/products/${id}`],
     enabled: !!id,
   });
 
@@ -96,7 +96,7 @@ export default function ProductDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/products", id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/products/${id}`] });
       toast({
         title: "Changes Saved",
         description: "Product has been updated successfully.",
