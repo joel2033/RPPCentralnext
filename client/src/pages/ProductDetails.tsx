@@ -26,7 +26,7 @@ export default function ProductDetails() {
   const { toast } = useToast();
 
   // Fetch product data
-  const { data: product, isLoading } = useQuery({
+  const { data: product, isLoading, error } = useQuery({
     queryKey: [`/api/products/${id}`],
     enabled: !!id,
   });
@@ -35,6 +35,9 @@ export default function ProductDetails() {
   const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
+
+  // Debug logging
+  console.log("ProductDetails Debug:", { id, product, isLoading, error });
 
   // Local state for editing
   const [formData, setFormData] = useState<any>(null);
