@@ -116,7 +116,7 @@ export default function Products() {
                   </td>
                   <td className="py-4 px-6 text-sm">{product.category || '-'}</td>
                   <td className="py-4 px-6 text-sm">
-                    {product.hasVariations && product.variations?.length > 0
+                    {product.hasVariations && Array.isArray(product.variations) && product.variations.length > 0
                       ? `From $${Math.min(...product.variations.map((v: any) => parseFloat(v.price) || 0)).toFixed(2)}`
                       : `$${parseFloat(product.price || 0).toFixed(2)}`}
                   </td>
