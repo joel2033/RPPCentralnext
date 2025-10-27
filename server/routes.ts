@@ -219,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single product by ID
   app.get("/api/products/:id", async (req, res) => {
     try {
-      const product = await storage.getProductById(req.params.id);
+      const product = await storage.getProduct(req.params.id);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
