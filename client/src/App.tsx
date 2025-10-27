@@ -171,18 +171,18 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/products">
-        <ProtectedRoute route="/products">
-          <Layout>
-            <Products />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
-      
       <Route path="/products/:id">
         <ProtectedRoute route="/products">
           <Layout>
             <ProductDetails />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/products">
+        <ProtectedRoute route="/products">
+          <Layout>
+            <Products />
           </Layout>
         </ProtectedRoute>
       </Route>
