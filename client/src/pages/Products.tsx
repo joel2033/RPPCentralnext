@@ -4,7 +4,13 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal } from "lucide-react";
+import { Plus, MoreHorizontal, Archive, Edit } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import CreateProductModal from "@/components/modals/CreateProductModal";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -31,11 +37,30 @@ export default function Products() {
     },
   });
 
+  const archiveProductMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("PATCH", `/api/products/${id}`, { isActive: false });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+    },
+  });
+
   const toggleProductStatus = (id: string, field: 'isActive' | 'isLive', currentValue: boolean) => {
     updateProductMutation.mutate({
       id,
       updates: { [field]: !currentValue }
     });
+  };
+
+  const handleArchiveProduct = (id: string) => {
+    if (confirm("Are you sure you want to archive this product?")) {
+      archiveProductMutation.mutate(id);
+    }
+  };
+
+  const handleEditProduct = (id: string) => {
+    setLocation(`/products/${id}`);
   };
 
   const getStatusBadge = (isActive: boolean) => {
@@ -169,9 +194,26 @@ export default function Products() {
                     {getStatusBadge(product.isActive)}
                   </td>
                   <td className="py-3 px-3">
-                    <button className="text-rpp-grey-light hover:text-rpp-grey-dark">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="text-rpp-grey-light hover:text-rpp-grey-dark">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditProduct(product.id)}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Edit {product.type || 'Product'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleArchiveProduct(product.id)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Archive className="w-4 h-4 mr-2" />
+                          Archive {product.type || 'Product'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               )) || (
