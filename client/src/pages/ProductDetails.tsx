@@ -132,30 +132,38 @@ export default function ProductDetails() {
   });
 
   const handleImageUpload = async () => {
-    if (!productImage) return;
+    if (!productImage) {
+      console.log("No product image to upload");
+      return;
+    }
 
+    console.log("Starting image upload...", productImage.name);
     setIsUploadingImage(true);
+    
     try {
       const fileName = `product-${nanoid()}.jpg`;
+      console.log("Uploading with filename:", fileName);
+      
       const { thumbnailUrl } = await uploadImageWithThumbnail(
         productImage,
         'product-images',
         fileName
       );
       
+      console.log("Upload successful! URL:", thumbnailUrl);
       setUploadedImageUrl(thumbnailUrl);
       setImagePreview(thumbnailUrl);
-      setProductImage(null); // Clear the file after successful upload
+      setProductImage(null);
       
       toast({
         title: "Image Uploaded",
         description: "Product image uploaded successfully. Click 'Save changes' to update the product.",
       });
-    } catch (uploadError) {
+    } catch (uploadError: any) {
       console.error("Image upload error:", uploadError);
       toast({
         title: "Upload Failed",
-        description: "Failed to upload product image. Please try again.",
+        description: uploadError?.message || "Failed to upload product image. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -322,52 +330,55 @@ export default function ProductDetails() {
                   Upload an image to display as a thumbnail for the booking page and form
                 </p>
                 {imagePreview ? (
-                  <div className="space-y-3">
-                    <div className="relative inline-block">
+                  <div className="flex items-start gap-3">
+                    <div className="relative">
                       <img
                         src={imagePreview}
                         alt="Product thumbnail"
-                        className="w-32 h-32 object-cover rounded-lg border border-rpp-grey-border"
+                        className="w-24 h-24 object-cover rounded-lg border border-rpp-grey-border"
                       />
                       <button
                         onClick={removeImage}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                         data-testid="button-remove-image"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3 h-3" />
                       </button>
                       {uploadedImageUrl && (
-                        <div className="absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                          <Check className="w-4 h-4" />
+                        <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-0.5">
+                          <Check className="w-3 h-3" />
                         </div>
                       )}
                     </div>
-                    {productImage && !uploadedImageUrl && (
-                      <Button
-                        onClick={handleImageUpload}
-                        disabled={isUploadingImage}
-                        className="bg-[#f05a2a] hover:bg-rpp-red-dark text-white"
-                        data-testid="button-upload-image"
-                      >
-                        {isUploadingImage ? (
-                          <>
-                            <Upload className="w-4 h-4 mr-2 animate-pulse" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Image
-                          </>
-                        )}
-                      </Button>
-                    )}
-                    {uploadedImageUrl && (
-                      <div className="flex items-center gap-2 text-sm text-green-600">
-                        <Check className="w-4 h-4" />
-                        Image uploaded successfully
-                      </div>
-                    )}
+                    <div className="flex flex-col gap-2">
+                      {productImage && !uploadedImageUrl && (
+                        <Button
+                          onClick={handleImageUpload}
+                          disabled={isUploadingImage}
+                          size="sm"
+                          className="bg-[#f05a2a] hover:bg-rpp-red-dark text-white"
+                          data-testid="button-upload-image"
+                        >
+                          {isUploadingImage ? (
+                            <>
+                              <Upload className="w-3 h-3 mr-1 animate-pulse" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3 h-3 mr-1" />
+                              Upload
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {uploadedImageUrl && (
+                        <div className="flex items-center gap-1 text-xs text-green-600">
+                          <Check className="w-3 h-3" />
+                          Uploaded
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="border-2 border-dashed border-rpp-grey-border rounded-lg p-6 flex flex-col items-center justify-center bg-rpp-grey-surface/50">
