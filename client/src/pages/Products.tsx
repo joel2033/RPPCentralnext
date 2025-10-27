@@ -58,17 +58,17 @@ export default function Products() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold text-rpp-grey-dark">Manage Products</h2>
-          <p className="text-rpp-grey-light">
-            Easily add and manage your products, packages, and add-ons, and seamlessly integrate them anywhere in your business with a range of customisable preferences.
+    <div className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="max-w-2xl">
+          <h2 className="text-xl md:text-2xl font-bold text-rpp-grey-dark">Manage Products</h2>
+          <p className="text-sm text-rpp-grey-light hidden md:block">
+            Add and manage your products, packages, and add-ons with customizable preferences.
           </p>
         </div>
         <Button
           onClick={() => setShowCreateModal(true)}
-          className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
+          className="hover:bg-rpp-red-dark text-white bg-[#f05a2a] whitespace-nowrap"
         >
           <Plus className="w-4 h-4 mr-2" />
           New product
@@ -78,17 +78,17 @@ export default function Products() {
       {/* Products Table */}
       <div className="bg-white rounded-xl shadow-sm border border-rpp-grey-border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead className="bg-rpp-grey-surface border-b border-rpp-grey-border">
               <tr>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Product Description</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Type</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Category(s)</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Price</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Variants</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Showing (live)</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark">Status</th>
-                <th className="text-left py-3 px-6 font-medium text-rpp-grey-dark"></th>
+                <th className="text-left py-2.5 px-4 font-medium text-rpp-grey-dark text-xs">Product</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs">Type</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs">Category</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs">Price</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs">Variants</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs text-center">Live</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs">Status</th>
+                <th className="text-left py-2.5 px-3 font-medium text-rpp-grey-dark text-xs w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -99,28 +99,28 @@ export default function Products() {
                   onClick={() => setLocation(`/products/${product.id}`)}
                   data-testid={`row-product-${product.id}`}
                 >
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center">
+                  <td className="py-3 px-4">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center flex-shrink-0">
                         {product.image ? (
                           <img src={product.image} alt={product.title} className="w-full h-full object-cover rounded" />
                         ) : (
                           <span className="text-blue-600 text-xs">📷</span>
                         )}
                       </div>
-                      <div>
-                        <p className="font-medium text-rpp-grey-dark">{product.title}</p>
-                        <p className="text-sm text-rpp-grey-light">{product.description || 'No description'}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium text-rpp-grey-dark text-sm truncate">{product.title}</p>
+                        <p className="text-xs text-rpp-grey-light truncate">{product.description || 'No description'}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 px-6">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <td className="py-3 px-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       Product
                     </span>
                   </td>
-                  <td className="py-4 px-6 text-sm">{product.category || '-'}</td>
-                  <td className="py-4 px-6 text-sm">
+                  <td className="py-3 px-3 text-sm">{product.category || '-'}</td>
+                  <td className="py-3 px-3 text-sm font-medium">
                     {(() => {
                       if (product.hasVariations && product.variations) {
                         try {
@@ -154,19 +154,19 @@ export default function Products() {
                       return `$${basePrice.toFixed(2)}`;
                     })()}
                   </td>
-                  <td className="py-4 px-6 text-sm">
+                  <td className="py-3 px-3 text-xs text-rpp-grey-light">
                     {product.hasVariations ? `${product.variants} variations` : 'N/A'}
                   </td>
-                  <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
+                  <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={product.isLive}
                       onCheckedChange={() => toggleProductStatus(product.id, 'isLive', product.isLive)}
                     />
                   </td>
-                  <td className="py-4 px-6">
+                  <td className="py-3 px-3">
                     {getStatusBadge(product.isActive)}
                   </td>
-                  <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
+                  <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
                     <button className="text-rpp-grey-light hover:text-rpp-grey-dark">
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
