@@ -156,6 +156,28 @@
       "image": "https://storage.googleapis.com/rpp-central-flask.firebasestorage.app/product-images/thumbnails/product-w_c7IaLUOdDwgQutA7e81.jpg",
       "id": "0d8fef03-6d5c-4495-9750-15d7952cb134",
       "createdAt": "2025-10-26T20:25:52.238Z"
+    },
+    "2a90cb34-cd12-4411-a32e-5632da7831c9": {
+      "partnerId": "partner_192l9bh1xmduwueha",
+      "title": "Starter",
+      "description": null,
+      "type": "package",
+      "category": null,
+      "price": "359.09",
+      "taxRate": "10",
+      "hasVariations": null,
+      "variants": null,
+      "variations": null,
+      "productType": "onsite",
+      "requiresAppointment": true,
+      "appointmentDuration": 45,
+      "exclusivityType": "none",
+      "exclusiveCustomerIds": null,
+      "isActive": true,
+      "isLive": true,
+      "image": null,
+      "id": "2a90cb34-cd12-4411-a32e-5632da7831c9",
+      "createdAt": "2025-10-27T13:01:46.484Z"
     }
   },
   "jobs": {
