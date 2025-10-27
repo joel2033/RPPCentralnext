@@ -147,19 +147,23 @@ const optionalAuth = async (req: any, res: any, next: any) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Customers
-  app.get("/api/customers", async (req, res) => {
+  // Customers - SECURED with authentication and tenant isolation
+  app.get("/api/customers", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const customers = await storage.getCustomers();
+      const customers = await storage.getCustomers(req.user?.partnerId);
       res.json(customers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch customers" });
     }
   });
 
-  app.post("/api/customers", async (req, res) => {
+  app.post("/api/customers", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const validatedData = insertCustomerSchema.parse(req.body);
+      // Inject partnerId from authenticated user to prevent cross-tenant data poisoning
+      const validatedData = insertCustomerSchema.parse({
+        ...req.body,
+        partnerId: req.user?.partnerId
+      });
       const customer = await storage.createCustomer(validatedData);
       res.status(201).json(customer);
     } catch (error) {
@@ -167,11 +171,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/customers/:id", async (req, res) => {
+  app.get("/api/customers/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const customer = await storage.getCustomer(req.params.id);
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
+      }
+      // Verify customer belongs to user's tenant
+      if (customer.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       res.json(customer);
     } catch (error) {
@@ -179,11 +187,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/customers/:id/profile", async (req, res) => {
+  app.get("/api/customers/:id/profile", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const customer = await storage.getCustomer(req.params.id);
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
+      }
+      // Verify customer belongs to user's tenant
+      if (customer.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const jobs = await storage.getCustomerJobs(req.params.id);
@@ -197,32 +209,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Users
-  app.get("/api/users", async (req, res) => {
+  // Users - SECURED with authentication and tenant isolation
+  app.get("/api/users", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const users = await storage.getUsers();
+      const users = await storage.getUsers(req.user?.partnerId);
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
-  // Products
-  app.get("/api/products", async (req, res) => {
+  // Products - SECURED with authentication and tenant isolation
+  app.get("/api/products", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const products = await storage.getProducts();
+      const products = await storage.getProducts(req.user?.partnerId);
       res.json(products);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch products" });
     }
   });
 
-  // Get single product by ID
-  app.get("/api/products/:id", async (req, res) => {
+  // Get single product by ID - SECURED
+  app.get("/api/products/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const product = await storage.getProduct(req.params.id);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
+      }
+      // Verify product belongs to user's tenant
+      if (product.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       res.json(product);
     } catch (error) {
@@ -233,22 +249,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Product creation moved to line 1103 with better error handling
 
-  app.patch("/api/products/:id", async (req, res) => {
+  app.patch("/api/products/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const product = await storage.updateProduct(req.params.id, req.body);
-      if (!product) {
+      // First verify the product exists and belongs to this tenant
+      const existingProduct = await storage.getProduct(req.params.id);
+      if (!existingProduct) {
         return res.status(404).json({ error: "Product not found" });
       }
+      if (existingProduct.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const product = await storage.updateProduct(req.params.id, req.body);
       res.json(product);
     } catch (error) {
       res.status(500).json({ error: "Failed to update product" });
     }
   });
 
-  // Jobs
-  app.get("/api/jobs", async (req, res) => {
+  // Jobs - SECURED with authentication and tenant isolation
+  app.get("/api/jobs", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const jobs = await storage.getJobs();
+      const jobs = await storage.getJobs(req.user?.partnerId);
       res.json(jobs);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch jobs" });
@@ -319,11 +341,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/jobs/:id", async (req, res) => {
+  app.get("/api/jobs/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const job = await storage.getJob(req.params.id);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
+      }
+      // Verify job belongs to user's tenant
+      if (job.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
       }
       res.json(job);
     } catch (error) {
@@ -424,10 +450,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Orders
-  app.get("/api/orders", async (req, res) => {
+  // Orders - SECURED with authentication and tenant isolation
+  app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const orders = await storage.getOrders();
+      const orders = await storage.getOrders(req.user?.partnerId);
       res.json(orders);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch orders" });
@@ -733,12 +759,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Dashboard stats
-  app.get("/api/dashboard/stats", async (req, res) => {
+  // Dashboard stats - SECURED with authentication and tenant isolation
+  app.get("/api/dashboard/stats", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const jobs = await storage.getJobs();
-      const orders = await storage.getOrders();
-      const customers = await storage.getCustomers();
+      const jobs = await storage.getJobs(req.user?.partnerId);
+      const orders = await storage.getOrders(req.user?.partnerId);
+      const customers = await storage.getCustomers(req.user?.partnerId);
 
       const totalJobs = jobs.length;
       const totalOrders = orders.length;
@@ -1065,51 +1091,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Customers endpoints
-  app.get("/api/customers", async (req, res) => {
+  // Customers endpoints - REMOVED DUPLICATES (secured versions are defined earlier)
+  
+  // Products endpoints - REMOVED DUPLICATES (secured versions are defined earlier)
+  
+  // Product creation with enhanced error handling
+  app.post("/api/products", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const customers = await storage.getCustomers();
-      res.json(customers);
-    } catch (error: any) {
-      console.error("Error getting customers:", error);
-      res.status(500).json({ 
-        error: "Failed to get customers", 
-        details: error.message 
+      // Inject partnerId from authenticated user
+      const productData = insertProductSchema.parse({
+        ...req.body,
+        partnerId: req.user?.partnerId
       });
-    }
-  });
-
-  app.post("/api/customers", async (req, res) => {
-    try {
-      const customerData = insertCustomerSchema.parse(req.body);
-      const customer = await storage.createCustomer(customerData);
-      res.status(201).json(customer);
-    } catch (error: any) {
-      console.error("Error creating customer:", error);
-      res.status(500).json({ 
-        error: "Failed to create customer", 
-        details: error.message 
-      });
-    }
-  });
-
-  // Products endpoints
-  app.get("/api/products", async (req, res) => {
-    try {
-      const products = await storage.getProducts();
-      res.json(products);
-    } catch (error: any) {
-      console.error("Error getting products:", error);
-      res.status(500).json({ 
-        error: "Failed to get products", 
-        details: error.message 
-      });
-    }
-  });
-
-  app.post("/api/products", async (req, res) => {
-    try {
-      const productData = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(productData);
       res.status(201).json(product);
     } catch (error: any) {
@@ -1250,26 +1243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/orders", async (req, res) => {
-    try {
-      const orderData = insertOrderSchema.parse(req.body);
-      const order = await storage.createOrder(orderData);
-      res.status(201).json(order);
-    } catch (error: any) {
-      console.error("Error creating order:", error);
-      if (error.name === 'ZodError') {
-        res.status(400).json({ 
-          error: "Invalid order data", 
-          details: error.errors 
-        });
-      } else {
-        res.status(500).json({ 
-          error: "Failed to create order", 
-          details: error.message 
-        });
-      }
-    }
-  });
+  // REMOVED DUPLICATE: Secured version already defined earlier in file
 
   // Notifications - All endpoints require authentication
   app.get("/api/notifications", requireAuth, async (req: AuthenticatedRequest, res) => {
