@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { useRealtimeNotifications, useRealtimeConversations } from "@/hooks/useFirestoreRealtime";
@@ -31,6 +31,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const { userData, logout, currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Fetch business settings
+  const { data: savedSettings } = useQuery({
+    queryKey: ['/api/settings']
+  });
 
   // Real-time notifications from Firestore
   const { notifications = [], unreadCount: unreadNotificationsCount } = useRealtimeNotifications(
@@ -224,7 +229,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </div>
                 <div className="hidden md:block text-left">
                   <div className="text-sm font-medium text-rpp-grey-dark">
-                    {userData?.email || 'User'}
+                    {savedSettings?.businessProfile?.businessName || userData?.email || 'User'}
                   </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-rpp-grey-light" />
