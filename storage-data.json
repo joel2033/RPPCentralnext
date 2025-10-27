@@ -131,7 +131,9 @@
       "appointmentDuration": 60,
       "exclusivityType": "none",
       "variations": null,
-      "exclusiveCustomerIds": null
+      "exclusiveCustomerIds": null,
+      "noCharge": false,
+      "includedProducts": null
     },
     "0d8fef03-6d5c-4495-9750-15d7952cb134": {
       "partnerId": "partner_192l9bh1xmduwueha",
