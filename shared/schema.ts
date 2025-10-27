@@ -57,11 +57,13 @@ export const products = pgTable("products", {
   hasVariations: boolean("has_variations").default(false),
   variants: integer("variants").default(0),
   variations: text("variations"), // JSON array of {name, price, appointmentDuration, noCharge}
+  noCharge: boolean("no_charge").default(false), // For non-variation products with no charge
   productType: text("product_type").default("onsite"), // "onsite", "digital"
   requiresAppointment: boolean("requires_appointment").default(true),
   appointmentDuration: integer("appointment_duration").default(60), // Default duration in minutes for base product
   exclusivityType: text("exclusivity_type").default("none"), // "none", "exclusive"
   exclusiveCustomerIds: text("exclusive_customer_ids"), // JSON array of customer IDs
+  includedProducts: text("included_products"), // JSON array of {productId, quantity} for package inclusions
   isActive: boolean("is_active").default(true),
   isLive: boolean("is_live").default(true),
   image: text("image"),

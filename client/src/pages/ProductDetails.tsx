@@ -45,6 +45,11 @@ export default function ProductDetails() {
   // Filter for photographers only
   const teamMembers = allUsers.filter((user: any) => user.role === 'photographer');
 
+  // Fetch all products for inclusions
+  const { data: allProducts = [] } = useQuery<any[]>({
+    queryKey: ["/api/products"],
+  });
+
   // Local state for editing
   const [formData, setFormData] = useState<any>(null);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
@@ -53,6 +58,7 @@ export default function ProductDetails() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [includedProducts, setIncludedProducts] = useState<Array<{ productId: string; quantity: number }>>([]);
 
   // Initialize form data when product loads or changes
   useEffect(() => {
@@ -72,7 +78,21 @@ export default function ProductDetails() {
         exclusivityType: productData.exclusivityType || "none",
         isActive: productData.isActive !== undefined ? productData.isActive : true,
         isLive: productData.isLive !== undefined ? productData.isLive : true,
+        noCharge: productData.noCharge || false,
       });
+
+      // Parse included products if they exist
+      if (productData.includedProducts) {
+        try {
+          const parsedInclusions = JSON.parse(productData.includedProducts);
+          setIncludedProducts(parsedInclusions);
+        } catch (e) {
+          console.error("Failed to parse included products:", e);
+          setIncludedProducts([]);
+        }
+      } else {
+        setIncludedProducts([]);
+      }
 
       // Set image preview and uploaded URL if exists
       if (productData.image) {
@@ -209,6 +229,7 @@ export default function ProductDetails() {
         ? JSON.stringify(selectedCustomers) 
         : null,
       image: uploadedImageUrl || null,
+      includedProducts: includedProducts.length > 0 ? JSON.stringify(includedProducts) : null,
     };
 
     updateProductMutation.mutate(updateData);
@@ -526,6 +547,70 @@ export default function ProductDetails() {
                 )}
               </div>
 
+              {/* Pricing & Tax Section - Only shown when product doesn't have variations */}
+              {!formData.hasVariations && (
+                <div className="border-t border-rpp-grey-border pt-6">
+                  <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Pricing & Tax</h3>
+                  <p className="text-sm text-rpp-grey-light mb-4">
+                    Update your product's price and tax
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-rpp-grey-dark mb-2">
+                        Price (before tax)
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-rpp-grey-light">AUD $</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.price}
+                          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                          className="border-rpp-grey-border"
+                          disabled={formData.noCharge}
+                          data-testid="input-product-price"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-rpp-grey-dark mb-2">
+                        Tax Rate
+                      </Label>
+                      <Select
+                        value={formData.taxRate}
+                        onValueChange={(value) => setFormData({ ...formData, taxRate: value })}
+                      >
+                        <SelectTrigger className="border-rpp-grey-border" data-testid="select-tax-rate-pricing">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">GST Free (0%)</SelectItem>
+                          <SelectItem value="10">GST (10%)</SelectItem>
+                          <SelectItem value="15">GST (15%)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-4">
+                    <Checkbox
+                      id="no-charge"
+                      checked={formData.noCharge}
+                      onCheckedChange={(checked) => {
+                        setFormData({ 
+                          ...formData, 
+                          noCharge: checked as boolean,
+                          price: checked ? "0.00" : formData.price 
+                        });
+                      }}
+                      data-testid="checkbox-no-charge"
+                    />
+                    <Label htmlFor="no-charge" className="text-sm font-normal cursor-pointer">
+                      No charge
+                    </Label>
+                  </div>
+                </div>
+              )}
+
               {/* Variations Section */}
               <div className="border-t border-rpp-grey-border pt-6">
                 <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Variations</h3>
@@ -651,6 +736,101 @@ export default function ProductDetails() {
                       <Plus className="w-4 h-4 mr-2" />
                       New option
                     </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Inclusions Section */}
+              <div className="border-t border-rpp-grey-border pt-6">
+                <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Inclusions</h3>
+                <p className="text-sm text-rpp-grey-light mb-4">
+                  Manage what products your package or add-on includes
+                </p>
+                <Select
+                  onValueChange={(value) => {
+                    if (!includedProducts.find(p => p.productId === value)) {
+                      setIncludedProducts([...includedProducts, { productId: value, quantity: 1 }]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="border-rpp-grey-border mb-4" data-testid="select-included-products">
+                    <SelectValue placeholder="Select product/s" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allProducts
+                      .filter((p: any) => p.id !== id) // Don't allow selecting itself
+                      .map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+
+                {includedProducts.length > 0 && (
+                  <div className="space-y-2">
+                    {includedProducts.map((inclusion, index) => {
+                      const product = allProducts.find((p: any) => p.id === inclusion.productId);
+                      if (!product) return null;
+
+                      // Calculate price based on variations or base price
+                      let displayPrice = "0.00";
+                      if (product.hasVariations && product.variations) {
+                        try {
+                          const variations = typeof product.variations === 'string' 
+                            ? JSON.parse(product.variations) 
+                            : product.variations;
+                          if (variations.length > 0) {
+                            const prices = variations.map((v: any) => parseFloat(v.price || 0));
+                            displayPrice = Math.min(...prices).toFixed(2);
+                          }
+                        } catch (e) {
+                          displayPrice = parseFloat(product.price || 0).toFixed(2);
+                        }
+                      } else {
+                        displayPrice = parseFloat(product.price || 0).toFixed(2);
+                      }
+
+                      return (
+                        <div
+                          key={inclusion.productId}
+                          className="flex items-center justify-between bg-rpp-grey-surface p-3 rounded-lg border border-rpp-grey-border"
+                        >
+                          <div className="flex items-center gap-3 flex-1">
+                            <button
+                              onClick={() => setIncludedProducts(includedProducts.filter((_, i) => i !== index))}
+                              className="text-red-500 hover:text-red-700"
+                              data-testid={`button-remove-inclusion-${index}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={inclusion.quantity}
+                              onChange={(e) => {
+                                const newInclusions = [...includedProducts];
+                                newInclusions[index].quantity = parseInt(e.target.value) || 1;
+                                setIncludedProducts(newInclusions);
+                              }}
+                              className="w-16 border-rpp-grey-border"
+                              data-testid={`input-inclusion-quantity-${index}`}
+                            />
+                            <span className="text-sm font-medium text-rpp-grey-dark">
+                              {product.title}
+                              {product.hasVariations && (
+                                <span className="text-xs text-rpp-grey-light ml-2">
+                                  [{product.variants || 0} variations]
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <span className="text-sm font-medium text-rpp-grey-dark">
+                            ${displayPrice}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
