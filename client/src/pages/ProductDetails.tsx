@@ -42,9 +42,9 @@ export default function ProductDetails() {
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
 
-  // Initialize form data when product loads
+  // Initialize form data when product loads or changes
   useEffect(() => {
-    if (product && !formData) {
+    if (product) {
       const productData: any = product;
       setFormData({
         title: productData.title || "",
@@ -69,7 +69,10 @@ export default function ProductDetails() {
           setVariations(parsedVariations);
         } catch (e) {
           console.error("Failed to parse variations:", e);
+          setVariations([]);
         }
+      } else {
+        setVariations([]);
       }
 
       // Parse exclusive customer IDs
@@ -79,10 +82,13 @@ export default function ProductDetails() {
           setSelectedCustomers(parsedIds);
         } catch (e) {
           console.error("Failed to parse exclusive customer IDs:", e);
+          setSelectedCustomers([]);
         }
+      } else {
+        setSelectedCustomers([]);
       }
     }
-  }, [product, formData]);
+  }, [product, id]);
 
   const updateProductMutation = useMutation({
     mutationFn: async (data: any) => {
