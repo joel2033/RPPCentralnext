@@ -12,7 +12,7 @@ export default function Products() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  
+
   const { data: products = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/products"],
   });
@@ -61,7 +61,7 @@ export default function Products() {
             Easily add and manage your products, packages, and add-ons, and seamlessly integrate them anywhere in your business with a range of customisable preferences.
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => setShowCreateModal(true)}
           className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
         >
@@ -88,8 +88,8 @@ export default function Products() {
             </thead>
             <tbody>
               {(products || []).map((product: any) => (
-                <tr 
-                  key={product.id} 
+                <tr
+                  key={product.id}
                   className="border-b border-rpp-grey-border hover:bg-gray-50 cursor-pointer"
                   onClick={() => setLocation(`/products/${product.id}`)}
                   data-testid={`row-product-${product.id}`}
@@ -116,9 +116,28 @@ export default function Products() {
                   </td>
                   <td className="py-4 px-6 text-sm">{product.category || '-'}</td>
                   <td className="py-4 px-6 text-sm">
-                    {product.hasVariations && Array.isArray(product.variations) && product.variations.length > 0
-                      ? `From $${Math.min(...product.variations.map((v: any) => parseFloat(v.price) || 0)).toFixed(2)}`
-                      : `$${parseFloat(product.price || 0).toFixed(2)}`}
+                    {(() => {
+                      if (product.hasVariations && product.variations) {
+                        // Handle variations as either array or object
+                        const variationsArray = Array.isArray(product.variations)
+                          ? product.variations
+                          : Object.values(product.variations);
+
+                        if (variationsArray.length > 0) {
+                          const prices = variationsArray
+                            .map((v: any) => parseFloat(v.price) || 0)
+                            .filter((p: number) => p > 0);
+
+                          if (prices.length > 0) {
+                            return `From $${Math.min(...prices).toFixed(2)}`;
+                          }
+                        }
+                      }
+
+                      // Fallback to base price
+                      const basePrice = parseFloat(product.price || 0);
+                      return `$${basePrice.toFixed(2)}`;
+                    })()}
                   </td>
                   <td className="py-4 px-6 text-sm">
                     {product.hasVariations ? `${product.variants} variations` : 'N/A'}
