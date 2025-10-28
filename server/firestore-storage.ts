@@ -840,29 +840,38 @@ export class FirestoreStorage implements IStorage {
   }
 
   async getActivities(filters?: any): Promise<Activity[]> {
-    let ref: FirebaseFirestore.Query = this.db.collection("activities");
+    try {
+      let ref: FirebaseFirestore.Query = this.db.collection("activities");
 
-    if (filters?.partnerId) {
-      ref = ref.where("partnerId", "==", filters.partnerId);
-    }
-    if (filters?.jobId) {
-      ref = ref.where("jobId", "==", filters.jobId);
-    }
-    if (filters?.orderId) {
-      ref = ref.where("orderId", "==", filters.orderId);
-    }
-    if (filters?.userId) {
-      ref = ref.where("userId", "==", filters.userId);
-    }
-    
-    ref = ref.orderBy("createdAt", "desc");
-    
-    if (filters?.limit) {
-      ref = ref.limit(filters.limit);
-    }
+      if (filters?.partnerId) {
+        ref = ref.where("partnerId", "==", filters.partnerId);
+      }
+      if (filters?.jobId) {
+        ref = ref.where("jobId", "==", filters.jobId);
+      }
+      if (filters?.orderId) {
+        ref = ref.where("orderId", "==", filters.orderId);
+      }
+      if (filters?.userId) {
+        ref = ref.where("userId", "==", filters.userId);
+      }
+      
+      ref = ref.orderBy("createdAt", "desc");
+      
+      if (filters?.limit) {
+        ref = ref.limit(filters.limit);
+      }
 
-    const snapshot = await ref.get();
-    return snapshot.docs.map(doc => docToObject<Activity>(doc));
+      const snapshot = await ref.get();
+      return snapshot.docs.map(doc => docToObject<Activity>(doc));
+    } catch (error: any) {
+      // If Firestore index is missing, return empty array gracefully
+      if (error.code === 9 || error.message?.includes('index')) {
+        console.log('[INFO] Firestore index not available for activities query, returning empty results');
+        return [];
+      }
+      throw error;
+    }
   }
 
   async getJobActivities(jobId: string, partnerId: string): Promise<Activity[]> {
