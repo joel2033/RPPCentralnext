@@ -639,6 +639,15 @@ export class FirestoreStorage implements IStorage {
     return newUpload;
   }
 
+  async getAllEditorUploads(): Promise<EditorUpload[]> {
+    const snapshot = await this.db.collection("editorUploads").get();
+    return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+  }
+
+  async updateEditorUpload(id: string, data: Partial<EditorUpload>): Promise<void> {
+    await this.db.collection("editorUploads").doc(id).update(prepareForFirestore(data));
+  }
+
   async updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined> {
     return this.updateJob(jobId, { status });
   }

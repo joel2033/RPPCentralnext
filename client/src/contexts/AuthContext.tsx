@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { onAuthStateChange, getCurrentUserData, signOut } from '@/lib/firebaseAuth';
 import type { UserData, UserRole } from '@/lib/firebaseAuth';
+import { queryClient } from '@/lib/queryClient';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -29,6 +30,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousUserIdRef = useRef<string | null>(null);
 
   const logout = async () => {
     await signOut();
@@ -38,6 +40,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
+      const newUserId = user?.uid || null;
+      
+      // If the user has changed (login, logout, or account switch), clear the query cache
+      if (previousUserIdRef.current !== newUserId) {
+        console.log('[AuthContext] User changed from', previousUserIdRef.current, 'to', newUserId, '- clearing query cache');
+        queryClient.clear(); // Clear all cached queries
+        previousUserIdRef.current = newUserId;
+      }
+      
       setCurrentUser(user);
       
       if (user) {

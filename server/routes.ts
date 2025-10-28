@@ -3159,11 +3159,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Make the file publicly accessible
-      await file.makePublic();
-
-      // Get the public URL
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      // Generate a signed URL that expires in 24 hours for client files (secure, private access)
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+      });
 
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
@@ -3179,8 +3179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        firebaseUrl: publicUrl,
-        downloadUrl: publicUrl,
+        firebaseUrl: filePath, // Store file path for server-side reference
+        downloadUrl: signedUrl, // Store signed URL for secure client download
         folderPath: folderPath || null,
         editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
         folderToken: folderToken || null,
@@ -3196,7 +3196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Only major events like job creation, status changes, and assignments are tracked
 
       res.json({
-        url: publicUrl,
+        url: signedUrl,
         path: filePath,
         size: req.file.size,
         originalName: req.file.originalname
@@ -3371,19 +3371,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      // Generate a signed URL that works for 7 days (more secure than makePublic)
+      // Generate a signed URL that expires in 30 days (secure, private access)
       const [signedUrl] = await file.getSignedUrl({
         action: 'read',
-        expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+        expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
       });
-
-      const publicUrl = signedUrl;
 
       // Clean up temporary file
       fs.unlinkSync(req.file.path);
 
       // Create editor upload record with folder information
-      // Store file path, not signed URL - proxy will generate fresh signed URLs on demand
+      // Store signed URL for download (secure), file path for storage reference
       await storage.createEditorUpload({
         jobId: job.id, // Use the job's internal ID
         orderId: orderEntity.id,
@@ -3392,8 +3390,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         originalName: req.file.originalname,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
-        firebaseUrl: filePath, // Store path, not signed URL
-        downloadUrl: filePath, // Store path for proxy to generate signed URL
+        firebaseUrl: filePath, // Store file path for server-side reference
+        downloadUrl: signedUrl, // Store signed URL for secure client download
         folderPath: folderPath || null,
         editorFolderName: editorFolderName || null,
         partnerFolderName: null, // Partners can rename later
@@ -3406,7 +3404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This reduces activity timeline clutter while still tracking major job events
 
       res.json({
-        url: publicUrl,
+        url: signedUrl,
         path: filePath,
         size: req.file.size,
         originalName: req.file.originalname
@@ -3821,104 +3819,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // DISABLED: Proxy endpoint to serve files from Firebase Storage
-  // This endpoint was disabled for security - it required scanning all jobs which is insecure
-  // TODO: Reimplement with proper jobId parameter requirement
-  app.get("/api/files/proxy/:fileId", async (req, res) => {
-    try {
-      return res.status(501).json({ 
-        error: "This endpoint has been disabled for security. Please update your client to include jobId in the request.",
-        message: "File proxy endpoint requires refactoring for multi-tenant security"
-      });
-      
-      /* ORIGINAL INSECURE CODE - DO NOT UNCOMMENT
-      const { fileId } = req.params;
-      const allJobs = await storage.getJobs(); // INSECURE: scans all tenants
-      let file: EditorUpload | undefined;
-
-      for (const job of allJobs) {
-        const uploads = await storage.getEditorUploads(job.id);
-        file = uploads.find(u => u.id === fileId);
-        if (file) break;
-      }
-
-      if (!file) {
-        return res.status(404).json({ error: "File not found" });
-      }
-
-      // Get file path - now stored directly, not as signed URL
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-      if (!bucketName) {
-        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
-      }
-
-      let filePath: string;
-
-      // Check if downloadUrl is a file path or a signed URL (for backwards compatibility)
-      if (file.downloadUrl.startsWith('http')) {
-        // Legacy signed URL - extract the path
-        const urlPattern = new RegExp(`https://storage\\.googleapis\\.com/${bucketName.replace('.', '\\.')}/(.+?)(?:\\?|$)`);
-        const match = file.downloadUrl.match(urlPattern);
-
-        if (!match || !match[1]) {
-          return res.status(400).json({ error: "Invalid file URL format" });
-        }
-
-        filePath = decodeURIComponent(match[1]);
-      } else {
-        // Modern file path stored directly
-        filePath = file.downloadUrl;
-      }
-
-      console.log(`[PROXY] Streaming file: ${filePath}`);
-
-      const bucket = getStorage().bucket(bucketName);
-      const storageFile = bucket.file(filePath);
-
-      // Check if file exists first
-      const [exists] = await storageFile.exists();
-      if (!exists) {
-        console.error(`[PROXY] File does not exist in Firebase Storage: ${filePath}`);
-        return res.status(404).json({ error: 'File not found in storage' });
-      }
-
-      // Get file metadata to set proper Content-Length
-      const [metadata] = await storageFile.getMetadata();
-      const fileSize = metadata.size;
-
-      console.log(`[PROXY] File exists, size: ${fileSize} bytes, mimeType: ${file.mimeType}`);
-
-      // Set headers before streaming
-      res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Length', fileSize);
-      res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 year cache
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('ETag', `"${fileId}"`); // Use fileId as ETag for cache validation
-
-      // Stream the file from Firebase Storage to the client
-      const stream = storageFile.createReadStream();
-
-      stream.on('error', (error) => {
-        console.error('[PROXY] Error streaming file:', error);
-        if (!res.headersSent) {
-          res.status(500).send('Failed to stream file');
-        } else {
-          res.end();
-        }
-      });
-
-      stream.on('end', () => {
-        console.log(`[PROXY] Successfully streamed file: ${file.fileName}`);
-      });
-
-      stream.pipe(res);
-      */
-    } catch (error: any) {
-      console.error('Error in file proxy:', error);
-      res.status(500).json({ error: 'Failed to proxy file', details: error.message });
-    }
-  });
+  // Note: The old proxy endpoint (/api/files/proxy/:fileId) has been removed
+  // Files now use direct Firebase download URLs instead of a proxy
 
   // Public delivery endpoint - Uses deliveryToken for secure access only
   app.get("/api/delivery/:token", async (req, res) => {
@@ -5865,6 +5767,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error marking messages as read:", error);
       res.status(500).json({ error: "Failed to mark messages as read" });
+    }
+  });
+
+  // Migration endpoint to fix downloadUrl for existing files
+  app.post("/api/admin/migrate-download-urls", async (req, res) => {
+    try {
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      if (!bucketName) {
+        return res.status(500).json({ error: 'FIREBASE_STORAGE_BUCKET not configured' });
+      }
+
+      // Get all editor uploads
+      const allUploads = await firestoreStorage.getAllEditorUploads();
+      
+      let updatedCount = 0;
+      const updates = [];
+
+      for (const upload of allUploads) {
+        // Check if downloadUrl is missing https:// (meaning it's just a path)
+        if (upload.downloadUrl && !upload.downloadUrl.startsWith('https://')) {
+          const fixedUrl = `https://storage.googleapis.com/${bucketName}/${upload.downloadUrl}`;
+          updates.push({
+            id: upload.id,
+            oldUrl: upload.downloadUrl,
+            newUrl: fixedUrl
+          });
+          
+          // Update the upload
+          await firestoreStorage.updateEditorUpload(upload.id, {
+            downloadUrl: fixedUrl,
+            firebaseUrl: fixedUrl
+          });
+          
+          updatedCount++;
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        updatedCount,
+        totalFiles: allUploads.length,
+        updates: updates.slice(0, 10) // Show first 10 updates
+      });
+    } catch (error: any) {
+      console.error("Error migrating download URLs:", error);
+      res.status(500).json({ error: "Failed to migrate download URLs", details: error.message });
     }
   });
 

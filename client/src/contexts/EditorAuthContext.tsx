@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { onAuthStateChange, getCurrentUserData, type UserData } from '@/lib/firebaseAuth';
+import { queryClient } from '@/lib/queryClient';
 
 interface EditorAuthContextType {
   currentUser: User | null;
@@ -27,9 +28,19 @@ export const EditorAuthProvider: React.FC<EditorAuthProviderProps> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
+      const newUserId = user?.uid || null;
+      
+      // If the user has changed (login, logout, or account switch), clear the query cache
+      if (previousUserIdRef.current !== newUserId) {
+        console.log('[EditorAuthContext] User changed from', previousUserIdRef.current, 'to', newUserId, '- clearing query cache');
+        queryClient.clear(); // Clear all cached queries
+        previousUserIdRef.current = newUserId;
+      }
+      
       setCurrentUser(user);
       setLoading(true);
 
