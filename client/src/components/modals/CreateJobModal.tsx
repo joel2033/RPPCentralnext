@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import { useAuth } from "@/contexts/AuthContext";
+import CreateProductModal from "./CreateProductModal";
 import { 
   CalendarIcon, 
   MapPin, 
@@ -91,6 +92,9 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     appointment: false,
     orderSummary: false
   });
+
+  // Product creation modal state
+  const [showCreateProductModal, setShowCreateProductModal] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -413,6 +417,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   }, []);
 
   return (
+    <>
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -671,7 +676,13 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button type="button" variant="outline" size="sm" data-testid="button-create-product">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowCreateProductModal(true)}
+                    data-testid="button-create-product"
+                  >
                     Create
                   </Button>
                 </div>
@@ -825,5 +836,11 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
         </form>
       </DialogContent>
     </Dialog>
+    
+    {/* Create Product Modal */}
+    {showCreateProductModal && (
+      <CreateProductModal onClose={() => setShowCreateProductModal(false)} />
+    )}
+    </>
   );
 }

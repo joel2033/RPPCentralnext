@@ -108,6 +108,32 @@
       "averageJobValue": "0",
       "jobsCompleted": 0,
       "createdAt": "2025-10-24T11:48:50.329Z"
+    },
+    "b5677848-799b-4deb-9b2d-797a454d91b2": {
+      "partnerId": "partner_99ae7n5vymh96fq3f",
+      "firstName": "Brian",
+      "lastName": "Adamson",
+      "email": "Brian@adamsonrealty.com",
+      "phone": "+61 0412 328 145",
+      "company": "Adamson Realty",
+      "category": "residential",
+      "profileImage": null,
+      "notes": null,
+      "billingEmail": null,
+      "billingAddress": null,
+      "city": null,
+      "state": null,
+      "postcode": null,
+      "paymentTerms": null,
+      "taxId": null,
+      "teamMembers": null,
+      "accountingIntegration": null,
+      "accountingContactId": null,
+      "id": "b5677848-799b-4deb-9b2d-797a454d91b2",
+      "totalValue": "0",
+      "averageJobValue": "0",
+      "jobsCompleted": 0,
+      "createdAt": "2025-10-28T00:20:36.917Z"
     }
   },
   "products": {
@@ -182,6 +208,28 @@
       "createdAt": "2025-10-27T13:01:46.484Z",
       "noCharge": false,
       "includedProducts": "[{\"productId\":\"0d8fef03-6d5c-4495-9750-15d7952cb134\",\"quantity\":1}]"
+    },
+    "d7eb1d58-2ea9-4a92-8247-5bd7f534738f": {
+      "partnerId": "partner_99ae7n5vymh96fq3f",
+      "title": "Test Product from Job Creation",
+      "description": null,
+      "type": "product",
+      "category": null,
+      "price": "1",
+      "taxRate": "10",
+      "hasVariations": null,
+      "variants": null,
+      "variations": null,
+      "productType": "onsite",
+      "requiresAppointment": true,
+      "appointmentDuration": 60,
+      "exclusivityType": "none",
+      "exclusiveCustomerIds": null,
+      "isActive": true,
+      "isLive": true,
+      "image": null,
+      "id": "d7eb1d58-2ea9-4a92-8247-5bd7f534738f",
+      "createdAt": "2025-10-28T00:37:00.199Z"
     }
   },
   "jobs": {
