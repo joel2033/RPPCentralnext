@@ -66,7 +66,7 @@ export default function Dashboard() {
           />
           <StatsCard
             title="REVENUE"
-            value={`$${monthlyRevenue}k`}
+            value={`$${monthlyRevenue}`}
             change="+8%"
             changeType="positive"
             icon={DollarSign}
