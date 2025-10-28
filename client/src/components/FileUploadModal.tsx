@@ -54,6 +54,8 @@ export function FileUploadModal({
   // Folder functionality - mandatory for completed uploads
   const [useFolder, setUseFolder] = useState(uploadType === 'completed');
   const [folderName, setFolderName] = useState('');
+  // Store completed uploads for later submission
+  const [completedUploadsData, setCompletedUploadsData] = useState<{ file: File; url: string; path: string }[]>([]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -146,7 +148,7 @@ export function FileUploadModal({
             ? uploadCompletedFileToFirebase(
                 item.file,
                 jobId,
-                currentOrderNumber,
+                currentOrderNumber || undefined,
                 (progress: UploadProgress) => {
                   console.log(`Progress for ${item.file.name}:`, progress);
                   setUploadItems(prev => prev.map((uploadItem, index) => 
@@ -168,7 +170,7 @@ export function FileUploadModal({
                 item.file,
                 userId,
                 jobId,
-                currentOrderNumber,
+                currentOrderNumber || '',
                 (progress: UploadProgress) => {
                   console.log(`Progress for ${item.file.name}:`, progress);
                   setUploadItems(prev => prev.map((uploadItem, index) => 
@@ -223,9 +225,15 @@ export function FileUploadModal({
         }
       }
       
-      // Call the callback with completed uploads (for order-based uploads or standalone folders)
-      if (completedUploads.length > 0 && (currentOrderNumber || folderToken)) {
-        onFilesUpload(serviceId, completedUploads, currentOrderNumber || '');
+      // For client uploads, call the callback immediately
+      // For completed uploads, store the data and wait for user confirmation
+      if (uploadType === 'client') {
+        if (completedUploads.length > 0 && (currentOrderNumber || folderToken)) {
+          onFilesUpload(serviceId, completedUploads, currentOrderNumber || '');
+        }
+      } else {
+        // For completed uploads, store the uploads for later confirmation
+        setCompletedUploadsData(completedUploads);
       }
       
     } finally {
@@ -249,6 +257,7 @@ export function FileUploadModal({
     setIsUploading(false);
     setOrderNumber(null);
     setReservationExpiry(null);
+    setCompletedUploadsData([]);
     onClose();
   };
 
@@ -438,8 +447,15 @@ export function FileUploadModal({
               )}
               {canSubmit && (
                 <Button
-                  onClick={handleClose}
+                  onClick={() => {
+                    // For completed uploads, call the callback with stored data
+                    if (uploadType === 'completed' && completedUploadsData.length > 0) {
+                      onFilesUpload(serviceId, completedUploadsData, orderNumber || '');
+                    }
+                    handleClose();
+                  }}
                   className="bg-green-600 hover:bg-green-700 text-white"
+                  data-testid="button-upload-complete"
                 >
                   Upload Complete
                 </Button>

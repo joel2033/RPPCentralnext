@@ -3454,25 +3454,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all editor uploads for this job with completed status
       const allUploads = await storage.getEditorUploads(job.id);
-      console.log(`[DEBUG] Total uploads for job ${job.id}:`, allUploads.length);
-      console.log(`[DEBUG] Upload details:`, allUploads.map(u => ({ 
-        id: u.id, 
-        fileName: u.fileName, 
-        status: u.status || 'no status',
-        mimeType: u.mimeType 
-      })));
 
       const completedFiles = allUploads.filter(upload => 
         upload.status === 'completed' && 
         upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
       );
-
-      console.log(`[DEBUG] Completed files after filtering:`, completedFiles.length);
-      console.log(`[DEBUG] Completed file details:`, completedFiles.map(f => ({ 
-        id: f.id, 
-        fileName: f.fileName, 
-        status: f.status 
-      })));
 
       // Group files by order and enrich with order information
       const filesByOrder = completedFiles.reduce((acc, file) => {
@@ -3488,14 +3474,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Object.entries(filesByOrder).map(async ([orderId, files]) => {
           const order = await storage.getOrder(orderId);
 
-          // Use proxy URLs instead of direct Firebase URLs
-          const filesWithProxyUrls = files.map((file) => ({
+          // Use actual Firebase download URLs
+          const filesWithDownloadUrls = files.map((file) => ({
             id: file.id,
             fileName: file.fileName,
             originalName: file.originalName,
             fileSize: file.fileSize,
             mimeType: file.mimeType,
-            downloadUrl: `/api/files/proxy/${file.id}`, // Use proxy endpoint
+            downloadUrl: file.downloadUrl, // Use actual Firebase download URL
             uploadedAt: file.uploadedAt,
             notes: file.notes
           }));
@@ -3503,7 +3489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return {
             orderId,
             orderNumber: order?.orderNumber || 'Unknown',
-            files: filesWithProxyUrls
+            files: filesWithDownloadUrls
           };
         })
       );
@@ -3542,16 +3528,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for this job
       const folders = await storage.getUploadFolders(job.id);
 
-      // Replace Firebase Storage URLs with proxy URLs in each folder's files
-      const foldersWithProxyUrls = folders.map(folder => ({
+      // Return folders with actual Firebase download URLs
+      const foldersWithDownloadUrls = folders.map(folder => ({
         ...folder,
         files: folder.files.map(file => ({
           ...file,
-          downloadUrl: `/api/files/proxy/${file.id}` // Use proxy endpoint
+          downloadUrl: file.downloadUrl // Use actual Firebase download URL
         }))
       }));
 
-      res.json(foldersWithProxyUrls);
+      res.json(foldersWithDownloadUrls);
     } catch (error: any) {
       console.error("Error fetching upload folders:", error);
       res.status(500).json({ 
