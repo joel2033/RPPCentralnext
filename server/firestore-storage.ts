@@ -458,12 +458,42 @@ export class FirestoreStorage implements IStorage {
     const snapshot = await this.db.collection("orders").where("assignedTo", "==", editorId).get();
     const orders = snapshot.docs.map(doc => docToObject<Order>(doc));
     
-    // Get job details for each order
+    // Get job details, services, customer info, and files for each order
     const jobPromises = orders.map(async (order) => {
-      if (!order.jobId) return { ...order, jobAddress: "No Job Assigned" };
-      const job = await this.getJob(order.jobId);
+      const job = order.jobId ? await this.getJobByJobId(order.jobId) : null;
+      const customer = job?.customerId ? await this.getCustomer(job.customerId) : null;
+      
+      // Get order services
+      const servicesSnapshot = await this.db.collection("orderServices")
+        .where("orderId", "==", order.id)
+        .get();
+      const services = servicesSnapshot.docs.map(doc => docToObject<OrderService>(doc));
+      
+      // Get original files uploaded to this order
+      const filesSnapshot = await this.db.collection("orderFiles")
+        .where("orderId", "==", order.id)
+        .get();
+      const originalFiles = filesSnapshot.docs.map(doc => docToObject<OrderFile>(doc));
+      
+      // Get existing uploads (deliverables) for this job
+      const uploadsSnapshot = await this.db.collection("editorUploads")
+        .where("jobId", "==", order.jobId || "")
+        .get();
+      const existingUploads = uploadsSnapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+      
       return {
-        ...order,
+        id: order.id,
+        jobId: order.jobId || "",
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerName: customer ? `${customer.firstName} ${customer.lastName}`.trim() : "Unknown Customer",
+        address: job?.address || "Unknown Address",
+        services: services || [],
+        status: order.status,
+        dueDate: order.createdAt ? new Date(new Date(order.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : "",
+        createdAt: order.createdAt,
+        originalFiles: originalFiles || [],
+        existingUploads: existingUploads || [],
         jobAddress: job?.address || "Unknown Address"
       };
     });
