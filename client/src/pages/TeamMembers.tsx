@@ -31,7 +31,7 @@ export default function TeamMembers() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Fetch all users for this partner
+  // Fetch all users for this partner (including owner)
   const { data: allUsers = [], refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
