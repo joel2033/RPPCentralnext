@@ -2425,5 +2425,8 @@ import { firestoreStorage } from "./firestore-storage";
 // Use FirestoreStorage as the primary storage
 export const storage = firestoreStorage;
 
+// Export firestoreStorage for backward compatibility
+export { firestoreStorage };
+
 // Keep MemStorage available for reference
 export const memStorage = new MemStorage();
