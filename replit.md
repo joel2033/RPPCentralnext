@@ -33,6 +33,9 @@ Preferred communication style: Simple, everyday language.
 - **Role Management**: Comprehensive role system (partner, admin, photographer) with role-based route protection.
 - **Authorization**: Multi-tenant data isolation using `partnerId`.
 - **Team Management**: Supports partner signup, team member invitations, and management.
+    - **Team Members Page** (Route: `/team`): Displays all users for the partner account, with the owner shown in a dedicated "Your Account" card with "Owner" badge.
+    - **Owner as Team Member**: Account owners (role='partner') always appear in the team members list and are selectable as operators when creating jobs.
+    - **Operator Selection**: Job creation allows assignment to any user with role='photographer' or role='partner', displaying email as fallback when firstName/lastName are absent.
 
 ### Multi-Tenant Security (Production-Hardened)
 - **Route-Level Protection**: All partner-facing API endpoints enforce authentication via `requireAuth` middleware and tenant isolation via `partnerId` filtering.
