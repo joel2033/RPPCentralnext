@@ -138,12 +138,38 @@ export default function Settings() {
     retry: false
   });
 
-  // Fetch team members
-  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery<any[]>({
+  // Fetch actual users (team members who have accepted)
+  const { data: actualUsers = [], isLoading: usersLoading } = useQuery<any[]>({
+    queryKey: ['/api/users'],
+    retry: false
+  });
+
+  // Fetch pending invites (team members who haven't joined yet)
+  const { data: pendingInvites = [], isLoading: invitesLoading } = useQuery<any[]>({
     queryKey: [`/api/team/invites/${userData?.partnerId}`],
     enabled: !!userData?.partnerId,
     retry: false
   });
+
+  // Combine actual users and pending invites
+  const teamMembers = [
+    ...actualUsers.map((user: any) => ({
+      id: user.id,
+      name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email,
+      email: user.email,
+      role: user.role,
+      status: 'active'
+    })),
+    ...pendingInvites.map((invite: any) => ({
+      token: invite.inviteToken,
+      name: invite.email, // Pending invites don't have names yet
+      email: invite.email,
+      role: invite.role,
+      status: 'pending'
+    }))
+  ];
+
+  const teamMembersLoading = usersLoading || invitesLoading;
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({

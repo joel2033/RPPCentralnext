@@ -36,7 +36,13 @@ export default function TeamMembers() {
     queryKey: ["/api/users"],
   });
   
-  console.log("TeamMembers NEW VERSION - allUsers:", allUsers);
+  console.log("TeamMembers - allUsers:", allUsers);
+  console.log("TeamMembers - allUsers count:", allUsers.length);
+  if (allUsers.length > 0) {
+    console.log("TeamMembers - first user:", allUsers[0]);
+    console.log("TeamMembers - first user firstName:", allUsers[0].firstName);
+    console.log("TeamMembers - first user lastName:", allUsers[0].lastName);
+  }
 
   // Show ALL users in team members list (including owner)
   const teamMembers = allUsers;
