@@ -789,7 +789,7 @@ export default function Upload() {
 
               <div className="pt-4 space-y-3">
                 <Button
-                  className="w-full bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  className="w-full hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
                   disabled={selectedServices.length === 0 || submitOrderMutation.isPending}
                   onClick={handleSubmitOrder}
                   data-testid="button-submit-order"
