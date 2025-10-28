@@ -2419,10 +2419,11 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
-
 // Import Firestore storage as the new default
 import { firestoreStorage } from "./firestore-storage";
 
-// Export firestoreStorage for migration - will replace storage completely once tested
-export { firestoreStorage };
+// Use FirestoreStorage as the primary storage
+export const storage = firestoreStorage;
+
+// Keep MemStorage available for reference
+export const memStorage = new MemStorage();
