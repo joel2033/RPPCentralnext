@@ -8,6 +8,7 @@ import { X, Upload, ChevronDown, ChevronUp, User, Receipt, Users, FileText, Tras
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/queryClient";
 
 interface CreateCustomerModalProps {
   onClose: () => void;
@@ -60,19 +61,7 @@ export default function CreateCustomerModal({ onClose }: CreateCustomerModalProp
 
   const createCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch("/api/customers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create customer");
-      }
-      
+      const response = await apiRequest("/api/customers", "POST", data);
       return response.json();
     },
     onSuccess: () => {
