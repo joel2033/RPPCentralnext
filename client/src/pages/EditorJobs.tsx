@@ -738,11 +738,11 @@ export default function EditorJobs() {
           serviceName={selectedJob.services?.[0]?.name || "Deliverables"}
           serviceId={selectedJob.jobId}
           userId={auth.currentUser?.uid || ""}
-          jobId={selectedJob.id}
+          jobId={selectedJob.jobId}
           uploadType="completed"
           orderNumber={selectedJob.orderNumber}
           onFilesUpload={(serviceId, files, orderNumber) => {
-            handleUploadComplete(selectedJob.id, files);
+            handleUploadComplete(selectedJob.jobId, files);
           }}
         />
       )}
