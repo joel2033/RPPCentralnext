@@ -200,8 +200,8 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-[100] flex items-center justify-center px-1 py-8">
-      <div className="bg-white rounded-2xl w-full max-w-2xl my-auto relative z-[101] flex flex-col" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-[100] flex items-center justify-center p-4 overflow-hidden">
+      <div className="bg-white rounded-2xl w-full max-w-2xl relative z-[101] flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border flex-shrink-0">
           <div>
