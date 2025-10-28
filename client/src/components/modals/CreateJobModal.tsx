@@ -588,8 +588,11 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                       </SelectTrigger>
                       <SelectContent>
                         {availableOperators.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.firstName} {user.lastName} ({user.role})
+                          <SelectItem key={user.id} value={user.id} data-testid={`operator-option-${user.id}`}>
+                            {user.firstName && user.lastName 
+                              ? `${user.firstName} ${user.lastName} (${user.role})`
+                              : `${user.email} (${user.role})`
+                            }
                           </SelectItem>
                         ))}
                       </SelectContent>

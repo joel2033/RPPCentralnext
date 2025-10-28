@@ -9,15 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Plus, Mail, User, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 
-interface TeamMember {
+interface User {
   id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
-  status: 'pending' | 'accepted';
-  invitedBy: string;
-  createdAt: string;
-  inviteToken?: string;
+  profileImage?: string;
+  createdAt: Date;
 }
 
 export default function TeamMembers() {
@@ -29,7 +30,14 @@ export default function TeamMembers() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  // Fetch all users for this partner
+  const { data: allUsers = [], refetch: refetchUsers } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+  });
+
+  // Filter out the current user (owner) from team members list
+  const teamMembers = allUsers.filter(user => user.id !== userData?.uid);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +70,7 @@ export default function TeamMembers() {
       setInviteDialogOpen(false);
       
       // Refresh team members list
-      loadTeamMembers();
+      refetchUsers();
     } catch (err: any) {
       setError(err.message || 'Failed to send invite');
     } finally {
@@ -70,38 +78,20 @@ export default function TeamMembers() {
     }
   };
 
-  const loadTeamMembers = async () => {
-    if (!userData?.partnerId) return;
-    
-    try {
-      const response = await fetch(`/api/team/invites/${userData.partnerId}`);
-      if (response.ok) {
-        const invites = await response.json();
-        setTeamMembers(invites);
-      }
-    } catch (error) {
-      console.error('Failed to load team members:', error);
-    }
-  };
-
-  React.useEffect(() => {
-    loadTeamMembers();
-  }, [userData?.partnerId]);
-
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'partner': return 'bg-blue-100 text-blue-800';
       case 'admin': return 'bg-red-100 text-red-800';
       case 'photographer': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'accepted': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const getUserDisplayName = (user: User) => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
     }
+    return user.email;
   };
 
   return (
@@ -233,48 +223,32 @@ export default function TeamMembers() {
             {teamMembers.length === 0 ? (
               <div className="text-center py-8 text-rpp-grey-light">
                 <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No team members invited yet</p>
+                <p>No team members yet</p>
                 <p className="text-sm">Click "Invite Team Member" to get started</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg" data-testid={`team-member-${member.id}`}>
                     <div className="flex items-center space-x-4">
                       <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        <Mail className="h-5 w-5 text-gray-500" />
+                        {member.profileImage ? (
+                          <img src={member.profileImage} alt={getUserDisplayName(member)} className="h-10 w-10 rounded-full object-cover" />
+                        ) : (
+                          <User className="h-5 w-5 text-gray-500" />
+                        )}
                       </div>
                       <div>
-                        <p className="font-medium">{member.email}</p>
+                        <p className="font-medium" data-testid={`text-member-name-${member.id}`}>{getUserDisplayName(member)}</p>
+                        <p className="text-sm text-rpp-grey-light">{member.email}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge className={getRoleColor(member.role)}>
+                          <Badge className={getRoleColor(member.role)} data-testid={`badge-role-${member.id}`}>
                             {member.role}
                           </Badge>
-                          <Badge className={getStatusColor(member.status)}>
-                            {member.status}
-                          </Badge>
-                          {member.status === 'pending' && (
-                            <div className="flex items-center text-sm text-gray-500">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Pending
-                            </div>
-                          )}
+                          <Badge className="bg-green-100 text-green-800">Active</Badge>
                         </div>
                       </div>
                     </div>
-                    {member.status === 'pending' && member.inviteToken && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          const inviteLink = `${window.location.origin}/signup?invite=${member.inviteToken}`;
-                          navigator.clipboard.writeText(inviteLink);
-                          setSuccess('Invite link copied to clipboard!');
-                        }}
-                      >
-                        Copy Link
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
