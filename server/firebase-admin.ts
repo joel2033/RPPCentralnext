@@ -44,6 +44,8 @@ export type UserRole = "partner" | "admin" | "photographer" | "editor";
 export interface UserData {
   uid: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   role: UserRole;
   partnerId?: string; // Optional for editors
   createdAt: any;
@@ -101,7 +103,14 @@ export const generatePartnershipToken = (): string => {
 };
 
 // Create user document in Firestore with partnerId
-export const createUserDocument = async (uid: string, email: string, role: UserRole, partnerId?: string): Promise<string> => {
+export const createUserDocument = async (
+  uid: string, 
+  email: string, 
+  role: UserRole, 
+  partnerId?: string,
+  firstName?: string,
+  lastName?: string
+): Promise<string> => {
   try {
     // Generate partnerId for new partners, use provided one for team members, none for editors
     const userPartnerId = partnerId || (role === 'partner' ? generatePartnerId() : undefined);
@@ -112,6 +121,14 @@ export const createUserDocument = async (uid: string, email: string, role: UserR
       role,
       createdAt: new Date()
     };
+
+    // Add firstName and lastName if provided
+    if (firstName) {
+      userData.firstName = firstName;
+    }
+    if (lastName) {
+      userData.lastName = lastName;
+    }
 
     // Add partnerId only if it exists (not for editors)
     if (userPartnerId) {

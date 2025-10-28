@@ -13,6 +13,8 @@ export type UserRole = "partner" | "admin" | "photographer" | "editor";
 export interface UserData {
   uid: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   role: UserRole;
   partnerId: string;
   createdAt: any;

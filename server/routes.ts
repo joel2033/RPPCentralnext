@@ -784,15 +784,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Firebase Auth - Public Signup endpoint (always creates partner)
   const publicSignupSchema = z.object({
     uid: z.string(),
-    email: z.string().email()
+    email: z.string().email(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional()
   });
 
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { uid, email } = publicSignupSchema.parse(req.body);
+      const { uid, email, firstName, lastName } = publicSignupSchema.parse(req.body);
 
       // Public signups always create partner accounts
-      const docId = await createUserDocument(uid, email, "partner");
+      const docId = await createUserDocument(uid, email, "partner", undefined, firstName, lastName);
 
       res.status(201).json({ 
         success: true, 

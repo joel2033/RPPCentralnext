@@ -13,12 +13,22 @@ async function fixHarveyUser() {
   
   if (userDoc.exists) {
     console.log('Harvey user document exists:', userDoc.data());
+    console.log('Updating Harvey user document with firstName and lastName...');
+    
+    await userRef.update({
+      firstName: 'Harvey',
+      lastName: 'Adamson'
+    });
+    
+    console.log('Harvey user document updated successfully!');
   } else {
     console.log('Harvey user document does NOT exist. Creating...');
     
     await userRef.set({
       uid: harveyUid,
       email: harveyEmail,
+      firstName: 'Harvey',
+      lastName: 'Adamson',
       role: 'partner',
       partnerId: partnerId,
       createdAt: Timestamp.now()
