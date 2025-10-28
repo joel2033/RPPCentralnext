@@ -103,8 +103,22 @@ export class FirestoreStorage implements IStorage {
   }
 
   async getUsers(partnerId: string): Promise<User[]> {
+    console.log(`[DEBUG] getUsers called with partnerId: ${partnerId}`);
     const ref = this.db.collection("users");
     const snapshot = await ref.where("partnerId", "==", partnerId).get();
+    console.log(`[DEBUG] Found ${snapshot.docs.length} users for partnerId ${partnerId}`);
+    
+    if (snapshot.docs.length === 0) {
+      // Debug: Let's see all users in the collection
+      const allSnapshot = await ref.limit(10).get();
+      console.log(`[DEBUG] Total users in collection (first 10):`, allSnapshot.docs.map(d => ({
+        id: d.id,
+        email: d.data().email,
+        partnerId: d.data().partnerId,
+        role: d.data().role
+      })));
+    }
+    
     return snapshot.docs.map(doc => docToObject<User>(doc));
   }
 
