@@ -455,7 +455,7 @@ export class FirestoreStorage implements IStorage {
 
   // Editor Job Management
   async getEditorJobs(editorId: string): Promise<any[]> {
-    const snapshot = await this.db.collection("orders").where("editorId", "==", editorId).get();
+    const snapshot = await this.db.collection("orders").where("assignedTo", "==", editorId).get();
     const orders = snapshot.docs.map(doc => docToObject<Order>(doc));
     
     // Get job details for each order
@@ -582,7 +582,7 @@ export class FirestoreStorage implements IStorage {
   async getJobsReadyForUpload(editorId: string): Promise<any[]> {
     const orders = await this.getEditorJobs(editorId);
     return orders.filter((order: any) => 
-      order.status === "processing" || order.status === "uploaded"
+      order.status === "pending" || order.status === "processing" || order.status === "uploaded"
     );
   }
 
