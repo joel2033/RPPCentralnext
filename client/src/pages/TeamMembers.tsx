@@ -35,6 +35,8 @@ export default function TeamMembers() {
   const { data: allUsers = [], refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
+  
+  console.log("TeamMembers NEW VERSION - allUsers:", allUsers);
 
   // Show ALL users in team members list (including owner)
   const teamMembers = allUsers;
