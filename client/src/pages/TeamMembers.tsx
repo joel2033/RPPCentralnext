@@ -36,8 +36,8 @@ export default function TeamMembers() {
     queryKey: ["/api/users"],
   });
 
-  // Filter out the current user (owner) from team members list
-  const teamMembers = allUsers.filter(user => user.id !== userData?.uid);
+  // Show ALL users in team members list (including owner)
+  const teamMembers = allUsers;
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,6 +245,9 @@ export default function TeamMembers() {
                           <Badge className={getRoleColor(member.role)} data-testid={`badge-role-${member.id}`}>
                             {member.role}
                           </Badge>
+                          {member.id === userData?.uid && (
+                            <Badge className="bg-blue-100 text-blue-800">Owner</Badge>
+                          )}
                           <Badge className="bg-green-100 text-green-800">Active</Badge>
                         </div>
                       </div>
