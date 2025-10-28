@@ -431,7 +431,7 @@ export function FileUploadModal({
               {!isUploading && uploadItems.some(item => item.status === 'waiting') && (
                 <Button
                   onClick={startUpload}
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  className="hover:bg-rpp-red-dark text-white bg-[#f3714e]"
                   disabled={uploadItems.length === 0}
                 >
                   Start Upload
