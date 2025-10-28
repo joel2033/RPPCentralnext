@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { X, CloudUpload, Plus, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { CloudUpload, Plus, Trash2, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -200,30 +201,18 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-[100] flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-white rounded-2xl w-full max-w-2xl relative z-[101] flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border flex-shrink-0">
-          <div>
-            <h2 className="text-xl font-semibold text-rpp-grey-dark">Create New Product</h2>
-            <p className="text-sm text-rpp-grey-light mt-1">
-              Create your new product, package or add-on by providing the necessary details below. 
-              Once saved, you'll be able to seamlessly manage all advanced settings in one place.
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" data-testid="button-close-modal">
-            <X className="w-5 h-5 text-rpp-grey-light" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Create New Product</DialogTitle>
+          <DialogDescription>
+            Create your new product, package or add-on by providing the necessary details below. 
+            Once saved, you'll be able to seamlessly manage all advanced settings in one place.
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
+        <div className="space-y-6 overflow-y-auto flex-1 pr-2">
           {/* Product Type */}
           <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
@@ -663,7 +652,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-rpp-grey-border flex-shrink-0">
+        <div className="flex items-center justify-end space-x-3 pt-6 border-t border-rpp-grey-border mt-6 flex-shrink-0">
           <Button 
             variant="ghost" 
             onClick={onClose}
@@ -681,7 +670,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
             {createProductMutation.isPending ? "Saving..." : "Save"}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
