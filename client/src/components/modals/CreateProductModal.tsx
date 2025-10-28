@@ -200,10 +200,10 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-[100] flex items-center justify-center px-1 overflow-y-auto py-8">
+    <div className="fixed inset-0 bg-black bg-opacity-50 modal-backdrop z-[100] flex items-center justify-center px-1 py-8">
       <div className="bg-white rounded-2xl w-full max-w-2xl my-auto relative z-[101] flex flex-col" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border">
+        <div className="flex items-center justify-between p-6 border-b border-rpp-grey-border flex-shrink-0">
           <div>
             <h2 className="text-xl font-semibold text-rpp-grey-dark">Create New Product</h2>
             <p className="text-sm text-rpp-grey-light mt-1">
@@ -217,7 +217,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 overflow-y-auto flex-1">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Product Type */}
           <div>
             <label className="block text-sm font-medium text-rpp-grey-dark mb-2">
@@ -657,7 +657,7 @@ export default function CreateProductModal({ onClose }: CreateProductModalProps)
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-rpp-grey-border">
+        <div className="flex items-center justify-end space-x-3 p-6 border-t border-rpp-grey-border flex-shrink-0">
           <Button 
             variant="ghost" 
             onClick={onClose}
