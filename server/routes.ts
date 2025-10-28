@@ -3475,16 +3475,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const order = await storage.getOrder(orderId);
 
           // Use actual Firebase download URLs
-          const filesWithDownloadUrls = files.map((file) => ({
-            id: file.id,
-            fileName: file.fileName,
-            originalName: file.originalName,
-            fileSize: file.fileSize,
-            mimeType: file.mimeType,
-            downloadUrl: file.downloadUrl, // Use actual Firebase download URL
-            uploadedAt: file.uploadedAt,
-            notes: file.notes
-          }));
+          const filesWithDownloadUrls = files.map((file) => {
+            console.log(`[DEBUG completed-files] File ${file.id} (${file.fileName}):`, {
+              downloadUrl: file.downloadUrl,
+              firebaseUrl: file.firebaseUrl
+            });
+            return {
+              id: file.id,
+              fileName: file.fileName,
+              originalName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              downloadUrl: file.downloadUrl, // Use actual Firebase download URL
+              uploadedAt: file.uploadedAt,
+              notes: file.notes
+            };
+          });
 
           return {
             orderId,
@@ -3494,6 +3500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       );
 
+      console.log(`[DEBUG completed-files] Returning ${enrichedFiles.length} file groups`);
       res.json({ completedFiles: enrichedFiles });
     } catch (error: any) {
       console.error("Error fetching completed files:", error);
