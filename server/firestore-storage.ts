@@ -544,7 +544,9 @@ export class FirestoreStorage implements IStorage {
       dateCompleted: new Date()
     };
 
-    return this.updateOrder(orderId, updates);
+    const updatedOrder = await this.updateOrder(orderId, updates);
+    console.log(`Order ${updatedOrder?.orderNumber} marked as completed`);
+    return updatedOrder;
   }
 
   // Service Categories
@@ -643,9 +645,10 @@ export class FirestoreStorage implements IStorage {
   // Editor Uploads
   async getJobsReadyForUpload(editorId: string): Promise<any[]> {
     const orders = await this.getEditorJobs(editorId);
-    return orders.filter((order: any) => 
+    const filtered = orders.filter((order: any) => 
       order.status === "pending" || order.status === "processing" || order.status === "uploaded"
     );
+    return filtered;
   }
 
   async getEditorUploads(jobId: string): Promise<EditorUpload[]> {
