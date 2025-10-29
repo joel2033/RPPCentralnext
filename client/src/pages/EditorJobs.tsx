@@ -538,7 +538,10 @@ export default function EditorJobs() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{job.customerName || job.orderNumber}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">{job.customerName || 'Business Name Missing'}</h3>
+                        <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-order-${job.orderNumber}`}>
+                          #{job.orderNumber}
+                        </Badge>
 
                         {/* Connection Status Indicator */}
                         <TooltipProvider>
