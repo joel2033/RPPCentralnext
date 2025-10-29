@@ -12,6 +12,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -59,8 +60,15 @@ export default function Login() {
           return;
         }
 
+        // Validate business name
+        if (!businessName.trim()) {
+          setError('Business name is required');
+          setLoading(false);
+          return;
+        }
+
         // Sign up new user
-        const user = await signUpUser(email, password);
+        const user = await signUpUser(email, password, businessName);
         
         // Redirect to dashboard after successful signup
         setLocation('/dashboard');
@@ -141,6 +149,23 @@ export default function Login() {
                 data-testid="input-email"
               />
             </div>
+
+            {/* Business Name Field - Only for Sign Up */}
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="businessName">Business Name</Label>
+                <Input
+                  id="businessName"
+                  type="text"
+                  placeholder="Your business name"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  required
+                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors"
+                  data-testid="input-business-name"
+                />
+              </div>
+            )}
 
             {/* Password Field */}
             <div className="space-y-2">

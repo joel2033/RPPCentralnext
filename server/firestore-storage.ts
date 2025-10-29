@@ -461,7 +461,20 @@ export class FirestoreStorage implements IStorage {
     // Get job details, services, customer info, and files for each order
     const jobPromises = orders.map(async (order) => {
       const job = order.jobId ? await this.getJobByJobId(order.jobId) : null;
-      const customer = job?.customerId ? await this.getCustomer(job.customerId) : null;
+      
+      // Get partner's business name instead of customer name
+      let businessName = "Business Name Missing";
+      if (order.partnerId) {
+        try {
+          const partnerSnapshot = await this.db.collection("users").where("partnerId", "==", order.partnerId).where("role", "==", "partner").limit(1).get();
+          if (!partnerSnapshot.empty) {
+            const partnerData = partnerSnapshot.docs[0].data();
+            businessName = partnerData.businessName || "Business Name Missing";
+          }
+        } catch (error) {
+          console.error("Error fetching partner business name:", error);
+        }
+      }
       
       // Get order services
       const servicesSnapshot = await this.db.collection("orderServices")
@@ -486,7 +499,7 @@ export class FirestoreStorage implements IStorage {
         jobId: order.jobId || "",
         orderId: order.id,
         orderNumber: order.orderNumber,
-        customerName: customer ? `${customer.firstName} ${customer.lastName}`.trim() : "Unknown Customer",
+        customerName: businessName, // Now shows partner's business name
         address: job?.address || "Unknown Address",
         services: services || [],
         status: order.status,
@@ -494,7 +507,8 @@ export class FirestoreStorage implements IStorage {
         createdAt: order.createdAt,
         originalFiles: originalFiles || [],
         existingUploads: existingUploads || [],
-        jobAddress: job?.address || "Unknown Address"
+        jobAddress: job?.address || "Unknown Address",
+        partnerId: order.partnerId // Include partnerId for security checks
       };
     });
 

@@ -786,15 +786,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     uid: z.string(),
     email: z.string().email(),
     firstName: z.string().optional(),
-    lastName: z.string().optional()
+    lastName: z.string().optional(),
+    businessName: z.string().min(1, "Business name is required")
   });
 
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { uid, email, firstName, lastName } = publicSignupSchema.parse(req.body);
+      const { uid, email, firstName, lastName, businessName } = publicSignupSchema.parse(req.body);
 
       // Public signups always create partner accounts
-      const docId = await createUserDocument(uid, email, "partner", undefined, firstName, lastName);
+      const docId = await createUserDocument(uid, email, "partner", undefined, firstName, lastName, businessName);
 
       res.status(201).json({ 
         success: true, 

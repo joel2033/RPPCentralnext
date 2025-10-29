@@ -21,7 +21,7 @@ export interface UserData {
 }
 
 // Sign up a new user (public signup always creates partner)
-export const signUpUser = async (email: string, password: string): Promise<UserData> => {
+export const signUpUser = async (email: string, password: string, businessName: string): Promise<UserData> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -35,7 +35,8 @@ export const signUpUser = async (email: string, password: string): Promise<UserD
         },
         body: JSON.stringify({
           uid: user.uid,
-          email: user.email!
+          email: user.email!,
+          businessName
         })
       });
 

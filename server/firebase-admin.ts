@@ -46,6 +46,7 @@ export interface UserData {
   email: string;
   firstName?: string;
   lastName?: string;
+  businessName?: string; // Business name for partners
   role: UserRole;
   partnerId?: string; // Optional for editors
   createdAt: any;
@@ -109,7 +110,8 @@ export const createUserDocument = async (
   role: UserRole, 
   partnerId?: string,
   firstName?: string,
-  lastName?: string
+  lastName?: string,
+  businessName?: string
 ): Promise<string> => {
   try {
     // Generate partnerId for new partners, use provided one for team members, none for editors
@@ -128,6 +130,11 @@ export const createUserDocument = async (
     }
     if (lastName) {
       userData.lastName = lastName;
+    }
+
+    // Add businessName if provided (for partners)
+    if (businessName) {
+      userData.businessName = businessName;
     }
 
     // Add partnerId only if it exists (not for editors)
