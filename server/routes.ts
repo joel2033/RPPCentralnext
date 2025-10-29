@@ -2807,14 +2807,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Match by job.id (UUID) or job.jobId (NanoID) - both are used in different contexts
       const assignedOrder = editorOrders.find(o => o.jobId === job.id || o.jobId === job.jobId);
       if (!assignedOrder) {
-        console.log(`[STATUS UPDATE ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${jobOrders.length} orders for this job.`);
+        console.log(`[STATUS UPDATE ERROR] Editor ${uid} not assigned to job ${jobId}. Found ${editorOrders.length} orders for this job.`);
         return res.status(403).json({ error: "You are not assigned to this job" });
       }
       const order = assignedOrder; // Use the assigned order for status updates
 
-      // Verify partnerId for tenant isolation
-      if (job.partnerId !== currentUser.partnerId) {
-        return res.status(403).json({ error: "Access denied: job belongs to different partner" });
+      // Verify job has partnerId (tenant isolation) - editors don't have partnerId, so we validate through the order
+      if (!job.partnerId) {
+        console.error(`[SECURITY WARNING] Job ${jobId} is missing partnerId field`);
+        return res.status(500).json({ error: "Job configuration error: missing partner information" });
+      }
+      
+      // Verify the order belongs to the same partner as the job (cross-validation for security)
+      if (job.partnerId !== order.partnerId) {
+        console.error(`[SECURITY ERROR] Job partnerId (${job.partnerId}) doesn't match order partnerId (${order.partnerId})`);
+        return res.status(403).json({ error: "Access denied: data integrity violation" });
       }
 
       // Update job status first
@@ -5858,6 +5865,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error migrating to signed URLs:", error);
       res.status(500).json({ error: "Failed to migrate to signed URLs", details: error.message });
+    }
+  });
+
+  // Backfill missing partnerId in jobs
+  app.post("/api/maintenance/backfill-job-partnerids", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Only allow partners or admins to run this
+      if (!req.user || (req.user.role !== 'partner' && req.user.role !== 'admin')) {
+        return res.status(403).json({ error: "Only partners and admins can run maintenance tasks" });
+      }
+
+      console.log("[BACKFILL] Starting job partnerId backfill...");
+      
+      // Get all jobs
+      const allJobsSnapshot = await adminDb.collection("jobs").get();
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      const updates: any[] = [];
+
+      for (const jobDoc of allJobsSnapshot.docs) {
+        try {
+          const job = jobDoc.data();
+          
+          // Skip if job already has partnerId
+          if (job.partnerId) {
+            skippedCount++;
+            continue;
+          }
+
+          // Find the partnerId from related orders
+          const ordersSnapshot = await adminDb.collection("orders")
+            .where("jobId", "==", job.id)
+            .limit(1)
+            .get();
+
+          if (!ordersSnapshot.empty) {
+            const order = ordersSnapshot.docs[0].data();
+            if (order.partnerId) {
+              await adminDb.collection("jobs").doc(jobDoc.id).update({
+                partnerId: order.partnerId
+              });
+              
+              updates.push({
+                jobId: job.jobId,
+                oldPartnerId: null,
+                newPartnerId: order.partnerId
+              });
+              
+              updatedCount++;
+              console.log(`[BACKFILL] Updated job ${job.jobId} with partnerId ${order.partnerId}`);
+            } else {
+              console.warn(`[BACKFILL] Order found for job ${job.jobId} but order has no partnerId`);
+              errorCount++;
+            }
+          } else {
+            console.warn(`[BACKFILL] No orders found for job ${job.jobId}, cannot determine partnerId`);
+            errorCount++;
+          }
+        } catch (error: any) {
+          console.error(`[BACKFILL] Error processing job ${jobDoc.id}:`, error.message);
+          errorCount++;
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Job partnerId backfill completed",
+        updatedCount,
+        skippedCount,
+        errorCount,
+        totalJobs: allJobsSnapshot.size,
+        sampleUpdates: updates.slice(0, 10)
+      });
+    } catch (error: any) {
+      console.error("[BACKFILL] Error in job partnerId backfill:", error);
+      res.status(500).json({ 
+        error: "Failed to backfill job partnerIds", 
+        details: error.message 
+      });
     }
   });
 
