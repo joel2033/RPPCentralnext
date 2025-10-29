@@ -533,6 +533,20 @@ export class FirestoreStorage implements IStorage {
     return this.updateOrder(orderId, updates);
   }
 
+  async markOrderUploaded(orderId: string, editorId: string): Promise<Order | undefined> {
+    const order = await this.getOrder(orderId);
+    if (!order || order.assignedTo !== editorId) {
+      throw new Error("Order not found or access denied");
+    }
+
+    const updates: Partial<Order> = { 
+      status: "completed",
+      dateCompleted: new Date()
+    };
+
+    return this.updateOrder(orderId, updates);
+  }
+
   // Service Categories
   async getServiceCategories(editorId: string): Promise<ServiceCategory[]> {
     const snapshot = await this.db.collection("serviceCategories").where("editorId", "==", editorId).get();
@@ -667,7 +681,13 @@ export class FirestoreStorage implements IStorage {
   }
 
   async updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined> {
-    return this.updateJob(jobId, { status });
+    // jobId is the NanoID field, not the document ID - we need to fetch the job first
+    const job = await this.getJobByJobId(jobId);
+    if (!job) {
+      return undefined;
+    }
+    // Now use the actual document ID to update
+    return this.updateJob(job.id, { status });
   }
 
   // Folder Management
