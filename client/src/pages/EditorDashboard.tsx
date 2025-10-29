@@ -633,7 +633,12 @@ export default function EditorDashboard() {
                     <FileImage className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900">{job.customerName}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium text-gray-900">{job.customerName}</h4>
+                      <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-order-${job.orderNumber}`}>
+                        #{job.orderNumber}
+                      </Badge>
+                    </div>
                     <p className="text-sm text-gray-600">{job.address}</p>
                     <p className="text-xs text-gray-500">{job.services[0]?.name || 'Service'} • {job.originalFiles?.length || 0} files</p>
                   </div>
