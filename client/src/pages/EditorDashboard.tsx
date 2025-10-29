@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Upload, FileImage, Calendar, DollarSign, Package, Loader2, Check, X } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, getDocs, Timestamp } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -47,8 +46,6 @@ export default function EditorDashboard() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
-  const [editorJobs, setEditorJobs] = useState<EditorJob[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   
   // Confirmation dialog states
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
@@ -59,127 +56,11 @@ export default function EditorDashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Real-time Firestore listener for editor jobs
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Subscribe to orders assigned to this editor
-    const ordersQuery = query(
-      collection(db, 'orders'),
-      where('assignedTo', '==', user.uid)
-    );
-
-    const unsubscribe = onSnapshot(ordersQuery, async (snapshot) => {
-      try {
-        // Fetch all related data for each order
-        const jobsData = await Promise.all(
-          snapshot.docs.map(async (orderDoc) => {
-            const orderData = orderDoc.data();
-            
-            // Fetch job details if jobId exists
-            let job = null;
-            let businessName = "Business Name Missing";
-            if (orderData.jobId) {
-              const jobsSnapshot = await getDocs(
-                query(collection(db, 'jobs'), where('jobId', '==', orderData.jobId))
-              );
-              if (!jobsSnapshot.empty) {
-                job = jobsSnapshot.docs[0].data();
-              }
-            }
-
-            // Fetch partner's business name
-            if (orderData.partnerId) {
-              const partnersSnapshot = await getDocs(
-                query(
-                  collection(db, 'users'),
-                  where('partnerId', '==', orderData.partnerId),
-                  where('role', '==', 'partner')
-                )
-              );
-              if (!partnersSnapshot.empty) {
-                const partnerData = partnersSnapshot.docs[0].data();
-                businessName = partnerData.businessName || "Business Name Missing";
-              }
-            }
-
-            // Fetch order services
-            const servicesSnapshot = await getDocs(
-              query(collection(db, 'orderServices'), where('orderId', '==', orderDoc.id))
-            );
-            const services = servicesSnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-
-            // Fetch original files
-            const filesSnapshot = await getDocs(
-              query(collection(db, 'orderFiles'), where('orderId', '==', orderDoc.id))
-            );
-            const originalFiles = filesSnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-
-            // Fetch existing uploads
-            const uploadsSnapshot = await getDocs(
-              query(collection(db, 'editorUploads'), where('jobId', '==', orderData.jobId || ''))
-            );
-            const existingUploads = uploadsSnapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-
-            return {
-              id: orderDoc.id,
-              jobId: orderData.jobId || "",
-              orderId: orderDoc.id,
-              orderNumber: orderData.orderNumber || "",
-              customerName: businessName,
-              address: job?.address || "Unknown Address",
-              services: services as any[],
-              status: orderData.status || 'pending',
-              dueDate: orderData.createdAt 
-                ? new Date(orderData.createdAt.toDate().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : "",
-              createdAt: orderData.createdAt?.toDate() || new Date(),
-              originalFiles: originalFiles as any[],
-              existingUploads: existingUploads as any[],
-              partnerId: orderData.partnerId
-            } as EditorJob;
-          })
-        );
-
-        // Filter for jobs ready for upload
-        const filteredJobs = jobsData.filter(job => 
-          job.status === 'pending' || job.status === 'processing' || job.status === 'uploaded'
-        );
-
-        setEditorJobs(filteredJobs);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching editor jobs:', error);
-        setIsLoading(false);
-      }
-    }, (error) => {
-      console.error('Error in realtime listener:', error);
-      toast({
-        title: "Connection Error",
-        description: "Failed to sync jobs. Please refresh the page.",
-        variant: "destructive"
-      });
-      setIsLoading(false);
-    });
-
-    // Cleanup listener on unmount
-    return () => unsubscribe();
-  }, [auth.currentUser, toast]);
+  // Fetch jobs using API endpoint instead of direct Firestore
+  const { data: editorJobs = [], isLoading } = useQuery<EditorJob[]>({
+    queryKey: ['/api/editor/jobs-ready-for-upload'],
+    refetchInterval: 5000, // Poll every 5 seconds for updates
+  });
 
   const pendingJobs = editorJobs.filter(job => job.status === 'pending');
   const inProgressJobs = editorJobs.filter(job => job.status === 'processing');
