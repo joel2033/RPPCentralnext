@@ -297,9 +297,9 @@ export class FirestoreStorage implements IStorage {
     return snapshot.docs.map(doc => docToObject<Order>(doc));
   }
 
-  async createOrder(order: InsertOrder): Promise<Order> {
+  async createOrder(order: InsertOrder, reservedOrderNumber?: string): Promise<Order> {
     const id = nanoid();
-    const orderNumber = await this.generateOrderNumber();
+    const orderNumber = reservedOrderNumber || await this.generateOrderNumber();
     
     // Calculate files expiry date (30 days from now)
     const filesExpiryDate = new Date();
