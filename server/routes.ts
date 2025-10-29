@@ -5770,49 +5770,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Migration endpoint to fix downloadUrl for existing files
-  app.post("/api/admin/migrate-download-urls", async (req, res) => {
+  // Migration endpoint to convert old public URLs to signed URLs
+  app.post("/api/admin/migrate-to-signed-urls", async (req, res) => {
     try {
       const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
       if (!bucketName) {
         return res.status(500).json({ error: 'FIREBASE_STORAGE_BUCKET not configured' });
       }
 
+      const bucket = getStorage().bucket(bucketName);
+      
       // Get all editor uploads
       const allUploads = await firestoreStorage.getAllEditorUploads();
       
       let updatedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
       const updates = [];
 
       for (const upload of allUploads) {
-        // Check if downloadUrl is missing https:// (meaning it's just a path)
-        if (upload.downloadUrl && !upload.downloadUrl.startsWith('https://')) {
-          const fixedUrl = `https://storage.googleapis.com/${bucketName}/${upload.downloadUrl}`;
-          updates.push({
-            id: upload.id,
-            oldUrl: upload.downloadUrl,
-            newUrl: fixedUrl
-          });
+        try {
+          // Check if downloadUrl is a public storage URL that needs conversion
+          const isPublicUrl = upload.downloadUrl && 
+            upload.downloadUrl.includes('storage.googleapis.com') &&
+            !upload.downloadUrl.includes('X-Goog-Algorithm'); // Signed URLs contain this param
           
-          // Update the upload
-          await firestoreStorage.updateEditorUpload(upload.id, {
-            downloadUrl: fixedUrl,
-            firebaseUrl: fixedUrl
-          });
-          
-          updatedCount++;
+          if (isPublicUrl) {
+            // Extract file path from public URL
+            let filePath = upload.firebaseUrl || upload.downloadUrl;
+            
+            // Remove the bucket prefix if present
+            const bucketPrefix = `https://storage.googleapis.com/${bucketName}/`;
+            if (filePath.startsWith(bucketPrefix)) {
+              filePath = filePath.substring(bucketPrefix.length);
+            }
+            
+            // Get the file reference
+            const file = bucket.file(filePath);
+            
+            // Check if file exists in storage
+            const [exists] = await file.exists();
+            
+            if (!exists) {
+              console.log(`[MIGRATION] File not found in storage: ${filePath}`);
+              errorCount++;
+              continue;
+            }
+            
+            // Generate signed URL (30 days for completed files)
+            const [signedUrl] = await file.getSignedUrl({
+              action: 'read',
+              expires: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            });
+            
+            updates.push({
+              id: upload.id,
+              fileName: upload.fileName,
+              oldUrl: upload.downloadUrl.substring(0, 100) + '...',
+              newUrl: 'signed-url-generated'
+            });
+            
+            // Update with signed URL
+            await firestoreStorage.updateEditorUpload(upload.id, {
+              downloadUrl: signedUrl,
+              firebaseUrl: filePath // Store just the path for future regeneration
+            });
+            
+            updatedCount++;
+          } else {
+            skippedCount++;
+          }
+        } catch (fileError: any) {
+          console.error(`[MIGRATION] Error processing file ${upload.id}:`, fileError.message);
+          errorCount++;
         }
       }
 
       res.json({ 
         success: true, 
         updatedCount,
+        skippedCount,
+        errorCount,
         totalFiles: allUploads.length,
-        updates: updates.slice(0, 10) // Show first 10 updates
+        sampleUpdates: updates.slice(0, 10)
       });
     } catch (error: any) {
-      console.error("Error migrating download URLs:", error);
-      res.status(500).json({ error: "Failed to migrate download URLs", details: error.message });
+      console.error("Error migrating to signed URLs:", error);
+      res.status(500).json({ error: "Failed to migrate to signed URLs", details: error.message });
     }
   });
 
