@@ -462,17 +462,21 @@ export class FirestoreStorage implements IStorage {
     const jobPromises = orders.map(async (order) => {
       const job = order.jobId ? await this.getJobByJobId(order.jobId) : null;
       
-      // Get partner's business name instead of customer name
+      // Get partner's business name from partnerSettings
       let businessName = "Business Name Missing";
       if (order.partnerId) {
         try {
-          const partnerSnapshot = await this.db.collection("users").where("partnerId", "==", order.partnerId).where("role", "==", "partner").limit(1).get();
-          if (!partnerSnapshot.empty) {
-            const partnerData = partnerSnapshot.docs[0].data();
-            businessName = partnerData.businessName || "Business Name Missing";
+          const partnerSettings = await this.getPartnerSettings(order.partnerId);
+          if (partnerSettings && partnerSettings.businessProfile) {
+            try {
+              const businessProfile = JSON.parse(partnerSettings.businessProfile);
+              businessName = businessProfile.businessName || "Business Name Missing";
+            } catch (parseError) {
+              console.error("Error parsing business profile JSON:", parseError);
+            }
           }
         } catch (error) {
-          console.error("Error fetching partner business name:", error);
+          console.error("Error fetching partner settings:", error);
         }
       }
       
