@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Package,
   Loader2,
+  MapPin,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useRealtimeAttentionItems } from "@/hooks/useFirestoreRealtime";
@@ -25,6 +26,7 @@ interface AttentionItem {
   time: string | Date;
   priority: 'high' | 'medium' | 'low';
   projectName?: string;
+  address?: string;
   unread?: boolean;
   orderId?: string;
   jobId?: string;
@@ -108,8 +110,8 @@ export function NeedsAttention() {
 
   const handleItemClick = (item: AttentionItem) => {
     if (item.type === 'order_completed' && item.jobId) {
-      // Navigate to delivery page for completed orders
-      setLocation(`/delivery/${item.jobId}`);
+      // Navigate to job card page for completed orders ready for delivery
+      setLocation(`/jobs/${item.jobId}`);
     } else if (item.type === 'message' && item.conversationId) {
       // Navigate to messages page
       setLocation('/messages');
@@ -156,6 +158,16 @@ export function NeedsAttention() {
             <div className="divide-y divide-border/50">
               {attentionItems.map((item) => {
                 const Icon = getIcon(item.type);
+                // Debug logging for job-related items
+                if (item.type === 'order_completed') {
+                  console.log('[NeedsAttention] Rendering order_completed item:', {
+                    id: item.id,
+                    address: item.address,
+                    jobId: item.jobId,
+                    projectName: item.projectName,
+                    hasAddress: !!item.address
+                  });
+                }
                 return (
                   <div
                     key={item.id}
@@ -201,12 +213,17 @@ export function NeedsAttention() {
                           </Badge>
                         </div>
 
-                        <p className="text-xs text-rpp-grey-medium mb-2">
-                          {item.description}
-                        </p>
-
-                        <div className="flex items-center gap-2 text-xs text-rpp-grey-light">
-                          {item.projectName && (
+                        <div className="flex items-center gap-2 text-xs text-rpp-grey-light mt-2">
+                          {item.address && (
+                            <>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {item.address}
+                              </span>
+                              <span>•</span>
+                            </>
+                          )}
+                          {item.projectName && !item.address && (
                             <>
                               <span className="flex items-center gap-1">
                                 <ImageIcon className="w-3 h-3" />

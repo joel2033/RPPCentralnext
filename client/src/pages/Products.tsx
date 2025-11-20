@@ -142,9 +142,27 @@ export default function Products() {
                     </div>
                   </td>
                   <td className="py-3 px-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Product
-                    </span>
+                    {(() => {
+                      const type = product.type?.toLowerCase() || 'product';
+                      const typeLabels: Record<string, string> = {
+                        'product': 'Product',
+                        'package': 'Package',
+                        'addon': 'Add-on'
+                      };
+                      const typeColors: Record<string, string> = {
+                        'product': 'bg-blue-100 text-blue-800',
+                        'package': 'bg-purple-100 text-purple-800',
+                        'addon': 'bg-green-100 text-green-800'
+                      };
+                      const displayType = typeLabels[type] || 'Product';
+                      const colorClass = typeColors[type] || 'bg-blue-100 text-blue-800';
+                      
+                      return (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+                          {displayType}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-3 text-sm">{product.category || '-'}</td>
                   <td className="py-3 px-3 text-sm font-medium">

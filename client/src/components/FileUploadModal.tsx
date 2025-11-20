@@ -20,6 +20,7 @@ interface FileUploadModalProps {
   orderNumber?: string; // For completed files, we already know the order number
   folderToken?: string; // For standalone folders created via "Add Content"
   folderPath?: string; // The folder path for context
+  hideFolderInput?: boolean; // Hide folder naming UI when uploading to existing folder
 }
 
 interface FileUploadItem {
@@ -31,10 +32,10 @@ interface FileUploadItem {
   error?: string;
 }
 
-export function FileUploadModal({ 
-  isOpen, 
-  onClose, 
-  serviceName, 
+export function FileUploadModal({
+  isOpen,
+  onClose,
+  serviceName,
   serviceId,
   userId,
   jobId,
@@ -42,7 +43,8 @@ export function FileUploadModal({
   uploadType = 'client',
   orderNumber: providedOrderNumber,
   folderToken,
-  folderPath
+  folderPath,
+  hideFolderInput = false
 }: FileUploadModalProps) {
   const [uploadItems, setUploadItems] = useState<FileUploadItem[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -163,10 +165,13 @@ export function FileUploadModal({
                     } : uploadItem
                   ));
                 },
-                // Pass folder data if folder is being used
+                // Pass folder data if folder is being used OR if uploading to existing folder
                 useFolder && folderName ? {
                   folderPath: folderName,
                   editorFolderName: folderName
+                } : hideFolderInput && folderPath ? {
+                  folderPath: folderPath,
+                  editorFolderName: folderPath.split('/').pop() || folderPath
                 } : undefined
               )
             : uploadFileToFirebase(
@@ -266,8 +271,8 @@ export function FileUploadModal({
     onClose();
   };
 
-  const canSubmit = uploadItems.length > 0 && uploadItems.every(item => item.status === 'completed') && 
-    (uploadType !== 'completed' || (useFolder && folderName.trim().length > 0));
+  const canSubmit = uploadItems.length > 0 && uploadItems.every(item => item.status === 'completed') &&
+    (uploadType !== 'completed' || hideFolderInput || (useFolder && folderName.trim().length > 0));
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -286,8 +291,8 @@ export function FileUploadModal({
             }
           </p>
 
-          {/* Folder Options - Mandatory for completed uploads */}
-          {uploadType === 'completed' && (
+          {/* Folder Options - Mandatory for completed uploads (unless uploading to existing folder) */}
+          {uploadType === 'completed' && !hideFolderInput && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
               <div className="space-y-2">
                 <label htmlFor="folder-name" className="text-sm font-medium text-blue-900">

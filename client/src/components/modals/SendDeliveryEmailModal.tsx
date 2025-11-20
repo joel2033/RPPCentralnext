@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, CheckCircle2, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
 
 interface SendDeliveryEmailModalProps {
   open: boolean;
@@ -31,6 +32,7 @@ interface SendDeliveryEmailModalProps {
     company?: string;
   };
   onEmailSent?: () => void;
+  onJobUpdated?: (updatedJob: { deliveryToken?: string }) => void;
 }
 
 export default function SendDeliveryEmailModal({
@@ -39,6 +41,7 @@ export default function SendDeliveryEmailModal({
   job,
   customer,
   onEmailSent,
+  onJobUpdated,
 }: SendDeliveryEmailModalProps) {
   const [recipientEmail, setRecipientEmail] = useState("");
   const [subject, setSubject] = useState("");
@@ -46,6 +49,9 @@ export default function SendDeliveryEmailModal({
   const [isSending, setIsSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [deliveryLink, setDeliveryLink] = useState("");
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [tokenGenerationError, setTokenGenerationError] = useState<string | null>(null);
+  const [retryTokenGeneration, setRetryTokenGeneration] = useState(0);
   const { toast } = useToast();
 
   // Generate delivery link from deliveryToken (required for security)
@@ -57,6 +63,65 @@ export default function SendDeliveryEmailModal({
       setDeliveryLink("");
     }
   }, [job.deliveryToken]);
+
+  // Automatically generate delivery token when modal opens if missing
+  useEffect(() => {
+    if (open && !job.deliveryToken && !isGeneratingToken) {
+      const generateToken = async () => {
+        setIsGeneratingToken(true);
+        setTokenGenerationError(null);
+        
+        try {
+          const idToken = await auth.currentUser?.getIdToken();
+          if (!idToken) {
+            throw new Error("Unable to authenticate the request.");
+          }
+
+          const jobId = job.jobId || job.id;
+          const response = await fetch(`/api/jobs/${jobId}/generate-delivery-token`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "Failed to generate delivery token");
+          }
+
+          const data = await response.json();
+          
+          // Notify parent component to refresh job data
+          if (onJobUpdated) {
+            onJobUpdated({ deliveryToken: data.token });
+          }
+          
+          // Update local delivery link immediately
+          const baseUrl = window.location.origin;
+          setDeliveryLink(`${baseUrl}/delivery/${data.token}`);
+          
+          toast({
+            title: "Delivery token generated",
+            description: "The secure delivery link has been created.",
+          });
+        } catch (error: any) {
+          console.error("Error generating delivery token:", error);
+          setTokenGenerationError(error.message || "Failed to generate delivery token");
+          toast({
+            title: "Failed to generate token",
+            description: error.message || "Please try again or contact support",
+            variant: "destructive",
+          });
+        } finally {
+          setIsGeneratingToken(false);
+        }
+      };
+
+      generateToken();
+    }
+  }, [open, job.deliveryToken, job.jobId, job.id, isGeneratingToken, retryTokenGeneration, onJobUpdated, toast]);
 
   // Pre-fill form when modal opens
   useEffect(() => {
@@ -90,21 +155,50 @@ export default function SendDeliveryEmailModal({
 
     setIsSending(true);
     try {
-      const response = await fetch("/api/delivery/send-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          jobId: job.id,
-          recipientEmail,
-          subject,
-          message: message.replace("[DELIVERY_LINK]", deliveryLink),
-        }),
-      });
+      const updateStatus = async () => {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) {
+          throw new Error("Unable to authenticate the request.");
+        }
 
-      if (!response.ok) {
+        const response = await fetch(`/api/jobs/${job.id}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ status: "delivered" }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to update job status");
+        }
+      };
+
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        throw new Error("Unable to authenticate the request.");
+      }
+
+      const [emailResponse] = await Promise.all([
+        fetch("/api/delivery/send-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            jobId: job.id,
+            recipientEmail,
+            subject,
+            message: message.replace("[DELIVERY_LINK]", deliveryLink),
+          }),
+        }),
+        updateStatus(),
+      ]);
+
+      if (!emailResponse.ok) {
         throw new Error("Failed to send email");
       }
 
@@ -147,10 +241,31 @@ export default function SendDeliveryEmailModal({
             <div className="space-y-4 py-4">
               {/* Delivery Link Preview or Warning */}
               {!deliveryLink ? (
-                <Alert variant="destructive">
+                <Alert variant={tokenGenerationError ? "destructive" : "default"}>
                   <AlertDescription>
-                    This job does not have a secure delivery token. Please contact support to generate
-                    a delivery token before sending this email.
+                    {isGeneratingToken ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                        Generating secure delivery token...
+                      </div>
+                    ) : tokenGenerationError ? (
+                      <>
+                        Failed to generate delivery token: {tokenGenerationError}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() => {
+                            setTokenGenerationError(null);
+                            setRetryTokenGeneration(prev => prev + 1);
+                          }}
+                        >
+                          Retry
+                        </Button>
+                      </>
+                    ) : (
+                      "Generating secure delivery token..."
+                    )}
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -248,7 +363,7 @@ export default function SendDeliveryEmailModal({
               </Button>
               <Button
                 onClick={handleSendEmail}
-                disabled={isSending || !deliveryLink || !recipientEmail || !subject || !message}
+                disabled={isSending || isGeneratingToken || !deliveryLink || !recipientEmail || !subject || !message}
                 className="bg-gradient-to-r from-primary to-primary/90"
                 data-testid="button-send-email"
               >

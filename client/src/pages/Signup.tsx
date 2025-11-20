@@ -67,8 +67,34 @@ export default function Signup() {
     try {
       if (inviteToken) {
         // Team member signup via invite
+        // Validate email matches invite
+        if (inviteInfo && inviteInfo.email.toLowerCase() !== email.toLowerCase()) {
+          setError(`Email must match the invite. Expected: ${inviteInfo.email}`);
+          setLoading(false);
+          return;
+        }
+
         // 1. Create Firebase Auth user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        let userCredential;
+        try {
+          userCredential = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+        } catch (firebaseError: any) {
+          // Handle Firebase Auth errors with user-friendly messages
+          if (firebaseError.code === 'auth/email-already-in-use') {
+            setError('This email is already registered. Please log in instead or use a different email.');
+          } else if (firebaseError.code === 'auth/invalid-email') {
+            setError('Invalid email address. Please check and try again.');
+          } else if (firebaseError.code === 'auth/weak-password') {
+            setError('Password is too weak. Please use a stronger password.');
+          } else if (firebaseError.code === 'auth/operation-not-allowed') {
+            setError('Email/password accounts are not enabled. Please contact support.');
+          } else {
+            setError(firebaseError.message || 'Failed to create account. Please try again.');
+          }
+          setLoading(false);
+          return;
+        }
+
         const user = userCredential.user;
 
         // 2. Complete invite signup via backend
@@ -84,6 +110,12 @@ export default function Signup() {
 
         if (!response.ok) {
           const errorData = await response.json();
+          // If backend fails, we should delete the Firebase Auth user we just created
+          try {
+            await user.delete();
+          } catch (deleteError) {
+            console.error('Failed to clean up Firebase Auth user:', deleteError);
+          }
           throw new Error(errorData.error || 'Failed to complete invite signup');
         }
 
@@ -91,7 +123,7 @@ export default function Signup() {
         setSuccess(`Team member account created with role: ${result.role}! Redirecting to dashboard...`);
       } else {
         // Regular partner signup
-        await signUpUser(email, password, '');
+        await signUpUser(email.trim().toLowerCase(), password, '');
         setSuccess('Partner account created successfully! Redirecting to dashboard...');
       }
       
@@ -99,7 +131,12 @@ export default function Signup() {
         setLocation('/dashboard');
       }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to create account');
+      // Handle other errors
+      if (err.code && err.code.startsWith('auth/')) {
+        // Firebase Auth error already handled above
+        return;
+      }
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }

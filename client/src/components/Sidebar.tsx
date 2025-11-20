@@ -80,6 +80,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   // Only show badge when user is authenticated and data is loaded
   const showUnreadBadge = currentUser && !conversationsLoading && unreadCount > 0;
 
+  // Filter menu items based on user role
+  const filteredMenuItems = userData?.role === 'photographer'
+    ? menuItems.filter(item => 
+        item.title === "Dashboard" ||
+        item.title === "Customers" ||
+        item.title === "Calendar" ||
+        item.title === "Jobs" ||
+        item.title === "Production Hub" ||
+        item.title === "Messages" ||
+        item.title === "Settings"
+      )
+    : menuItems;
+
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev => 
       prev.includes(title) 
@@ -191,7 +204,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Navigation Menu */}
         <nav className="flex-1 py-4 overflow-y-auto">
           <ul className="space-y-1 px-3">
-            {menuItems.map(renderMenuItem)}
+            {filteredMenuItems.map(renderMenuItem)}
           </ul>
         </nav>
 

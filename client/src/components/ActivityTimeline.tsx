@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus, ChevronDown } from "lucide-react";
+import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus, ChevronDown, MessageSquare, Eye, Mail, Trash2, Edit, FolderPlus, Send } from "lucide-react";
 import { format } from "date-fns";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Query } from "firebase/firestore";
@@ -82,33 +82,39 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
           orderId
         });
 
-        const activitiesData: ActivityData[] = snapshot.docs.map(doc => {
-          const data = doc.data();
-          console.log("[ActivityTimeline] Activity doc:", {
-            id: doc.id,
-            jobId: data.jobId,
-            title: data.title,
-            createdAt: data.createdAt
+        const activitiesData: ActivityData[] = snapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            console.log("[ActivityTimeline] Activity doc:", {
+              id: doc.id,
+              jobId: data.jobId,
+              title: data.title,
+              createdAt: data.createdAt
+            });
+            
+            return {
+              id: doc.id,
+              partnerId: data.partnerId,
+              jobId: data.jobId || null,
+              orderId: data.orderId || null,
+              userId: data.userId,
+              userEmail: data.userEmail,
+              userName: data.userName,
+              action: data.action,
+              category: data.category,
+              title: data.title,
+              description: data.description,
+              metadata: data.metadata || null,
+              ipAddress: data.ipAddress || null,
+              userAgent: data.userAgent || null,
+              createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt)
+            };
+          })
+          .filter(activity => {
+            // Filter out folder visibility updated activities
+            const title = activity.title?.toLowerCase() || '';
+            return !title.includes('folder visibility updated');
           });
-          
-          return {
-            id: doc.id,
-            partnerId: data.partnerId,
-            jobId: data.jobId || null,
-            orderId: data.orderId || null,
-            userId: data.userId,
-            userEmail: data.userEmail,
-            userName: data.userName,
-            action: data.action,
-            category: data.category,
-            title: data.title,
-            description: data.description,
-            metadata: data.metadata || null,
-            ipAddress: data.ipAddress || null,
-            userAgent: data.userAgent || null,
-            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt)
-          };
-        });
         
         console.log("[ActivityTimeline] Setting activities:", activitiesData);
         setActivities(activitiesData);
@@ -131,15 +137,29 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
   const getActivityIcon = (action: string, category: string) => {
     switch (action) {
       case 'creation':
-        return category === 'job' ? <CheckCircle className="h-4 w-4" /> : <FileText className="h-4 w-4" />;
+        return category === 'job' ? <CheckCircle className="h-4 w-4" /> :
+               category === 'file' ? <FolderPlus className="h-4 w-4" /> :
+               <FileText className="h-4 w-4" />;
       case 'assignment':
         return <UserPlus className="h-4 w-4" />;
+      case 'submission':
+        return <Send className="h-4 w-4" />;
       case 'upload':
         return <Upload className="h-4 w-4" />;
       case 'download':
         return <Download className="h-4 w-4" />;
       case 'status_change':
         return <Clock className="h-4 w-4" />;
+      case 'comment':
+        return <MessageSquare className="h-4 w-4" />;
+      case 'read':
+        return <Eye className="h-4 w-4" />;
+      case 'notification':
+        return <Mail className="h-4 w-4" />;
+      case 'delete':
+        return <Trash2 className="h-4 w-4" />;
+      case 'update':
+        return <Edit className="h-4 w-4" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
@@ -151,12 +171,24 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
         return 'border-green-200 bg-green-50 text-green-700';
       case 'assignment':
         return 'border-blue-200 bg-blue-50 text-blue-700';
+      case 'submission':
+        return 'border-teal-200 bg-teal-50 text-teal-700';
       case 'upload':
         return 'border-purple-200 bg-purple-50 text-purple-700';
       case 'download':
         return 'border-orange-200 bg-orange-50 text-orange-700';
       case 'status_change':
         return 'border-yellow-200 bg-yellow-50 text-yellow-700';
+      case 'comment':
+        return 'border-cyan-200 bg-cyan-50 text-cyan-700';
+      case 'read':
+        return 'border-indigo-200 bg-indigo-50 text-indigo-700';
+      case 'notification':
+        return 'border-pink-200 bg-pink-50 text-pink-700';
+      case 'delete':
+        return 'border-red-200 bg-red-50 text-red-700';
+      case 'update':
+        return 'border-amber-200 bg-amber-50 text-amber-700';
       default:
         return 'border-gray-200 bg-gray-50 text-gray-700';
     }

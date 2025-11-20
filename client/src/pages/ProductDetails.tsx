@@ -37,13 +37,27 @@ export default function ProductDetails() {
     queryKey: ["/api/customers"],
   });
 
-  // Fetch team members (photographers only)
-  const { data: allUsers = [] } = useQuery<any[]>({
+  // Fetch team members
+  const { data: allUsers = [], isLoading: usersLoading, error: usersError } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
 
-  // Filter for photographers only
-  const teamMembers = allUsers.filter((user: any) => user.role === 'photographer');
+  // Debug logging
+  useEffect(() => {
+    console.log('ProductDetails - allUsers:', allUsers);
+    console.log('ProductDetails - allUsers count:', allUsers.length);
+    console.log('ProductDetails - usersLoading:', usersLoading);
+    console.log('ProductDetails - usersError:', usersError);
+    if (allUsers.length > 0) {
+      console.log('ProductDetails - user roles:', allUsers.map((u: any) => ({ id: u.id, email: u.email, role: u.role })));
+    }
+  }, [allUsers, usersLoading, usersError]);
+
+  // Filter for team members who can provide products (photographers, admins, and partners)
+  // Exclude editors as they don't provide products
+  const teamMembers = Array.isArray(allUsers) ? allUsers.filter((user: any) => 
+    user && (user.role === 'photographer' || user.role === 'admin' || user.role === 'partner')
+  ) : [];
 
   // Fetch all products for inclusions
   const { data: allProducts = [] } = useQuery<any[]>({
@@ -54,6 +68,7 @@ export default function ProductDetails() {
   const [formData, setFormData] = useState<any>(null);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
@@ -125,8 +140,29 @@ export default function ProductDetails() {
       } else {
         setSelectedCustomers([]);
       }
+
+      // Parse assigned team member IDs
+      if (productData.assignedTeamMemberIds) {
+        try {
+          const parsedIds = JSON.parse(productData.assignedTeamMemberIds);
+          setSelectedTeamMembers(parsedIds);
+        } catch (e) {
+          console.error("Failed to parse assigned team member IDs:", e);
+          // If no assigned team members, default to all team members
+          const allTeamMemberIds = allUsers
+            .filter((u: any) => u.role === 'photographer' || u.role === 'admin' || u.role === 'partner')
+            .map((m: any) => m.id);
+          setSelectedTeamMembers(allTeamMemberIds);
+        }
+      } else {
+        // If no assigned team members, default to all team members
+        const allTeamMemberIds = allUsers
+          .filter((u: any) => u.role === 'photographer' || u.role === 'admin' || u.role === 'partner')
+          .map((m: any) => m.id);
+        setSelectedTeamMembers(allTeamMemberIds);
+      }
     }
-  }, [product, id]);
+  }, [product, id, allUsers]);
 
   const updateProductMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -228,6 +264,7 @@ export default function ProductDetails() {
       exclusiveCustomerIds: formData.exclusivityType === "exclusive" && selectedCustomers.length > 0 
         ? JSON.stringify(selectedCustomers) 
         : null,
+      assignedTeamMemberIds: selectedTeamMembers.length > 0 ? JSON.stringify(selectedTeamMembers) : null,
       image: uploadedImageUrl || null,
       includedProducts: includedProducts.length > 0 ? JSON.stringify(includedProducts) : null,
     };
@@ -872,15 +909,26 @@ export default function ProductDetails() {
             <div className="bg-white rounded-xl border border-rpp-grey-border p-6">
               <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Team Providers</h3>
               <p className="text-sm text-rpp-grey-light mb-4">
-                Choose the photographer team members eligible to provide this product. By default, all team members will be selected.
+                Choose the team members eligible to provide this product. By default, all team members will be selected.
               </p>
-              {teamMembers.length > 0 ? (
+              {usersLoading ? (
+                <p className="text-sm text-rpp-grey-light italic">Loading team members...</p>
+              ) : usersError ? (
+                <p className="text-sm text-red-500 italic">Error loading team members. Please refresh the page.</p>
+              ) : teamMembers.length > 0 ? (
                 <div className="space-y-2">
                   {teamMembers.map((member: any) => (
                     <div key={member.id} className="flex items-center space-x-2">
                       <Checkbox 
                         id={`provider-${member.id}`} 
-                        defaultChecked 
+                        checked={selectedTeamMembers.includes(member.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedTeamMembers([...selectedTeamMembers, member.id]);
+                          } else {
+                            setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== member.id));
+                          }
+                        }}
                         data-testid={`checkbox-provider-${member.id}`} 
                       />
                       <Label htmlFor={`provider-${member.id}`} className="text-sm font-normal cursor-pointer">
@@ -891,7 +939,7 @@ export default function ProductDetails() {
                 </div>
               ) : (
                 <p className="text-sm text-rpp-grey-light italic">
-                  No photographer team members found. Add photographers to assign them to products.
+                  No team members found. Add team members in Settings to assign them to products.
                 </p>
               )}
             </div>

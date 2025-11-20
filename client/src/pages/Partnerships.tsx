@@ -1,9 +1,15 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { Users, UserPlus, Mail, Calendar } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Users, UserPlus, Mail, Calendar, Edit2, Save, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Partnership {
   editorId: string;
@@ -18,12 +24,82 @@ interface Partnership {
 
 export default function Partnerships() {
   const [, setLocation] = useLocation();
+  const { userData } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isPartner = userData?.role === 'partner' || userData?.role === 'admin';
 
   // Fetch active partnerships
   const { data: partnerships = [], isLoading } = useQuery<Partnership[]>({
     queryKey: ['/api/partnerships'],
     retry: false
   });
+
+  // Fetch settings to get editor display names (only for partners/admins)
+  const { data: settings } = useQuery<{ editorDisplayNames?: Record<string, string> }>({
+    queryKey: ['/api/settings'],
+    enabled: isPartner,
+    retry: false
+  });
+
+  // Local state for editor display names
+  const [editorDisplayNames, setEditorDisplayNames] = useState<Record<string, string>>({});
+  const [editingEditorId, setEditingEditorId] = useState<string | null>(null);
+  const [tempDisplayNames, setTempDisplayNames] = useState<Record<string, string>>({});
+
+  // Initialize editorDisplayNames from settings
+  useEffect(() => {
+    if (settings?.editorDisplayNames) {
+      setEditorDisplayNames(settings.editorDisplayNames);
+      setTempDisplayNames(settings.editorDisplayNames);
+    }
+  }, [settings]);
+
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (data: { editorDisplayNames?: Record<string, string> }) => {
+      return apiRequest("/api/settings", "PUT", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      toast({
+        title: "Display Name Saved!",
+        description: "Photographers will now see the custom name.",
+      });
+      setEditingEditorId(null);
+      setEditorDisplayNames(tempDisplayNames);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Save",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleSaveDisplayName = (editorId: string) => {
+    const newNames = { ...tempDisplayNames };
+    if (!newNames[editorId] || newNames[editorId].trim() === '') {
+      delete newNames[editorId];
+    }
+    saveSettingsMutation.mutate({
+      editorDisplayNames: Object.keys(newNames).length > 0 ? newNames : undefined
+    });
+  };
+
+  const handleCancelEdit = (editorId: string) => {
+    setTempDisplayNames(prev => {
+      const updated = { ...prev };
+      if (editorDisplayNames[editorId]) {
+        updated[editorId] = editorDisplayNames[editorId];
+      } else {
+        delete updated[editorId];
+      }
+      return updated;
+    });
+    setEditingEditorId(null);
+  };
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "Unknown";
@@ -121,6 +197,81 @@ export default function Partnerships() {
                     <Calendar className="w-4 h-4 mr-2" />
                     Partnership since {formatDate(partnership.acceptedAt)}
                   </div>
+                  
+                  {/* Editor Display Name Section (for partners/admins only) */}
+                  {isPartner && partnership.isActive && (
+                    <div className="pt-3 border-t">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-rpp-grey-dark">
+                            Display Name for Photographers
+                          </Label>
+                          {editingEditorId !== partnership.editorId && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingEditorId(partnership.editorId);
+                                setTempDisplayNames(prev => ({
+                                  ...prev,
+                                  [partnership.editorId]: editorDisplayNames[partnership.editorId] || ''
+                                }));
+                              }}
+                              className="h-6 px-2 text-xs"
+                            >
+                              <Edit2 className="w-3 h-3 mr-1" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {editingEditorId === partnership.editorId ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={tempDisplayNames[partnership.editorId] || ''}
+                              onChange={(e) => {
+                                setTempDisplayNames(prev => ({
+                                  ...prev,
+                                  [partnership.editorId]: e.target.value
+                                }));
+                              }}
+                              placeholder={`Default: ${partnership.editorStudioName}`}
+                              className="h-8 text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveDisplayName(partnership.editorId)}
+                                disabled={saveSettingsMutation.isPending}
+                                className="h-7 px-3 text-xs bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                              >
+                                <Save className="w-3 h-3 mr-1" />
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCancelEdit(partnership.editorId)}
+                                className="h-7 px-3 text-xs"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-sm text-rpp-grey-dark font-medium">
+                              {editorDisplayNames[partnership.editorId] || partnership.editorStudioName}
+                            </p>
+                            <p className="text-xs text-rpp-grey-light">
+                              Photographers will see: <span className="font-medium text-rpp-grey-dark">{editorDisplayNames[partnership.editorId] || partnership.editorStudioName}</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="pt-3 border-t">
                     <p className="text-xs text-rpp-grey-light mb-2">

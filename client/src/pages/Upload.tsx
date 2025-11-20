@@ -53,10 +53,11 @@ export default function Upload() {
     queryKey: ["/api/jobs"],
   });
 
-  // Sort jobs: newest first (by appointment date, then creation date)
+  // Sort jobs: newest first (by creation date, then appointment date as fallback)
   const sortedJobs = [...jobs].sort((a, b) => {
-    const dateA = new Date(a.appointmentDate || a.createdAt || 0).getTime();
-    const dateB = new Date(b.appointmentDate || b.createdAt || 0).getTime();
+    // Prioritize createdAt (when job was created) over appointmentDate for "newest" ordering
+    const dateA = new Date(a.createdAt || a.appointmentDate || 0).getTime();
+    const dateB = new Date(b.createdAt || b.appointmentDate || 0).getTime();
     return dateB - dateA; // Newest first
   });
 

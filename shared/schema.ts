@@ -63,6 +63,7 @@ export const products = pgTable("products", {
   appointmentDuration: integer("appointment_duration").default(60), // Default duration in minutes for base product
   exclusivityType: text("exclusivity_type").default("none"), // "none", "exclusive"
   exclusiveCustomerIds: text("exclusive_customer_ids"), // JSON array of customer IDs
+  assignedTeamMemberIds: text("assigned_team_member_ids"), // JSON array of team member (photographer) IDs
   includedProducts: text("included_products"), // JSON array of {productId, quantity} for package inclusions
   isActive: boolean("is_active").default(true),
   isLive: boolean("is_live").default(true),
@@ -248,6 +249,7 @@ export const partnerSettings = pgTable("partner_settings", {
   personalProfile: text("personal_profile"), // JSON: firstName, lastName, email, phone, bio
   businessHours: text("business_hours"), // JSON: {monday: {isOpen, start, end}, tuesday: {...}, ...}
   defaultMaxRevisionRounds: integer("default_max_revision_rounds").default(2), // Default max revision rounds for new orders
+  editorDisplayNames: text("editor_display_names"), // JSON: {editorId: customName} - Custom display names for editors shown to photographers
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -41,13 +41,16 @@ interface CompletedFilesGroup {
 }
 
 interface FolderData {
+  uniqueKey: string;
   folderPath: string;
   editorFolderName: string;
   partnerFolderName?: string;
+  orderId?: string | null;
   orderNumber?: string;
   fileCount: number;
   files: CompletedFile[];
   folderToken?: string; // Token for standalone folders (created via "Add Content")
+  isVisible?: boolean;
 }
 
 interface FileGalleryProps {
@@ -110,6 +113,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   });
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
+  // Track which folder is currently being updated (for UI loading state)
+  const [pendingFolderKey, setPendingFolderKey] = useState<string | null>(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -351,18 +356,58 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   });
 
   // Mutation for updating folder visibility
+  type UpdateFolderVisibilityVariables = {
+    folderPath: string;
+    folderToken?: string;
+    orderId?: string | null;
+    isVisible: boolean;
+    uniqueKey: string;
+  };
+
   const updateFolderVisibilityMutation = useMutation({
-    mutationFn: async ({ folderPath, isVisible }: { folderPath: string; isVisible: boolean }) => {
-      return apiRequest(`/api/jobs/${jobId}/folders/visibility`, 'PATCH', { folderPath, isVisible });
+    mutationFn: async ({ folderPath, folderToken, orderId, isVisible, uniqueKey }: UpdateFolderVisibilityVariables) => {
+      console.log('[FileGallery] Calling API to update folder visibility:', {
+        folderPath,
+        folderToken,
+        orderId,
+        isVisible,
+        uniqueKey,
+        url: `/api/jobs/${jobId}/folders/visibility`
+      });
+      const result = await apiRequest(`/api/jobs/${jobId}/folders/visibility`, 'PATCH', { folderPath, folderToken, orderId, isVisible, uniqueKey });
+      console.log('[FileGallery] API response:', result);
+      return result;
     },
-    onSuccess: () => {
+    onMutate: async ({ uniqueKey, isVisible }) => {
+      console.log('[FileGallery] Optimistic update:', { uniqueKey, isVisible });
+      let previousValue: boolean | undefined;
+      setFolderVisibility(prev => {
+        previousValue = prev[uniqueKey];
+        return {
+          ...prev,
+          [uniqueKey]: isVisible
+        };
+      });
+      return { key: uniqueKey, previousValue };
+    },
+    onSuccess: (data) => {
+      console.log('[FileGallery] Visibility update successful:', data);
+      setPendingFolderKey(null);
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
       toast({
         title: "Folder visibility updated",
         description: "The folder visibility has been changed.",
       });
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
+      console.error('[FileGallery] Visibility update failed:', error, variables, context);
+      setPendingFolderKey(null);
+      if (context?.key) {
+        setFolderVisibility(prev => ({
+          ...prev,
+          [context.key]: context.previousValue ?? !variables.isVisible
+        }));
+      }
       toast({
         title: "Failed to update folder visibility",
         description: "Please try again.",
@@ -424,12 +469,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // Initialize folder visibility state - Must be before any early returns
   React.useEffect(() => {
     if (foldersData && Array.isArray(foldersData)) {
-      const initialVisibility: Record<string, boolean> = {};
-      foldersData.forEach(folder => {
-        // Default to visible (true) for all folders
-        initialVisibility[folder.folderPath] = true;
+      setFolderVisibility(() => {
+        const next: Record<string, boolean> = {};
+        foldersData.forEach(folder => {
+          const key = getFolderKey(folder);
+          if (!key) return;
+          next[key] = folder.isVisible ?? true;
+        });
+        return next;
       });
-      setFolderVisibility(initialVisibility);
     }
   }, [foldersData]);
 
@@ -466,7 +514,33 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const buildFolderHierarchy = (folderPath: string, allFolders?: FolderData[]): FolderData[] => {
+  const formatOrderNumber = (orderNumber: string) =>
+    orderNumber.startsWith('#') ? orderNumber : `#${orderNumber}`;
+
+  const getFolderKey = (folder: FolderData) => {
+    // If uniqueKey is provided and already includes jobId format, use it
+    if (folder.uniqueKey && folder.uniqueKey.includes('::')) {
+      // Check if it already has jobId prefix (format: jobId::token::... or jobId::order::...)
+      if (folder.uniqueKey.match(/^[^:]+::(token|order|instance|path)::/)) {
+        return folder.uniqueKey;
+      }
+      // If it's missing jobId prefix, rebuild it using folder properties
+      // uniqueKey might be in format like "Photos::order:T59NHR9f_AyVu6PtcoPpT"
+      // We'll rebuild using the folder's actual properties
+    }
+    // Build key matching backend format (always include jobId)
+    if (folder.folderToken) return `${jobId}::token::${folder.folderToken}`;
+    if (folder.orderId && folder.folderPath) return `${jobId}::order::${folder.orderId}::${folder.folderPath}`;
+    if (folder.folderPath) return `${jobId}::path::${folder.folderPath}`;
+    return '';
+  };
+
+  const getFolderTestId = (prefix: string, folder: FolderData) => {
+    const key = getFolderKey(folder) || 'folder';
+    return `${prefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  };
+
+  const buildFolderHierarchy = (folderPath: string, allFolders?: FolderData[], targetUniqueKey?: string): FolderData[] => {
     if (!allFolders || allFolders.length === 0) return [];
 
     const hierarchy: FolderData[] = [];
@@ -478,10 +552,20 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     // - completed/job123/folders/abc/def (current)
     for (let i = 1; i <= pathSegments.length; i++) {
       const currentPath = pathSegments.slice(0, i).join('/');
-      const folder = allFolders.find(f => f.folderPath === currentPath);
-      if (folder) {
-        hierarchy.push(folder);
+      const matches = allFolders.filter(f => f.folderPath === currentPath);
+      if (matches.length === 0) {
+        continue;
       }
+
+      let folder = matches[0];
+      if (targetUniqueKey && currentPath === folderPath) {
+        const exactMatch = matches.find(f => f.uniqueKey === targetUniqueKey);
+        if (exactMatch) {
+          folder = exactMatch;
+        }
+      }
+
+      hierarchy.push(folder);
     }
 
     return hierarchy;
@@ -493,17 +577,16 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setShowCreateFolderModal(true);
   };
 
-  const handleEnterFolder = (folderPath: string) => {
-    const folder = foldersData?.find(f => f.folderPath === folderPath);
-    if (folder) {
-      // Build the full hierarchy from root to this folder
-      const hierarchy = buildFolderHierarchy(folderPath, foldersData);
-      setFolderHierarchy(hierarchy);
-      setSelectedFolderData(folder);
-      setShowFolderContent(true);
-    } else {
-      setCurrentFolderPath(folderPath);
+  const handleEnterFolder = (folder: FolderData | string) => {
+    if (typeof folder === 'string') {
+      setCurrentFolderPath(folder);
+      return;
     }
+
+    const hierarchy = buildFolderHierarchy(folder.folderPath, foldersData, folder.uniqueKey);
+    setFolderHierarchy(hierarchy);
+    setSelectedFolderData(folder);
+    setShowFolderContent(true);
   };
 
   const handleBackToParent = () => {
@@ -557,49 +640,31 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     };
 
     if (!currentFolderPath) {
-      // Show root level folders only
-      // Three types of root folders:
-      // 1. Partner folders (root): completed/{jobId}/folders/{token} (4 segments)
-      // 2. Editor folders (new format): completed/{jobId}/{orderNumber}/{folderName} (3-4 segments)
-      // 3. Editor folders (legacy format): Just the folder name like "Photos" (1 segment, no path)
-      //
-      // Nested folders will have 5+ segments (e.g., completed/{jobId}/folders/{parentToken}/{childToken})
       const filtered = foldersData.filter(folder => {
-        const segments = folder.folderPath.split('/');
+        const segments = folder.folderPath.split('/').filter(Boolean);
 
-        console.log('[FileGallery] Checking folder:', {
-          folderPath: folder.folderPath,
-          segments: segments,
-          segmentCount: segments.length,
-          editorFolderName: folder.editorFolderName,
-          partnerFolderName: folder.partnerFolderName
-        });
+        const isPartnerRoot =
+          segments.length === 2 &&
+          segments[0] === 'folders';
 
-        // Partner folder (root): completed/{jobId}/folders/{token} - EXACTLY 4 segments
-        if (segments.length === 4 && segments[0] === 'completed' && segments[2] === 'folders') {
-          console.log('[FileGallery] ✅ Matched as root partner folder');
-          return true;
-        }
+        const isCompletedPartnerRoot =
+          segments.length === 4 &&
+          segments[0] === 'completed' &&
+          segments[2] === 'folders';
 
-        // Editor folder structure (new): completed/{jobId}/{orderNumber}/{folderName} (3-4 segments)
-        if (segments.length >= 3 && segments[0] === 'completed' && segments[2] !== 'folders') {
-          const isRoot = segments.length === 3 || segments.length === 4;
-          console.log('[FileGallery]', isRoot ? '✅ Matched as editor folder (new format)' : '❌ Not a root editor folder');
-          return isRoot;
-        }
+        const isEditorRoot =
+          segments.length >= 3 &&
+          segments[0] === 'completed' &&
+          segments[2] !== 'folders' &&
+          (segments.length === 3 || segments.length === 4);
 
-        // Editor folder structure (legacy): Simple folder name like "Photos"
-        // These don't have the completed/{jobId} prefix
-        if (segments.length === 1 && folder.editorFolderName) {
-          console.log('[FileGallery] ✅ Matched as editor folder (legacy format)');
-          return true;
-        }
+        const isLegacyEditorRoot =
+          segments.length === 1 &&
+          !folder.folderPath.includes('/');
 
-        console.log('[FileGallery] ❌ Does not match any folder type (likely a subfolder)');
-        return false;
+        return isPartnerRoot || isCompletedPartnerRoot || isEditorRoot || isLegacyEditorRoot;
       });
 
-      console.log('[FileGallery] Total folders:', foldersData.length, 'Filtered to show:', filtered.length);
       // Filter deleted files from each folder
       return filtered.map(filterDeletedFiles);
     } else {
@@ -653,6 +718,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       });
       return;
     }
+
+    setDownloadingFolder(folder.uniqueKey);
 
     // Open progress dialog
     setDownloadProgress({
@@ -777,6 +844,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setDownloadingFolder(null);
     }
   };
 
@@ -1069,10 +1138,29 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const organizedFolders = organizeFoldersByType();
   const foldersToShow = getFoldersToShow();
 
-  const handleToggleVisibility = (folderPath: string, currentVisibility: boolean) => {
-    const newVisibility = !currentVisibility;
-    setFolderVisibility(prev => ({ ...prev, [folderPath]: newVisibility }));
-    updateFolderVisibilityMutation.mutate({ folderPath, isVisible: newVisibility });
+  const handleToggleVisibility = (folder: FolderData, isVisible: boolean) => {
+    const key = getFolderKey(folder);
+    console.log('[FileGallery] Toggling visibility:', {
+      folder: folder.editorFolderName,
+      folderPath: folder.folderPath,
+      folderToken: folder.folderToken,
+      orderId: folder.orderId,
+      uniqueKey: folder.uniqueKey,
+      computedKey: key,
+      isVisible
+    });
+    if (!key) {
+      console.error('[FileGallery] No key found for folder:', folder);
+      return;
+    }
+    setPendingFolderKey(key);
+    updateFolderVisibilityMutation.mutate({
+      folderPath: folder.folderPath,
+      folderToken: folder.folderToken,
+      orderId: folder.orderId ?? null,
+      isVisible,
+      uniqueKey: key
+    });
   };
 
   return (
@@ -1235,7 +1323,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                     <span>{filteredFolderData.fileCount} {filteredFolderData.fileCount === 1 ? 'file' : 'files'}</span>
                     {selectedFolderData.orderNumber && (
                       <span className="text-sm font-semibold text-rpp-red-main">
-                        #{selectedFolderData.orderNumber}
+                        {formatOrderNumber(selectedFolderData.orderNumber)}
                       </span>
                     )}
                   </div>
@@ -1278,13 +1366,13 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                 f.folderPath.split('/').length === filteredFolderData.folderPath.split('/').length + 1)
                     .map((subfolder) => (
                       <div
-                        key={subfolder.folderPath}
+                        key={subfolder.uniqueKey}
                         className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border hover:bg-blue-100 transition-colors group"
                       >
                         <Folder className="h-5 w-5 text-blue-600" />
                         <div 
                           className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => handleEnterFolder(subfolder.folderPath)}
+                          onClick={() => handleEnterFolder(subfolder)}
                         >
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {subfolder.partnerFolderName || subfolder.editorFolderName}
@@ -1305,7 +1393,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                               subfolder.orderNumber
                             );
                           }}
-                          data-testid={`button-delete-subfolder-${subfolder.folderPath}`}
+                          data-testid={getFolderTestId('button-delete-subfolder', subfolder)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1442,33 +1530,28 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               <div className="space-y-3">
                 {foldersToShow.map((folder) => (
                   <Card 
-                    key={folder.folderPath} 
+                    key={folder.uniqueKey} 
                     className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div 
                           className="flex items-center space-x-3 flex-1 cursor-pointer"
-                          onClick={() => handleEnterFolder(folder.folderPath)}
-                          data-testid={`folder-card-${folder.folderPath}`}
+                          onClick={() => handleEnterFolder(folder)}
+                          data-testid={getFolderTestId('folder-card', folder)}
                         >
                           <Folder className="h-6 w-6 text-blue-600" />
                           <div className="flex-1 min-w-0">
                             <h3 className="text-base font-medium text-gray-900">
                               {folder.partnerFolderName || folder.editorFolderName}
                             </h3>
-                            {folder.partnerFolderName && folder.editorFolderName !== folder.partnerFolderName && (
-                              <p className="text-sm text-gray-500 truncate">
-                                Originally: {folder.editorFolderName}
-                              </p>
-                            )}
                           </div>
                         </div>
                         
                         <div className="flex items-center space-x-4">
-                          {folder.orderNumber && (
+                          {folder.editorFolderName && folder.orderNumber && (
                             <span className="text-sm font-semibold text-rpp-red-main">
-                              #{folder.orderNumber}
+                              {formatOrderNumber(folder.orderNumber)}
                             </span>
                           )}
                           
@@ -1480,9 +1563,10 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-gray-600">Visible on delivery:</span>
                             <Switch
-                              checked={folderVisibility[folder.folderPath] ?? true}
-                              onCheckedChange={(checked) => handleToggleVisibility(folder.folderPath, folderVisibility[folder.folderPath] ?? true)}
-                              data-testid={`switch-visibility-${folder.folderPath}`}
+                              checked={folderVisibility[getFolderKey(folder)] ?? (folder.isVisible ?? true)}
+                              onCheckedChange={(checked) => handleToggleVisibility(folder, checked)}
+                              data-testid={getFolderTestId('switch-visibility', folder)}
+                              disabled={pendingFolderKey === getFolderKey(folder)}
                             />
                           </div>
                           
@@ -1494,7 +1578,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                 e.stopPropagation();
                                 handleCreateFolder(folder.folderPath);
                               }}
-                              data-testid={`button-add-subfolder-${folder.folderPath}`}
+                              data-testid={getFolderTestId('button-add-subfolder', folder)}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -1506,7 +1590,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                   onClick={(e) => {
                                     e.stopPropagation();
                                   }}
-                                  data-testid={`button-folder-menu-${folder.folderPath}`}
+                                  data-testid={getFolderTestId('button-folder-menu', folder)}
                                 >
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
@@ -1517,10 +1601,10 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                     e.stopPropagation();
                                     handleDownloadAll(folder);
                                   }}
-                                  disabled={downloadingFolder === folder.folderPath}
-                                  data-testid={`menu-download-all-${folder.folderPath}`}
+                                  disabled={downloadingFolder === folder.uniqueKey}
+                                  data-testid={getFolderTestId('menu-download-all', folder)}
                                 >
-                                  {downloadingFolder === folder.folderPath ? (
+                                  {downloadingFolder === folder.uniqueKey ? (
                                     <>
                                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                       Creating zip...
@@ -1537,7 +1621,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                     e.stopPropagation();
                                     handleRenameFolder(folder);
                                   }}
-                                  data-testid={`menu-rename-section-${folder.folderPath}`}
+                                  data-testid={getFolderTestId('menu-rename-section', folder)}
                                 >
                                   <Edit className="h-4 w-4 mr-2" />
                                   Rename section
@@ -1547,7 +1631,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                     e.stopPropagation();
                                     // TODO: Implement collapse functionality
                                   }}
-                                  data-testid={`menu-collapse-section-${folder.folderPath}`}
+                                  data-testid={getFolderTestId('menu-collapse-section', folder)}
                                 >
                                   <Folder className="h-4 w-4 mr-2" />
                                   Collapse section
@@ -1562,7 +1646,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                     );
                                   }}
                                   className="text-red-600"
-                                  data-testid={`menu-delete-section-${folder.folderPath}`}
+                                  data-testid={getFolderTestId('menu-delete-section', folder)}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Delete section
@@ -1842,6 +1926,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           uploadType="client"
           folderToken={selectedFolderData?.folderToken} // Pass folder token for standalone folders
           folderPath={selectedFolderData?.folderPath} // Pass folder path
+          hideFolderInput={!!selectedFolderData?.folderPath} // Hide folder input when uploading to existing folder
           onFilesUpload={async (serviceId, files, orderNumber) => {
             // Immediately refetch folders and files to show new uploads
             const [foldersResponse] = await Promise.all([
@@ -1853,7 +1938,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             if (selectedFolderData) {
               // Refetch to get the latest folder data with new files
               const updatedFolders = queryClient.getQueryData<FolderData[]>(['/api/jobs', jobId, 'folders']);
-              const updatedFolder = updatedFolders?.find(f => f.folderPath === selectedFolderData.folderPath);
+              const updatedFolder = updatedFolders?.find(f => f.uniqueKey === selectedFolderData.uniqueKey);
               if (updatedFolder) {
                 setSelectedFolderData(updatedFolder);
               }

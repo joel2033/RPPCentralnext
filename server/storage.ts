@@ -132,9 +132,10 @@ export interface IStorage {
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
   
   // Folder Management
-  getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]}[]>;
-  createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string): Promise<{folderPath: string; partnerFolderName: string}>;
+  getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; folderToken?: string; isVisible: boolean; fileCount: number; files: any[]}[]>;
+  createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string, folderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken?: string}>;
   updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void>;
+  updateFolderVisibility(jobId: string, folderPath: string, isVisible: boolean, options?: { folderToken?: string | null; orderId?: string | null }): Promise<void>;
 
   // Team Assignment System
   getPendingOrders(partnerId: string): Promise<Order[]>; // Get unassigned orders for partner
@@ -248,6 +249,7 @@ export class MemStorage implements IStorage {
   private messages: Map<string, Message>;
   private orderCounter = 1; // Sequential order numbering starting at 1
   private orderReservations: Map<string, OrderReservation>;
+  private folderVisibility: Map<string, boolean>;
   private dataFile = join(process.cwd(), 'storage-data.json');
 
   constructor() {
@@ -272,7 +274,24 @@ export class MemStorage implements IStorage {
     this.conversations = new Map();
     this.messages = new Map();
     this.orderReservations = new Map();
+    this.folderVisibility = new Map();
     this.loadFromFile();
+  }
+
+  private getFolderVisibilityKey(jobId: string, options: { uniqueKey?: string | null; folderToken?: string | null; orderId?: string | null; folderPath?: string | null }) {
+    if (options.uniqueKey) {
+      return options.uniqueKey;
+    }
+    if (options.folderToken) {
+      return `${jobId}::token::${options.folderToken}`;
+    }
+    if (options.orderId && options.folderPath) {
+      return `${jobId}::order::${options.orderId}::${options.folderPath}`;
+    }
+    if (options.folderPath) {
+      return `${jobId}::path::${options.folderPath}`;
+    }
+    return `${jobId}::legacy`;
   }
 
   private loadFromFile() {
@@ -485,6 +504,14 @@ export class MemStorage implements IStorage {
           });
         }
 
+        if (data.folderVisibility) {
+          Object.entries(data.folderVisibility).forEach(([key, visible]: [string, any]) => {
+            if (typeof key === 'string' && key.includes('::')) {
+              this.folderVisibility.set(key, !!visible);
+            }
+          });
+        }
+
         console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings, ${this.conversations.size} conversations, ${this.messages.size} messages`);
       }
     } catch (error) {
@@ -513,7 +540,8 @@ export class MemStorage implements IStorage {
         conversations: Object.fromEntries(this.conversations.entries()),
         messages: Object.fromEntries(this.messages.entries()),
         orderCounter: this.orderCounter,
-        orderReservations: Object.fromEntries(this.orderReservations.entries())
+        orderReservations: Object.fromEntries(this.orderReservations.entries()),
+        folderVisibility: Object.fromEntries(this.folderVisibility.entries())
       };
       writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
     } catch (error) {
@@ -1104,37 +1132,116 @@ export class MemStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; fileCount: number; files: any[]}[]> {
+  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; isVisible: boolean; fileCount: number; files: any[]}[]> {
     const allUploads = Array.from(this.editorUploads.values());
-    const jobUploads = allUploads.filter(upload => upload.jobId === jobId);
+    const jobUploads = allUploads
+      .filter(upload => upload.jobId === jobId)
+      .sort((a, b) => {
+        const aPlaceholder = a.fileName === '.folder_placeholder';
+        const bPlaceholder = b.fileName === '.folder_placeholder';
+        if (aPlaceholder === bPlaceholder) return 0;
+        return aPlaceholder ? -1 : 1;
+      });
+    const tokenByPath = new Map<string, string>();
+    const folderInstanceCounter = new Map<string, number>();
+    const folderInstanceMap = new Map<string, string>(); // Maps folderPath+editorFolderName to first upload ID
     
     // Group uploads by folder path and get unique folders with order information
-    const foldersMap = new Map<string, {folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; fileCount: number; files: any[]}>();
+    const foldersMap = new Map<string, {uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; folderToken?: string; isVisible: boolean; fileCount: number; files: any[]}>();
     
     for (const upload of jobUploads) {
       if (upload.folderPath && upload.editorFolderName) {
-        const key = upload.folderPath;
+        let folderToken = upload.folderToken || (upload.fileName === '.folder_placeholder' ? upload.firebaseUrl : undefined);
+        if (!folderToken) {
+          const knownToken = tokenByPath.get(upload.folderPath);
+          if (knownToken) {
+            folderToken = knownToken;
+          }
+        } else {
+          tokenByPath.set(upload.folderPath, folderToken);
+        }
+        
+        // Create a base key for grouping - if no token/orderId, use first upload ID to ensure uniqueness
+        let key: string;
+        if (folderToken) {
+          key = `${upload.folderPath}::token::${folderToken}`;
+        } else if (upload.orderId) {
+          key = `${upload.folderPath}::order::${upload.orderId}`;
+        } else {
+          // For folders without token/orderId, group by folderPath + editorFolderName
+          // Use the first upload's ID in each group to create a unique instance identifier
+          const folderSignature = `${upload.folderPath}::${upload.editorFolderName}`;
+          let instanceId = folderInstanceMap.get(folderSignature);
+          if (!instanceId) {
+            // First upload for this folder instance - use its ID
+            instanceId = upload.id;
+            folderInstanceMap.set(folderSignature, instanceId);
+          }
+          key = `${upload.folderPath}::instance::${instanceId}`;
+        }
+        
         let folderData = foldersMap.get(key);
         
         if (!folderData) {
           // Get order information (if orderId exists)
           const order = upload.orderId ? this.orders.get(upload.orderId) : undefined;
           
-          // Use the folderToken from upload record (new field added for standalone folders)
-          const folderToken = upload.folderToken || (upload.fileName === '.folder_placeholder' ? upload.firebaseUrl : undefined);
+          // Generate unique key for visibility - use upload ID if no token/orderId
+          let visibilityKey: string;
+          if (folderToken) {
+            visibilityKey = this.getFolderVisibilityKey(jobId, {
+              folderToken: folderToken,
+              folderPath: upload.folderPath
+            });
+          } else if (upload.orderId) {
+            visibilityKey = this.getFolderVisibilityKey(jobId, {
+              orderId: upload.orderId,
+              folderPath: upload.folderPath
+            });
+          } else {
+            // Use the same instanceId that was used for grouping
+            const folderSignature = `${upload.folderPath}::${upload.editorFolderName}`;
+            const instanceId = folderInstanceMap.get(folderSignature) || upload.id;
+            visibilityKey = `${jobId}::instance::${instanceId}::${upload.folderPath}`;
+          }
           
+          // Only check the exact visibilityKey - don't use fallbacks that could match multiple folders
+          // Fallbacks would cause folders with the same path but different orderIds/tokens to share visibility
+          let isVisible = true;
+          if (this.folderVisibility.has(visibilityKey)) {
+            isVisible = this.folderVisibility.get(visibilityKey)!;
+          }
+          
+          const folderPath = upload.folderPath;
+          const uniqueKey = visibilityKey;
           folderData = {
+            uniqueKey,
             folderPath: upload.folderPath,
             editorFolderName: upload.editorFolderName,
             partnerFolderName: upload.partnerFolderName || undefined,
+            orderId: upload.orderId || null,
             orderNumber: order?.orderNumber || undefined,
             folderToken: folderToken || undefined,
+            isVisible,
             fileCount: 0,
             files: []
           };
           foldersMap.set(key, folderData);
+        } else {
+          if (!folderData.folderToken && folderToken) {
+            folderData.folderToken = folderToken;
+          }
+          if (!folderData.partnerFolderName && upload.partnerFolderName) {
+            folderData.partnerFolderName = upload.partnerFolderName;
+          }
+          if (!folderData.editorFolderName && upload.editorFolderName) {
+            folderData.editorFolderName = upload.editorFolderName;
+          }
+          if (!folderData.orderId && upload.orderId) {
+            folderData.orderId = upload.orderId;
+          }
         }
-        
+
         // Add file to folder data
         folderData.fileCount++;
         folderData.files.push({
@@ -1172,10 +1279,10 @@ export class MemStorage implements IStorage {
   }
 
   async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string, folderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken?: string}> {
-    // Generate folder path
+    const token = folderToken || randomUUID();
     const folderPath = parentFolderPath 
-      ? `${parentFolderPath}/${partnerFolderName}`
-      : partnerFolderName;
+      ? `${parentFolderPath}/${token}`
+      : `folders/${token}`;
     
     // Check if folder already exists
     const existingUploads = Array.from(this.editorUploads.values());
@@ -1196,19 +1303,50 @@ export class MemStorage implements IStorage {
         fileSize: 0,
         mimeType: 'application/x-folder-placeholder',
         downloadUrl: '',
-        firebaseUrl: folderToken || '', // Store token here for retrieval
+        firebaseUrl: token,
         uploadedAt: new Date(),
         folderPath,
         editorFolderName: partnerFolderName, // Use partner name as base
         partnerFolderName,
-        notes: folderToken ? `Folder: ${partnerFolderName} (Token: ${folderToken})` : `Folder: ${partnerFolderName}`
+        folderToken: token,
+        notes: `Folder: ${partnerFolderName} (Token: ${token})`
       };
       
       this.editorUploads.set(folderId, folderPlaceholder);
+      const visibilityKey = this.getFolderVisibilityKey(jobId, {
+        folderToken: token,
+        folderPath
+      });
+      this.folderVisibility.set(visibilityKey, true);
       this.saveToFile();
     }
     
-    return { folderPath, partnerFolderName, folderToken };
+    return { folderPath, partnerFolderName, folderToken: token };
+  }
+
+  async updateFolderVisibility(jobId: string, folderPath: string, isVisible: boolean, options?: { uniqueKey?: string | null; folderToken?: string | null; orderId?: string | null }): Promise<void> {
+    if (!folderPath) {
+      throw new Error("folderPath is required to update visibility");
+    }
+
+    const visibilityKey = this.getFolderVisibilityKey(jobId, {
+      uniqueKey: options?.uniqueKey || null,
+      folderToken: options?.folderToken || null,
+      orderId: options?.orderId || null,
+      folderPath
+    });
+    this.folderVisibility.set(visibilityKey, isVisible);
+
+    const legacyKeys = [
+      this.getFolderVisibilityKey(jobId, { folderPath }),
+      folderPath
+    ];
+    legacyKeys.forEach(key => {
+      if (this.folderVisibility.has(key)) {
+        this.folderVisibility.delete(key);
+      }
+    });
+    this.saveToFile();
   }
 
   async getUsers(partnerId?: string): Promise<User[]> {
@@ -2182,6 +2320,7 @@ export class MemStorage implements IStorage {
       personalProfile: settings.personalProfile || null,
       businessHours: settings.businessHours || null,
       defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
+      editorDisplayNames: settings.editorDisplayNames || null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };

@@ -72,6 +72,50 @@ service cloud.firestore {
       allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
     }
 
+    // Folders - partners can read folders for their jobs, editors can read folders for jobs they're assigned to
+    match /folders/{folderId} {
+      allow read: if isAuthenticated() && (
+        // Check if folder has partnerId and it matches
+        (resource.data.partnerId != null && resource.data.partnerId == getUserPartnerID()) ||
+        // Or check if the job belongs to the partner
+        (resource.data.jobId != null && 
+         exists(/databases/$(database)/documents/jobs/$(resource.data.jobId)) &&
+         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.partnerId == getUserPartnerID()) ||
+        // Or allow editors to read folders for jobs they're assigned to (via orders)
+        (resource.data.orderId != null &&
+         exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
+         get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid)
+      );
+      allow write: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        (resource.data.jobId != null && 
+         exists(/databases/$(database)/documents/jobs/$(resource.data.jobId)) &&
+         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.partnerId == getUserPartnerID())
+      );
+    }
+
+    // Editor Uploads - partners can read uploads for their jobs, editors can read their own uploads
+    match /editorUploads/{uploadId} {
+      allow read: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        // Allow editors to read uploads for jobs they're assigned to (via orders)
+        exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
+        get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid
+      );
+      allow write: if isAuthenticated() && (
+        resource.data.partnerId == getUserPartnerID() ||
+        // Allow editors to write their own uploads
+        exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
+        get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid
+      );
+    }
+
+    // Job Reviews - partners can read reviews for their jobs, public read for delivery page
+    match /jobReviews/{reviewId} {
+      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
+      allow create: if true; // Allow public creation (for delivery page)
+    }
+
     // Default deny all other access
     match /{document=**} {
       allow read, write: if false;

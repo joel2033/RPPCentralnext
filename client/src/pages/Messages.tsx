@@ -94,6 +94,8 @@ export default function Messages() {
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [isGeneralConversation, setIsGeneralConversation] = useState(false);
+  // Optimistic message state for instant UI updates (must be declared before use)
+  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, Message>>(new Map());
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -109,18 +111,62 @@ export default function Messages() {
   // Real-time conversations with Firestore
   const { conversations = [], loading: conversationsLoading } = useRealtimeConversations(
     currentUserId || null,
-    currentUserPartnerId
+    currentUserPartnerId,
+    partnerData?.role
   );
 
   // Real-time messages with Firestore
   const { messages = [], loading: messagesLoading } = useRealtimeMessages(selectedConversationId);
 
-  // Get the selected conversation from the conversations array
-  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  // Merge real-time messages with optimistic messages for instant UI updates
+  // Filter out optimistic messages that have been confirmed by real-time updates
+  const displayMessages = selectedConversationId
+    ? (() => {
+        const optimisticMsgs = Array.from(optimisticMessages.values()).filter(
+          msg => msg.conversationId === selectedConversationId
+        );
+        
+        // Remove optimistic messages that match real messages (same content and recent timestamp)
+        const filteredOptimistic = optimisticMsgs.filter(optMsg => {
+          const optContent = optMsg.content.trim();
+          const optTime = optMsg.createdAt instanceof Date ? optMsg.createdAt : new Date(optMsg.createdAt);
+          // Check if a real message with same content exists (within last 5 seconds)
+          const hasMatchingRealMessage = messages.some(realMsg => {
+            const realContent = realMsg.content.trim();
+            const realTime = realMsg.createdAt instanceof Date ? realMsg.createdAt : new Date(realMsg.createdAt);
+            const timeDiff = Math.abs(realTime.getTime() - optTime.getTime());
+            return realContent === optContent && timeDiff < 5000; // 5 second window
+          });
+          return !hasMatchingRealMessage;
+        });
+        
+        return [
+          ...messages,
+          ...filteredOptimistic,
+        ].sort((a, b) => {
+          const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+          const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+          return aDate.getTime() - bDate.getTime();
+        });
+      })()
+    : messages;
 
   // Determine if current user is an editor or partner
   const isEditor = editorData?.role === "editor";
   const isPartner = partnerData?.role === "partner";
+  const isPhotographer = partnerData?.role === "photographer";
+
+  // Filter conversations for photographers to only show their own
+  const filteredConversations = isPhotographer
+    ? conversations.filter(conv => {
+        // For photographers, only show conversations where they are the participant
+        // Check if conversation has participantId matching current user
+        return (conv as any).participantId === currentUserId || conv.partnerId === currentUserPartnerId;
+      })
+    : conversations;
+  
+  // Get the selected conversation from the filtered conversations array
+  const selectedConversation = filteredConversations.find(c => c.id === selectedConversationId);
 
   // Fetch partnerships for editors
   const { data: editorPartnerships = [] } = useQuery<Partnership[]>({
@@ -128,16 +174,16 @@ export default function Messages() {
     enabled: isEditor,
   });
 
-  // Fetch partnerships for partners
+  // Fetch partnerships for partners and photographers
   const { data: partnerPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/partnerships"],
-    enabled: isPartner,
+    enabled: isPartner || isPhotographer,
   });
 
-  // Fetch orders (for partners only)
+  // Fetch orders (for partners and photographers)
   const { data: partnerOrders = [] } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
-    enabled: isPartner,
+    enabled: isPartner || isPhotographer,
   });
 
   // Fetch orders for editors
@@ -158,23 +204,37 @@ export default function Messages() {
       if (isEditor) {
         queryClient.invalidateQueries({ queryKey: ["/api/editor/orders"] });
         queryClient.refetchQueries({ queryKey: ["/api/editor/orders"], exact: true });
-      } else if (isPartner) {
+      } else if (isPartner || isPhotographer) {
         queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
         queryClient.refetchQueries({ queryKey: ["/api/orders"], exact: true });
       }
     }
   }, [newConversationDialogOpen, isEditor, isPartner]);
 
-  // Fetch team members (for partners only)
+  // Fetch team members (for partners and photographers)
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: [`/api/team/invites/${partnerData?.partnerId}`],
-    enabled: isPartner && !!partnerData?.partnerId,
+    enabled: (isPartner || isPhotographer) && !!partnerData?.partnerId,
   });
 
   // Use the appropriate partnerships list based on user role
   const partnerships = isEditor ? editorPartnerships : partnerPartnerships;
 
-  // Combine editors and team members into contacts list (for partners)
+  // Fetch settings to get editor display names (for photographers)
+  const { data: settings } = useQuery<{ editorDisplayNames?: Record<string, string> }>({
+    queryKey: ['/api/settings'],
+    enabled: isPhotographer || isPartner,
+  });
+
+  // Helper function to get display name for editor (custom name for photographers, default for others)
+  const getEditorDisplayName = (editorId: string, defaultName: string): string => {
+    if (isPhotographer && settings?.editorDisplayNames?.[editorId]) {
+      return settings.editorDisplayNames[editorId];
+    }
+    return defaultName;
+  };
+
+  // Combine editors and team members into contacts list (for partners and photographers)
   // For editors, combine partners into contacts list
   const contacts: Contact[] = isEditor
     ? editorPartnerships.filter(p => p.isActive).map(p => ({
@@ -186,7 +246,7 @@ export default function Messages() {
     : [
         ...partnerPartnerships.filter(p => p.isActive).map(p => ({
           id: p.editorId,
-          name: p.editorStudioName,
+          name: getEditorDisplayName(p.editorId, p.editorStudioName),
           email: p.editorEmail,
           type: "editor" as const,
         })),
@@ -266,19 +326,64 @@ export default function Messages() {
       if (!response.ok) throw new Error("Failed to send message");
       return response.json();
     },
-    onSuccess: async (data, variables) => {
+    onMutate: async ({ conversationId, content }) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: [`/api/conversations/${conversationId}`] });
+
+      // Create optimistic message
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}-${Math.random()}`,
+        conversationId,
+        senderId: currentUserId || '',
+        senderEmail: currentUserEmail || '',
+        senderName: isEditor ? editorData?.studioName || editorData?.email || 'You' : partnerData?.email || 'You',
+        senderRole: isEditor ? 'editor' : 'partner',
+        content: content.trim(),
+        readAt: null,
+        createdAt: new Date(),
+      };
+
+      // Add to optimistic messages map
+      setOptimisticMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.set(optimisticMessage.id, optimisticMessage);
+        return newMap;
+      });
+
+      // Clear input immediately for instant feedback
       setMessageInput("");
-      // Force immediate refetch with the exact query key
-      await queryClient.refetchQueries({ 
-        queryKey: [`/api/conversations/${variables.conversationId}`],
-        exact: true 
+
+      // Scroll to bottom immediately for optimistic message
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
       });
-      await queryClient.refetchQueries({ 
-        queryKey: ["/api/conversations"],
-        exact: true 
-      });
+
+      return { optimisticMessage };
     },
-    onError: () => {
+    onSuccess: (data, variables, context) => {
+      // Remove optimistic message immediately - real-time listener will add the real one
+      // Use a small delay to ensure the real message has time to arrive from Firestore
+      setTimeout(() => {
+        if (context?.optimisticMessage) {
+          setOptimisticMessages(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(context.optimisticMessage.id);
+            return newMap;
+          });
+        }
+      }, 100);
+    },
+    onError: (error, variables, context) => {
+      // Remove optimistic message on error
+      if (context?.optimisticMessage) {
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(context.optimisticMessage.id);
+          return newMap;
+        });
+      }
+      // Restore input on error
+      setMessageInput(variables.content);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -344,15 +449,50 @@ export default function Messages() {
     },
   });
 
-  // Scroll to bottom when messages change
+  // Remove optimistic messages when real messages with matching content arrive
   useEffect(() => {
-    if (messages && messages.length > 0) {
-      // Small delay to ensure DOM has updated
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+    if (messages.length > 0 && optimisticMessages.size > 0) {
+      const optimisticMsgs = Array.from(optimisticMessages.values());
+      const toRemove: string[] = [];
+      
+      optimisticMsgs.forEach(optMsg => {
+        const optContent = optMsg.content.trim();
+        const optTime = optMsg.createdAt instanceof Date ? optMsg.createdAt : new Date(optMsg.createdAt);
+        
+        // Check if a real message with same content exists (within 10 second window)
+        const hasMatchingRealMessage = messages.some(realMsg => {
+          const realContent = realMsg.content.trim();
+          const realTime = realMsg.createdAt instanceof Date ? realMsg.createdAt : new Date(realMsg.createdAt);
+          const timeDiff = Math.abs(realTime.getTime() - optTime.getTime());
+          // Match by content and sender (to avoid false matches)
+          const sameSender = realMsg.senderId === optMsg.senderId || realMsg.senderEmail === optMsg.senderEmail;
+          return realContent === optContent && sameSender && timeDiff < 10000; // 10 second window
+        });
+        
+        if (hasMatchingRealMessage) {
+          toRemove.push(optMsg.id);
+        }
+      });
+      
+      if (toRemove.length > 0) {
+        setOptimisticMessages(prev => {
+          const newMap = new Map(prev);
+          toRemove.forEach(id => newMap.delete(id));
+          return newMap;
+        });
+      }
     }
-  }, [messages, messages.length]);
+  }, [messages, optimisticMessages]);
+
+  // Scroll to bottom when messages change (including optimistic updates)
+  useEffect(() => {
+    if (displayMessages && displayMessages.length > 0) {
+      // Use requestAnimationFrame for instant, smooth scroll
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      });
+    }
+  }, [displayMessages.length]); // Only depend on length to avoid unnecessary scrolls
 
   // Mark conversation as read when opened
   useEffect(() => {
@@ -426,8 +566,15 @@ export default function Messages() {
     // Check if current user is the editor in this conversation
     const isEditor = conversation.editorId === currentUserId;
     const isPartner = !isEditor;
+    
+    // For photographers, use custom display name if available
+    let editorName = conversation.editorName;
+    if (isPhotographer && isPartner && settings?.editorDisplayNames?.[conversation.editorId]) {
+      editorName = settings.editorDisplayNames[conversation.editorId];
+    }
+    
     return {
-      name: isPartner ? conversation.editorName : conversation.partnerName,
+      name: isPartner ? editorName : conversation.partnerName,
       email: isPartner ? conversation.editorEmail : conversation.partnerEmail,
       unreadCount: isPartner ? (conversation.partnerUnreadCount || 0) : (conversation.editorUnreadCount || 0),
     };
@@ -455,7 +602,7 @@ export default function Messages() {
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
             Messages
           </h2>
-          {(isPartner || isEditor) && partnerships.length > 0 && (
+          {((isPartner || isPhotographer || isEditor) && (contacts.length > 0 || (isPhotographer && orders.length > 0))) && (
             <Dialog open={newConversationDialogOpen} onOpenChange={setNewConversationDialogOpen}>
               <DialogTrigger asChild>
                 <Button 
@@ -638,7 +785,7 @@ export default function Messages() {
           )}
         </div>
         <ScrollArea className="flex-1">
-          {conversations.length === 0 ? (
+          {filteredConversations.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <MessageSquare className="h-16 w-16 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No conversations yet</p>
@@ -646,7 +793,7 @@ export default function Messages() {
             </div>
           ) : (
             <div className="p-2 space-y-2">
-              {conversations.map((conversation) => {
+              {filteredConversations.map((conversation) => {
                 const participant = getOtherParticipant(conversation);
                 const isSelected = selectedConversationId === conversation.id;
                 const orderDetails = getOrderDetails(conversation.orderId);
@@ -770,7 +917,7 @@ export default function Messages() {
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
-                  {messages.map((message, index) => {
+                  {displayMessages.map((message, index) => {
                     const isCurrentUser = message.senderEmail?.toLowerCase() === currentUserEmail?.toLowerCase();
                     return (
                       <div
@@ -827,22 +974,24 @@ export default function Messages() {
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   placeholder="Type a message..."
-                  disabled={sendMessageMutation.isPending}
                   className="focus-visible:ring-rpp-red-main"
                   data-testid="input-message"
+                  autoFocus
                 />
                 <Button
                   type="submit"
-                  disabled={!messageInput.trim() || sendMessageMutation.isPending}
+                  disabled={!messageInput.trim()}
                   size="icon"
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark transition-all hover:scale-105"
+                  variant="default"
+                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white transition-all hover:scale-105 disabled:opacity-70 disabled:bg-rpp-red-main/70 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: messageInput.trim() ? '#DC2626' : 'rgba(220, 38, 38, 0.7)',
+                    opacity: messageInput.trim() ? 1 : 0.7,
+                    color: 'white'
+                  }}
                   data-testid="button-send-message"
                 >
-                  {sendMessageMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
+                  <Send className="h-4 w-4 text-white" style={{ color: 'white' }} />
                 </Button>
               </form>
             </div>

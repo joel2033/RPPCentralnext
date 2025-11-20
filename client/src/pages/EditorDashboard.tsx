@@ -90,16 +90,13 @@ export default function EditorDashboard() {
       });
 
       if (response.ok) {
-        // Update job status to delivered
-        await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', { status: 'delivered' });
-
         // Refresh the jobs list
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
-        
+
         toast({
           title: "Upload Successful",
-          description: `${uploads.length} deliverable(s) uploaded and job completed.`,
+          description: `${uploads.length} deliverable(s) uploaded successfully.`,
         });
       }
     } catch (error) {

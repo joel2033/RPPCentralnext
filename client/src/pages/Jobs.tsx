@@ -537,19 +537,16 @@ export default function Jobs() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        {/* Deliver option - only show for completed jobs */}
-                        {job.status === 'delivered' && (
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeliveryModalJob(job);
-                            }}
-                            data-testid={`button-deliver-${job.id}`}
-                          >
-                            <Send className="h-4 w-4 mr-2" />
-                            Deliver
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeliveryModalJob(job);
+                          }}
+                          data-testid={`button-deliver-${job.id}`}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Deliver
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
@@ -670,6 +667,15 @@ export default function Jobs() {
               job={deliveryModalJob}
               customer={customer}
               onEmailSent={() => {
+                queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+              }}
+              onJobUpdated={(updatedJob) => {
+                // Update the local job state with the new delivery token
+                setDeliveryModalJob((prev: any) => ({
+                  ...prev,
+                  deliveryToken: updatedJob.deliveryToken,
+                }));
+                // Refresh the jobs list to get updated data
                 queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
               }}
             />

@@ -45,6 +45,15 @@ interface JobCardData {
     category?: string;
     profileImage?: string;
   };
+  jobReview?: {
+    id: string;
+    jobId: string;
+    rating: number;
+    review?: string;
+    submittedBy?: string;
+    submittedByEmail?: string;
+    createdAt: string;
+  };
 }
 
 export default function JobCard() {
@@ -210,12 +219,13 @@ export default function JobCard() {
     return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
   };
 
-  const clientReview = {
-    rating: 5,
-    title: "Excellent",
-    quote: "Absolutely stunning work! The ocean view shots are breathtaking and the twilight photos captured the property perfectly. Very professional service and exceeded our expectations. Will definitely use again for future listings.",
-    reviewer: "Michael Anderson",
-    reviewedOn: "October 15, 2025"
+  const getRatingText = (stars: number) => {
+    if (stars === 5) return "Excellent!";
+    if (stars === 4) return "Great!";
+    if (stars === 3) return "Good";
+    if (stars === 2) return "Fair";
+    if (stars === 1) return "Poor";
+    return "";
   };
 
   return (
@@ -300,7 +310,6 @@ export default function JobCard() {
               size="sm"
               className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
               data-testid="button-delivery"
-              disabled={jobData.status !== 'delivered'}
               onClick={(e) => {
                 e.stopPropagation();
                 const token = jobData.deliveryToken || jobData.jobId;
@@ -480,20 +489,51 @@ export default function JobCard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center space-x-1 text-[#f7b500]">
-                {Array.from({ length: clientReview.rating }).map((_, index) => (
-                  <Star key={index} className="h-4 w-4 text-[#f7b500]" fill="currentColor" />
-                ))}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-800">{clientReview.title}</p>
-                <p className="text-sm text-gray-600 mt-2">
-                  “{clientReview.quote}”
-                </p>
-              </div>
-              <div className="text-xs text-gray-500">
-                Reviewed by {clientReview.reviewer} on {clientReview.reviewedOn}
-              </div>
+              {jobData.jobReview ? (
+                <>
+                  <div className="flex items-center space-x-1 text-[#f7b500]">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star 
+                        key={index} 
+                        className={`h-4 w-4 ${
+                          index < jobData.jobReview!.rating 
+                            ? 'text-[#f7b500] fill-current' 
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  {jobData.jobReview.rating > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {getRatingText(jobData.jobReview.rating)}
+                      </p>
+                    </div>
+                  )}
+                  {jobData.jobReview.review && (
+                    <p className="text-sm text-gray-600 mt-2">
+                      "{jobData.jobReview.review}"
+                    </p>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    {jobData.jobReview.submittedBy && (
+                      <>Reviewed by {jobData.jobReview.submittedBy}</>
+                    )}
+                    {jobData.jobReview.createdAt && (
+                      <>
+                        {jobData.jobReview.submittedBy && ' on '}
+                        {format(new Date(jobData.jobReview.createdAt), "MMMM d, yyyy")}
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center space-x-1 text-gray-300">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Star key={index} className="h-4 w-4" />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -509,6 +549,16 @@ export default function JobCard() {
           onEmailSent={() => {
             queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
             queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+          }}
+          onJobUpdated={(updatedJob) => {
+            // Update the local job state with the new delivery token
+            setDeliveryModalJob((prev: JobCardData | null) => ({
+              ...prev!,
+              deliveryToken: updatedJob.deliveryToken,
+            }));
+            // Refresh the job card data to get updated data
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+            queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
           }}
         />
       )}

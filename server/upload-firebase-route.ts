@@ -45,10 +45,42 @@ export function registerFirebaseUploadRoute(app: Express) {
         return res.status(500).json({ error: "upload_failed", detail: "Storage bucket not configured" });
       }
 
-      const folderPath = (rawFolderPath && String(rawFolderPath).trim().length > 0) ? String(rawFolderPath).trim() : "Photos";
+      // Process folderPath - distinguish between folder uploads and editor-only uploads
+      let folderPath: string | null = null;
+      const hasFolderPath = rawFolderPath && String(rawFolderPath).trim().length > 0;
+
+      if (hasFolderPath) {
+        folderPath = String(rawFolderPath).trim();
+
+        // Normalize folder path: if it's a full path (contains completed/ or orders/),
+        // extract just the relative portion after the jobId
+        if (folderPath.includes('/')) {
+          const completedMatch = folderPath.match(/^completed\/[^\/]+\/(.+)$/);
+          const ordersMatch = folderPath.match(/^orders\/[^\/]+\/(.+)$/);
+
+          if (completedMatch) {
+            folderPath = completedMatch[1]; // Extract path after "completed/jobId/"
+          } else if (ordersMatch) {
+            folderPath = ordersMatch[1]; // Extract path after "orders/jobId/"
+          }
+          // If no match, keep folderPath as-is (might be a relative path with subfolders)
+        }
+      }
+      // If no folderPath provided, keep it as null (editor-only uploads, not for JobCard display)
+
       const safeName = file.originalname.replace(/\s+/g, '_');
       const ts = Date.now();
       const cleanOrder = (orderNumber || '').trim().replace(/^#/, '');
+
+      console.log('[upload-firebase] PROCESSED VALUES', {
+        userId,
+        jobId,
+        uploadType,
+        rawFolderPath,
+        normalizedFolderPath: folderPath,
+        orderNumber: cleanOrder,
+        fileName: safeName
+      });
 
       // Determine storage path based on uploadType
       // 'client' = files uploaded by partner FOR editors to edit → orders/ folder (14-day TTL)
@@ -59,17 +91,41 @@ export function registerFirebaseUploadRoute(app: Express) {
 
       if (uploadType === 'client') {
         // Partner uploading files FOR editors to edit
-        const basePath = cleanOrder ? `orders/${jobId}/${cleanOrder}` : `orders/${jobId}`;
-        destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+        // Structure: orders/userId/jobId/orderNumber/[folderPath/]files/filename
+        const userPath = userId ? `orders/${userId}` : 'orders';
+        const basePath = cleanOrder ? `${userPath}/${jobId}/${cleanOrder}` : `${userPath}/${jobId}`;
+
+        if (folderPath) {
+          // Upload to specific folder (JobCard folder upload)
+          destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+        } else {
+          // Editor-only upload (Upload page) - no folder, goes to 'files' directory
+          destPath = `${basePath}/files/${ts}_${safeName}`;
+        }
+
         expirationDays = 14; // 14 days for source files
         fileStatus = 'for_editing';
       } else {
         // Editor uploading completed work (or default to completed for backward compatibility)
-        const basePath = cleanOrder ? `completed/${jobId}/${cleanOrder}` : `completed/${jobId}`;
-        destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+        const userPath = userId ? `completed/${userId}` : 'completed';
+        const basePath = cleanOrder ? `${userPath}/${jobId}/${cleanOrder}` : `${userPath}/${jobId}`;
+
+        if (folderPath) {
+          destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+        } else {
+          destPath = `${basePath}/files/${ts}_${safeName}`;
+        }
+
         expirationDays = 30; // 30 days for completed deliverables
         fileStatus = 'completed';
       }
+
+      console.log('[upload-firebase] FIREBASE STORAGE PATH', {
+        destPath,
+        folderPath: folderPath || 'null (editor-only upload)',
+        fileStatus,
+        expirationDays
+      });
 
       const bucket = getStorage().bucket(bucketName);
       const gcsFile = bucket.file(destPath);
@@ -99,19 +155,19 @@ export function registerFirebaseUploadRoute(app: Express) {
           mimeType: file.mimetype,
           firebaseUrl: destPath,
           downloadUrl: url,
-          folderPath,
+          folderPath: folderPath || null, // null for editor-only uploads (won't appear in JobCard folders)
           status: fileStatus,
           notes: null,
           folderToken: null,
           partnerFolderName: null,
-          editorFolderName: folderPath,
+          editorFolderName: folderPath || null, // null for editor-only uploads
           expiresAt,
         } as any);
       } catch (persistErr) {
         console.error('[upload-firebase] WARN: failed to persist editorUploads record', persistErr);
       }
 
-      console.log(`[upload-firebase] Uploaded: ${destPath} (status: ${fileStatus}, expires in ${expirationDays} days)`);
+      console.log(`[upload-firebase] SUCCESS: Uploaded to ${destPath} (status: ${fileStatus}, folderPath: ${folderPath || 'null'}, expires in ${expirationDays} days)`);
 
       return res.json({
         path: destPath,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +34,7 @@ import {
 import { format } from "date-fns";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useRealtimeFolders } from "@/hooks/useFirestoreRealtime";
 
 interface DeliveryFile {
   id: string;
@@ -53,9 +54,13 @@ interface DeliveryFolder {
   folderPath: string;
   editorFolderName: string;
   partnerFolderName?: string;
+  orderId?: string | null;
   orderNumber: string;
   fileCount: number;
   files: DeliveryFile[];
+  folderToken?: string;
+  uniqueKey?: string;
+  isVisible?: boolean;
 }
 
 interface DeliveryPageData {
@@ -91,7 +96,7 @@ interface DeliveryPageData {
     review?: string;
     submittedBy: string;
     submittedByEmail: string;
-    submittedAt: string;
+    createdAt: string;
   };
   branding?: {
     businessName: string;
@@ -146,6 +151,8 @@ export default function DeliveryPage() {
 
   // Track which credential type we're using (jobId for preview, deliveryToken for public)
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  // Force re-render when real-time folders change
+  const [realtimeUpdateTrigger, setRealtimeUpdateTrigger] = useState(0);
   
   // Try authenticated preview first (if logged in), then fall back to public delivery endpoint
   const { data: deliveryData, isLoading, error } = useQuery<DeliveryPageData>({
@@ -161,14 +168,16 @@ export default function DeliveryPage() {
               'Authorization': `Bearer ${idToken}`,
             },
           });
-          
+
           // Only fall back on 404 (token is deliveryToken, not jobId)
           // Don't fall back on 403 (token is jobId but not owned by this partner)
           if (previewResponse.ok) {
             setIsPreviewMode(true);
-            return await previewResponse.json();
+            const data = await previewResponse.json();
+            console.log('[DEBUG] Preview response:', { hasJobReview: !!data.jobReview, jobReview: data.jobReview });
+            return data;
           }
-          
+
           // For non-404 errors, fall through silently to delivery endpoint
           // This prevents error flash during fallback
           if (previewResponse.status !== 404 && previewResponse.status !== 403) {
@@ -179,14 +188,16 @@ export default function DeliveryPage() {
           // Silently fall through to delivery endpoint on any error
         }
       }
-      
+
       // Try public delivery endpoint (works for both authenticated and unauthenticated users)
       setIsPreviewMode(false);
       const deliveryResponse = await fetch(`/api/delivery/${token}`);
       if (!deliveryResponse.ok) {
         throw new Error('Delivery not found');
       }
-      return await deliveryResponse.json();
+      const data = await deliveryResponse.json();
+      console.log('[DEBUG] Delivery response:', { hasJobReview: !!data.jobReview, jobReview: data.jobReview });
+      return data;
     },
     enabled: !!token && !authLoading,
     retry: false, // Don't retry on error to prevent flash
@@ -219,13 +230,57 @@ export default function DeliveryPage() {
     enabled: !!token && !!selectedMediaForModal && !authLoading,
   });
 
+  const jobDocumentId = deliveryData?.job?.id ?? null;
+  const { folders: realtimeFolders } = useRealtimeFolders(jobDocumentId);
+  const lastFoldersSignature = useRef<string | null>(null);
+
+  useEffect(() => {
+    lastFoldersSignature.current = null;
+  }, [jobDocumentId]);
+
+  // Real-time folders will automatically update via memoized values (realtimeVisibilityMap, effectiveFolders, visibleFolders)
+  // Force a re-render when real-time folders change by updating a state variable
+  
+  useEffect(() => {
+    if (!jobDocumentId) return;
+    if (!Array.isArray(realtimeFolders)) return;
+
+    // Just log for debugging - the memoized values will handle the updates
+    const signature = JSON.stringify(
+      realtimeFolders.map(folder => ({
+        uniqueKey: folder.uniqueKey || null,
+        isVisible: typeof folder.isVisible === "boolean" ? folder.isVisible : true,
+      }))
+    );
+
+    if (lastFoldersSignature.current === null) {
+      lastFoldersSignature.current = signature;
+      return;
+    }
+
+    if (lastFoldersSignature.current !== signature) {
+      lastFoldersSignature.current = signature;
+      console.log('[DeliveryPage] Real-time folder visibility changed, triggering update');
+      // Force a re-render by updating state
+      setRealtimeUpdateTrigger(prev => prev + 1);
+      // The memoized values (realtimeVisibilityMap, effectiveFolders, visibleFolders) will automatically update
+    }
+  }, [realtimeFolders, jobDocumentId]);
+
   // Initialize review form from existing review data
   useEffect(() => {
     if (deliveryData?.jobReview && !reviewSubmitted) {
+      console.log('[DEBUG] Job review data:', deliveryData.jobReview);
       setRating(deliveryData.jobReview.rating);
       setReviewText(deliveryData.jobReview.review || "");
+    } else {
+      console.log('[DEBUG] No job review data:', {
+        hasJobReview: !!deliveryData?.jobReview,
+        reviewSubmitted,
+        deliveryData: deliveryData ? 'exists' : 'null'
+      });
     }
-  }, [deliveryData?.jobReview]);
+  }, [deliveryData?.jobReview, reviewSubmitted, deliveryData]);
 
   // Scroll detection for sticky header
   useEffect(() => {
@@ -247,24 +302,56 @@ export default function DeliveryPage() {
   }, []);
 
   // Organize files into folders
-  const allFolders = deliveryData?.folders || (() => {
+  const jobKeyBase = deliveryData?.job?.id || deliveryData?.job?.jobId || "job";
+
+  const getFolderKey = useCallback((folder: { uniqueKey?: string | null; folderToken?: string | null; orderId?: string | null; folderPath?: string | null }) => {
+    if (!folder) return '';
+    // Always use uniqueKey if available (from backend)
+    if (folder.uniqueKey) return folder.uniqueKey;
+    // Fallback to building key if uniqueKey not available
+    if (folder.folderToken) return `${jobKeyBase}::token::${folder.folderToken}`;
+    if (folder.orderId && folder.folderPath) return `${jobKeyBase}::order::${folder.orderId}::${folder.folderPath}`;
+    if (folder.folderPath) return `${jobKeyBase}::path::${folder.folderPath}`;
+    return `${jobKeyBase}::legacy`;
+  }, [jobKeyBase]);
+
+  const rawFolders = deliveryData?.folders || (() => {
     if (!deliveryData?.completedFiles) return [];
 
     const folderMap = new Map<string, DeliveryFolder>();
+    const pathCounters = new Map<string, number>();
 
     deliveryData.completedFiles.forEach((order) => {
       order.files.forEach((file) => {
-        const folderKey = file.folderPath || "All Files";
-        if (!folderMap.has(folderKey)) {
-          folderMap.set(folderKey, {
-            folderPath: folderKey,
-            editorFolderName: file.editorFolderName || folderKey,
+        const folderPath = file.folderPath || "All Files";
+        if (!folderMap.has(folderPath)) {
+          const parsedToken =
+            folderPath.includes("folders/") ? folderPath.split("/").pop() : undefined;
+          const baseProps = {
+            folderToken: parsedToken,
+            orderId: order.orderId,
+            folderPath,
+          };
+          let uniqueKey = getFolderKey(baseProps);
+          if (uniqueKey.startsWith(`${jobKeyBase}::path::`)) {
+            const count = pathCounters.get(folderPath) ?? 0;
+            pathCounters.set(folderPath, count + 1);
+            uniqueKey = `${uniqueKey}::${count}`;
+          }
+
+          folderMap.set(folderPath, {
+            folderPath,
+            editorFolderName: file.editorFolderName || folderPath,
+            orderId: order.orderId,
             orderNumber: order.orderNumber,
             fileCount: 0,
             files: [],
+            folderToken: parsedToken,
+            uniqueKey,
+            isVisible: true,
           });
         }
-        const folder = folderMap.get(folderKey)!;
+        const folder = folderMap.get(folderPath)!;
         folder.fileCount++;
         folder.files.push(file);
       });
@@ -273,11 +360,103 @@ export default function DeliveryPage() {
     return Array.from(folderMap.values());
   })();
 
+  // Build a map of real-time folder visibility by uniqueKey
+  // Real-time folders take precedence over rawFolders
+  const realtimeVisibilityMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (Array.isArray(realtimeFolders)) {
+      console.log('[DeliveryPage] Processing real-time folders:', realtimeFolders.map(f => ({
+        uniqueKey: f.uniqueKey,
+        folderPath: f.folderPath,
+        folderToken: f.folderToken,
+        orderId: f.orderId,
+        isVisible: f.isVisible
+      })));
+      realtimeFolders.forEach(folder => {
+        const key = getFolderKey(folder);
+        if (!key) {
+          console.warn('[DeliveryPage] Could not get key for real-time folder:', folder);
+          return;
+        }
+        if (typeof folder.isVisible === "boolean") {
+          map.set(key, folder.isVisible);
+          console.log('[DeliveryPage] Set visibility for key:', key, 'to', folder.isVisible);
+        }
+      });
+    }
+    return map;
+  }, [realtimeFolders, getFolderKey]);
+
+  // Merge rawFolders with real-time visibility updates
+  // Real-time visibility always takes precedence
+  const effectiveFolders = useMemo(() => {
+    if (!Array.isArray(rawFolders)) return [];
+    return rawFolders.map(folder => {
+      const key = getFolderKey(folder);
+      // If we have real-time visibility data for this key, use it
+      if (key && realtimeVisibilityMap.has(key)) {
+        const realtimeVisible = realtimeVisibilityMap.get(key);
+        console.log('[DeliveryPage] Merging real-time visibility for key:', key, 'value:', realtimeVisible, 'folder:', folder.editorFolderName);
+        return {
+          ...folder,
+          isVisible: realtimeVisible,
+        };
+      }
+      // Otherwise use the folder's own isVisible property, defaulting to true if not set
+      return {
+        ...folder,
+        isVisible: folder.isVisible ?? true,
+      };
+    });
+  }, [rawFolders, realtimeVisibilityMap, getFolderKey]);
+
+  const hiddenFolderKeys = useMemo(() => {
+    const hidden = new Set<string>();
+    // Check effectiveFolders directly - they already have the merged visibility from real-time updates
+    if (Array.isArray(effectiveFolders)) {
+      effectiveFolders.forEach(folder => {
+        const key = getFolderKey(folder);
+        if (!key) return;
+        // If isVisible is explicitly false, hide it
+        if (folder.isVisible === false) {
+          hidden.add(key);
+          console.log('[DeliveryPage] Hiding folder with key:', key, 'folder:', folder.editorFolderName, 'isVisible:', folder.isVisible);
+        }
+      });
+    }
+    console.log('[DeliveryPage] hiddenFolderKeys:', Array.from(hidden));
+    return hidden;
+  }, [effectiveFolders, getFolderKey]);
+
+  const visibleFolders = useMemo(() => {
+    if (!Array.isArray(effectiveFolders)) return [];
+    const visible = effectiveFolders.filter(folder => {
+      const key = getFolderKey(folder);
+      const isHidden = key && hiddenFolderKeys.has(key);
+      if (isHidden) {
+        console.log('[DeliveryPage] Filtering out hidden folder:', folder.editorFolderName, 'key:', key);
+      }
+      return key && !hiddenFolderKeys.has(key);
+    });
+    console.log('[DeliveryPage] visibleFolders count:', visible.length, 'out of', effectiveFolders.length);
+    return visible;
+  }, [effectiveFolders, hiddenFolderKeys, getFolderKey]);
+
+  // Debug: Log when effectiveFolders changes
+  useEffect(() => {
+    console.log('[DeliveryPage] effectiveFolders updated:', effectiveFolders.map(f => ({
+      folderPath: f.folderPath,
+      editorFolderName: f.editorFolderName,
+      uniqueKey: getFolderKey(f),
+      isVisible: f.isVisible
+    })));
+  }, [effectiveFolders, getFolderKey]);
+
   // Filter to show only ROOT folders (not subfolders) for display
   const getRootFolders = () => {
-    if (!allFolders || !Array.isArray(allFolders)) return [];
+    if (!visibleFolders || !Array.isArray(visibleFolders)) return [];
 
-    return allFolders.filter(folder => {
+    return visibleFolders.filter(folder => {
       const segments = folder.folderPath.split('/');
 
       // Partner folder (root): completed/{jobId}/folders/{token} - EXACTLY 4 segments
@@ -309,9 +488,9 @@ export default function DeliveryPage() {
 
   // Get subfolders for a given parent folder
   const getSubfolders = (parentFolderPath: string) => {
-    if (!allFolders || !Array.isArray(allFolders)) return [];
+    if (!visibleFolders || !Array.isArray(visibleFolders)) return [];
 
-    return allFolders.filter(folder => {
+    return visibleFolders.filter(folder => {
       // Check if this folder is a direct child of the parent
       if (!folder.folderPath.startsWith(parentFolderPath + '/')) return false;
 
@@ -727,9 +906,21 @@ export default function DeliveryPage() {
         submittedByEmail: "client@example.com",
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setReviewSubmitted(true);
+      // Invalidate and refetch after a short delay to account for Firestore eventual consistency
       queryClient.invalidateQueries({ queryKey: [`/api/delivery/${token}`, currentUser?.uid] });
+      // Also invalidate the preview endpoint query key if in preview mode
+      if (isPreviewMode) {
+        queryClient.invalidateQueries({ queryKey: [`/api/jobs/${token}/preview`, currentUser?.uid] });
+      }
+      // Wait a bit and refetch to ensure Firestore has the data (eventual consistency)
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: [`/api/delivery/${token}`, currentUser?.uid] });
+        if (isPreviewMode) {
+          queryClient.refetchQueries({ queryKey: [`/api/jobs/${token}/preview`, currentUser?.uid] });
+        }
+      }, 1000); // Increased delay for Firestore eventual consistency
     },
   });
 
@@ -1178,9 +1369,11 @@ export default function DeliveryPage() {
                     <p className="text-foreground">{deliveryData.jobReview.review}</p>
                   </div>
                 )}
-                <div className="text-xs text-muted-foreground">
-                  Submitted on {format(new Date(deliveryData.jobReview.submittedAt), "MMMM d, yyyy 'at' h:mm a")}
-                </div>
+                {deliveryData.jobReview.createdAt && (
+                  <div className="text-xs text-muted-foreground">
+                    Submitted on {format(new Date(deliveryData.jobReview.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                  </div>
+                )}
               </div>
             </div>
           </Card>
@@ -1641,7 +1834,7 @@ export default function DeliveryPage() {
 
       {/* Subfolder Viewer Dialog */}
       {viewingSubfolder && (() => {
-        const subfolder = allFolders.find(f => f.folderPath === viewingSubfolder);
+        const subfolder = visibleFolders.find(f => f.folderPath === viewingSubfolder);
         if (!subfolder) return null;
 
         return (

@@ -9,6 +9,7 @@ import {
   Timestamp,
   QueryConstraint 
 } from 'firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 import type { 
   Message, 
   Conversation, 
@@ -74,7 +75,7 @@ export function useRealtimeMessages(conversationId: string | null) {
 }
 
 // Real-time conversations for a user
-export function useRealtimeConversations(userId: string | null, partnerId?: string) {
+export function useRealtimeConversations(userId: string | null, partnerId?: string, userRole?: string) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -90,7 +91,46 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
 
     setLoading(true);
     
-    // Listen to conversations where user is either partner or editor
+    // For photographers, filter by participantId to only show their own conversations
+    if (userRole === 'photographer' && partnerId) {
+      const q1 = query(
+        collection(db, 'conversations'),
+        where('partnerId', '==', partnerId),
+        where('participantId', '==', userId)
+      );
+
+      const unsubscribe = onSnapshot(
+        q1,
+        (snapshot) => {
+          const conversations = snapshot.docs.map(doc => convertTimestamps(doc) as Conversation);
+          
+          const sorted = conversations.sort((a, b) => {
+            const aTime = a.lastMessageAt?.getTime() || 0;
+            const bTime = b.lastMessageAt?.getTime() || 0;
+            return bTime - aTime;
+          });
+          
+          // Calculate total unread message count
+          const totalUnread = sorted.reduce((count, conv) => {
+            return count + (conv.partnerUnreadCount || 0);
+          }, 0);
+          
+          setConversations(sorted);
+          setUnreadCount(totalUnread);
+          setLoading(false);
+          setError(null);
+        },
+        (err) => {
+          console.error('Error listening to photographer conversations:', err);
+          setError(err as Error);
+          setLoading(false);
+        }
+      );
+
+      return () => unsubscribe();
+    }
+    
+    // For partners/admins/editors, use existing logic
     const q1 = query(
       collection(db, 'conversations'),
       where('partnerId', '==', partnerId || userId)
@@ -181,7 +221,7 @@ export function useRealtimeConversations(userId: string | null, partnerId?: stri
       unsubscribe1();
       unsubscribe2();
     };
-  }, [userId, partnerId]);
+  }, [userId, partnerId, userRole]);
 
   return { conversations, loading, error, unreadCount };
 }
@@ -249,35 +289,68 @@ export function useRealtimeJobs(partnerId: string | null, filters?: {
 
     setLoading(true);
     
-    // Build query with filters
+    // Always sort client-side to avoid Firestore index requirements
+    // Firestore requires composite indexes for where + orderBy even with single where clause
     const constraints: QueryConstraint[] = [
-      where('partnerId', '==', partnerId),
-      orderBy('createdAt', 'desc')
+      where('partnerId', '==', partnerId)
     ];
     
     if (filters?.status) {
-      constraints.splice(1, 0, where('status', '==', filters.status));
+      constraints.push(where('status', '==', filters.status));
     }
     
     if (filters?.customerId) {
-      constraints.splice(1, 0, where('customerId', '==', filters.customerId));
+      constraints.push(where('customerId', '==', filters.customerId));
     }
     
     if (filters?.assignedTo) {
-      constraints.splice(1, 0, where('assignedTo', '==', filters.assignedTo));
+      constraints.push(where('assignedTo', '==', filters.assignedTo));
     }
 
+    // Don't use orderBy - sort client-side instead to avoid index requirement
     const q = query(collection(db, 'jobs'), ...constraints);
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         const jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
+        // Always sort client-side (newest first)
+        jobList.sort((a, b) => {
+          const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+          const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+          return bDate.getTime() - aDate.getTime();
+        });
         setJobs(jobList);
         setLoading(false);
         setError(null);
       },
-      (err) => {
+      (err: any) => {
+        // Handle missing index error gracefully
+        if (err.code === 'failed-precondition' && err.message?.includes('index')) {
+          console.warn('Firestore index missing for jobs query. Falling back to client-side sorting.');
+          // Try query without any orderBy
+          const simpleQ = query(collection(db, 'jobs'), where('partnerId', '==', partnerId));
+          const fallbackUnsubscribe = onSnapshot(
+            simpleQ,
+            (snapshot) => {
+              const jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
+              jobList.sort((a, b) => {
+                const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+                const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+                return bDate.getTime() - aDate.getTime();
+              });
+              setJobs(jobList);
+              setLoading(false);
+              setError(null);
+            },
+            (fallbackErr) => {
+              console.error('Error listening to jobs (fallback):', fallbackErr);
+              setError(fallbackErr as Error);
+              setLoading(false);
+            }
+          );
+          return () => fallbackUnsubscribe();
+        }
         console.error('Error listening to jobs:', err);
         setError(err as Error);
         setLoading(false);
@@ -309,23 +382,30 @@ export function useRealtimeOrders(partnerId: string | null, editorId?: string, f
     setLoading(true);
     
     // Build query with filters
-    const constraints: QueryConstraint[] = [
-      orderBy('createdAt', 'desc')
-    ];
+    // If filters are applied, use simpler query without orderBy to avoid index requirements
+    // We'll sort client-side instead
+    const hasFilters = filters && (filters.status || filters.jobId);
+    
+    const constraints: QueryConstraint[] = [];
     
     // Either partner or editor filter (but not both in same query)
     if (editorId) {
-      constraints.unshift(where('assignedTo', '==', editorId));
+      constraints.push(where('assignedTo', '==', editorId));
     } else if (partnerId) {
-      constraints.unshift(where('partnerId', '==', partnerId));
+      constraints.push(where('partnerId', '==', partnerId));
     }
     
     if (filters?.status) {
-      constraints.splice(1, 0, where('status', '==', filters.status));
+      constraints.push(where('status', '==', filters.status));
     }
     
     if (filters?.jobId) {
-      constraints.splice(1, 0, where('jobId', '==', filters.jobId));
+      constraints.push(where('jobId', '==', filters.jobId));
+    }
+
+    // Only add orderBy if no filters (to avoid index requirement)
+    if (!hasFilters) {
+      constraints.push(orderBy('createdAt', 'desc'));
     }
 
     const q = query(collection(db, 'orders'), ...constraints);
@@ -334,11 +414,23 @@ export function useRealtimeOrders(partnerId: string | null, editorId?: string, f
       q,
       (snapshot) => {
         const orderList = snapshot.docs.map(doc => convertTimestamps(doc) as Order);
+        // Sort client-side if we didn't use orderBy
+        if (hasFilters) {
+          orderList.sort((a, b) => {
+            const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+            const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+            return bDate.getTime() - aDate.getTime();
+          });
+        }
         setOrders(orderList);
         setLoading(false);
         setError(null);
       },
-      (err) => {
+      (err: any) => {
+        // Handle missing index error gracefully
+        if (err.code === 'failed-precondition' && err.message?.includes('index')) {
+          console.warn('Firestore index missing for orders query. Please create the required index or the query will work without sorting.');
+        }
         console.error('Error listening to orders:', err);
         setError(err as Error);
         setLoading(false);
@@ -390,6 +482,77 @@ export function useRealtimeEditorUploads(jobId: string | null) {
   }, [jobId]);
 
   return { uploads, loading, error };
+}
+
+export function useRealtimeFolders(jobId: string | null) {
+  const [folders, setFolders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { currentUser } = useAuth();
+
+  useEffect(() => {
+    if (!jobId) {
+      setFolders([]);
+      setLoading(false);
+      return;
+    }
+
+    // Only use Firestore real-time queries if user is authenticated
+    // Public delivery pages should rely on REST API data only
+    if (!currentUser) {
+      setFolders([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const q = query(
+      collection(db, 'folders'),
+      where('jobId', '==', jobId)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const folderList = snapshot.docs.map(doc => {
+          const data = convertTimestamps(doc);
+          // Use uniqueKey from Firestore if available (set when visibility is updated)
+          // Otherwise, build it using the same logic as the backend
+          const jobKey = data.jobId || jobId || 'job';
+          const uniqueKey =
+            data.uniqueKey ||
+            (data.instanceId && data.folderPath
+              ? `${jobKey}::instance::${data.instanceId}::${data.folderPath}`
+              : data.folderToken
+                ? `${jobKey}::token::${data.folderToken}`
+                : data.orderId && data.folderPath
+                  ? `${jobKey}::order::${data.orderId}::${data.folderPath}`
+                  : data.folderPath
+                    ? `${jobKey}::path::${data.folderPath}`
+                    : `${jobKey}::legacy::${doc.id}`);
+          return {
+            ...data,
+            uniqueKey,
+          };
+        });
+        setFolders(folderList);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        // Only log error if it's not a permissions error (which is expected for unauthenticated users)
+        if (err.code !== 'permission-denied') {
+          console.error('Error listening to folders:', err);
+        }
+        setError(err as Error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [jobId, currentUser]);
+
+  return { folders, loading, error };
 }
 
 // Real-time unread message count
@@ -490,11 +653,35 @@ export function useRealtimeAttentionItems(userId: string | null, partnerId: stri
 
     try {
       const items: any[] = [];
-      const jobMap = new Map(jobs.map(job => [job.id, job]));
+      // Create a map that indexes by both job.id (UUID) and job.jobId (NanoID) to handle both cases
+      const jobMapById = new Map(jobs.map(job => [job.id, job]));
+      const jobMapByJobId = new Map(jobs.map(job => [job.jobId, job]));
 
       // 1. Add completed orders (ready for delivery)
       completedOrders.forEach(order => {
-        const job = order.jobId ? jobMap.get(order.jobId) : null;
+        // Try to find job by UUID first, then by NanoID
+        const job = order.jobId 
+          ? (jobMapById.get(order.jobId) || jobMapByJobId.get(order.jobId))
+          : null;
+        
+        if (!job && order.jobId) {
+          console.warn('[NeedsAttention] Job not found for order:', {
+            orderId: order.id,
+            orderJobId: order.jobId,
+            availableJobIds: jobs.map(j => ({ id: j.id, jobId: j.jobId }))
+          });
+        }
+        
+        const address = job?.address || undefined;
+        if (address) {
+          console.log('[NeedsAttention] Adding address to attention item:', {
+            orderId: order.id,
+            address,
+            jobId: job?.id,
+            jobJobId: job?.jobId
+          });
+        }
+        
         items.push({
           id: order.id,
           type: 'order_completed',
@@ -503,6 +690,7 @@ export function useRealtimeAttentionItems(userId: string | null, partnerId: stri
           time: order.dateAccepted || order.createdAt,
           priority: 'high',
           projectName: job?.address || '',
+          address: address,
           orderId: order.id,
           jobId: order.jobId,
           orderNumber: order.orderNumber,

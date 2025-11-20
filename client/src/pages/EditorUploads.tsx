@@ -50,6 +50,13 @@ export default function EditorUploads() {
     // Default fetcher will be used - it automatically handles authentication
   });
 
+  // Sort jobs: newest to oldest (by completedDate, then by dueDate as fallback)
+  const sortedJobs = [...completedJobs].sort((a, b) => {
+    const dateA = new Date(a.completedDate || a.dueDate || 0).getTime();
+    const dateB = new Date(b.completedDate || b.dueDate || 0).getTime();
+    return dateB - dateA; // Newest first
+  });
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     const newUploadFiles: UploadFile[] = files.map((file, index) => ({
@@ -167,7 +174,7 @@ export default function EditorUploads() {
   const handleStartUpload = async () => {
     if (!selectedJob || uploadFiles.length === 0) return;
 
-    const selectedJobData = completedJobs.find(job => job.id === selectedJob);
+    const selectedJobData = sortedJobs.find(job => job.id === selectedJob);
     if (!selectedJobData) {
       console.error('Selected job not found');
       return;
@@ -214,7 +221,7 @@ export default function EditorUploads() {
     }
   };
 
-  const selectedJobData = completedJobs.find(job => job.id === selectedJob);
+  const selectedJobData = sortedJobs.find(job => job.id === selectedJob);
   const allFilesCompleted = uploadFiles.every(file => file.status === 'completed');
   const hasFiles = uploadFiles.length > 0;
 
@@ -251,7 +258,7 @@ export default function EditorUploads() {
                   <SelectValue placeholder="Choose a completed job to upload results..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {completedJobs.map((job) => (
+                  {sortedJobs.map((job) => (
                     <SelectItem key={job.id} value={job.id}>
                       {job.customerName} - {job.services?.[0]?.name || 'Unknown Service'} (Job {job.jobId})
                     </SelectItem>

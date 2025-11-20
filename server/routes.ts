@@ -39,6 +39,7 @@ import {
   adminAuth,
   UserRole 
 } from "./firebase-admin";
+import { sendTeamInviteEmail, sendDeliveryEmail, sendPartnershipInviteEmail } from "./email-service";
 import { z } from "zod";
 import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
@@ -519,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: req.user?.uid || '',
           userEmail: req.user?.email || '',
           userName: req.user?.email || '',
-          action: "update",
+          action: "delete",
           category: "job",
           title: "Cover Image Deleted",
           description: `Cover image removed from job at ${job.address}`,
@@ -859,6 +860,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to create order notifications:", notificationError);
       }
 
+      // Log activity: Order Submitted for Editing
+      try {
+        const currentUser = await getUserDocument(req.user.uid);
+        const userName = currentUser 
+          ? `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email
+          : req.user.email || 'Unknown User';
+
+        await storage.createActivity({
+          partnerId: partnerId,
+          orderId: order.id,
+          jobId: order.jobId || null,
+          userId: req.user.uid,
+          userEmail: req.user.email || '',
+          userName: userName,
+          action: "submission",
+          category: "order",
+          title: "Order Submitted for Editing",
+          description: `Order #${order.orderNumber} submitted for editing${assignedTo ? ` and assigned to editor` : ''}`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            orderId: order.id,
+            assignedTo: assignedTo || null,
+            serviceCount: services.length,
+            submittedBy: req.user.email,
+            submittedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log order submission activity:", activityError);
+        // Don't fail the order creation if activity logging fails
+      }
+
       // Return the complete order details
       const orderServices = await storage.getOrderServices(order.id, order.partnerId);
       const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
@@ -1174,9 +1209,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authorization header required" });
       }
 
-      // For now, we'll extract uid from a simple bearer token
-      // In production, you'd verify the Firebase ID token
-      const uid = authHeader.replace('Bearer ', '');
+      // Verify Firebase ID token and extract uid
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
 
       const currentUser = await getUserDocument(uid);
       if (!currentUser || currentUser.role !== 'partner') {
@@ -1186,17 +1222,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create pending invite
       const inviteToken = await createPendingInvite(email, role as UserRole, currentUser.partnerId!, uid);
 
-      // In a real implementation, you'd send an email here
       const inviteLink = `${req.protocol}://${req.get('host')}/signup?invite=${inviteToken}`;
+
+      // Send invitation email
+      const inviterName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email;
+      const emailResult = await sendTeamInviteEmail(
+        email,
+        inviterName,
+        currentUser.email,
+        role,
+        inviteLink
+      );
+
+      if (!emailResult.success) {
+        console.error(`Failed to send invite email to ${email}:`, emailResult.error);
+        // Don't fail the request if email fails - invite is still created
+      }
 
       res.status(201).json({ 
         success: true, 
         inviteToken,
         inviteLink,
-        message: `Team member invite created for ${email}` 
+        message: `Team member invite created for ${email}`,
+        emailSent: emailResult.success
       });
     } catch (error: any) {
       console.error("Error creating team invite:", error);
+      
+      // Handle Firebase auth errors specifically
+      if (error.code === 'auth/id-token-expired' || error.code === 'auth/argument-error') {
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+      
       res.status(500).json({ 
         error: "Failed to create team invite", 
         details: error.message 
@@ -1544,18 +1601,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create partnership invite
+      const partnerName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email;
       const inviteToken = await createPartnershipInvite(
         editorEmail,
         editorStudioName,
         currentUser.partnerId!,
-        `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email, // Using partner's name for now
+        partnerName,
         currentUser.email
       );
+
+      // Send partnership invitation email
+      // Note: Partnership invites may not have a direct signup link - editors need to log in first
+      const emailResult = await sendPartnershipInviteEmail(
+        editorEmail,
+        editorStudioName,
+        partnerName,
+        currentUser.email
+      );
+
+      if (!emailResult.success) {
+        console.error(`Failed to send partnership invite email to ${editorEmail}:`, emailResult.error);
+        // Don't fail the request if email fails - invite is still created
+      }
 
       res.status(201).json({ 
         success: true, 
         inviteToken,
-        message: `Partnership invite sent to ${editorEmail}` 
+        message: `Partnership invite sent to ${editorEmail}`,
+        emailSent: emailResult.success
       });
     } catch (error: any) {
       console.error("Error creating partnership invite:", error);
@@ -1671,7 +1744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get partner's partnerships (for partnerships display)
   app.get("/api/partnerships", async (req, res) => {
     try {
-      // Get current user (should be partner)
+      // Get current user (should be partner or photographer)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
@@ -1681,8 +1754,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
-      if (!currentUser || currentUser.role !== 'partner') {
-        return res.status(403).json({ error: "Only partners can view their partnerships" });
+      if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
+        return res.status(403).json({ error: "Only partners and photographers can view their partnerships" });
       }
 
       const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
@@ -1727,7 +1800,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get partner's partnerships (for suppliers dropdown)
   app.get("/api/partnerships/suppliers", async (req, res) => {
     try {
-      // Get current user (should be partner)
+      // Get current user (should be partner or photographer)
       const authHeader = req.headers.authorization;
       if (!authHeader) {
         return res.status(401).json({ error: "Authorization header required" });
@@ -1738,21 +1811,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const decodedToken = await adminAuth.verifyIdToken(idToken);
       const uid = decodedToken.uid;
       const currentUser = await getUserDocument(uid);
-      if (!currentUser || currentUser.role !== 'partner') {
-        return res.status(403).json({ error: "Only partners can view their suppliers" });
+      if (!currentUser || (currentUser.role !== 'partner' && currentUser.role !== 'photographer')) {
+        return res.status(403).json({ error: "Only partners and photographers can view their suppliers" });
       }
 
       const partnerships = await getPartnerPartnerships(currentUser.partnerId!);
 
+      // Get custom display names for photographers
+      let editorDisplayNames: Record<string, string> = {};
+      if (currentUser.role === 'photographer') {
+        const settings = await storage.getPartnerSettings(currentUser.partnerId!);
+        if (settings?.editorDisplayNames) {
+          editorDisplayNames = JSON.parse(settings.editorDisplayNames);
+        }
+      }
+
       // Format for suppliers dropdown
-      const suppliers = partnerships.map(partnership => ({
-        id: partnership.editorId,
-        firstName: partnership.editorStudioName.split(' ')[0] || partnership.editorStudioName,
-        lastName: partnership.editorStudioName.split(' ').slice(1).join(' ') || '',
-        email: partnership.editorEmail,
-        role: 'editor',
-        studioName: partnership.editorStudioName
-      }));
+      const suppliers = partnerships.map(partnership => {
+        // Use custom display name for photographers if available
+        const displayName = (currentUser.role === 'photographer' && editorDisplayNames[partnership.editorId]) 
+          ? editorDisplayNames[partnership.editorId]
+          : partnership.editorStudioName;
+
+        return {
+          id: partnership.editorId,
+          firstName: displayName.split(' ')[0] || displayName,
+          lastName: displayName.split(' ').slice(1).join(' ') || '',
+          email: partnership.editorEmail,
+          role: 'editor',
+          studioName: displayName
+        };
+      });
 
       res.json(suppliers);
     } catch (error: any) {
@@ -3303,14 +3392,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdUploads = await Promise.all(uploadPromises);
 
-      // Mark order as uploaded (status: in_progress → completed)
+      // Log activity: Editor uploaded deliverables
       try {
-        await storage.markOrderUploaded(order.id, uid);
-        console.log(`Order ${order.orderNumber} marked as completed after upload`);
-      } catch (error) {
-        console.error('Failed to update upload status:', error);
-        // Continue with success response even if status update fails
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          orderId: order.id,
+          userId: uid,
+          userEmail: currentUser.email || 'editor',
+          userName: currentUser.displayName || currentUser.email || 'Editor',
+          action: "upload",
+          category: "file",
+          title: "Deliverables Uploaded",
+          description: `${currentUser.displayName || 'Editor'} uploaded ${createdUploads.length} deliverable(s)`,
+          metadata: JSON.stringify({
+            fileCount: createdUploads.length,
+            orderNumber: order.orderNumber,
+            totalSize: uploads.reduce((sum: number, u: any) => sum + (u.fileSize || 0), 0),
+            hasNotes: !!notes
+          }),
+          ipAddress: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log editor upload:", activityError);
       }
+
+      // Note: Order status is NOT automatically changed on upload
+      // Editors must manually click "Mark Complete" button when job is finished
 
       res.status(201).json({
         success: true,
@@ -3388,9 +3497,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      // Also update order status using the new tracking method if delivering job
+      // Also update order status using the new tracking method if completing job
       let updatedOrder = order;
-      if (status === 'delivered') {
+      if (status === 'completed') {
         updatedOrder = await storage.markOrderUploaded(order.id, uid) || order;
 
         // Create activity record for job completion
@@ -4306,7 +4415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[CREATE FOLDER] Name: ${partnerFolderName}, Parent: ${parentFolderPath}, Token: ${folderToken}`);
 
       // Create the folder in storage with parent folder path if provided
-      const createdFolder = await storage.createFolder(job.id, partnerFolderName, parentFolderPath, folderToken);
+      const createdFolder = await storage.createFolder(job.id, partnerFolderName, parentFolderPath, undefined, folderToken);
 
       // Create a Firebase placeholder to establish the folder in Firebase Storage
       const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
@@ -4340,8 +4449,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
 
-      res.json({ 
-        success: true, 
+      // Log activity: Folder created
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "creation",
+          category: "file",
+          title: "Folder Created",
+          description: `Folder "${partnerFolderName}" created${parentFolderPath ? ' in subfolder' : ''}`,
+          metadata: JSON.stringify({
+            folderName: partnerFolderName,
+            folderPath: firebaseFolderPath,
+            parentFolderPath: parentFolderPath || null,
+            folderToken
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log folder creation:", activityError);
+      }
+
+      res.json({
+        success: true,
         message: "Folder created successfully in Firebase",
         folder: { ...createdFolder, folderToken },
         firebasePath: placeholderPath
@@ -4475,6 +4609,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await Promise.all(deletePromises);
 
+      // Log activity: Folder deleted
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "delete",
+          category: "file",
+          title: "Folder Deleted",
+          description: `Folder deleted with ${uploadsInFolder.length} file(s)`,
+          metadata: JSON.stringify({
+            folderPath,
+            deletedFileCount: uploadsInFolder.length,
+            folderToken: folderToken || null
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log folder deletion:", activityError);
+      }
+
       res.json({
         success: true,
         message: `Folder deleted successfully. Removed ${uploadsInFolder.length} upload(s).`,
@@ -4518,12 +4676,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update folder name
       await storage.updateFolderName(job.id, folderPath, newPartnerFolderName);
 
+      // Log activity: Folder renamed
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "update",
+          category: "file",
+          title: "Folder Renamed",
+          description: `Folder renamed to "${newPartnerFolderName}"`,
+          metadata: JSON.stringify({
+            folderPath,
+            newFolderName: newPartnerFolderName
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log folder rename:", activityError);
+      }
+
       res.json({ success: true, message: "Folder renamed successfully" });
     } catch (error: any) {
       console.error("Error renaming folder:", error);
       res.status(500).json({ 
         error: "Failed to rename folder", 
         details: error.message 
+      });
+    }
+  });
+
+  app.patch("/api/jobs/:jobId/folders/visibility", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folderPath, isVisible, folderToken, orderId, uniqueKey } = req.body as { folderPath?: string; isVisible?: boolean; folderToken?: string | null; orderId?: string | null; uniqueKey?: string | null };
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!folderPath || typeof folderPath !== "string") {
+        return res.status(400).json({ error: "folderPath is required" });
+      }
+
+      if (typeof isVisible !== "boolean") {
+        return res.status(400).json({ error: "isVisible must be a boolean" });
+      }
+
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      await storage.updateFolderVisibility(job.id, folderPath, isVisible, { uniqueKey: uniqueKey ?? null, folderToken: folderToken ?? null, orderId: orderId ?? null });
+
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "update",
+          category: "file",
+          title: "Folder Visibility Updated",
+          description: `Folder visibility set to ${isVisible ? "visible" : "hidden"}`,
+          metadata: JSON.stringify({
+            folderPath,
+            folderToken: folderToken || null,
+            orderId: orderId || null,
+            uniqueKey: uniqueKey || null,
+            isVisible
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent")
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log folder visibility update:", activityError);
+      }
+
+      res.json({
+        success: true,
+        message: "Folder visibility updated",
+        folderPath,
+        orderId: orderId ?? null,
+        uniqueKey: uniqueKey ?? null,
+        isVisible
+      });
+    } catch (error: any) {
+      console.error("Error updating folder visibility:", error);
+      res.status(500).json({
+        error: "Failed to update folder visibility",
+        details: error.message
       });
     }
   });
@@ -4852,11 +5104,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
+      // Check if this is an update or new upload
+      const isUpdate = !!job.propertyImage;
+
       // Update job with the new cover photo
       await storage.updateJob(job.id, {
         propertyImage: imageUrl,
         propertyImageThumbnail: imageUrl, // Use same image for thumbnail for now
       });
+
+      // Log activity: Cover photo uploaded or updated
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: isUpdate ? "update" : "upload",
+          category: "job",
+          title: isUpdate ? "Cover Image Updated" : "Cover Image Uploaded",
+          description: isUpdate
+            ? `Job cover image was updated`
+            : `Job cover image was uploaded`,
+          metadata: JSON.stringify({
+            imageUrl,
+            hadPreviousImage: isUpdate
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log cover photo update:", activityError);
+        // Don't fail the request if activity logging fails
+      }
 
       res.json({ success: true, message: "Cover photo updated successfully" });
     } catch (error: any) {
@@ -4904,10 +5185,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
+      // Store previous job name
+      const previousJobName = job.jobName;
+
       // Update job with the new name
       await storage.updateJob(id, {
         jobName: jobName,
       });
+
+      // Log activity: Job name updated
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "update",
+          category: "job",
+          title: "Job Name Updated",
+          description: `Job name changed from "${previousJobName || 'Untitled'}" to "${jobName}"`,
+          metadata: JSON.stringify({
+            previousJobName: previousJobName || null,
+            newJobName: jobName
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log job name update:", activityError);
+        // Don't fail the request if activity logging fails
+      }
 
       res.json({ success: true, message: "Job name updated successfully", jobName });
     } catch (error: any) {
@@ -4921,6 +5229,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Note: The old proxy endpoint (/api/files/proxy/:fileId) has been removed
   // Files now use direct Firebase download URLs instead of a proxy
+
+  // Update job status (requires auth - partner only)
+  app.patch("/api/jobs/:id/status", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Get job by UUID (id parameter)
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Update job status
+      const updatedJob = await storage.updateJob(id, { status });
+      if (!updatedJob) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // If job is being marked as delivered, update all related orders to delivered status
+      // This removes them from the "Needs Your Attention" list
+      if (status === 'delivered') {
+        try {
+          // Get all orders for this job
+          const allOrders = await storage.getOrders(job.partnerId);
+          const jobOrders = allOrders.filter(order => 
+            order.jobId === job.id || order.jobId === job.jobId
+          );
+
+          // Update all related orders to delivered status
+          // Use updateOrder instead of updateOrderStatus to bypass editor validation
+          // (partners can mark orders as delivered when delivering the job)
+          await Promise.all(
+            jobOrders.map(order => 
+              storage.updateOrder(order.id, { status: 'delivered' })
+            )
+          );
+
+          console.log(`[JOB STATUS] Updated ${jobOrders.length} order(s) to delivered status for job ${job.jobId || job.id}`);
+        } catch (orderUpdateError: any) {
+          console.error("[JOB STATUS] Error updating related orders:", orderUpdateError);
+          // Don't fail the request if order update fails - job status is still updated
+        }
+      }
+
+      // Log activity: Job status updated
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          userId: req.user?.uid || 'system',
+          userEmail: req.user?.email || 'system',
+          userName: req.user?.email || 'System',
+          action: "status_change",
+          category: "job",
+          title: "Job Status Updated",
+          description: `Job status changed to ${status}`,
+          metadata: JSON.stringify({
+            previousStatus: job.status,
+            newStatus: status
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log job status update:", activityError);
+        // Don't fail the request if activity logging fails
+      }
+
+      res.json({ success: true, job: updatedJob });
+    } catch (error: any) {
+      console.error("Error updating job status:", error);
+      res.status(500).json({
+        error: "Failed to update job status",
+        details: error.message
+      });
+    }
+  });
 
   // Public delivery endpoint - Uses deliveryToken for secure access only
   app.get("/api/delivery/:token", async (req, res) => {
@@ -5006,7 +5405,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Get job review if exists
+      console.log('[DELIVERY ENDPOINT] Fetching review for job.id:', job.id);
       const jobReview = await storage.getJobReview(job.id);
+      console.log('[DELIVERY ENDPOINT] Review found:', !!jobReview, jobReview ? { id: jobReview.id, rating: jobReview.rating } : null);
 
       // Get partner settings for branding (logo, business name)
       const partnerSettings = await storage.getPartnerSettings(job.partnerId);
@@ -5022,6 +5423,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           commentCount: commentCounts[file.id] || 0,
         }))
       }));
+
+      // Log activity: Customer viewed delivery page
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          userId: 'customer',
+          userEmail: customer?.email || 'customer',
+          userName: customer ? `${customer.firstName} ${customer.lastName}` : 'Customer',
+          action: "read",
+          category: "job",
+          title: "Delivery Page Viewed",
+          description: `Customer accessed delivery page`,
+          metadata: JSON.stringify({
+            fileCount: completedFiles.length,
+            folderCount: folders.length,
+            hasReview: !!jobReview
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log delivery page view:", activityError);
+      }
 
       // Return job info, folders with files, revision status, and branding
       // Keep completedFiles for backward compatibility
@@ -5478,7 +5903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Get job review if exists
+      console.log('[DELIVERY ENDPOINT] Fetching review for job.id:', job.id);
       const jobReview = await storage.getJobReview(job.id);
+      console.log('[DELIVERY ENDPOINT] Review found:', !!jobReview, jobReview ? { id: jobReview.id, rating: jobReview.rating } : null);
 
       // Get partner settings for branding (logo, business name)
       const partnerSettings = await storage.getPartnerSettings(job.partnerId);
@@ -5779,12 +6206,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const comment = await storage.createFileComment(validated);
+
+      // Log activity: Comment added to file
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          orderId: file.orderId,
+          userId: authorId || 'unknown',
+          userEmail: authorId || 'unknown',
+          userName: authorName || 'User',
+          action: "comment",
+          category: "file",
+          title: "Comment Added",
+          description: `Comment added to file "${file.originalName}"`,
+          metadata: JSON.stringify({
+            fileName: file.originalName,
+            fileId,
+            authorRole,
+            messageLength: message?.length || 0
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log file comment:", activityError);
+      }
+
       res.status(201).json(comment);
     } catch (error: any) {
       console.error("Error creating file comment:", error);
-      res.status(400).json({ 
-        error: "Failed to create file comment", 
-        details: error.message 
+      res.status(400).json({
+        error: "Failed to create file comment",
+        details: error.message
       });
     }
   });
@@ -5812,16 +6266,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate and create review
+      console.log('[REVIEW CREATE] Creating review for job:', { id: job.id, jobId: job.jobId, partnerId: job.partnerId });
       const validated = insertJobReviewSchema.parse({
-        jobId: job.id,
+        jobId: job.id, // Use UUID (job.id) as stored in jobReviews collection
         partnerId: job.partnerId, // Include partnerId for security/auditing
         rating,
         review,
         submittedBy,
         submittedByEmail,
       });
+      console.log('[REVIEW CREATE] Validated review data:', { jobId: validated.jobId, rating: validated.rating });
 
       const newReview = await storage.createJobReview(validated);
+      console.log('[REVIEW CREATE] Review created successfully:', { id: newReview.id, jobId: newReview.jobId });
+
+      // Create activity: Review received from client
+      try {
+        const activityData = {
+          partnerId: job.partnerId,
+          jobId: job.jobId, // Use NanoID for consistency with ActivityTimeline queries
+          userId: 'customer',
+          userEmail: submittedByEmail || 'customer',
+          userName: submittedBy || 'Customer',
+          action: "creation" as const,
+          category: "job" as const,
+          title: "Review Received",
+          description: `Client submitted a ${rating}-star review${review ? ' with feedback' : ''}`,
+          metadata: JSON.stringify({
+            rating,
+            hasReviewText: !!review,
+            submittedBy,
+            submittedByEmail
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        };
+        console.log("[ACTIVITY] Creating review activity:", { jobId: job.jobId, partnerId: job.partnerId });
+        await firestoreStorage.createActivity(activityData);
+        console.log("[ACTIVITY] Successfully created review activity");
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log review submission:", activityError);
+        console.error("[ACTIVITY] Error details:", {
+          message: (activityError as any)?.message,
+          stack: (activityError as any)?.stack,
+          jobId: job.jobId,
+          partnerId: job.partnerId
+        });
+      }
+
+      // Create notifications for partner and editors who worked on this job
+      try {
+        const notifications: any[] = [];
+
+        // Get partner user(s) to notify
+        console.log("[NOTIFICATION] Getting partner user for partnerId:", job.partnerId);
+        const partnerUser = await getUserByPartnerId(job.partnerId);
+        if (partnerUser) {
+          console.log("[NOTIFICATION] Found partner user:", partnerUser.uid);
+          notifications.push({
+            partnerId: job.partnerId,
+            recipientId: partnerUser.uid,
+            type: 'review_received',
+            title: 'New Review Received',
+            body: `You received a ${rating}-star review${review ? ' with feedback' : ''} for job at ${job.address}`,
+            jobId: job.jobId, // Use NanoID for navigation consistency
+            read: false
+          });
+        } else {
+          console.log("[NOTIFICATION] No partner user found for partnerId:", job.partnerId);
+        }
+
+        // Get editors who worked on this job (via orders)
+        console.log("[NOTIFICATION] Getting orders for partnerId:", job.partnerId);
+        const allOrders = await storage.getOrders(job.partnerId);
+        console.log("[NOTIFICATION] Found", allOrders.length, "total orders");
+        const jobOrders = allOrders.filter(order => 
+          order.jobId === job.id || order.jobId === job.jobId
+        );
+        console.log("[NOTIFICATION] Found", jobOrders.length, "orders for this job");
+        const editorIds = new Set<string>();
+        jobOrders.forEach(order => {
+          if (order.assignedTo) {
+            editorIds.add(order.assignedTo);
+            console.log("[NOTIFICATION] Found editor:", order.assignedTo);
+          }
+        });
+
+        // Create notifications for editors
+        editorIds.forEach(editorId => {
+          notifications.push({
+            partnerId: job.partnerId,
+            recipientId: editorId,
+            type: 'review_received',
+            title: 'New Review Received',
+            body: `A client submitted a ${rating}-star review${review ? ' with feedback' : ''} for a job you worked on`,
+            jobId: job.jobId, // Use NanoID for navigation consistency
+            read: false
+          });
+        });
+
+        if (notifications.length > 0) {
+          console.log("[NOTIFICATION] Creating", notifications.length, "notification(s)");
+          await firestoreStorage.createNotifications(notifications);
+          console.log(`[NOTIFICATION] Successfully created ${notifications.length} notification(s) for review on job ${job.jobId}`);
+        } else {
+          console.log("[NOTIFICATION] No notifications to create");
+        }
+      } catch (notificationError) {
+        console.error("[NOTIFICATION] Failed to create review notifications:", notificationError);
+        console.error("[NOTIFICATION] Error details:", {
+          message: (notificationError as any)?.message,
+          stack: (notificationError as any)?.stack,
+          jobId: job.jobId,
+          partnerId: job.partnerId
+        });
+        // Don't fail the request if notifications fail
+      }
+
       res.status(201).json(newReview);
     } catch (error: any) {
       console.error("Error creating job review:", error);
@@ -5957,12 +6518,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const comment = await storage.createFileComment(validated);
+
+      // Log activity: Comment added by customer
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          orderId: file.orderId,
+          userId: 'customer',
+          userEmail: authorId || 'customer',
+          userName: authorName || 'Customer',
+          action: "comment",
+          category: "file",
+          title: "Comment Added",
+          description: `Customer added comment to file "${file.originalName}"`,
+          metadata: JSON.stringify({
+            fileName: file.originalName,
+            fileId,
+            authorRole,
+            messageLength: message?.length || 0
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log customer file comment:", activityError);
+      }
+
       res.status(201).json(comment);
     } catch (error: any) {
       console.error("Error creating file comment:", error);
-      res.status(400).json({ 
-        error: "Failed to create file comment", 
-        details: error.message 
+      res.status(400).json({
+        error: "Failed to create file comment",
+        details: error.message
       });
     }
   });
@@ -6034,12 +6622,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const newReview = await storage.createJobReview(validated);
+
+      // Create activity: Review received from client
+      try {
+        const activityData = {
+          partnerId: job.partnerId,
+          jobId: job.jobId, // Use NanoID for consistency with ActivityTimeline queries
+          userId: 'customer',
+          userEmail: submittedByEmail || 'customer',
+          userName: submittedBy || 'Customer',
+          action: "creation" as const,
+          category: "job" as const,
+          title: "Review Received",
+          description: `Client submitted a ${rating}-star review${review ? ' with feedback' : ''}`,
+          metadata: JSON.stringify({
+            rating,
+            hasReviewText: !!review,
+            submittedBy,
+            submittedByEmail
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        };
+        console.log("[ACTIVITY] Creating review activity:", { jobId: job.jobId, partnerId: job.partnerId });
+        await firestoreStorage.createActivity(activityData);
+        console.log("[ACTIVITY] Successfully created review activity");
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log review submission:", activityError);
+        console.error("[ACTIVITY] Error details:", {
+          message: (activityError as any)?.message,
+          stack: (activityError as any)?.stack,
+          jobId: job.jobId,
+          partnerId: job.partnerId
+        });
+      }
+
+      // Create notifications for partner and editors who worked on this job
+      try {
+        const notifications: any[] = [];
+
+        // Get partner user(s) to notify
+        console.log("[NOTIFICATION] Getting partner user for partnerId:", job.partnerId);
+        const partnerUser = await getUserByPartnerId(job.partnerId);
+        if (partnerUser) {
+          console.log("[NOTIFICATION] Found partner user:", partnerUser.uid);
+          notifications.push({
+            partnerId: job.partnerId,
+            recipientId: partnerUser.uid,
+            type: 'review_received',
+            title: 'New Review Received',
+            body: `You received a ${rating}-star review${review ? ' with feedback' : ''} for job at ${job.address}`,
+            jobId: job.jobId, // Use NanoID for navigation consistency
+            read: false
+          });
+        } else {
+          console.log("[NOTIFICATION] No partner user found for partnerId:", job.partnerId);
+        }
+
+        // Get editors who worked on this job (via orders)
+        console.log("[NOTIFICATION] Getting orders for partnerId:", job.partnerId);
+        const allOrders = await storage.getOrders(job.partnerId);
+        console.log("[NOTIFICATION] Found", allOrders.length, "total orders");
+        const jobOrders = allOrders.filter(order => 
+          order.jobId === job.id || order.jobId === job.jobId
+        );
+        console.log("[NOTIFICATION] Found", jobOrders.length, "orders for this job");
+        const editorIds = new Set<string>();
+        jobOrders.forEach(order => {
+          if (order.assignedTo) {
+            editorIds.add(order.assignedTo);
+            console.log("[NOTIFICATION] Found editor:", order.assignedTo);
+          }
+        });
+
+        // Create notifications for editors
+        editorIds.forEach(editorId => {
+          notifications.push({
+            partnerId: job.partnerId,
+            recipientId: editorId,
+            type: 'review_received',
+            title: 'New Review Received',
+            body: `A client submitted a ${rating}-star review${review ? ' with feedback' : ''} for a job you worked on`,
+            jobId: job.jobId, // Use NanoID for navigation consistency
+            read: false
+          });
+        });
+
+        if (notifications.length > 0) {
+          console.log("[NOTIFICATION] Creating", notifications.length, "notification(s)");
+          await firestoreStorage.createNotifications(notifications);
+          console.log(`[NOTIFICATION] Successfully created ${notifications.length} notification(s) for review on job ${job.jobId}`);
+        } else {
+          console.log("[NOTIFICATION] No notifications to create");
+        }
+      } catch (notificationError) {
+        console.error("[NOTIFICATION] Failed to create review notifications:", notificationError);
+        console.error("[NOTIFICATION] Error details:", {
+          message: (notificationError as any)?.message,
+          stack: (notificationError as any)?.stack,
+          jobId: job.jobId,
+          partnerId: job.partnerId
+        });
+        // Don't fail the request if notifications fail
+      }
+
       res.status(201).json(newReview);
     } catch (error: any) {
       console.error("Error creating job review:", error);
-      res.status(400).json({ 
-        error: "Failed to create job review", 
-        details: error.message 
+      res.status(400).json({
+        error: "Failed to create job review",
+        details: error.message
       });
     }
   });
@@ -6075,6 +6767,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Send delivery email endpoint (matches frontend expectation)
+  app.post("/api/delivery/send-email", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId, recipientEmail, subject, message } = req.body;
+
+      if (!jobId || !recipientEmail || !subject || !message) {
+        return res.status(400).json({ error: "Missing required fields: jobId, recipientEmail, subject, message" });
+      }
+
+      // Verify job exists and belongs to partner
+      const job = await storage.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (req.user?.partnerId && job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Generate delivery token if it doesn't exist
+      const token = await storage.generateDeliveryToken(job.jobId || job.id);
+      const deliveryLink = `${req.protocol}://${req.get('host')}/delivery/${token}`;
+
+      // Create delivery email record
+      const emailData = {
+        jobId,
+        partnerId: job.partnerId,
+        recipientEmail,
+        subject,
+        message,
+        deliveryLink,
+        sentBy: req.user?.uid || 'system',
+      };
+
+      const email = await storage.createDeliveryEmail(emailData);
+
+      // Get customer info for personalized email
+      const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
+      const recipientName = customer 
+        ? `${customer.firstName} ${customer.lastName}`.trim() 
+        : recipientEmail.split('@')[0];
+
+      // Send delivery email via SendGrid
+      const emailResult = await sendDeliveryEmail(
+        recipientEmail,
+        recipientName,
+        subject,
+        message,
+        deliveryLink
+      );
+
+      if (!emailResult.success) {
+        console.error(`Failed to send delivery email to ${recipientEmail}:`, emailResult.error);
+        // Don't fail the request if email fails - delivery email record is still created
+      }
+
+      // Log activity: Delivery link sent
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          userId: req.user?.uid || 'system',
+          userEmail: req.user?.email || 'system',
+          userName: req.user?.email || 'System',
+          action: "notification",
+          category: "job",
+          title: "Delivery Link Sent",
+          description: `Delivery link sent to ${recipientEmail}`,
+          metadata: JSON.stringify({
+            recipientEmail,
+            subject,
+            hasDeliveryLink: !!deliveryLink,
+            emailSent: emailResult.success
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log delivery email:", activityError);
+      }
+
+      res.status(201).json({
+        ...email,
+        emailSent: emailResult.success
+      });
+    } catch (error: any) {
+      console.error("Error sending delivery email:", error);
+      res.status(400).json({ 
+        error: "Failed to send delivery email", 
+        details: error.message 
+      });
+    }
+  });
+
   // Send delivery email (requires auth - partner only)
   app.post("/api/delivery-emails", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -6103,13 +6889,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const email = await storage.createDeliveryEmail(emailData);
 
-      // TODO: Integrate with actual email service here
-      // For now, just log the email
-      console.log('Delivery email created:', {
-        to: email.recipientEmail,
-        subject: email.subject,
-        link: email.deliveryLink
-      });
+      // Get customer info for personalized email
+      const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
+      const recipientName = customer 
+        ? `${customer.firstName} ${customer.lastName}`.trim() 
+        : email.recipientEmail.split('@')[0];
+
+      // Send delivery email via SendGrid
+      const emailResult = await sendDeliveryEmail(
+        email.recipientEmail,
+        recipientName,
+        email.subject,
+        email.message,
+        email.deliveryLink
+      );
+
+      if (!emailResult.success) {
+        console.error(`Failed to send delivery email to ${email.recipientEmail}:`, emailResult.error);
+        // Don't fail the request if email fails - delivery email record is still created
+      } else {
+        console.log('Delivery email sent successfully:', {
+          to: email.recipientEmail,
+          subject: email.subject,
+          link: email.deliveryLink
+        });
+      }
+
+      // Log activity: Delivery link sent
+      try {
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.jobId,
+          userId: req.user?.uid || 'system',
+          userEmail: req.user?.email || 'system',
+          userName: req.user?.email || 'System',
+          action: "notification",
+          category: "job",
+          title: "Delivery Link Sent",
+          description: `Delivery link sent to ${email.recipientEmail}`,
+          metadata: JSON.stringify({
+            recipientEmail: email.recipientEmail,
+            subject: email.subject,
+            hasDeliveryLink: !!email.deliveryLink
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log delivery email:", activityError);
+      }
 
       res.status(201).json(email);
     } catch (error: any) {
@@ -6526,10 +7354,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get job activities
       const activities = await storage.getJobActivities(job.id, req.user.partnerId);
 
+      // Get job review if exists
+      console.log('[DELIVERY ENDPOINT] Fetching review for job.id:', job.id);
+      const jobReview = await storage.getJobReview(job.id);
+      console.log('[DELIVERY ENDPOINT] Review found:', !!jobReview, jobReview ? { id: jobReview.id, rating: jobReview.rating } : null);
+
       res.json({
         ...job,
         customer,
-        activities
+        activities,
+        jobReview
       });
     } catch (error: any) {
       console.error("Error getting job card data:", error);
@@ -7091,29 +7925,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const settings = await storage.getPartnerSettings(req.user.partnerId);
-
-      // Fetch user document to get profile image
+      // Fetch user document to get profile image and user details
       const userDoc = await getUserDocument(req.user.uid);
       const profileImage = userDoc?.profileImage || "";
+
+      // For photographers, use their own user document data instead of partner settings
+      if (req.user.role === 'photographer') {
+        const personalProfile = {
+          firstName: userDoc?.firstName || "",
+          lastName: userDoc?.lastName || "",
+          email: userDoc?.email || req.user.email || "",
+          phone: (userDoc as any)?.phone || "",
+          bio: (userDoc as any)?.bio || "",
+          profileImage: profileImage
+        };
+
+        // Get business hours from partner settings (shared across team)
+        const settings = await storage.getPartnerSettings(req.user.partnerId);
+        const businessHours = settings?.businessHours ? JSON.parse(settings.businessHours) : null;
+
+        const editorDisplayNames = settings?.editorDisplayNames ? JSON.parse(settings.editorDisplayNames) : {};
+
+        return res.json({
+          businessProfile: null, // Photographers don't need business profile
+          personalProfile,
+          businessHours,
+          defaultMaxRevisionRounds: settings?.defaultMaxRevisionRounds ?? 2,
+          editorDisplayNames
+        });
+      }
+
+      // For partners/admins, use partner settings as before
+      const settings = await storage.getPartnerSettings(req.user.partnerId);
 
       if (!settings) {
         return res.json({
           businessProfile: null,
           personalProfile: { profileImage },
           businessHours: null,
-          defaultMaxRevisionRounds: 2
+          defaultMaxRevisionRounds: 2,
+          editorDisplayNames: {}
         });
       }
 
       const personalProfile = settings.personalProfile ? JSON.parse(settings.personalProfile) : {};
       personalProfile.profileImage = profileImage; // Add profile image from user document
 
+      const editorDisplayNames = settings.editorDisplayNames ? JSON.parse(settings.editorDisplayNames) : {};
+
       res.json({
         businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
         personalProfile,
         businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null,
-        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2
+        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
+        editorDisplayNames
       });
     } catch (error: any) {
       console.error("Error fetching settings:", error);
@@ -7128,15 +7993,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds } = req.body;
+      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds, editorDisplayNames } = req.body;
 
-      // Save settings to storage with JSON stringified data
+      // For photographers, save personal profile to their user document instead of partner settings
+      if (req.user.role === 'photographer') {
+        if (personalProfile) {
+          const userRef = adminDb.collection('users').doc(req.user.uid);
+          const updateData: any = {};
+          
+          if (personalProfile.firstName !== undefined) {
+            updateData.firstName = personalProfile.firstName;
+          }
+          if (personalProfile.lastName !== undefined) {
+            updateData.lastName = personalProfile.lastName;
+          }
+          if (personalProfile.email !== undefined) {
+            updateData.email = personalProfile.email;
+          }
+          if (personalProfile.profileImage !== undefined) {
+            updateData.profileImage = personalProfile.profileImage;
+          }
+          // Store phone and bio as additional fields in user document
+          if (personalProfile.phone !== undefined) {
+            updateData.phone = personalProfile.phone;
+          }
+          if (personalProfile.bio !== undefined) {
+            updateData.bio = personalProfile.bio;
+          }
+
+          await userRef.update(updateData);
+        }
+
+        // Photographers can still update business hours (shared across team)
+        if (businessHours !== undefined || defaultMaxRevisionRounds !== undefined) {
+          const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
+            partnerId: req.user.partnerId,
+            businessProfile: null, // Photographers don't update business profile
+            personalProfile: null, // Photographers don't update partner personal profile
+            businessHours: businessHours ? JSON.stringify(businessHours) : null,
+            defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2
+          });
+
+          return res.json({ 
+            success: true, 
+            message: "Settings saved successfully",
+            settings: savedSettings
+          });
+        }
+
+        return res.json({ 
+          success: true, 
+          message: "Settings saved successfully"
+        });
+      }
+
+      // For partners/admins, save settings to partner settings as before
       const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
         partnerId: req.user.partnerId,
         businessProfile: businessProfile ? JSON.stringify(businessProfile) : null,
         personalProfile: personalProfile ? JSON.stringify(personalProfile) : null,
         businessHours: businessHours ? JSON.stringify(businessHours) : null,
-        defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2
+        defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2,
+        editorDisplayNames: editorDisplayNames ? JSON.stringify(editorDisplayNames) : null
       });
 
       res.json({ 
@@ -7157,10 +8075,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all conversations for the current user (partner or editor)
   app.get("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const { uid, partnerId } = req.user!;
+      const { uid, partnerId, role } = req.user!;
 
       // Get conversations where user is either partner or editor
-      const conversations = await firestoreStorage.getUserConversations(uid, partnerId);
+      // For photographers, filter by participantId
+      const conversations = await firestoreStorage.getUserConversations(uid, partnerId!, role);
 
       res.json(conversations);
     } catch (error: any) {
@@ -7203,15 +8122,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create or get a conversation between partner and editor
   app.post("/api/conversations", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const { uid, partnerId, email } = req.user!;
+      const { uid, partnerId, email, role } = req.user!;
       const { editorId, editorEmail, editorName, orderId } = req.body;
 
       if (!editorId || !editorEmail) {
         return res.status(400).json({ error: "Editor ID and email are required" });
       }
 
-      // Check if conversation already exists for this contact and order combination
-      let conversation = await firestoreStorage.getConversationByParticipants(partnerId!, editorId, orderId);
+      // For photographers, check if conversation exists with participantId
+      // For partners/admins, check by partnerId
+      let conversation;
+      if (role === 'photographer') {
+        // Check for existing conversation with this photographer as participant
+        conversation = await firestoreStorage.getConversationByParticipants(partnerId!, editorId, orderId, uid);
+      } else {
+        conversation = await firestoreStorage.getConversationByParticipants(partnerId!, editorId, orderId);
+      }
 
       if (!conversation) {
         // Get partner name from user document
@@ -7219,7 +8145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const partnerName = userDoc ? `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || email : email;
 
         // Create new conversation
-        const conversationData = insertConversationSchema.parse({
+        const conversationData: any = {
           partnerId: partnerId!,
           editorId,
           orderId: orderId || null, // Link to order if provided
@@ -7227,7 +8153,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           editorName,
           partnerEmail: email,
           editorEmail,
-        });
+        };
+
+        // Add participantId for photographers
+        if (role === 'photographer') {
+          conversationData.participantId = uid;
+        }
 
         conversation = await firestoreStorage.createConversation(conversationData);
       }

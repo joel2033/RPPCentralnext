@@ -28,7 +28,9 @@ import {
   Wand2,
   CheckCircle2,
   XCircle,
-  Cog
+  Cog,
+  Edit2,
+  X
 } from "lucide-react";
 
 interface Partnership {
@@ -74,11 +76,13 @@ interface SavedSettings {
   businessProfile?: BusinessProfile;
   businessHours?: BusinessHours;
   defaultMaxRevisionRounds?: number;
+  editorDisplayNames?: Record<string, string>; // {editorId: customName}
 }
 
 export default function Settings() {
   const { userData } = useAuth();
-  const [activeTab, setActiveTab] = useState("company");
+  const isPhotographer = userData?.role === 'photographer';
+  const [activeTab, setActiveTab] = useState(isPhotographer ? "account" : "company");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [businessHours, setBusinessHours] = useState({
@@ -116,6 +120,11 @@ export default function Settings() {
   // Default max revision rounds
   const [defaultMaxRevisionRounds, setDefaultMaxRevisionRounds] = useState(2);
 
+  // Editor display names (custom names for photographers)
+  const [editorDisplayNames, setEditorDisplayNames] = useState<Record<string, string>>({});
+  const [editingEditorId, setEditingEditorId] = useState<string | null>(null);
+  const [tempEditorDisplayNames, setTempEditorDisplayNames] = useState<Record<string, string>>({});
+
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
     editorEmail: "",
@@ -134,6 +143,18 @@ export default function Settings() {
     queryKey: ['/api/settings']
   });
 
+  // Update activeTab when userData loads to ensure photographers start on account tab
+  useEffect(() => {
+    if (!userData) return;
+    
+    const isPhotographerRole = userData.role === 'photographer';
+    if (isPhotographerRole && activeTab !== 'account' && activeTab !== 'availability' && activeTab !== 'advanced') {
+      setActiveTab('account');
+    } else if (!isPhotographerRole && activeTab === 'availability') {
+      setActiveTab('company');
+    }
+  }, [userData, activeTab]);
+
   // Update state when settings are loaded
   useEffect(() => {
     if (savedSettings) {
@@ -147,10 +168,22 @@ export default function Settings() {
           profileImage: savedSettings.personalProfile.profileImage || ""
         });
       } else if (userData?.email) {
-        setPersonalProfile(prev => ({
-          ...prev,
-          email: userData.email || ""
-        }));
+        // For photographers, initialize from userData if available
+        if (isPhotographer && userData.firstName && userData.lastName) {
+          setPersonalProfile({
+            firstName: userData.firstName || "",
+            lastName: userData.lastName || "",
+            email: userData.email || "",
+            phone: "",
+            bio: "",
+            profileImage: ""
+          });
+        } else {
+          setPersonalProfile(prev => ({
+            ...prev,
+            email: userData.email || ""
+          }));
+        }
       }
       if (savedSettings.businessProfile) {
         setBusinessProfile(savedSettings.businessProfile);
@@ -161,13 +194,29 @@ export default function Settings() {
       if (savedSettings.defaultMaxRevisionRounds !== undefined) {
         setDefaultMaxRevisionRounds(savedSettings.defaultMaxRevisionRounds);
       }
+      if (savedSettings.editorDisplayNames) {
+        setEditorDisplayNames(savedSettings.editorDisplayNames);
+        setTempEditorDisplayNames(savedSettings.editorDisplayNames);
+      }
     } else if (userData?.email) {
-      setPersonalProfile(prev => ({
-        ...prev,
-        email: userData.email || ""
-      }));
+      // For photographers, initialize from userData if available
+      if (isPhotographer && userData.firstName && userData.lastName) {
+        setPersonalProfile({
+          firstName: userData.firstName || "",
+          lastName: userData.lastName || "",
+          email: userData.email || "",
+          phone: "",
+          bio: "",
+          profileImage: ""
+        });
+      } else {
+        setPersonalProfile(prev => ({
+          ...prev,
+          email: userData.email || ""
+        }));
+      }
     }
-  }, [savedSettings, userData]);
+  }, [savedSettings, userData, isPhotographer]);
 
   // Fetch active partnerships
   const { data: partnerships = [], isLoading: partnershipsLoading } = useQuery<Partnership[]>({
@@ -276,11 +325,19 @@ export default function Settings() {
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({
-    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; defaultMaxRevisionRounds: number }) => {
+    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; defaultMaxRevisionRounds: number; editorDisplayNames?: Record<string, string> }) => {
       return apiRequest("/api/settings", "PUT", data);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      if (variables.editorDisplayNames !== undefined) {
+        const updatedNames = variables.editorDisplayNames || {};
+        setEditorDisplayNames(updatedNames);
+        setTempEditorDisplayNames(updatedNames);
+        if (editingEditorId) {
+          setEditingEditorId(null);
+        }
+      }
       toast({
         title: "Settings Saved!",
         description: "Your settings have been updated successfully.",
@@ -355,8 +412,37 @@ export default function Settings() {
       personalProfile,
       businessProfile,
       businessHours,
-      defaultMaxRevisionRounds
+      defaultMaxRevisionRounds,
+      editorDisplayNames: Object.keys(editorDisplayNames).length > 0 ? editorDisplayNames : undefined
     });
+  };
+
+  const handleSaveEditorDisplayName = (editorId: string) => {
+    const newNames = { ...tempEditorDisplayNames };
+    if (!newNames[editorId] || newNames[editorId].trim() === '') {
+      delete newNames[editorId];
+    }
+    const updatedNames = Object.keys(newNames).length > 0 ? newNames : undefined;
+    saveSettingsMutation.mutate({
+      personalProfile,
+      businessProfile,
+      businessHours,
+      defaultMaxRevisionRounds,
+      editorDisplayNames: updatedNames
+    });
+  };
+
+  const handleCancelEditorDisplayName = (editorId: string) => {
+    setTempEditorDisplayNames(prev => {
+      const updated = { ...prev };
+      if (editorDisplayNames[editorId]) {
+        updated[editorId] = editorDisplayNames[editorId];
+      } else {
+        delete updated[editorId];
+      }
+      return updated;
+    });
+    setEditingEditorId(null);
   };
 
   const handleEditorInviteSubmit = (e: React.FormEvent) => {
@@ -450,23 +536,33 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="company" className="flex items-center gap-2">
-            <Building2 className="w-4 h-4" />
-            <span>Business</span>
-          </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            <span>Team</span>
-          </TabsTrigger>
-          <TabsTrigger value="services" className="flex items-center gap-2">
-            <Wand2 className="w-4 h-4" />
-            <span>Services</span>
-          </TabsTrigger>
+        <TabsList className={`grid w-full ${isPhotographer ? 'grid-cols-3' : 'grid-cols-5'}`}>
+          {!isPhotographer && (
+            <>
+              <TabsTrigger value="company" className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                <span>Business</span>
+              </TabsTrigger>
+              <TabsTrigger value="team" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                <span>Team</span>
+              </TabsTrigger>
+              <TabsTrigger value="services" className="flex items-center gap-2">
+                <Wand2 className="w-4 h-4" />
+                <span>Services</span>
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             <span>Account</span>
           </TabsTrigger>
+          {isPhotographer && (
+            <TabsTrigger value="availability" className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              <span>Availability hours</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="advanced" className="flex items-center gap-2">
             <Cog className="w-4 h-4" />
             <span>Advanced</span>
@@ -740,25 +836,102 @@ export default function Settings() {
                   {partnerships.map((partnership) => (
                     <div 
                       key={partnership.editorId}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                       data-testid={`partnership-${partnership.editorId}`}
                     >
-                      <div className="flex items-center gap-4">
-                        <Avatar>
-                          <AvatarFallback>{partnership.editorStudioName[0]}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h4 className="font-medium">{partnership.editorStudioName}</h4>
-                          <p className="text-sm text-gray-600">{partnership.editorEmail}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Partnered since {formatDate(partnership.acceptedAt)}
-                          </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-4">
+                          <Avatar>
+                            <AvatarFallback>{partnership.editorStudioName[0]}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h4 className="font-medium">{partnership.editorStudioName}</h4>
+                            <p className="text-sm text-gray-600">{partnership.editorEmail}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Partnered since {formatDate(partnership.acceptedAt)}
+                            </p>
+                          </div>
                         </div>
+                        <Badge className="bg-green-50 text-green-700 border-green-200">
+                          <CheckCircle2 className="w-3 h-3 mr-1" />
+                          Active
+                        </Badge>
                       </div>
-                      <Badge className="bg-green-50 text-green-700 border-green-200">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Active
-                      </Badge>
+                      
+                      {/* Editor Display Name Section (for partners/admins only) */}
+                      {!isPhotographer && partnership.isActive && (
+                        <div className="pt-3 border-t mt-3">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-medium text-gray-700">
+                                Display Name for Photographers
+                              </Label>
+                              {editingEditorId !== partnership.editorId && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingEditorId(partnership.editorId);
+                                    setTempEditorDisplayNames(prev => ({
+                                      ...prev,
+                                      [partnership.editorId]: editorDisplayNames[partnership.editorId] || ''
+                                    }));
+                                  }}
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  <Edit2 className="w-3 h-3 mr-1" />
+                                  Edit
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {editingEditorId === partnership.editorId ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={tempEditorDisplayNames[partnership.editorId] || ''}
+                                  onChange={(e) => {
+                                    setTempEditorDisplayNames(prev => ({
+                                      ...prev,
+                                      [partnership.editorId]: e.target.value
+                                    }));
+                                  }}
+                                  placeholder={`Default: ${partnership.editorStudioName}`}
+                                  className="h-8 text-sm"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveEditorDisplayName(partnership.editorId)}
+                                    disabled={saveSettingsMutation.isPending}
+                                    className="h-7 px-3 text-xs bg-[#f2572c] hover:bg-[#d94820] text-white"
+                                  >
+                                    <Save className="w-3 h-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCancelEditorDisplayName(partnership.editorId)}
+                                    className="h-7 px-3 text-xs"
+                                  >
+                                    <X className="w-3 h-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                <p className="text-sm text-gray-900 font-medium">
+                                  {editorDisplayNames[partnership.editorId] || partnership.editorStudioName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Photographers will see: <span className="font-medium text-gray-700">{editorDisplayNames[partnership.editorId] || partnership.editorStudioName}</span>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -939,6 +1112,88 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Editor Display Names for Photographers */}
+          {!isPhotographer && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Editor Display Names
+                </CardTitle>
+                <p className="text-sm text-gray-600">
+                  Set custom display names for editors that photographers will see. This helps maintain privacy by showing generic names like "Photo team" instead of actual studio names.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {partnershipsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-gray-200 border-t-[#f2572c] rounded-full animate-spin"></div>
+                  </div>
+                ) : partnerships.filter(p => p.isActive).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-sm">No active partnerships yet</p>
+                    <p className="text-xs mt-1">Partner with editors to customize their display names</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {partnerships.filter(p => p.isActive).map((partnership) => {
+                      const editorId = partnership.editorId;
+                      const currentDisplayName = editorDisplayNames[editorId] || "";
+                      const defaultName = partnership.editorStudioName;
+
+                      return (
+                        <div key={editorId} className="flex items-center gap-4 p-4 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Label htmlFor={`editor-name-${editorId}`} className="font-medium">
+                                {defaultName}
+                              </Label>
+                              <span className="text-xs text-gray-500">({partnership.editorEmail})</span>
+                            </div>
+                            <Input
+                              id={`editor-name-${editorId}`}
+                              placeholder={`Default: ${defaultName}`}
+                              value={currentDisplayName}
+                              onChange={(e) => {
+                                const newNames = { ...editorDisplayNames };
+                                if (e.target.value.trim()) {
+                                  newNames[editorId] = e.target.value.trim();
+                                } else {
+                                  delete newNames[editorId];
+                                }
+                                setEditorDisplayNames(newNames);
+                              }}
+                              className="w-full"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              {currentDisplayName 
+                                ? `Photographers will see: "${currentDisplayName}"`
+                                : `Photographers will see: "${defaultName}"`}
+                            </p>
+                          </div>
+                          {currentDisplayName && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newNames = { ...editorDisplayNames };
+                                delete newNames[editorId];
+                                setEditorDisplayNames(newNames);
+                              }}
+                            >
+                              Reset
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Account Tab */}
@@ -1058,6 +1313,59 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Availability Hours Tab - Photographers only */}
+        {isPhotographer && (
+          <TabsContent value="availability" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Availability Hours
+                </CardTitle>
+                <p className="text-sm text-gray-600">
+                  Set your weekly availability hours
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {Object.entries(businessHours).map(([day, hours]) => (
+                  <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                    <div className="w-28">
+                      <span className="font-medium">{dayNames[day as keyof typeof dayNames]}</span>
+                    </div>
+                    <Switch
+                      checked={hours.enabled}
+                      onCheckedChange={(checked) => handleBusinessHoursChange(day, 'enabled', checked)}
+                      data-testid={`switch-${day}`}
+                    />
+                    {hours.enabled && (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          type="time"
+                          value={hours.start}
+                          onChange={(e) => handleBusinessHoursChange(day, 'start', e.target.value)}
+                          className="w-32"
+                          data-testid={`input-${day}-start`}
+                        />
+                        <span>to</span>
+                        <Input
+                          type="time"
+                          value={hours.end}
+                          onChange={(e) => handleBusinessHoursChange(day, 'end', e.target.value)}
+                          className="w-32"
+                          data-testid={`input-${day}-end`}
+                        />
+                      </div>
+                    )}
+                    {!hours.enabled && (
+                      <span className="text-gray-500">Closed</span>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {/* Advanced Tab */}
         <TabsContent value="advanced" className="space-y-6">
