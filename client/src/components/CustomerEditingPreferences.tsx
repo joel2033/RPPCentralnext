@@ -71,7 +71,7 @@ const getIconColorClasses = (iconColor: string | null): { bg: string; text: stri
 export default function CustomerEditingPreferences({ customerId, customerName }: CustomerEditingPreferencesProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [preferences, setPreferences] = useState<Record<string, { isEnabled: boolean; notes: string }>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [globalNotes, setGlobalNotes] = useState("");

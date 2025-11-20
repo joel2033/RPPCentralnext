@@ -91,7 +91,7 @@ export default function Signup() {
         setSuccess(`Team member account created with role: ${result.role}! Redirecting to dashboard...`);
       } else {
         // Regular partner signup
-        await signUpUser(email, password);
+        await signUpUser(email, password, '');
         setSuccess('Partner account created successfully! Redirecting to dashboard...');
       }
       

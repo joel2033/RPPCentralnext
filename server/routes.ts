@@ -109,6 +109,55 @@ const requireAuth = async (req: any, res: any, next: any) => {
   }
 };
 
+// Auth middleware for SSE endpoints - accepts token from query parameter or header
+// EventSource doesn't support custom headers, so we allow token in query params
+const requireAuthSSE = async (req: any, res: any, next: any) => {
+  try {
+    let idToken: string | null = null;
+    
+    // Check Authorization header first (for regular requests)
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      idToken = authHeader.replace('Bearer ', '');
+    } else {
+      // Check query parameter (for EventSource requests)
+      const tokenParam = req.query.token;
+      if (tokenParam && typeof tokenParam === 'string') {
+        idToken = tokenParam;
+      }
+    }
+
+    if (!idToken) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const userDoc = await getUserDocument(uid);
+
+    if (!userDoc) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Attach user context to request
+    req.user = {
+      uid: userDoc.uid,
+      partnerId: userDoc.partnerId,
+      role: userDoc.role,
+      email: userDoc.email,
+      firstName: userDoc.firstName,
+      lastName: userDoc.lastName,
+      studioName: userDoc.studioName,
+      partnerName: userDoc.partnerName
+    };
+
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+};
+
 // Optional auth middleware - adds user if authenticated but allows unauthenticated requests
 // SECURITY: If Authorization header is present but invalid, returns 401 to prevent security bypass
 const optionalAuth = async (req: any, res: any, next: any) => {
@@ -216,6 +265,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Upload user profile image
+  app.post("/api/user/profile-image", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { image } = req.body;
+      const userId = req.user?.uid;
+
+      if (!image) {
+        return res.status(400).json({ error: "No image provided" });
+      }
+
+      // Extract base64 data
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      // Get file extension from base64 string
+      const matches = image.match(/^data:image\/(\w+);base64,/);
+      const ext = matches ? matches[1] : 'jpg';
+
+      // Upload to Firebase Storage
+      const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim());
+      const fileName = `profile-images/${userId}/profile.${ext}`;
+      const file = bucket.file(fileName);
+
+      await file.save(buffer, {
+        metadata: {
+          contentType: `image/${ext}`,
+        },
+        public: true,
+      });
+
+      const imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+      // Update user profile in Firestore
+      await storage.updateUser(userId!, { profileImage: imageUrl });
+
+      res.json({ imageUrl });
+    } catch (error: any) {
+      console.error("Error uploading profile image:", error);
+      res.status(500).json({ error: "Failed to upload profile image", details: error.message });
     }
   });
 
@@ -451,10 +542,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Orders - SECURED with authentication and tenant isolation
+  // Note: This is the primary handler; it enriches orders with jobAddress for UI dropdowns
   app.get("/api/orders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      const orders = await storage.getOrders(req.user?.partnerId);
-      res.json(orders);
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const filteredOrders = await storage.getOrders(req.user.partnerId);
+
+      // Enrich orders with job address for display in dropdowns
+      const ordersWithJobData = await Promise.all(
+        filteredOrders.map(async (order) => {
+          if (order.jobId) {
+            // order.jobId might be a Job id or a job.jobId (external). Try both.
+            const job = (await storage.getJob(order.jobId)) || (await storage.getJobByJobId(order.jobId));
+            return {
+              ...order,
+              jobAddress: job?.address || "Unknown Address",
+            };
+          }
+          return {
+            ...order,
+            jobAddress: "No Job Assigned",
+          };
+        })
+      );
+
+      res.json(ordersWithJobData);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch orders" });
     }
@@ -778,6 +893,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Dashboard attention items - SECURED with authentication and tenant isolation
+  app.get("/api/dashboard/attention-items", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { uid, partnerId } = req.user!;
+      const attentionItems: any[] = [];
+
+      // 1. Get orders that are completed (ready for delivery)
+      const orders = await storage.getOrders(partnerId);
+      const completedOrders = orders.filter(order => order.status === 'completed');
+
+      // Get job details for each completed order
+      const jobs = await storage.getJobs(partnerId);
+      const jobMap = new Map(jobs.map(job => [job.id, job]));
+
+      for (const order of completedOrders) {
+        const job = order.jobId ? jobMap.get(order.jobId) : null;
+        attentionItems.push({
+          id: order.id,
+          type: 'order_completed',
+          title: 'Order Ready for Delivery',
+          description: job?.address || 'Order completed and ready',
+          time: order.dateAccepted || order.createdAt,
+          priority: 'high',
+          projectName: job?.address || '',
+          orderId: order.id,
+          jobId: order.jobId,
+          orderNumber: order.orderNumber,
+          unread: true,
+        });
+      }
+
+      // 2. Get unread messages from conversations
+      const conversations = await firestoreStorage.getUserConversations(uid, partnerId);
+
+      for (const conversation of conversations) {
+        // Check if current user is partner or editor
+        const isPartner = conversation.partnerId === partnerId;
+        const unreadCount = isPartner ? (conversation.partnerUnreadCount || 0) : (conversation.editorUnreadCount || 0);
+
+        if (unreadCount > 0) {
+          attentionItems.push({
+            id: conversation.id,
+            type: 'message',
+            title: `${unreadCount} New Message${unreadCount > 1 ? 's' : ''}`,
+            description: isPartner
+              ? `From ${conversation.editorName}`
+              : `From ${conversation.partnerName}`,
+            time: conversation.lastMessageAt,
+            priority: 'medium',
+            projectName: conversation.orderId ? '' : 'General',
+            conversationId: conversation.id,
+            unreadCount,
+            unread: true,
+          });
+        }
+      }
+
+      // Sort by time (most recent first)
+      attentionItems.sort((a, b) => {
+        const timeA = a.time ? new Date(a.time).getTime() : 0;
+        const timeB = b.time ? new Date(b.time).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      res.json(attentionItems);
+    } catch (error) {
+      console.error("Error fetching attention items:", error);
+      res.status(500).json({ error: "Failed to fetch attention items" });
     }
   });
 
@@ -1136,7 +1322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("[PRODUCT IMAGE] Starting upload for:", fileName);
 
       // Get Firebase Admin Storage
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
@@ -1215,7 +1401,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ordersWithJobData = await Promise.all(
         filteredOrders.map(async (order) => {
           if (order.jobId) {
-            const job = await storage.getJob(order.jobId);
+            // order.jobId may be the Job internal id or external job.jobId
+            const job = (await storage.getJob(order.jobId)) || (await storage.getJobByJobId(order.jobId));
             return {
               ...order,
               jobAddress: job?.address || "Unknown Address"
@@ -2036,22 +2223,245 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Only editors can view their orders" });
       }
 
-      // Get all orders assigned to this editor with job details
+      // Get all orders assigned to this editor and enrich with job address
       const editorOrders = await storage.getOrdersForEditor(uid);
-      const enrichedOrders = editorOrders
-        .map(order => ({
-          id: order.id,
-          orderNumber: order.orderNumber,
-          jobId: order.jobId,
-          jobAddress: order.jobAddress || '',
-          status: order.status
-        }));
+      const enrichedOrders = await Promise.all(
+        editorOrders.map(async (order) => {
+          let jobAddress = '';
+          if (order.jobId) {
+            // order.jobId might be internal id or external job.jobId
+            const job = (await storage.getJob(order.jobId)) || (await storage.getJobByJobId(order.jobId));
+            jobAddress = job?.address || 'Unknown Address';
+          } else {
+            jobAddress = 'No Job Assigned';
+          }
+          return {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            jobId: order.jobId,
+            jobAddress,
+            status: order.status,
+          };
+        })
+      );
 
-      res.json(editorOrders);
+      res.json(enrichedOrders);
     } catch (error: any) {
       console.error("Error getting editor orders:", error);
       res.status(500).json({ 
         error: "Failed to get editor orders", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get job history for editors and partners/admins
+  app.get("/api/editor/jobs/history", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      
+      if (!currentUser) {
+        return res.status(403).json({ error: "User not found" });
+      }
+
+      // Get date range filters from query params
+      const { startDate, endDate } = req.query;
+      const startDateFilter = startDate ? new Date(startDate as string) : null;
+      const endDateFilter = endDate ? new Date(endDate as string) : null;
+
+      // Get completed orders based on role
+      let completedOrders: any[] = [];
+      
+      if (currentUser.role === 'editor') {
+        // Editors can only see their own completed jobs
+        const allEditorOrders = await storage.getOrdersForEditor(uid);
+        completedOrders = allEditorOrders.filter(order => order.status === 'completed');
+      } else if (currentUser.role === 'partner' || currentUser.role === 'admin') {
+        // Partners/admins can see all completed jobs for their partnerId
+        if (!currentUser.partnerId) {
+          return res.status(400).json({ error: "User must have a partnerId" });
+        }
+        const allPartnerOrders = await storage.getOrders(currentUser.partnerId);
+        completedOrders = allPartnerOrders.filter(order => order.status === 'completed');
+      } else {
+        return res.status(403).json({ error: "Unauthorized access" });
+      }
+
+      // Apply date range filter if provided
+      if (startDateFilter || endDateFilter) {
+        completedOrders = completedOrders.filter(order => {
+          // Use dateCompleted if available, otherwise use createdAt
+          const completionDate = (order as any).dateCompleted 
+            ? new Date((order as any).dateCompleted) 
+            : (order.createdAt ? new Date(order.createdAt) : null);
+          
+          if (!completionDate) return false;
+          
+          if (startDateFilter && completionDate < startDateFilter) return false;
+          if (endDateFilter && completionDate > endDateFilter) return false;
+          
+          return true;
+        });
+      }
+
+      // Enrich orders with billing information
+      const enrichedHistory = await Promise.all(
+        completedOrders.map(async (order) => {
+          // Get customer info
+          const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
+          const customerName = customer 
+            ? `${customer.firstName} ${customer.lastName}` 
+            : 'Unknown Customer';
+
+          // Get job info
+          let job = null;
+          let jobAddress = 'Unknown Address';
+          if (order.jobId) {
+            job = await storage.getJob(order.jobId) || await storage.getJobByJobId(order.jobId);
+            jobAddress = job?.address || 'Unknown Address';
+          }
+
+          // Get partner business name
+          let partnerBusinessName = 'Unknown Business';
+          if (order.partnerId) {
+            try {
+              const partnerSettings = await storage.getPartnerSettings(order.partnerId);
+              if (partnerSettings && partnerSettings.businessProfile) {
+                try {
+                  const businessProfile = JSON.parse(partnerSettings.businessProfile);
+                  partnerBusinessName = businessProfile.businessName || 'Unknown Business';
+                } catch (parseError) {
+                  console.error("Error parsing business profile JSON:", parseError);
+                }
+              }
+            } catch (error) {
+              console.error("Error fetching partner settings:", error);
+            }
+          }
+
+          // Get order services with costs
+          const orderServices = await storage.getOrderServices(order.id, order.partnerId);
+          
+          // Get editor services if order has an assigned editor
+          let editorServicesMap = new Map<string, any>();
+          if (order.assignedTo) {
+            try {
+              const allEditorServices = await storage.getEditorServices(order.assignedTo);
+              allEditorServices.forEach(service => {
+                editorServicesMap.set(service.id, service);
+              });
+            } catch (error) {
+              console.error("Error fetching editor services:", error);
+            }
+          }
+          
+          const servicesWithDetails = orderServices.map((service) => {
+            let serviceName = 'Unknown Service';
+            let serviceCost = 0;
+            
+            if (service.serviceId && editorServicesMap.has(service.serviceId)) {
+              const editorService = editorServicesMap.get(service.serviceId);
+              serviceName = editorService.name;
+              serviceCost = parseFloat(editorService.basePrice) || 0;
+            }
+            
+            return {
+              id: service.id,
+              name: serviceName,
+              quantity: service.quantity || 1,
+              cost: serviceCost,
+              totalCost: serviceCost * (service.quantity || 1),
+              instructions: service.instructions,
+              exportTypes: service.exportTypes,
+            };
+          });
+
+          // Calculate total cost
+          const totalCost = servicesWithDetails.reduce((sum, service) => sum + service.totalCost, 0) || 
+                           parseFloat(order.estimatedTotal) || 0;
+
+          // Get file counts
+          const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
+          const originalFileCount = orderFiles.length;
+
+          // Get delivered file count (editor uploads)
+          let deliveredFileCount = 0;
+          if (job) {
+            try {
+              const editorUploads = await storage.getEditorUploads(job.id);
+              deliveredFileCount = editorUploads.filter(
+                upload => upload.status === 'completed' && 
+                upload.fileName !== '.folder_placeholder' &&
+                !upload.firebaseUrl?.startsWith('orders/')
+              ).length;
+            } catch (error) {
+              console.error("Error fetching editor uploads:", error);
+            }
+          }
+
+          // Calculate time spent (from dateAccepted to completion)
+          let timeSpent = null;
+          if ((order as any).dateAccepted && (order as any).dateCompleted) {
+            const acceptedDate = new Date((order as any).dateAccepted);
+            const completedDate = new Date((order as any).dateCompleted);
+            const diffMs = completedDate.getTime() - acceptedDate.getTime();
+            const diffHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal
+            timeSpent = diffHours;
+          } else if ((order as any).dateAccepted) {
+            // If no dateCompleted, use createdAt as fallback
+            const acceptedDate = new Date((order as any).dateAccepted);
+            const completedDate = order.createdAt ? new Date(order.createdAt) : new Date();
+            const diffMs = completedDate.getTime() - acceptedDate.getTime();
+            const diffHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+            timeSpent = diffHours;
+          }
+
+          // Determine completion date
+          const completionDate = (order as any).dateCompleted 
+            ? new Date((order as any).dateCompleted) 
+            : (order.createdAt ? new Date(order.createdAt) : new Date());
+
+          return {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            completionDate: completionDate.toISOString(),
+            customerName,
+            customerEmail: customer?.email || '',
+            partnerBusinessName,
+            jobAddress,
+            services: servicesWithDetails,
+            totalCost,
+            originalFileCount,
+            deliveredFileCount,
+            totalFileCount: originalFileCount + deliveredFileCount,
+            notes: order.notes || job?.notes || '',
+            timeSpent,
+            dateAccepted: (order as any).dateAccepted ? new Date((order as any).dateAccepted).toISOString() : null,
+            createdAt: order.createdAt ? new Date(order.createdAt).toISOString() : null,
+          };
+        })
+      );
+
+      // Sort by completion date (newest first)
+      enrichedHistory.sort((a, b) => {
+        const dateA = new Date(a.completionDate).getTime();
+        const dateB = new Date(b.completionDate).getTime();
+        return dateB - dateA;
+      });
+
+      res.json(enrichedHistory);
+    } catch (error: any) {
+      console.error("Error getting job history:", error);
+      res.status(500).json({ 
+        error: "Failed to get job history", 
         details: error.message 
       });
     }
@@ -2131,15 +2541,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Add instructions if any
-      if (orderServices && orderServices.length > 0) {
-        const instructions = orderServices.map(service => ({
-          service: service.serviceName,
-          instructions: service.instructions,
-          notes: service.notes
-        }));
+      // Helper function to strip HTML tags and format as plain text
+      const stripHtml = (html: string): string => {
+        return html
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<\/li>/gi, '\n')
+          .replace(/<li>/gi, '  • ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\n\s*\n\s*\n/g, '\n\n')
+          .trim();
+      };
 
-        zip.file(`${folderName}/INSTRUCTIONS.json`, JSON.stringify(instructions, null, 2));
+      // Add instructions if any (as plain text file)
+      if (orderServices && orderServices.length > 0) {
+        let instructionsContent = `ORDER: ${orderNumber}\n`;
+        instructionsContent += `========================================\n\n`;
+        
+        orderServices.forEach((service, index) => {
+          instructionsContent += `SERVICE ${index + 1}: ${service.serviceName || 'General Editing'}\n`;
+          instructionsContent += `${'='.repeat(40)}\n\n`;
+          
+          // Process instructions
+          if (service.instructions) {
+            try {
+              let instructions = service.instructions;
+              
+              // If it's a string, try to parse as JSON
+              if (typeof instructions === 'string') {
+                try {
+                  instructions = JSON.parse(instructions);
+                } catch (e) {
+                  // If not JSON, treat as plain string (might contain HTML)
+                  instructions = instructions;
+                }
+              }
+              
+              if (Array.isArray(instructions)) {
+                instructions.forEach((inst, instIndex) => {
+                  instructionsContent += `File ${instIndex + 1}: ${inst.fileName || 'N/A'}\n`;
+                  if (inst.detail) {
+                    const cleanDetail = stripHtml(inst.detail);
+                    instructionsContent += `  Instructions: ${cleanDetail}\n`;
+                  }
+                  instructionsContent += '\n';
+                });
+              } else if (typeof instructions === 'string') {
+                const cleanInstructions = stripHtml(instructions);
+                instructionsContent += `${cleanInstructions}\n\n`;
+              } else {
+                instructionsContent += `${JSON.stringify(instructions, null, 2)}\n\n`;
+              }
+            } catch (e) {
+              // If parsing fails, try to strip HTML from raw string
+              const cleanInstructions = stripHtml(String(service.instructions));
+              instructionsContent += `${cleanInstructions}\n\n`;
+            }
+          }
+          
+          // Process export types
+          if (service.exportTypes) {
+            try {
+              let exportTypes = service.exportTypes;
+              if (typeof exportTypes === 'string') {
+                try {
+                  exportTypes = JSON.parse(exportTypes);
+                } catch (e) {
+                  // Not JSON, continue
+                }
+              }
+              
+              instructionsContent += `Export Types:\n`;
+              if (Array.isArray(exportTypes)) {
+                exportTypes.forEach(exp => {
+                  instructionsContent += `  • ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
+                });
+              } else {
+                instructionsContent += `  ${JSON.stringify(exportTypes)}\n`;
+              }
+              instructionsContent += '\n';
+            } catch (e) {
+              instructionsContent += `Export Types: ${service.exportTypes}\n\n`;
+            }
+          }
+          
+          // Add notes if any
+          if (service.notes) {
+            const cleanNotes = stripHtml(String(service.notes));
+            instructionsContent += `Notes:\n${cleanNotes}\n\n`;
+          }
+          
+          instructionsContent += '\n';
+        });
+
+        zip.file(`${folderName}/INSTRUCTIONS.txt`, instructionsContent);
       }
 
       // Generate zip
@@ -2235,49 +2737,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const zip = new JSZip();
       let zipGenerationFailed = false;
 
-      // Add instructions file if any
+      // Helper function to strip HTML tags and format as plain text
+      const stripHtml = (html: string): string => {
+        return html
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n\n')
+          .replace(/<\/div>/gi, '\n')
+          .replace(/<\/li>/gi, '\n')
+          .replace(/<li>/gi, '  • ')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/\n\s*\n\s*\n/g, '\n\n')
+          .trim();
+      };
+
+      // Add instructions file if any (as plain text)
       if (orderServices.length > 0) {
-        let instructionsContent = `Job: ${order.orderNumber}\nInstructions:\n\n`;
+        let instructionsContent = `ORDER: ${order.orderNumber}\n`;
+        instructionsContent += `========================================\n\n`;
+        
         orderServices.forEach((service, index) => {
-          instructionsContent += `Service ${index + 1}:\n`;
+          instructionsContent += `SERVICE ${index + 1}: ${service.serviceName || 'General Editing'}\n`;
+          instructionsContent += `${'='.repeat(40)}\n\n`;
+          
           if (service.instructions) {
             try {
-              const instructions = typeof service.instructions === 'string' 
-                ? JSON.parse(service.instructions) 
-                : service.instructions;
+              let instructions = service.instructions;
+              
+              // If it's a string, try to parse as JSON
+              if (typeof instructions === 'string') {
+                try {
+                  instructions = JSON.parse(instructions);
+                } catch (e) {
+                  // If not JSON, treat as plain string (might contain HTML)
+                  instructions = instructions;
+                }
+              }
+              
               if (Array.isArray(instructions)) {
-                instructions.forEach(inst => {
-                  instructionsContent += `- File: ${inst.fileName || 'N/A'}\n`;
-                  instructionsContent += `  Details: ${inst.detail || 'N/A'}\n`;
+                instructions.forEach((inst, instIndex) => {
+                  instructionsContent += `File ${instIndex + 1}: ${inst.fileName || 'N/A'}\n`;
+                  if (inst.detail) {
+                    const cleanDetail = stripHtml(inst.detail);
+                    instructionsContent += `  Instructions: ${cleanDetail}\n`;
+                  }
+                  instructionsContent += '\n';
                 });
+              } else if (typeof instructions === 'string') {
+                const cleanInstructions = stripHtml(instructions);
+                instructionsContent += `${cleanInstructions}\n\n`;
               } else {
-                instructionsContent += `- ${JSON.stringify(instructions)}\n`;
+                instructionsContent += `${JSON.stringify(instructions, null, 2)}\n\n`;
               }
             } catch (e) {
-              instructionsContent += `- ${service.instructions}\n`;
+              // If parsing fails, try to strip HTML from raw string
+              const cleanInstructions = stripHtml(String(service.instructions));
+              instructionsContent += `${cleanInstructions}\n\n`;
             }
           }
+          
           if (service.exportTypes) {
             try {
-              const exportTypes = typeof service.exportTypes === 'string' 
-                ? JSON.parse(service.exportTypes) 
-                : service.exportTypes;
+              let exportTypes = service.exportTypes;
+              if (typeof exportTypes === 'string') {
+                try {
+                  exportTypes = JSON.parse(exportTypes);
+                } catch (e) {
+                  // Not JSON, continue
+                }
+              }
+              
               instructionsContent += `Export Types:\n`;
               if (Array.isArray(exportTypes)) {
                 exportTypes.forEach(exp => {
-                  instructionsContent += `  - ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
+                  instructionsContent += `  • ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
                 });
               } else {
-                instructionsContent += `  - ${JSON.stringify(exportTypes)}\n`;
+                instructionsContent += `  ${JSON.stringify(exportTypes)}\n`;
               }
+              instructionsContent += '\n';
             } catch (e) {
-              instructionsContent += `Export Types: ${service.exportTypes}\n`;
+              instructionsContent += `Export Types: ${service.exportTypes}\n\n`;
             }
           }
+          
+          // Add notes if any
+          if (service.notes) {
+            const cleanNotes = stripHtml(String(service.notes));
+            instructionsContent += `Notes:\n${cleanNotes}\n\n`;
+          }
+          
           instructionsContent += '\n';
         });
 
-        zip.file('instructions.txt', instructionsContent);
+        zip.file('INSTRUCTIONS.txt', instructionsContent);
       }
 
       // Download each file and add to zip
@@ -2830,10 +3388,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Job not found" });
       }
 
-      // Also update order status using the new tracking method if completing upload
+      // Also update order status using the new tracking method if delivering job
       let updatedOrder = order;
-      if (status === 'completed') {
+      if (status === 'delivered') {
         updatedOrder = await storage.markOrderUploaded(order.id, uid) || order;
+
+        // Create activity record for job completion
+        await storage.createActivity({
+          partnerId: job.partnerId,
+          jobId: job.id,
+          orderId: order.id,
+          userId: uid,
+          userEmail: currentUser.email || 'Unknown',
+          userName: currentUser.displayName || currentUser.email || 'Editor',
+          action: 'status_change',
+          category: 'job',
+          title: 'Job Marked as Complete',
+          description: `${currentUser.displayName || currentUser.email || 'Editor'} marked job at ${job.address} as complete`,
+          metadata: JSON.stringify({
+            jobId: job.jobId,
+            orderNumber: order.orderNumber,
+            previousStatus: job.status,
+            newStatus: 'completed',
+            completedBy: currentUser.email,
+            completedAt: new Date().toISOString(),
+            address: job.address
+          }),
+          ipAddress: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || ''
+        });
       }
 
       res.json({
@@ -2978,11 +3561,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Server-side Firebase upload endpoint with reservation system
-  app.post("/api/upload-firebase", upload.single('file'), async (req, res) => {
+  app.post("/api/upload-firebase", (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({
+              error: "File too large",
+              details: "Maximum file size is 100MB"
+            });
+          }
+          return res.status(400).json({
+            error: "Upload error",
+            details: err.message
+          });
+        }
+        return res.status(500).json({
+          error: "Upload failed",
+          details: err.message
+        });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
+
+      console.log(`=== UPLOAD START ===`);
+      console.log(`File: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)}MB)`);
+      console.log(`Body params:`, {
+        userId: req.body.userId,
+        jobId: req.body.jobId,
+        orderNumber: req.body.orderNumber,
+        folderToken: req.body.folderToken
+      });
 
       const { userId, jobId, orderNumber, uploadType, folderToken, folderPath } = req.body;
 
@@ -3140,9 +3754,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (folderToken && folderPath) {
         // Standalone folder upload: use tokenized path
-        const sanitizedFolderPath = folderPath.replace(/[^a-zA-Z0-9/-]/g, '_');
         const sanitizedFolderToken = folderToken.replace(/[^a-zA-Z0-9-]/g, '');
-        filePath = `completed/${sanitizedJobId}/folders/${sanitizedFolderToken}/${sanitizedFolderPath}/${timestamp}_${sanitizedFileName}`;
+        filePath = `completed/${sanitizedJobId}/folders/${sanitizedFolderToken}/${timestamp}_${sanitizedFileName}`;
       } else {
         // Order-based upload: use order number path
         const sanitizedOrderNumber = orderNumber.replace(/[^a-zA-Z0-9-]/g, '');
@@ -3150,7 +3763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get Firebase Admin Storage with explicit bucket name
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
@@ -3159,13 +3772,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = bucket.file(filePath);
 
       // Read the uploaded file and upload to Firebase
+      // For large files, use streaming instead of loading entire file into memory
       const fileBuffer = fs.readFileSync(req.file.path);
+
+      console.log(`Uploading file to Firebase: ${filePath} (${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB)`);
 
       await file.save(fileBuffer, {
         metadata: {
           contentType: req.file.mimetype,
         },
+        // Use resumable uploads for files larger than 5MB
+        resumable: req.file.size > 5 * 1024 * 1024,
       });
+
+      console.log(`Successfully uploaded to Firebase: ${filePath}`);
 
       // Generate a signed URL that expires in 24 hours for client files (secure, private access)
       const [signedUrl] = await file.getSignedUrl({
@@ -3211,7 +3831,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error: any) {
-      console.error("Error uploading file to Firebase:", error);
+      console.error("=== FIREBASE UPLOAD ERROR ===");
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Request body:", {
+        userId: req.body.userId,
+        jobId: req.body.jobId,
+        orderNumber: req.body.orderNumber,
+        folderToken: req.body.folderToken
+      });
+      console.error("File info:", req.file ? {
+        filename: req.file.originalname,
+        size: `${(req.file.size / 1024 / 1024).toFixed(2)}MB`,
+        mimetype: req.file.mimetype
+      } : 'No file');
+      console.error("=== END ERROR ===");
 
       // Clean up temporary file on error
       if (req.file?.path) {
@@ -3222,9 +3856,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.status(500).json({ 
-        error: "Failed to upload file to Firebase", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to upload file to Firebase",
+        details: error.message,
+        hint: "Check server logs for detailed error information"
       });
     }
   });
@@ -3336,7 +3971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get Firebase Admin Storage
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
@@ -3461,9 +4096,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all editor uploads for this job with completed status
       const allUploads = await storage.getEditorUploads(job.id);
 
-      const completedFiles = allUploads.filter(upload => 
-        upload.status === 'completed' && 
-        upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
+      const completedFiles = allUploads.filter(upload =>
+        upload.status === 'completed' &&
+        upload.fileName !== '.folder_placeholder' && // Exclude folder placeholders
+        !upload.firebaseUrl?.startsWith('orders/') // Exclude files uploaded for editing (not deliverables)
       );
 
       // Group files by order and enrich with order information
@@ -3517,6 +4153,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete individual file
+  app.delete("/api/jobs/:jobId/files/:fileId", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId, fileId } = req.params;
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get all uploads for this job
+      const allUploads = await storage.getEditorUploads(job.id);
+      const fileToDelete = allUploads.find(upload => upload.id === fileId);
+
+      if (!fileToDelete) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // Verify file belongs to this job
+      if (fileToDelete.jobId !== job.id) {
+        return res.status(403).json({ error: "Access denied: File does not belong to this job" });
+      }
+
+      // Delete from Firebase Storage
+      try {
+        const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
+        if (bucketName && fileToDelete.firebaseUrl) {
+          const bucket = getStorage().bucket(bucketName);
+          const file = bucket.file(fileToDelete.firebaseUrl);
+          
+          const [exists] = await file.exists();
+          if (exists) {
+            await file.delete();
+            console.log(`[DELETE FILE] Deleted from Firebase Storage: ${fileToDelete.firebaseUrl}`);
+          }
+        }
+      } catch (storageError: any) {
+        console.error(`[DELETE FILE] Failed to delete from Firebase Storage:`, storageError);
+        // Continue with database deletion even if storage deletion fails
+      }
+
+      // Delete from database
+      await storage.deleteEditorUpload(fileId);
+
+      console.log(`[DELETE FILE] Successfully deleted file: ${fileId} (${fileToDelete.originalName})`);
+      res.json({ 
+        success: true, 
+        message: "File deleted successfully",
+        fileId 
+      });
+    } catch (error: any) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ 
+        error: "Failed to delete file", 
+        details: error.message 
+      });
+    }
+  });
+
   // Get upload folders for a job
   app.get("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -3541,6 +4247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get folders for this job
       const folders = await storage.getUploadFolders(job.id);
 
+      console.log(`[DEBUG] Folders for job ${jobId}:`, folders.map(f => ({
+        folderPath: f.folderPath,
+        editorFolderName: f.editorFolderName,
+        partnerFolderName: f.partnerFolderName,
+        folderToken: f.folderToken,
+        fileCount: f.fileCount
+      })));
+
       // Return folders with actual Firebase download URLs
       const foldersWithDownloadUrls = folders.map(folder => ({
         ...folder,
@@ -3564,7 +4278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { jobId } = req.params;
-      const { partnerFolderName } = req.body;
+      const { partnerFolderName, parentFolderPath } = req.body;
 
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
@@ -3589,29 +4303,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate unique standalone token for this folder
       const folderToken = nanoid(10);
 
-      // Create the folder in storage (in-memory) without order association
-      const createdFolder = await storage.createFolder(job.id, partnerFolderName, undefined, undefined, folderToken);
+      console.log(`[CREATE FOLDER] Name: ${partnerFolderName}, Parent: ${parentFolderPath}, Token: ${folderToken}`);
+
+      // Create the folder in storage with parent folder path if provided
+      const createdFolder = await storage.createFolder(job.id, partnerFolderName, parentFolderPath, folderToken);
 
       // Create a Firebase placeholder to establish the folder in Firebase Storage
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
 
       const bucket = getStorage().bucket(bucketName);
 
-      // Sanitize folder path with same logic as upload endpoint
-      const sanitizedFolderPath = partnerFolderName.split('/').map(segment => {
-        return segment
-          .replace(/\.\./g, '') // Remove path traversal attempts
-          .replace(/[^a-zA-Z0-9 _-]/g, '_') // Safe character whitelist
-          .trim() // Remove leading/trailing spaces
-          .substring(0, 50); // Limit length
-      }).filter(segment => segment.length > 0).join('/');
+      // Build Firebase Storage path based on whether this is a root or nested folder
+      // This should match the folderPath structure returned from createFolder
+      let firebaseFolderPath: string;
+      if (parentFolderPath) {
+        // Nested folder: append token to parent path
+        firebaseFolderPath = `${parentFolderPath}/${folderToken}`;
+      } else {
+        // Root folder: use standard structure
+        firebaseFolderPath = `completed/${job.jobId || job.id}/folders/${folderToken}`;
+      }
 
-      // Use standalone folder path structure: completed/{jobId}/folders/{token}/{folderPath}
-      const placeholderPath = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/.keep`;
+      // Create .keep file to establish folder structure in Firebase Storage
+      const placeholderPath = `${firebaseFolderPath}/.keep`;
       const placeholderFile = bucket.file(placeholderPath);
+
+      console.log(`[CREATE FOLDER] Firebase path: ${placeholderPath}`);
 
       // Upload empty placeholder file
       await placeholderFile.save('', {
@@ -3661,67 +4381,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      // Get all uploads for this folder
-      const allUploads = Array.from((storage as any).editorUploads.values());
-      const folderUploads = allUploads.filter((upload: any) => 
-        upload.jobId === job!.id && upload.folderPath === folderPath
-      );
+      console.log(`[DELETE] Starting deletion for folder: ${folderPath}`);
 
-      if (folderUploads.length === 0) {
+      // Get all uploads for this folder from Firestore
+      const folderUploads = await storage.getEditorUploads(job.id);
+      const uploadsInFolder = folderUploads.filter(upload => upload.folderPath === folderPath);
+
+      console.log(`[DELETE] Found ${uploadsInFolder.length} uploads in folder`);
+      uploadsInFolder.forEach(upload => {
+        console.log(`[DELETE]   - File: ${upload.fileName}, Firebase path: ${upload.firebaseUrl}`);
+      });
+
+      // Also check if this folder exists in the folders collection
+      const foldersSnapshot = await (storage as any).db.collection("folders")
+        .where("jobId", "==", job.id)
+        .where("folderPath", "==", folderPath)
+        .get();
+
+      const folderDoc = foldersSnapshot.docs[0];
+      const folderToken = folderDoc?.data()?.folderToken;
+      const folderData = folderDoc?.data();
+
+      console.log(`[DELETE] Folder document found:`, folderDoc ? 'Yes' : 'No');
+      console.log(`[DELETE] Folder token:`, folderToken);
+      console.log(`[DELETE] Folder full data:`, folderData);
+
+      // If no uploads and no folder document, folder doesn't exist
+      if (uploadsInFolder.length === 0 && !folderDoc) {
         return res.status(404).json({ error: "Folder not found" });
       }
 
       // Check if folder has an order (prevent deletion of order-attached folders)
-      const hasOrder = folderUploads.some((upload: any) => upload.orderId);
+      const hasOrder = uploadsInFolder.some(upload => upload.orderId);
       if (hasOrder) {
         return res.status(400).json({ error: "Cannot delete folder attached to an order" });
       }
 
-      // Get folderToken from any upload in the folder (they all share the same token)
-      const uploadWithToken = folderUploads.find((upload: any) => (upload as any).folderToken);
-      const folderToken = uploadWithToken ? (uploadWithToken as any).folderToken : (folderUploads[0] as any)?.folderToken;
+      // Delete Firebase files
+      try {
+        const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
+        if (bucketName) {
+          const bucket = getStorage().bucket(bucketName);
 
-      // Delete Firebase files if folderToken exists
-      if (folderToken) {
-        try {
-          const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
-          if (bucketName) {
-            const bucket = getStorage().bucket(bucketName);
+          // Collect all Firebase file paths to delete
+          const filesToDelete: string[] = [];
 
-            // Sanitize folder path for Firebase deletion
-            const sanitizedFolderPath = folderPath.split('/').map(segment => {
-              return segment
-                .replace(/\.\./g, '')
-                .replace(/[^a-zA-Z0-9 _-]/g, '_')
-                .trim()
-                .substring(0, 50);
-            }).filter(segment => segment.length > 0).join('/');
-
-            // Delete all files in the Firebase folder
-            const folderPrefix = `completed/${job.jobId || job.id}/folders/${folderToken}/${sanitizedFolderPath}/`;
-            const [files] = await bucket.getFiles({ prefix: folderPrefix });
-
-            await Promise.all(files.map(file => file.delete()));
-            console.log(`Deleted ${files.length} files from Firebase for folder: ${folderPath}`);
+          // Get file paths from uploads in this folder
+          for (const upload of uploadsInFolder) {
+            if (upload.firebaseUrl) {
+              filesToDelete.push(upload.firebaseUrl);
+            }
           }
-        } catch (firebaseError) {
-          console.error("Error deleting Firebase files:", firebaseError);
-          // Continue with database deletion even if Firebase deletion fails
+
+          // If we have a folderToken, also delete the .keep file and any other files in the folder
+          if (folderToken) {
+            const folderPrefix = `completed/${job.jobId || job.id}/folders/${folderToken}/`;
+            console.log(`[DELETE] Checking Firebase folder: ${folderPrefix}`);
+            const [prefixFiles] = await bucket.getFiles({ prefix: folderPrefix });
+            prefixFiles.forEach(file => {
+              if (!filesToDelete.includes(file.name)) {
+                filesToDelete.push(file.name);
+              }
+            });
+          }
+
+          // Delete all collected files
+          console.log(`[DELETE] Deleting ${filesToDelete.length} files from Firebase Storage`);
+          await Promise.all(filesToDelete.map(async (filePath) => {
+            try {
+              await bucket.file(filePath).delete();
+              console.log(`[DELETE] Deleted: ${filePath}`);
+            } catch (err) {
+              console.error(`[DELETE] Failed to delete ${filePath}:`, err);
+            }
+          }));
+
+          console.log(`Successfully deleted ${filesToDelete.length} files from Firebase for folder: ${folderPath}`);
         }
+      } catch (firebaseError) {
+        console.error("Error deleting Firebase files:", firebaseError);
+        // Continue with database deletion even if Firebase deletion fails
       }
 
-      // Delete all upload records for this folder
-      for (const upload of folderUploads) {
-        (storage as any).editorUploads.delete(upload.id);
+      // Delete all upload records for this folder from Firestore
+      const deletePromises = uploadsInFolder.map(upload =>
+        (storage as any).db.collection("editorUploads").doc(upload.id).delete()
+      );
+
+      // Delete the folder document if it exists
+      if (folderDoc) {
+        deletePromises.push(folderDoc.ref.delete());
       }
 
-      // Save changes
-      await (storage as any).saveToFile();
+      await Promise.all(deletePromises);
 
-      res.json({ 
-        success: true, 
-        message: `Folder deleted successfully. Removed ${folderUploads.length} upload(s).`,
-        deletedCount: folderUploads.length
+      res.json({
+        success: true,
+        message: `Folder deleted successfully. Removed ${uploadsInFolder.length} upload(s).`,
+        deletedCount: uploadsInFolder.length
       });
     } catch (error: any) {
       console.error("Error deleting folder:", error);
@@ -3767,6 +4524,290 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to rename folder", 
         details: error.message 
+      });
+    }
+  });
+
+  // SSE endpoint for zip creation progress
+  app.get("/api/jobs/:jobId/folders/download/progress", requireAuthSSE, async (req: AuthenticatedRequest, res) => {
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const { jobId } = req.params;
+      const { folderPath } = req.query;
+
+      console.log(`[FOLDER DOWNLOAD PROGRESS] Starting SSE for jobId: ${jobId}, folderPath: ${folderPath}`);
+
+      if (!req.user?.partnerId) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'User must have a partnerId' })}\n\n`);
+        return res.end();
+      }
+
+      if (!folderPath || typeof folderPath !== 'string') {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'folderPath query parameter is required' })}\n\n`);
+        return res.end();
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Job not found' })}\n\n`);
+        return res.end();
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Access denied: Job belongs to different organization' })}\n\n`);
+        return res.end();
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Find the target folder
+      const targetFolder = allFolders.find(f => f.folderPath === folderPath);
+      if (!targetFolder) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Folder not found' })}\n\n`);
+        return res.end();
+      }
+
+      // Collect all files recursively
+      const allFiles: Array<{ file: any; relativePath: string }> = [];
+
+      // Add files from root folder
+      const rootFiles = targetFolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+      rootFiles.forEach(file => {
+        allFiles.push({
+          file,
+          relativePath: file.originalName
+        });
+      });
+
+      // Get all subfolders
+      const subfolders = allFolders.filter(f =>
+        f.folderPath.startsWith(folderPath + '/') &&
+        f.folderPath !== folderPath
+      );
+
+      // Add files from each subfolder
+      subfolders.forEach(subfolder => {
+        const subfolderName = subfolder.partnerFolderName || subfolder.editorFolderName;
+        const subfolderFiles = subfolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        subfolderFiles.forEach(file => {
+          allFiles.push({
+            file,
+            relativePath: `${subfolderName}/${file.originalName}`
+          });
+        });
+      });
+
+      const totalFiles = allFiles.length;
+
+      if (totalFiles === 0) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'No files found in this folder' })}\n\n`);
+        return res.end();
+      }
+
+      console.log(`[FOLDER DOWNLOAD PROGRESS] Total files to process: ${totalFiles}`);
+
+      // Create zip file and report progress
+      const zip = new JSZip();
+      let filesProcessed = 0;
+
+      // Fetch and add files to zip with progress updates
+      for (const { file, relativePath } of allFiles) {
+        try {
+          const response = await fetch(file.downloadUrl);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const fileBuffer = Buffer.from(arrayBuffer);
+            zip.file(relativePath, fileBuffer);
+          }
+
+          filesProcessed++;
+          const progress = (filesProcessed / totalFiles) * 50; // 0-50% for file collection
+
+          res.write(`data: ${JSON.stringify({
+            stage: 'creating',
+            progress: Math.round(progress),
+            filesProcessed,
+            totalFiles
+          })}\n\n`);
+
+        } catch (error) {
+          console.error(`[FOLDER DOWNLOAD PROGRESS] Error processing file ${file.originalName}:`, error);
+          // Continue with other files
+        }
+      }
+
+      // Generate zip with progress callback
+      console.log(`[FOLDER DOWNLOAD PROGRESS] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync(
+        {
+          type: 'nodebuffer',
+          streamFiles: true
+        },
+        (metadata) => {
+          const progress = 50 + (metadata.percent * 0.5); // 50-100% for zip generation
+          res.write(`data: ${JSON.stringify({
+            stage: 'creating',
+            progress: Math.round(progress),
+            filesProcessed: totalFiles,
+            totalFiles
+          })}\n\n`);
+        }
+      );
+
+      console.log(`[FOLDER DOWNLOAD PROGRESS] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send completion event
+      res.write(`data: ${JSON.stringify({
+        stage: 'complete',
+        totalBytes: zipBuffer.length
+      })}\n\n`);
+
+      res.end();
+
+    } catch (error: any) {
+      console.error("[FOLDER DOWNLOAD PROGRESS] Error occurred:", error);
+      res.write(`data: ${JSON.stringify({ stage: 'error', message: error.message })}\n\n`);
+      res.end();
+    }
+  });
+
+  // Download folder as zip (all files and subfolders)
+  app.get("/api/jobs/:jobId/folders/download", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folderPath } = req.query;
+
+      console.log(`[FOLDER DOWNLOAD] Request for jobId: ${jobId}, folderPath: ${folderPath}`);
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!folderPath || typeof folderPath !== 'string') {
+        return res.status(400).json({ error: "folderPath query parameter is required" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Find the target folder
+      const targetFolder = allFolders.find(f => f.folderPath === folderPath);
+      if (!targetFolder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+
+      console.log(`[FOLDER DOWNLOAD] Target folder: ${targetFolder.partnerFolderName || targetFolder.editorFolderName}`);
+
+      // Collect all files recursively (from target folder and all subfolders)
+      const allFiles: Array<{ file: any; relativePath: string }> = [];
+
+      // Add files from root folder
+      const rootFiles = targetFolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+      rootFiles.forEach(file => {
+        allFiles.push({
+          file,
+          relativePath: file.originalName
+        });
+      });
+
+      console.log(`[FOLDER DOWNLOAD] Found ${rootFiles.length} files in root folder`);
+
+      // Get all subfolders recursively
+      const subfolders = allFolders.filter(f =>
+        f.folderPath.startsWith(folderPath + '/') &&
+        f.folderPath !== folderPath
+      );
+
+      console.log(`[FOLDER DOWNLOAD] Found ${subfolders.length} subfolders`);
+
+      // Add files from each subfolder
+      subfolders.forEach(subfolder => {
+        const subfolderName = subfolder.partnerFolderName || subfolder.editorFolderName;
+        const subfolderFiles = subfolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        subfolderFiles.forEach(file => {
+          allFiles.push({
+            file,
+            relativePath: `${subfolderName}/${file.originalName}`
+          });
+        });
+      });
+
+      console.log(`[FOLDER DOWNLOAD] Total files to download: ${allFiles.length}`);
+
+      if (allFiles.length === 0) {
+        return res.status(404).json({ error: "No files found in this folder" });
+      }
+
+      // Create zip file
+      const zip = new JSZip();
+      const folderName = (targetFolder.partnerFolderName || targetFolder.editorFolderName || 'folder').replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Add all files to zip
+      for (const { file, relativePath } of allFiles) {
+        try {
+          console.log(`[FOLDER DOWNLOAD] Fetching file: ${file.originalName} from ${file.downloadUrl}`);
+
+          const response = await fetch(file.downloadUrl);
+          if (!response.ok) {
+            console.error(`[FOLDER DOWNLOAD] Failed to fetch ${file.originalName}: ${response.status}`);
+            continue;
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          const fileBuffer = Buffer.from(arrayBuffer);
+
+          zip.file(relativePath, fileBuffer);
+          console.log(`[FOLDER DOWNLOAD] Added ${relativePath} to zip (${fileBuffer.length} bytes)`);
+        } catch (error) {
+          console.error(`[FOLDER DOWNLOAD] Error processing file ${file.originalName}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Generate zip
+      console.log(`[FOLDER DOWNLOAD] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      console.log(`[FOLDER DOWNLOAD] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[FOLDER DOWNLOAD] Download complete for ${folderName}.zip`);
+    } catch (error: any) {
+      console.error("[FOLDER DOWNLOAD] Error occurred:");
+      console.error("[FOLDER DOWNLOAD] Error message:", error.message);
+      console.error("[FOLDER DOWNLOAD] Error stack:", error.stack);
+      console.error("[FOLDER DOWNLOAD] Full error:", error);
+      res.status(500).json({
+        error: "Failed to create folder download",
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   });
@@ -3820,9 +4861,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Cover photo updated successfully" });
     } catch (error: any) {
       console.error("Error updating cover photo:", error);
-      res.status(500).json({ 
-        error: "Failed to update cover photo", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to update cover photo",
+        details: error.message
+      });
+    }
+  });
+
+  // Update job name
+  app.patch("/api/jobs/:id/name", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+
+      // Validate request body
+      const jobNameSchema = z.object({
+        jobName: z.string().min(1, "Job name is required").max(255, "Job name too long"),
+      });
+
+      const validationResult = jobNameSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({
+          error: "Invalid request body",
+          details: validationResult.error.errors
+        });
+      }
+
+      const { jobName } = validationResult.data;
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Find the job by UUID
+      const job = await storage.getJob(id);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Update job with the new name
+      await storage.updateJob(id, {
+        jobName: jobName,
+      });
+
+      res.json({ success: true, message: "Job name updated successfully", jobName });
+    } catch (error: any) {
+      console.error("Error updating job name:", error);
+      res.status(500).json({
+        error: "Failed to update job name",
+        details: error.message
       });
     }
   });
@@ -3850,9 +4942,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all editor uploads for this job with completed status
       const allUploads = await storage.getEditorUploads(job.id);
-      const completedFiles = allUploads.filter(upload => 
-        upload.status === 'completed' && 
-        upload.fileName !== '.folder_placeholder' // Exclude folder placeholders
+      const completedFiles = allUploads.filter(upload =>
+        upload.status === 'completed' &&
+        upload.fileName !== '.folder_placeholder' && // Exclude folder placeholders
+        !upload.firebaseUrl?.startsWith('orders/') // Exclude files uploaded for editing (not deliverables)
       );
 
       // Group files by order and enrich with order information (backward compatibility)
@@ -3960,6 +5053,339 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to fetch delivery data", 
         details: error.message 
+      });
+    }
+  });
+
+  // PUBLIC ZIP DOWNLOAD FOR DELIVERY PAGE - Progress endpoint with SSE
+  app.get("/api/delivery/:token/folders/download/progress", async (req, res) => {
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const { token } = req.params;
+      const { folderPath } = req.query;
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD PROGRESS] Starting SSE for token: ${token}, folderPath: ${folderPath}`);
+
+      if (!folderPath || typeof folderPath !== 'string') {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'folderPath query parameter is required' })}\n\n`);
+        return res.end();
+      }
+
+      // Find job by delivery token
+      const job = await storage.getJobByDeliveryToken(token);
+
+      if (!job) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Delivery not found' })}\n\n`);
+        return res.end();
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Find the target folder
+      const targetFolder = allFolders.find(f => f.folderPath === folderPath);
+      if (!targetFolder) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Folder not found' })}\n\n`);
+        return res.end();
+      }
+
+      // Collect all files recursively
+      const allFiles: Array<{ file: any; relativePath: string }> = [];
+
+      // Add files from root folder
+      const rootFiles = targetFolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+      rootFiles.forEach(file => {
+        allFiles.push({
+          file,
+          relativePath: file.originalName
+        });
+      });
+
+      // Get all subfolders
+      const subfolders = allFolders.filter(f =>
+        f.folderPath.startsWith(folderPath + '/') &&
+        f.folderPath !== folderPath
+      );
+
+      // Add files from each subfolder
+      subfolders.forEach(subfolder => {
+        const subfolderName = subfolder.partnerFolderName || subfolder.editorFolderName;
+        const subfolderFiles = subfolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        subfolderFiles.forEach(file => {
+          allFiles.push({
+            file,
+            relativePath: `${subfolderName}/${file.originalName}`
+          });
+        });
+      });
+
+      const totalFiles = allFiles.length;
+
+      if (totalFiles === 0) {
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'No files found in this folder' })}\n\n`);
+        return res.end();
+      }
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD PROGRESS] Total files to process: ${totalFiles}`);
+
+      // Create zip file and report progress
+      const zip = new JSZip();
+      let filesProcessed = 0;
+
+      // Fetch and add files to zip with progress updates
+      for (const { file, relativePath } of allFiles) {
+        try {
+          const response = await fetch(file.downloadUrl);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const fileBuffer = Buffer.from(arrayBuffer);
+            zip.file(relativePath, fileBuffer);
+          }
+
+          filesProcessed++;
+          const progress = (filesProcessed / totalFiles) * 50; // 0-50% for file collection
+
+          res.write(`data: ${JSON.stringify({
+            stage: 'creating',
+            progress: Math.round(progress),
+            filesProcessed,
+            totalFiles
+          })}\n\n`);
+
+        } catch (error) {
+          console.error(`[DELIVERY FOLDER DOWNLOAD PROGRESS] Error processing file ${file.originalName}:`, error);
+          // Continue with other files
+        }
+      }
+
+      // Generate zip with progress callback
+      console.log(`[DELIVERY FOLDER DOWNLOAD PROGRESS] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync(
+        {
+          type: 'nodebuffer',
+          streamFiles: true
+        },
+        (metadata) => {
+          const progress = 50 + (metadata.percent * 0.5); // 50-100% for zip generation
+          res.write(`data: ${JSON.stringify({
+            stage: 'creating',
+            progress: Math.round(progress),
+            filesProcessed: totalFiles,
+            totalFiles
+          })}\n\n`);
+        }
+      );
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD PROGRESS] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send completion event
+      res.write(`data: ${JSON.stringify({
+        stage: 'complete',
+        totalBytes: zipBuffer.length
+      })}\n\n`);
+
+      res.end();
+
+    } catch (error: any) {
+      console.error("[DELIVERY FOLDER DOWNLOAD PROGRESS] Error occurred:", error);
+      res.write(`data: ${JSON.stringify({ stage: 'error', message: error.message })}\n\n`);
+      res.end();
+    }
+  });
+
+  // PUBLIC ZIP DOWNLOAD FOR DELIVERY PAGE - Actual download endpoint
+  app.get("/api/delivery/:token/folders/download", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { folderPath } = req.query;
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Request for token: ${token}, folderPath: ${folderPath}`);
+
+      if (!folderPath || typeof folderPath !== 'string') {
+        return res.status(400).json({ error: "folderPath query parameter is required" });
+      }
+
+      // Find job by delivery token
+      const job = await storage.getJobByDeliveryToken(token);
+
+      if (!job) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Find the target folder
+      const targetFolder = allFolders.find(f => f.folderPath === folderPath);
+      if (!targetFolder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Target folder: ${targetFolder.partnerFolderName || targetFolder.editorFolderName}`);
+
+      // Collect all files recursively (from target folder and all subfolders)
+      const allFiles: Array<{ file: any; relativePath: string }> = [];
+
+      // Add files from root folder
+      const rootFiles = targetFolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+      rootFiles.forEach(file => {
+        allFiles.push({
+          file,
+          relativePath: file.originalName
+        });
+      });
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Found ${rootFiles.length} files in root folder`);
+
+      // Get all subfolders recursively
+      const subfolders = allFolders.filter(f =>
+        f.folderPath.startsWith(folderPath + '/') &&
+        f.folderPath !== folderPath
+      );
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Found ${subfolders.length} subfolders`);
+
+      // Add files from each subfolder
+      subfolders.forEach(subfolder => {
+        const subfolderName = subfolder.partnerFolderName || subfolder.editorFolderName;
+        const subfolderFiles = subfolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        subfolderFiles.forEach(file => {
+          allFiles.push({
+            file,
+            relativePath: `${subfolderName}/${file.originalName}`
+          });
+        });
+      });
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Total files to download: ${allFiles.length}`);
+
+      if (allFiles.length === 0) {
+        return res.status(404).json({ error: "No files found in this folder" });
+      }
+
+      // Create zip file
+      const zip = new JSZip();
+      const folderName = (targetFolder.partnerFolderName || targetFolder.editorFolderName || 'folder').replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Add all files to zip
+      for (const { file, relativePath } of allFiles) {
+        try {
+          console.log(`[DELIVERY FOLDER DOWNLOAD] Fetching file: ${file.originalName} from ${file.downloadUrl}`);
+
+          const response = await fetch(file.downloadUrl);
+          if (!response.ok) {
+            console.error(`[DELIVERY FOLDER DOWNLOAD] Failed to fetch ${file.originalName}: ${response.status}`);
+            continue;
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          const fileBuffer = Buffer.from(arrayBuffer);
+
+          zip.file(relativePath, fileBuffer);
+          console.log(`[DELIVERY FOLDER DOWNLOAD] Added ${relativePath} to zip (${fileBuffer.length} bytes)`);
+        } catch (error) {
+          console.error(`[DELIVERY FOLDER DOWNLOAD] Error processing file ${file.originalName}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Generate zip
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[DELIVERY FOLDER DOWNLOAD] Download complete for ${folderName}.zip`);
+    } catch (error: any) {
+      console.error("[DELIVERY FOLDER DOWNLOAD] Error occurred:", error);
+      res.status(500).json({
+        error: "Failed to create folder download",
+        details: error.message
+      });
+    }
+  });
+
+  // PUBLIC ZIP DOWNLOAD ALL FOR DELIVERY PAGE
+  app.get("/api/delivery/:token/download-all", async (req, res) => {
+    try {
+      const { token } = req.params;
+
+      console.log(`[DELIVERY DOWNLOAD ALL] Request for token: ${token}`);
+
+      // Find job by delivery token
+      const job = await storage.getJobByDeliveryToken(token);
+
+      if (!job) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      console.log(`[DELIVERY DOWNLOAD ALL] Found ${allFolders.length} folders`);
+
+      // Create zip file
+      const zip = new JSZip();
+      const jobName = `${job.address || 'delivery'}`.replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Add all files from all folders to zip, preserving folder structure
+      for (const folder of allFolders) {
+        const folderName = folder.partnerFolderName || folder.editorFolderName || 'Files';
+        const folderFiles = folder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        for (const file of folderFiles) {
+          try {
+            console.log(`[DELIVERY DOWNLOAD ALL] Fetching file: ${file.originalName} from ${file.downloadUrl}`);
+
+            const response = await fetch(file.downloadUrl);
+            if (!response.ok) {
+              console.error(`[DELIVERY DOWNLOAD ALL] Failed to fetch ${file.originalName}: ${response.status}`);
+              continue;
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            const fileBuffer = Buffer.from(arrayBuffer);
+
+            // Add file to zip with folder structure
+            const relativePath = `${folderName}/${file.originalName}`;
+            zip.file(relativePath, fileBuffer);
+            console.log(`[DELIVERY DOWNLOAD ALL] Added ${relativePath} to zip (${fileBuffer.length} bytes)`);
+          } catch (error) {
+            console.error(`[DELIVERY DOWNLOAD ALL] Error processing file ${file.originalName}:`, error);
+            // Continue with other files even if one fails
+          }
+        }
+      }
+
+      // Generate zip
+      console.log(`[DELIVERY DOWNLOAD ALL] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      console.log(`[DELIVERY DOWNLOAD ALL] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${jobName}-all-files.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[DELIVERY DOWNLOAD ALL] Download complete for ${jobName}-all-files.zip`);
+    } catch (error: any) {
+      console.error("[DELIVERY DOWNLOAD ALL] Error occurred:", error);
+      res.status(500).json({
+        error: "Failed to create download",
+        details: error.message
       });
     }
   });
@@ -4098,6 +5524,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to fetch job preview", 
         details: error.message 
+      });
+    }
+  });
+
+  // AUTHENTICATED PREVIEW DOWNLOAD ENDPOINTS
+  // Download folder as ZIP (preview mode with jobId)
+  app.get("/api/jobs/:jobId/preview/folders/download", requireAuth, async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folderPath } = req.query;
+      const { partnerId } = req.user;
+
+      console.log(`[PREVIEW FOLDER DOWNLOAD] Request for jobId: ${jobId}, folderPath: ${folderPath}`);
+
+      if (!folderPath || typeof folderPath !== 'string') {
+        return res.status(400).json({ error: "folderPath query parameter is required" });
+      }
+
+      // Find job by jobId and verify ownership
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Find the target folder
+      const targetFolder = allFolders.find(f => f.folderPath === folderPath);
+      if (!targetFolder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+
+      console.log(`[PREVIEW FOLDER DOWNLOAD] Target folder: ${targetFolder.partnerFolderName || targetFolder.editorFolderName}`);
+
+      // Collect all files recursively (from target folder and all subfolders)
+      const allFiles: Array<{ file: any; relativePath: string }> = [];
+
+      // Add files from root folder
+      const rootFiles = targetFolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+      rootFiles.forEach(file => {
+        allFiles.push({
+          file,
+          relativePath: file.originalName
+        });
+      });
+
+      // Get all subfolders recursively
+      const subfolders = allFolders.filter(f =>
+        f.folderPath.startsWith(folderPath + '/') &&
+        f.folderPath !== folderPath
+      );
+
+      // Add files from each subfolder
+      subfolders.forEach(subfolder => {
+        const subfolderName = subfolder.partnerFolderName || subfolder.editorFolderName;
+        const subfolderFiles = subfolder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        subfolderFiles.forEach(file => {
+          allFiles.push({
+            file,
+            relativePath: `${subfolderName}/${file.originalName}`
+          });
+        });
+      });
+
+      if (allFiles.length === 0) {
+        return res.status(404).json({ error: "No files found in this folder" });
+      }
+
+      // Create zip file
+      const zip = new JSZip();
+      const folderName = (targetFolder.partnerFolderName || targetFolder.editorFolderName || 'folder').replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Add all files to zip
+      for (const { file, relativePath } of allFiles) {
+        try {
+          const response = await fetch(file.downloadUrl);
+          if (!response.ok) continue;
+
+          const arrayBuffer = await response.arrayBuffer();
+          const fileBuffer = Buffer.from(arrayBuffer);
+          zip.file(relativePath, fileBuffer);
+        } catch (error) {
+          console.error(`[PREVIEW FOLDER DOWNLOAD] Error processing file ${file.originalName}:`, error);
+        }
+      }
+
+      // Generate zip
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[PREVIEW FOLDER DOWNLOAD] Download complete for ${folderName}.zip`);
+    } catch (error: any) {
+      console.error("[PREVIEW FOLDER DOWNLOAD] Error occurred:", error);
+      res.status(500).json({
+        error: "Failed to create folder download",
+        details: error.message
+      });
+    }
+  });
+
+  // Download all files as ZIP (preview mode with jobId)
+  app.get("/api/jobs/:jobId/preview/download-all", requireAuth, async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { partnerId } = req.user;
+
+      console.log(`[PREVIEW DOWNLOAD ALL] Request for jobId: ${jobId}`);
+
+      // Find job by jobId and verify ownership
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      if (job.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Get all folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Create zip file
+      const zip = new JSZip();
+      const jobName = `${job.address || 'delivery'}`.replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Add all files from all folders to zip, preserving folder structure
+      for (const folder of allFolders) {
+        const folderName = folder.partnerFolderName || folder.editorFolderName || 'Files';
+        const folderFiles = folder.files.filter(f => !f.fileName.startsWith('.') && f.downloadUrl);
+
+        for (const file of folderFiles) {
+          try {
+            const response = await fetch(file.downloadUrl);
+            if (!response.ok) continue;
+
+            const arrayBuffer = await response.arrayBuffer();
+            const fileBuffer = Buffer.from(arrayBuffer);
+
+            // Add file to zip with folder structure
+            const relativePath = `${folderName}/${file.originalName}`;
+            zip.file(relativePath, fileBuffer);
+          } catch (error) {
+            console.error(`[PREVIEW DOWNLOAD ALL] Error processing file ${file.originalName}:`, error);
+          }
+        }
+      }
+
+      // Generate zip
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${jobName}-all-files.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[PREVIEW DOWNLOAD ALL] Download complete for ${jobName}-all-files.zip`);
+    } catch (error: any) {
+      console.error("[PREVIEW DOWNLOAD ALL] Error occurred:", error);
+      res.status(500).json({
+        error: "Failed to create download",
+        details: error.message
       });
     }
   });
@@ -4673,7 +6274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get Firebase Admin Storage with explicit bucket name
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
       }
@@ -5492,18 +7093,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const settings = await storage.getPartnerSettings(req.user.partnerId);
 
+      // Fetch user document to get profile image
+      const userDoc = await getUserDocument(req.user.uid);
+      const profileImage = userDoc?.profileImage || "";
+
       if (!settings) {
         return res.json({
           businessProfile: null,
-          personalProfile: null,
+          personalProfile: { profileImage },
           businessHours: null,
           defaultMaxRevisionRounds: 2
         });
       }
 
+      const personalProfile = settings.personalProfile ? JSON.parse(settings.personalProfile) : {};
+      personalProfile.profileImage = profileImage; // Add profile image from user document
+
       res.json({
         businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
-        personalProfile: settings.personalProfile ? JSON.parse(settings.personalProfile) : null,
+        personalProfile,
         businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null,
         defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2
       });
@@ -5781,7 +7389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Migration endpoint to convert old public URLs to signed URLs
   app.post("/api/admin/migrate-to-signed-urls", async (req, res) => {
     try {
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         return res.status(500).json({ error: 'FIREBASE_STORAGE_BUCKET not configured' });
       }
@@ -5944,6 +7552,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Failed to backfill job partnerIds", 
         details: error.message 
+      });
+    }
+  });
+
+  // Cleanup endpoint for expired order files
+  app.delete('/api/cleanup/expired-orders-files', async (req, res) => {
+    try {
+      console.log('[CLEANUP] Starting expired order files cleanup...');
+
+      // Get all expired files
+      const expiredFiles = await storage.getExpiredOrderFiles();
+
+      if (expiredFiles.length === 0) {
+        return res.json({
+          success: true,
+          message: "No expired order files to clean up",
+          deletedCount: 0
+        });
+      }
+
+      console.log(`[CLEANUP] Found ${expiredFiles.length} expired files to delete`);
+
+      let deletedCount = 0;
+      let errorCount = 0;
+      const deletionResults: any[] = [];
+
+      // Delete each expired file
+      for (const file of expiredFiles) {
+        try {
+          await storage.deleteExpiredOrderFile(file.id, file.firebaseUrl);
+          deletedCount++;
+          deletionResults.push({
+            fileId: file.id,
+            fileName: file.fileName,
+            firebaseUrl: file.firebaseUrl,
+            expiresAt: file.expiresAt,
+            status: 'deleted'
+          });
+          console.log(`[CLEANUP] Deleted expired file: ${file.fileName} (${file.id})`);
+        } catch (error: any) {
+          errorCount++;
+          deletionResults.push({
+            fileId: file.id,
+            fileName: file.fileName,
+            firebaseUrl: file.firebaseUrl,
+            expiresAt: file.expiresAt,
+            status: 'error',
+            error: error.message
+          });
+          console.error(`[CLEANUP] Error deleting file ${file.id}:`, error.message);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Cleanup completed: ${deletedCount} deleted, ${errorCount} errors`,
+        deletedCount,
+        errorCount,
+        totalExpired: expiredFiles.length,
+        results: deletionResults
+      });
+
+      console.log(`[CLEANUP] Cleanup completed: ${deletedCount} deleted, ${errorCount} errors`);
+    } catch (error: any) {
+      console.error("[CLEANUP] Error in expired files cleanup:", error);
+      res.status(500).json({
+        error: "Failed to cleanup expired files",
+        details: error.message
       });
     }
   });

@@ -113,9 +113,9 @@ export function FileUploadModal({
     const completedUploads: { file: File; url: string; path: string }[] = [];
     
     try {
-      // Reserve order number first if not already reserved (only for client uploads without folderToken)
+      // Reserve order number first if not already reserved (only when no folder context and no folderToken)
       let currentOrderNumber = orderNumber;
-      if (uploadType === 'client' && !currentOrderNumber && !folderToken) {
+      if (uploadType === 'client' && !currentOrderNumber && !folderToken && !folderPath) {
         const reservation = await reserveOrderNumber(userId, jobId);
         currentOrderNumber = reservation.orderNumber;
         setOrderNumber(reservation.orderNumber);
@@ -123,8 +123,11 @@ export function FileUploadModal({
         console.log(`Reserved order number ${reservation.orderNumber} until ${reservation.expiresAt}`);
       }
 
-      // Check if we have a valid order number OR folderToken (for client uploads)
-      if (uploadType === 'client' && !currentOrderNumber && !folderToken) {
+      // Check if we have a valid context for client uploads:
+      // - orderNumber (editor flow), or
+      // - folderToken (standalone), or
+      // - folderPath (partner job card uploads to a folder)
+      if (uploadType === 'client' && !currentOrderNumber && !folderToken && !folderPath) {
         throw new Error('Failed to reserve order number');
       }
       
@@ -170,12 +173,13 @@ export function FileUploadModal({
                 item.file,
                 userId,
                 jobId,
-                currentOrderNumber || '',
+                // For partner job card uploads targeting a folder, do not send order number
+                (folderPath ? '' : (currentOrderNumber || '')),
                 (progress: UploadProgress) => {
                   console.log(`Progress for ${item.file.name}:`, progress);
-                  setUploadItems(prev => prev.map((uploadItem, index) => 
-                    index === i ? { 
-                      ...uploadItem, 
+                  setUploadItems(prev => prev.map((uploadItem, index) =>
+                    index === i ? {
+                      ...uploadItem,
                       progress: progress.progress,
                       status: progress.status === 'completed' ? 'completed' : 'uploading',
                       url: progress.url
@@ -183,7 +187,8 @@ export function FileUploadModal({
                   ));
                 },
                 folderToken, // Pass folder token for standalone folders
-                folderPath // Pass folder path
+                folderPath, // Pass folder path so server writes into existing/new folder
+                uploadType // Pass uploadType to determine storage location (orders/ vs completed/)
               );
           
           // Set timeout for large files (5 minutes for files over 10MB)
@@ -226,9 +231,9 @@ export function FileUploadModal({
       }
       
       // For client uploads, call the callback immediately
-      // For completed uploads, store the data and wait for user confirmation
+      // Trigger when we have an orderNumber, a folderToken, or a folderPath (partner job card)
       if (uploadType === 'client') {
-        if (completedUploads.length > 0 && (currentOrderNumber || folderToken)) {
+        if (completedUploads.length > 0 && (currentOrderNumber || folderToken || folderPath)) {
           onFilesUpload(serviceId, completedUploads, currentOrderNumber || '');
         }
       } else {

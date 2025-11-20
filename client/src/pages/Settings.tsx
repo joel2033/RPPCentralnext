@@ -42,6 +42,40 @@ interface Partnership {
   isActive: boolean;
 }
 
+interface PersonalProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  bio: string;
+  profileImage?: string;
+}
+
+interface BusinessProfile {
+  businessName: string;
+  tagline: string;
+  email: string;
+  phone: string;
+  website: string;
+  address: string;
+  description: string;
+}
+
+interface BusinessHours {
+  [key: string]: {
+    enabled: boolean;
+    start: string;
+    end: string;
+  };
+}
+
+interface SavedSettings {
+  personalProfile?: PersonalProfile;
+  businessProfile?: BusinessProfile;
+  businessHours?: BusinessHours;
+  defaultMaxRevisionRounds?: number;
+}
+
 export default function Settings() {
   const { userData } = useAuth();
   const [activeTab, setActiveTab] = useState("company");
@@ -63,8 +97,10 @@ export default function Settings() {
     lastName: "",
     email: "",
     phone: "",
-    bio: ""
+    bio: "",
+    profileImage: ""
   });
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
 
   // State for business profile
   const [businessProfile, setBusinessProfile] = useState({
@@ -94,7 +130,7 @@ export default function Settings() {
   });
 
   // Load saved settings from backend
-  const { data: savedSettings, isLoading: settingsLoading } = useQuery({
+  const { data: savedSettings, isLoading: settingsLoading } = useQuery<SavedSettings>({
     queryKey: ['/api/settings']
   });
 
@@ -107,7 +143,8 @@ export default function Settings() {
           lastName: savedSettings.personalProfile.lastName || "",
           email: savedSettings.personalProfile.email || userData?.email || "",
           phone: savedSettings.personalProfile.phone || "",
-          bio: savedSettings.personalProfile.bio || ""
+          bio: savedSettings.personalProfile.bio || "",
+          profileImage: savedSettings.personalProfile.profileImage || ""
         });
       } else if (userData?.email) {
         setPersonalProfile(prev => ({
@@ -170,6 +207,72 @@ export default function Settings() {
   ];
 
   const teamMembersLoading = usersLoading || invitesLoading;
+
+  // Handle profile image upload
+  const handleProfileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please select an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Please select an image under 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingProfileImage(true);
+
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+
+        try {
+          // Upload to server
+          const response = await apiRequest("/api/user/profile-image", "POST", {
+            image: base64String
+          });
+
+          setPersonalProfile(prev => ({ ...prev, profileImage: response.imageUrl }));
+
+          toast({
+            title: "Profile Picture Updated",
+            description: "Your profile picture has been uploaded successfully.",
+          });
+        } catch (error: any) {
+          toast({
+            title: "Upload Failed",
+            description: error.message || "Failed to upload profile picture",
+            variant: "destructive",
+          });
+        } finally {
+          setUploadingProfileImage(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      setUploadingProfileImage(false);
+      toast({
+        title: "Upload Failed",
+        description: "Failed to process image",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({
@@ -350,7 +453,7 @@ export default function Settings() {
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building2 className="w-4 h-4" />
-            <span>Company</span>
+            <span>Business</span>
           </TabsTrigger>
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -854,14 +957,49 @@ export default function Settings() {
               {/* Profile Picture */}
               <div className="flex items-center gap-4">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src="" />
+                  <AvatarImage src={personalProfile.profileImage} />
                   <AvatarFallback className="text-lg">
                     {personalProfile.firstName?.[0] || ''}{personalProfile.lastName?.[0] || ''}
                   </AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="flex-1">
                   <Label>Profile Picture</Label>
-                  <p className="text-xs text-gray-500 mt-1">{businessProfile.businessName}</p>
+                  <p className="text-xs text-gray-500 mt-1 mb-2">{businessProfile.businessName}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingProfileImage}
+                      onClick={() => document.getElementById('profile-image-upload')?.click()}
+                    >
+                      {uploadingProfileImage ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          Uploading...
+                        </>
+                      ) : (
+                        'Upload Photo'
+                      )}
+                    </Button>
+                    {personalProfile.profileImage && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPersonalProfile(prev => ({ ...prev, profileImage: '' }))}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <input
+                    id="profile-image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleProfileImageUpload}
+                  />
                 </div>
               </div>
 

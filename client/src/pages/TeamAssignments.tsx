@@ -54,7 +54,7 @@ export default function TeamAssignments() {
     mutationFn: async ({ orderId, editorId }: { orderId: string; editorId: string }) => {
       return apiRequest('/api/team/assign-order', 'POST', { orderId, editorId });
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { message: string; order: { id: string } }) => {
       toast({
         title: "Order Assigned",
         description: data.message,

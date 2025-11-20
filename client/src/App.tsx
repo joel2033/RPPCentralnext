@@ -42,6 +42,7 @@ import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
 import EditorInvitations from "@/pages/EditorInvitations";
+import EditorJobHistory from "@/pages/EditorJobHistory";
 import EditorProtectedRoute from "@/components/EditorProtectedRoute";
 import EditorLayout from "@/components/EditorLayout";
 import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
@@ -119,6 +120,13 @@ function Router() {
         <EditorProtectedRoute>
           <EditorLayout>
             <Messages />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/history">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorJobHistory />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
@@ -248,6 +256,14 @@ function Router() {
         <ProtectedRoute route="/messages">
           <Layout>
             <Messages />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/history">
+        <ProtectedRoute route="/history">
+          <Layout>
+            <EditorJobHistory />
           </Layout>
         </ProtectedRoute>
       </Route>

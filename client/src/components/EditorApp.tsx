@@ -11,6 +11,7 @@ import EditorJobs from "@/pages/EditorJobs";
 import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
+import EditorJobHistory from "@/pages/EditorJobHistory";
 import TeamAssignments from "@/pages/TeamAssignments";
 import Messages from "@/pages/Messages";
 import NotFound from "@/pages/not-found";
@@ -83,6 +84,14 @@ function EditorRouter() {
         <EditorProtectedRoute>
           <EditorLayout>
             <Messages />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      
+      <Route path="/history">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorJobHistory />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>

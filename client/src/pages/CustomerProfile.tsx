@@ -33,14 +33,17 @@ export default function CustomerProfile() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'completed':
+      case 'delivered':
         return 'bg-green-50 text-support-green border-support-green';
-      case 'in_progress':
-      case 'in progress':
-        return 'bg-yellow-50 text-support-yellow border-support-yellow';
-      case 'scheduled':
       case 'pending':
-        return 'bg-blue-50 text-support-blue border-support-blue';
+        return 'bg-yellow-50 text-support-yellow border-support-yellow';
+      case 'on_hold':
+      case 'on hold':
+        return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'booked':
+        return 'bg-purple-50 text-purple-700 border-purple-200';
+      case 'cancelled':
+        return 'bg-red-50 text-red-700 border-red-200';
       default:
         return 'bg-gray-50 text-gray-600 border-gray-300';
     }
@@ -58,7 +61,7 @@ export default function CustomerProfile() {
     address: job.address,
     date: formatDate(job.appointmentDate || job.createdAt),
     dueDate: job.dueDate ? `Due ${formatDate(job.dueDate)}` : '',
-    status: job.status || 'Pending',
+    status: job.status || 'Booked',
     statusColor: getStatusColor(job.status),
     price: job.totalPrice ? `$${parseFloat(job.totalPrice).toFixed(2)}` : '$0.00',
     propertyImage: job.propertyImageThumbnail || job.propertyImage
@@ -173,7 +176,7 @@ export default function CustomerProfile() {
                         key={job.id}
                         className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all cursor-pointer border border-transparent hover:border-gray-200"
                         data-testid={`job-item-${job.jobId || job.id}`}
-                        onClick={() => setLocation(`/jobs/${job.id}`)}
+                        onClick={() => setLocation(`/jobs/${job.jobId}`)}
                       >
                         <div className="w-12 h-12 rounded-lg flex-shrink-0 overflow-hidden">
                           {job.propertyImage ? (

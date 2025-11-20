@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2, Send } from "lucide-react";
+import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2, Send, Edit, X } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
+import EditAppointmentModal from "@/components/modals/EditAppointmentModal";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +40,8 @@ export default function Jobs() {
   const [renamingJob, setRenamingJob] = useState<{ id: string; currentName: string } | null>(null);
   const [newImageName, setNewImageName] = useState("");
   const [deliveryModalJob, setDeliveryModalJob] = useState<any>(null);
+  const [editingJob, setEditingJob] = useState<any>(null);
+  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const { toast } = useToast();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
@@ -54,14 +58,14 @@ export default function Jobs() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
       case 'delivered':
         return 'bg-green-50 text-green-700 border-green-200';
       case 'booked':
-      case 'scheduled':
         return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'in_progress':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'pending':
+        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      case 'on_hold':
+        return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'cancelled':
         return 'bg-red-50 text-red-700 border-red-200';
       default:
@@ -69,9 +73,32 @@ export default function Jobs() {
     }
   };
 
+  const formatStatusForDisplay = (status: string) => {
+    if (!status) return 'Booked';
+    const statusMap: Record<string, string> = {
+      'booked': 'Booked',
+      'pending': 'Pending',
+      'on_hold': 'On Hold',
+      'delivered': 'Delivered',
+      'cancelled': 'Cancelled'
+    };
+    return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+  };
+
   const getCustomerName = (customerId: string) => {
     const customer = customers.find((c: any) => c.id === customerId);
     return customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer';
+  };
+
+  const getAssignedUser = (assignedToId: string | null | undefined) => {
+    if (!assignedToId) return null;
+    return users.find((u: any) => u.id === assignedToId);
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    const first = firstName?.[0] || '';
+    const last = lastName?.[0] || '';
+    return `${first}${last}`.toUpperCase();
   };
 
   const formatDate = (dateString: string) => {
@@ -159,6 +186,41 @@ export default function Jobs() {
     }
   };
 
+  // Cancel appointment mutation
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const response = await apiRequest(`/api/jobs/${jobId}`, "PATCH", {
+        status: "cancelled"
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      toast({
+        title: "Appointment Cancelled",
+        description: "The appointment has been cancelled successfully.",
+      });
+      setCancellingJobId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel appointment",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCancelAppointment = () => {
+    if (cancellingJobId) {
+      if (confirm('Are you sure you want to cancel this appointment?')) {
+        cancelAppointmentMutation.mutate(cancellingJobId);
+      } else {
+        setCancellingJobId(null);
+      }
+    }
+  };
+
   // Sort jobs: newest first (by creation date)
   const sortedJobs = [...jobs].sort((a, b) => {
     const dateA = new Date(a.createdAt || 0).getTime();
@@ -186,7 +248,7 @@ export default function Jobs() {
     return true;
   });
 
-  const successfulJobsCount = jobs.filter(j => j.status === 'completed' || j.status === 'delivered').length;
+  const successfulJobsCount = jobs.filter(j => j.status === 'delivered').length;
 
   // Get unique statuses for filter
   const uniqueStatuses = Array.from(new Set(jobs.map(j => j.status).filter(Boolean)));
@@ -263,7 +325,7 @@ export default function Jobs() {
                 <SelectItem value="all">All Statuses</SelectItem>
                 {uniqueStatuses.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status === 'completed' ? 'Delivered' : status === 'scheduled' ? 'Booked' : status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+                    {formatStatusForDisplay(status)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -420,7 +482,7 @@ export default function Jobs() {
                       variant="outline" 
                       className={`${getStatusColor(job.status || 'booked')} border-0 rounded-lg px-3 py-1.5 text-xs font-semibold`}
                     >
-                      {job.status === 'completed' ? 'Delivered' : job.status === 'scheduled' ? 'Booked' : job.status || 'Booked'}
+                      {formatStatusForDisplay(job.status || 'booked')}
                     </Badge>
                     
                     <div className="text-lg font-bold text-rpp-grey-dark min-w-[90px] text-right">
@@ -429,47 +491,89 @@ export default function Jobs() {
 
                     {/* Team member avatars */}
                     <div className="flex -space-x-2">
+                      {/* Customer avatar */}
                       <div className="w-8 h-8 rounded-full bg-rpp-red-main border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
                         {getCustomerName(job.customerId).split(' ').map(n => n[0]).join('')}
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
-                        SJ
-                      </div>
+                      {/* Assigned team member avatar */}
+                      {(() => {
+                        const assignedUser = getAssignedUser(job.assignedTo);
+                        if (assignedUser) {
+                          return (
+                            <Avatar className="w-8 h-8 border-2 border-white">
+                              {assignedUser.profileImage ? (
+                                <AvatarImage 
+                                  src={assignedUser.profileImage} 
+                                  alt={`${assignedUser.firstName} ${assignedUser.lastName}`}
+                                  className="object-cover"
+                                />
+                              ) : null}
+                              <AvatarFallback className="bg-blue-500 text-white text-xs font-semibold">
+                                {getInitials(assignedUser.firstName, assignedUser.lastName)}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        }
+                        // Placeholder when no user is assigned
+                        return (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center">
+                            <User className="w-4 h-4 text-gray-500" />
+                          </div>
+                        );
+                      })()}
                     </div>
 
-                    {/* Deliver Button - Only show for completed jobs */}
-                    {job.status === 'completed' && (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeliveryModalJob(job);
-                        }}
-                        className="from-primary to-primary/90 hover:shadow-lg transition-shadow bg-[#f05a2a]"
-                        size="sm"
-                        data-testid={`button-deliver-${job.id}`}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Deliver
-                      </Button>
-                    )}
+                    {/* Action Menu - Show for all jobs */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`button-menu-${job.id}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        {/* Deliver option - only show for completed jobs */}
+                        {job.status === 'delivered' && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeliveryModalJob(job);
+                            }}
+                            data-testid={`button-deliver-${job.id}`}
+                          >
+                            <Send className="h-4 w-4 mr-2" />
+                            Deliver
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingJob(job);
+                          }}
+                          data-testid={`button-edit-${job.id}`}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Appointment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCancellingJobId(job.id);
+                          }}
+                          className="text-red-600 focus:text-red-600"
+                          data-testid={`button-cancel-${job.id}`}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancel Appointment
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-rpp-grey-light hover:text-rpp-grey-dark h-8 w-8 p-0"
-                      data-testid={`button-menu-${job.id}`}
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </Button>
-
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-rpp-grey-light hover:text-rpp-grey-dark h-8 w-8 p-0"
-                      data-testid={`button-expand-${job.id}`}
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -571,6 +675,47 @@ export default function Jobs() {
             />
           );
         })()}
+
+        {/* Edit Appointment Modal */}
+        {editingJob && (
+          <EditAppointmentModal
+            appointment={editingJob}
+            onClose={() => setEditingJob(null)}
+            onSave={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+              setEditingJob(null);
+            }}
+          />
+        )}
+
+        {/* Cancel Appointment Confirmation Dialog */}
+        <Dialog open={!!cancellingJobId} onOpenChange={(open) => !open && setCancellingJobId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel Appointment</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to cancel this appointment? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setCancellingJobId(null)}
+                data-testid="button-cancel-dialog-cancel"
+              >
+                No, Keep Appointment
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelAppointment}
+                disabled={cancelAppointmentMutation.isPending}
+                data-testid="button-cancel-dialog-confirm"
+              >
+                {cancelAppointmentMutation.isPending ? "Cancelling..." : "Yes, Cancel Appointment"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

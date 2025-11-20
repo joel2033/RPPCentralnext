@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Activity, User, Upload, Download, FileText, CheckCircle, Clock, AlertCircle, UserPlus, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, orderBy, onSnapshot, Query } from "firebase/firestore";
@@ -35,6 +36,7 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isOpen, setIsOpen] = useState(true); // Default to open
   const { userData } = useAuth();
 
   useEffect(() => {
@@ -214,19 +216,30 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
   }
 
   return (
-    <Card className={className} data-testid="activity-timeline">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Activity className="h-5 w-5 mr-2" />
-          Activity
-        </CardTitle>
-        {activities.length > 0 && (
-          <div className="text-sm text-gray-500">
-            {activities.length} {activities.length === 1 ? 'activity' : 'activities'}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className={className} data-testid="activity-timeline">
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <CardTitle className="flex items-center">
+                  <Activity className="h-5 w-5 mr-2" />
+                  Activity
+                </CardTitle>
+                {activities.length > 0 && (
+                  <div className="text-sm text-gray-500">
+                    {activities.length} {activities.length === 1 ? 'activity' : 'activities'}
+                  </div>
+                )}
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+              />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent>
         {activities.length === 0 ? (
           <div className="text-center py-6" data-testid="no-activities">
             <Activity className="h-8 w-8 mx-auto text-gray-400 mb-2" />
@@ -307,6 +320,8 @@ export default function ActivityTimeline({ jobId, orderId, className }: Activity
           </div>
         )}
       </CardContent>
+        </CollapsibleContent>
     </Card>
+    </Collapsible>
   );
 }

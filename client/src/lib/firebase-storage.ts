@@ -24,7 +24,8 @@ export const uploadFileToFirebase = async (
   orderNumber: string,
   onProgress?: (progress: UploadProgress) => void,
   folderToken?: string,
-  folderPath?: string
+  folderPath?: string,
+  uploadType?: 'client' | 'completed'
 ): Promise<{ url: string; path: string }> => {
   try {
     console.log(`Starting server-side Firebase upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)...`);
@@ -42,18 +43,23 @@ export const uploadFileToFirebase = async (
     formData.append('file', file);
     formData.append('userId', userId);
     formData.append('jobId', jobId);
-    
+
     // Only append orderNumber if it's provided (not needed for standalone folders with folderToken)
     if (orderNumber) {
       formData.append('orderNumber', orderNumber);
     }
-    
+
     // Add folder token and path if provided (for standalone folders)
     if (folderToken) {
       formData.append('folderToken', folderToken);
     }
     if (folderPath) {
       formData.append('folderPath', folderPath);
+    }
+
+    // Add uploadType to distinguish between client (for editing) and completed (deliverables)
+    if (uploadType) {
+      formData.append('uploadType', uploadType);
     }
 
     // Upload via server to avoid CORS issues

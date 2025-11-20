@@ -10,15 +10,15 @@ import { RevenueChart } from "@/components/RevenueChart";
 
 export default function Dashboard() {
   const { userData } = useAuth();
-  const { data: stats } = useQuery<{jobs: number, sales: string, orders: number}>({
+  const { data: stats, isLoading: statsLoading } = useQuery<{jobs: number, sales: string, orders: number}>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: jobs = [] } = useQuery<any[]>({
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [] } = useQuery<any[]>({
+  const { data: customers = [], isLoading: customersLoading } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 
@@ -27,11 +27,11 @@ export default function Dashboard() {
   });
 
 
-  // Calculate stats from actual data
-  const activeProjects = stats?.jobs || 24;
-  const totalLeads = customers.length || 1248;
-  const monthlyRevenue = parseFloat(stats?.sales || "29.8").toFixed(1);
-  const activeClients = customers.length || 42;
+  // Calculate stats from actual data - no placeholders
+  const activeProjects = stats?.jobs;
+  const totalOrders = stats?.orders;
+  const monthlyRevenue = stats?.sales ? parseFloat(stats.sales).toFixed(1) : undefined;
+  const activeClients = customers.length > 0 ? customers.length : undefined;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -48,39 +48,43 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
             title="JOBS"
-            value={activeProjects.toString()}
+            value={activeProjects?.toString()}
             change="+12%"
             changeType="positive"
             icon={FolderOpen}
             iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
             iconColor="text-rpp-red-main"
+            isLoading={statsLoading}
           />
           <StatsCard
             title="ORDERS"
-            value={totalLeads.toString()}
+            value={totalOrders?.toString()}
             change="+23%"
             changeType="positive"
             icon={Users}
             iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
             iconColor="text-support-green"
+            isLoading={statsLoading}
           />
           <StatsCard
             title="REVENUE"
-            value={`$${monthlyRevenue}`}
+            value={monthlyRevenue ? `$${monthlyRevenue}` : undefined}
             change="+8%"
             changeType="positive"
             icon={DollarSign}
             iconBgColor="bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light"
             iconColor="text-rpp-red-main"
+            isLoading={statsLoading}
           />
           <StatsCard
             title="ACTIVE CLIENTS"
-            value={activeClients.toString()}
+            value={activeClients?.toString()}
             change="+5%"
             changeType="positive"
             icon={UserCheck}
             iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
             iconColor="text-support-green"
+            isLoading={customersLoading}
           />
         </div>
 

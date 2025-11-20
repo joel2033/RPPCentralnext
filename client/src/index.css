@@ -24,6 +24,17 @@
   --ring: hsl(13, 88%, 56%);
   --radius: 1rem;
 
+  /* Typography tokens */
+  --font-size: 16px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
   /* RPP Brand Colors - Exact match to Figma specs */
   --rpp-red: hsl(13, 88%, 56%);
   --rpp-red-main: hsl(13, 88%, 56%);
@@ -77,11 +88,52 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: var(--font-size);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--foreground);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+  }
+
+  h4 {
+    font-size: var(--text-base);
+  }
+
+  p {
+    color: var(--foreground);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
   }
 }
 
 @layer utilities {
+  /* Hide scrollbar for time picker wheels */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
   /* RPP Brand Background Colors */
   .bg-rpp-red { background-color: var(--rpp-red); }
   .bg-rpp-red-dark { background-color: var(--rpp-red-dark); }
@@ -160,7 +212,6 @@
 .modal-backdrop { 
   backdrop-filter: blur(4px); 
 }
-
 .nav-item.active {
   background-color: var(--rpp-red-palest) !important;
   color: var(--rpp-red-main) !important;
@@ -171,3 +222,4 @@
 .nav-item.active .lucide {
   color: var(--rpp-red-main) !important;
 }
+

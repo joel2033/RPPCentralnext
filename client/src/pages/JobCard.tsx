@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { useParams, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useParams, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send, Star, Pencil } from "lucide-react";
 import { format } from "date-fns";
+import { getAuth } from "firebase/auth";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import FileGallery from "@/components/FileGallery";
@@ -14,12 +16,15 @@ import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
+const auth = getAuth();
+
 interface JobCardData {
   id: string;
   jobId: string;
   deliveryToken?: string;
   partnerId: string;
   address: string;
+  jobName?: string;
   customerId?: string;
   totalValue?: string;
   status?: string;
@@ -48,10 +53,47 @@ export default function JobCard() {
   const jobId = params.jobId;
   const { toast } = useToast();
   const [deliveryModalJob, setDeliveryModalJob] = useState<JobCardData | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
     enabled: !!jobId,
+  });
+
+  // Mutation to update job name
+  const updateJobNameMutation = useMutation({
+    mutationFn: async (newName: string) => {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch(`/api/jobs/${jobData?.id}/name`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ jobName: newName }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update job name");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+      toast({
+        title: "Success",
+        description: "Job name updated successfully!",
+      });
+      setIsEditingName(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update job name",
+        variant: "destructive",
+      });
+    },
   });
 
   const { data: completedFilesData, isLoading: isFilesLoading } = useQuery<{
@@ -73,6 +115,36 @@ export default function JobCard() {
     queryKey: [`/api/jobs/${jobId}/completed-files`],
     enabled: !!jobId,
   });
+
+  // Helper functions for editable job name
+  const customerProfileId = jobData?.customer?.id ?? jobData?.customerId ?? null;
+
+  const handleStartEdit = () => {
+    setEditNameValue(jobData?.jobName || jobData?.address || "");
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    const trimmedValue = editNameValue.trim();
+    if (trimmedValue && trimmedValue !== (jobData?.jobName || jobData?.address)) {
+      updateJobNameMutation.mutate(trimmedValue);
+    } else {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditNameValue("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSaveName();
+    } else if (e.key === "Escape") {
+      handleCancelEdit();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -117,12 +189,33 @@ export default function JobCard() {
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'scheduled': return 'bg-blue-100 text-blue-800';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
+      case 'booked': return 'bg-purple-100 text-purple-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'on_hold': return 'bg-orange-100 text-orange-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const formatStatusForDisplay = (status?: string) => {
+    if (!status) return 'Booked';
+    const statusMap: Record<string, string> = {
+      'booked': 'Booked',
+      'pending': 'Pending',
+      'on_hold': 'On Hold',
+      'delivered': 'Delivered',
+      'cancelled': 'Cancelled'
+    };
+    return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+  };
+
+  const clientReview = {
+    rating: 5,
+    title: "Excellent",
+    quote: "Absolutely stunning work! The ocean view shots are breathtaking and the twilight photos captured the property perfectly. Very professional service and exceeded our expectations. Will definitely use again for future listings.",
+    reviewer: "Michael Anderson",
+    reviewedOn: "October 15, 2025"
   };
 
   return (
@@ -138,8 +231,27 @@ export default function JobCard() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Jobs
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Job Details</h1>
+          <div className="group relative">
+            {isEditingName ? (
+              <Input
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleSaveName}
+                autoFocus
+                className="text-2xl font-bold h-auto py-1 px-2 border-2 border-blue-500 focus-visible:ring-0"
+                data-testid="input-job-name"
+              />
+            ) : (
+              <h1
+                onClick={handleStartEdit}
+                className="text-lg font-medium cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                data-testid="heading-job-name"
+              >
+                {jobData.jobName || jobData.address}
+                <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </h1>
+            )}
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -188,7 +300,7 @@ export default function JobCard() {
               size="sm"
               className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
               data-testid="button-delivery"
-              disabled={jobData.status !== 'completed'}
+              disabled={jobData.status !== 'delivered'}
               onClick={(e) => {
                 e.stopPropagation();
                 const token = jobData.deliveryToken || jobData.jobId;
@@ -201,30 +313,14 @@ export default function JobCard() {
             </Button>
           </div>
           <Badge className={getStatusColor(jobData.status)}>
-            {jobData.status || 'scheduled'}
+            {formatStatusForDisplay(jobData.status)}
           </Badge>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Map Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <MapPin className="h-5 w-5 mr-2" />
-                Property Location
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <p className="text-gray-600 font-medium mb-3">{jobData.address}</p>
-                <GoogleMapEmbed address={jobData.address} height="300px" />
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Completed Files Gallery */}
           <Card>
             <CardHeader>
@@ -245,10 +341,32 @@ export default function JobCard() {
               )}
             </CardContent>
           </Card>
+
+          {/* Activity Timeline */}
+          <ActivityTimeline jobId={jobData.jobId} />
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Property Location */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <MapPin className="h-5 w-5 mr-2" />
+                Property Location
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-gray-600 font-medium">{jobData.address}</p>
+                <GoogleMapEmbed address={jobData.address} />
+                <Button variant="outline" size="sm" className="w-full">
+                  View Larger Map
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Customer Section */}
           <Card>
             <CardHeader>
@@ -278,8 +396,16 @@ export default function JobCard() {
                   {jobData.customer.phone && (
                     <p className="text-sm text-gray-600">{jobData.customer.phone}</p>
                   )}
-                  <Button variant="outline" size="sm" className="w-full">
-                    View Profile
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    asChild
+                    disabled={!customerProfileId}
+                  >
+                    <Link href={customerProfileId ? `/customers/${customerProfileId}` : "#"}>
+                      View Profile
+                    </Link>
                   </Button>
                 </div>
               ) : (
@@ -345,8 +471,31 @@ export default function JobCard() {
             </CardContent>
           </Card>
 
-          {/* Activity Timeline */}
-          <ActivityTimeline jobId={jobData.jobId} />
+          {/* Client Review */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Star className="h-5 w-5 mr-2 text-[#f7b500]" />
+                Client Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-1 text-[#f7b500]">
+                {Array.from({ length: clientReview.rating }).map((_, index) => (
+                  <Star key={index} className="h-4 w-4 text-[#f7b500]" fill="currentColor" />
+                ))}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{clientReview.title}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  “{clientReview.quote}”
+                </p>
+              </div>
+              <div className="text-xs text-gray-500">
+                Reviewed by {clientReview.reviewer} on {clientReview.reviewedOn}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 

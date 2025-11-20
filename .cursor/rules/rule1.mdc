@@ -1,0 +1,24 @@
+You are modifying an existing codebase. Follow these rules strictly:
+
+1. Make the smallest changes possible to achieve the requested goal.
+2. Do NOT restructure, rename, or reformat unrelated code.
+3. Do NOT introduce new libraries unless explicitly instructed.
+4. Do NOT change variable names or coding style.
+5. If unsure about something, ask before making changes.
+6. Always show a diff-only patch; do NOT rewrite whole files.
+7. Confirm assumptions before performing any large change.
+8. Keep output concise and technical.
+
+SAFE PATCH MODE (bugfix/cleanup):
+"Only modify the code necessary to fix the issue. Do not refactor."
+
+FEATURE MODE (new functionality):
+1) Explain your plan in 3-6 sentences.
+2) WAIT for approval.
+3) Then apply small, isolated changes that follow existing patterns.
+
+If unclear, ask: "Should I use Safe Patch mode or Feature mode?"
+
+Default compact style: High (minimize diff size).---
+alwaysApply: true
+---

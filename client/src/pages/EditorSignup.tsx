@@ -58,7 +58,7 @@ export default function EditorSignup() {
 
     try {
       // Create the user account
-      const userData = await signUpUser(formData.email, formData.password);
+      const userData = await signUpUser(formData.email, formData.password, formData.businessName);
       
       // Save editor profile data via backend API
       const response = await fetch('/api/auth/editor-signup', {

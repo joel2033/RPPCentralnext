@@ -1,20 +1,24 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
+import { useRealtimeEditorUploads } from "@/hooks/useFirestoreRealtime";
 
 interface CompletedFile {
   id: string;
@@ -76,6 +80,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
   const [showFolderContent, setShowFolderContent] = useState(false);
   const [selectedFolderData, setSelectedFolderData] = useState<FolderData | null>(null);
+  const [folderHierarchy, setFolderHierarchy] = useState<FolderData[]>([]);
   // Partner upload functionality
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedUploadFolder, setSelectedUploadFolder] = useState<string>('');
@@ -84,6 +89,25 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   // New content section creation
   const [showNewContentSection, setShowNewContentSection] = useState(false);
   const [newContentSectionName, setNewContentSectionName] = useState('');
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState<{ folderPath: string; folderName: string } | null>(null);
+  const [showDeleteFileConfirm, setShowDeleteFileConfirm] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<CompletedFile | null>(null);
+  // Track deleted file IDs for instant UI updates
+  const [deletedFileIds, setDeletedFileIds] = useState<Set<string>>(new Set());
+  // Download state
+  const [downloadingFolder, setDownloadingFolder] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState({
+    isOpen: false,
+    stage: 'idle' as 'idle' | 'creating' | 'downloading' | 'complete',
+    progress: 0,
+    filesProcessed: 0,
+    totalFiles: 0,
+    bytesReceived: 0,
+    totalBytes: 0,
+    folderName: ''
+  });
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   
@@ -91,7 +115,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const queryClient = useQueryClient();
   const { userData: user } = useAuth();
 
-  // Fetch folders for this job
+  // Get job data to access internal ID for real-time listeners
+  const { data: jobData } = useQuery({
+    queryKey: ['/api/jobs/card', jobId],
+    enabled: !!jobId,
+    select: (data: any) => data?.id, // Only get the internal ID
+  });
+
+  // Real-time listener for editor uploads (requires internal job ID)
+  const internalJobId = jobData;
+  const { uploads: realtimeUploads, loading: isRealtimeLoading } = useRealtimeEditorUploads(internalJobId || null);
+
+  // Fetch folders for this job (fallback to REST API, synced with real-time listeners)
   const { data: foldersData, isLoading: isFoldersLoading, refetch: refetchFolders } = useQuery<FolderData[]>({
     queryKey: ['/api/jobs', jobId, 'folders'],
     enabled: !!jobId,
@@ -100,14 +135,59 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     refetchOnMount: 'always', // Always refetch when component mounts
   });
 
+  // Refetch function for completed files (to trigger parent refetch)
+  const refetchCompletedFiles = () => {
+    queryClient.invalidateQueries({ 
+      queryKey: [`/api/jobs/${jobId}/completed-files`],
+      exact: false 
+    });
+  };
+
+  // Sync real-time uploads with folders query - only when uploads actually change
+  const prevUploadsCountRef = React.useRef<number>(0);
+  React.useEffect(() => {
+    const currentCount = realtimeUploads.length;
+    // Only invalidate if the count changed (file added or removed)
+    if (prevUploadsCountRef.current !== currentCount && prevUploadsCountRef.current > 0) {
+      // When real-time uploads change, invalidate folders to trigger refetch
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+    }
+    prevUploadsCountRef.current = currentCount;
+  }, [realtimeUploads.length, jobId, queryClient]);
+
+  // Clear deleted file IDs when real-time listener confirms deletion
+  React.useEffect(() => {
+    if (deletedFileIds.size > 0 && realtimeUploads.length > 0) {
+      // Check if any deleted file IDs are no longer in real-time uploads
+      const realtimeUploadIds = new Set(realtimeUploads.map(upload => upload.id));
+
+      // Remove file IDs that are confirmed deleted by real-time listener
+      setDeletedFileIds(prev => {
+        const next = new Set(prev);
+        let hasChanges = false;
+        prev.forEach(id => {
+          if (!realtimeUploadIds.has(id)) {
+            next.delete(id); // Real-time listener confirmed it's deleted
+            hasChanges = true;
+          }
+        });
+        // Only return new Set if there were actual changes to avoid infinite loops
+        return hasChanges ? next : prev;
+      });
+    }
+  }, [realtimeUploads, deletedFileIds]);
+
   // Debug: Log folders data when it changes
   console.log('[FileGallery] Folders data:', foldersData);
 
   // Mutation for creating folders
   const createFolderMutation = useMutation({
     mutationFn: async ({ partnerFolderName }: { partnerFolderName: string }) => {
-      const folderPath = parentFolderPath ? `${parentFolderPath}/${partnerFolderName}` : partnerFolderName;
-      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', { partnerFolderName: folderPath });
+      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', {
+        partnerFolderName,
+        parentFolderPath: parentFolderPath || undefined
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
@@ -171,6 +251,100 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       toast({
         title: "Failed to delete folder",
         description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting individual files with optimistic updates
+  const deleteFileMutation = useMutation({
+    mutationFn: async ({ fileId, downloadUrl }: { fileId: string; downloadUrl: string }) => {
+      return apiRequest(`/api/jobs/${jobId}/files/${fileId}`, 'DELETE');
+    },
+    onMutate: async ({ fileId, downloadUrl }) => {
+      // IMMEDIATELY add to deleted set for instant UI update
+      setDeletedFileIds(prev => new Set(prev).add(fileId));
+
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      await queryClient.cancelQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+
+      // Snapshot the previous values
+      const previousFolders = queryClient.getQueryData<FolderData[]>(['/api/jobs', jobId, 'folders']);
+      const previousCompletedFiles = queryClient.getQueryData<{ completedFiles: CompletedFilesGroup[] }>([`/api/jobs/${jobId}/completed-files`]);
+
+      // Optimistically update folders - remove file from all folders
+      if (previousFolders) {
+        const updatedFolders = previousFolders.map(folder => ({
+          ...folder,
+          files: folder.files.filter(file => file.id !== fileId),
+          fileCount: folder.files.filter(file => file.id !== fileId).length
+        })).filter(folder => folder.fileCount > 0 || folder.folderPath); // Keep folders even if empty
+        queryClient.setQueryData<FolderData[]>(['/api/jobs', jobId, 'folders'], updatedFolders);
+      }
+
+      // Optimistically update completed files
+      if (previousCompletedFiles) {
+        const updatedCompletedFiles = previousCompletedFiles.completedFiles.map(group => ({
+          ...group,
+          files: group.files.filter(file => file.id !== fileId)
+        })).filter(group => group.files.length > 0);
+        queryClient.setQueryData<{ completedFiles: CompletedFilesGroup[] }>([`/api/jobs/${jobId}/completed-files`], {
+          completedFiles: updatedCompletedFiles
+        });
+      }
+
+      // Close image modal if it was showing the deleted file
+      if (selectedImage && selectedImage === downloadUrl) {
+        setSelectedImage(null);
+      }
+
+      // Show immediate feedback
+      toast({
+        title: "Deleting file...",
+        description: "File will be removed shortly.",
+      });
+
+      return { previousFolders, previousCompletedFiles };
+    },
+    onSuccess: async (_, variables) => {
+      // Don't invalidate immediately - let the real-time listener handle it
+      // The deletedFileIds set keeps the UI updated while we wait for Firestore
+
+      // After a short delay, invalidate queries to ensure consistency
+      // This gives Firestore time to propagate the deletion
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'], exact: false });
+        queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`], exact: false });
+      }, 500);
+
+      toast({
+        title: "File deleted successfully",
+        description: "The file has been permanently removed.",
+      });
+
+      setShowDeleteFileConfirm(false);
+      setFileToDelete(null);
+    },
+    onError: (error, variables, context) => {
+      // Remove from deleted set to restore the file in UI
+      setDeletedFileIds(prev => {
+        const next = new Set(prev);
+        next.delete(variables.fileId);
+        return next;
+      });
+
+      // Rollback on error
+      if (context?.previousFolders) {
+        queryClient.setQueryData(['/api/jobs', jobId, 'folders'], context.previousFolders);
+      }
+      if (context?.previousCompletedFiles) {
+        queryClient.setQueryData([`/api/jobs/${jobId}/completed-files`], context.previousCompletedFiles);
+      }
+      
+      toast({
+        title: "Failed to delete file",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     },
@@ -284,6 +458,35 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   }
 
   // Helper functions
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const buildFolderHierarchy = (folderPath: string, allFolders?: FolderData[]): FolderData[] => {
+    if (!allFolders || allFolders.length === 0) return [];
+
+    const hierarchy: FolderData[] = [];
+    const pathSegments = folderPath.split('/');
+
+    // Build cumulative paths and find each folder in the chain
+    // For path like "completed/job123/folders/abc/def", we check:
+    // - completed/job123/folders/abc (parent)
+    // - completed/job123/folders/abc/def (current)
+    for (let i = 1; i <= pathSegments.length; i++) {
+      const currentPath = pathSegments.slice(0, i).join('/');
+      const folder = allFolders.find(f => f.folderPath === currentPath);
+      if (folder) {
+        hierarchy.push(folder);
+      }
+    }
+
+    return hierarchy;
+  };
+
   const handleCreateFolder = (parentPath?: string) => {
     setParentFolderPath(parentPath || null);
     setNewFolderName('');
@@ -293,6 +496,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const handleEnterFolder = (folderPath: string) => {
     const folder = foldersData?.find(f => f.folderPath === folderPath);
     if (folder) {
+      // Build the full hierarchy from root to this folder
+      const hierarchy = buildFolderHierarchy(folderPath, foldersData);
+      setFolderHierarchy(hierarchy);
       setSelectedFolderData(folder);
       setShowFolderContent(true);
     } else {
@@ -301,9 +507,24 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   };
 
   const handleBackToParent = () => {
-    if (showFolderContent) {
+    if (showFolderContent && folderHierarchy.length > 0) {
+      if (folderHierarchy.length === 1) {
+        // Back to root - exit folder content view
+        setShowFolderContent(false);
+        setSelectedFolderData(null);
+        setFolderHierarchy([]);
+      } else {
+        // Back to parent folder - remove last item from hierarchy
+        const newHierarchy = folderHierarchy.slice(0, -1);
+        const parentFolder = newHierarchy[newHierarchy.length - 1];
+        setFolderHierarchy(newHierarchy);
+        setSelectedFolderData(parentFolder);
+      }
+    } else if (showFolderContent) {
+      // Fallback for folders without hierarchy
       setShowFolderContent(false);
       setSelectedFolderData(null);
+      setFolderHierarchy([]);
     } else if (currentFolderPath) {
       const parentPath = currentFolderPath.split('/').slice(0, -1).join('/');
       setCurrentFolderPath(parentPath || null);
@@ -311,8 +532,12 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   };
 
   const getBreadcrumbs = () => {
-    if (showFolderContent && selectedFolderData) {
-      return ['All Folders', selectedFolderData.partnerFolderName || selectedFolderData.editorFolderName];
+    if (showFolderContent && folderHierarchy.length > 0) {
+      // Show full hierarchy: All Folders / Parent / Subfolder / ...
+      return [
+        'All Folders',
+        ...folderHierarchy.map(f => f.partnerFolderName || f.editorFolderName)
+      ];
     }
     if (!currentFolderPath) return ['All Folders'];
     return ['All Folders', ...currentFolderPath.split('/')];
@@ -320,16 +545,71 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   const getFoldersToShow = () => {
     if (!Array.isArray(foldersData)) return [];
-    
+
+    // Helper function to filter deleted files from a folder
+    const filterDeletedFiles = (folder: FolderData): FolderData => {
+      const filteredFiles = folder.files.filter(file => !deletedFileIds.has(file.id));
+      return {
+        ...folder,
+        files: filteredFiles,
+        fileCount: filteredFiles.length
+      };
+    };
+
     if (!currentFolderPath) {
       // Show root level folders only
-      return foldersData.filter(folder => !folder.folderPath.includes('/'));
+      // Three types of root folders:
+      // 1. Partner folders (root): completed/{jobId}/folders/{token} (4 segments)
+      // 2. Editor folders (new format): completed/{jobId}/{orderNumber}/{folderName} (3-4 segments)
+      // 3. Editor folders (legacy format): Just the folder name like "Photos" (1 segment, no path)
+      //
+      // Nested folders will have 5+ segments (e.g., completed/{jobId}/folders/{parentToken}/{childToken})
+      const filtered = foldersData.filter(folder => {
+        const segments = folder.folderPath.split('/');
+
+        console.log('[FileGallery] Checking folder:', {
+          folderPath: folder.folderPath,
+          segments: segments,
+          segmentCount: segments.length,
+          editorFolderName: folder.editorFolderName,
+          partnerFolderName: folder.partnerFolderName
+        });
+
+        // Partner folder (root): completed/{jobId}/folders/{token} - EXACTLY 4 segments
+        if (segments.length === 4 && segments[0] === 'completed' && segments[2] === 'folders') {
+          console.log('[FileGallery] ✅ Matched as root partner folder');
+          return true;
+        }
+
+        // Editor folder structure (new): completed/{jobId}/{orderNumber}/{folderName} (3-4 segments)
+        if (segments.length >= 3 && segments[0] === 'completed' && segments[2] !== 'folders') {
+          const isRoot = segments.length === 3 || segments.length === 4;
+          console.log('[FileGallery]', isRoot ? '✅ Matched as editor folder (new format)' : '❌ Not a root editor folder');
+          return isRoot;
+        }
+
+        // Editor folder structure (legacy): Simple folder name like "Photos"
+        // These don't have the completed/{jobId} prefix
+        if (segments.length === 1 && folder.editorFolderName) {
+          console.log('[FileGallery] ✅ Matched as editor folder (legacy format)');
+          return true;
+        }
+
+        console.log('[FileGallery] ❌ Does not match any folder type (likely a subfolder)');
+        return false;
+      });
+
+      console.log('[FileGallery] Total folders:', foldersData.length, 'Filtered to show:', filtered.length);
+      // Filter deleted files from each folder
+      return filtered.map(filterDeletedFiles);
     } else {
       // Show subfolders of current path
-      return foldersData.filter(folder => 
+      const subfolders = foldersData.filter(folder =>
         folder.folderPath.startsWith(currentFolderPath + '/') &&
         folder.folderPath.split('/').length === currentFolderPath.split('/').length + 1
       );
+      // Filter deleted files from each subfolder
+      return subfolders.map(filterDeletedFiles);
     }
   };
 
@@ -350,8 +630,153 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       return;
     }
 
-    if (confirm(`Are you sure you want to delete the folder "${folderName}"? This will permanently remove all files in this folder.`)) {
-      deleteFolderMutation.mutate({ folderPath });
+    // Show confirmation modal
+    setFolderToDelete({ folderPath, folderName });
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteFolder = () => {
+    if (folderToDelete) {
+      deleteFolderMutation.mutate({ folderPath: folderToDelete.folderPath });
+      setShowDeleteConfirm(false);
+      setFolderToDelete(null);
+    }
+  };
+
+  const handleDownloadAll = async (folder: FolderData) => {
+    // Check if folder has files
+    if (folder.fileCount === 0) {
+      toast({
+        title: "Empty folder",
+        description: "This folder has no files to download.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Open progress dialog
+    setDownloadProgress({
+      isOpen: true,
+      stage: 'creating',
+      progress: 0,
+      filesProcessed: 0,
+      totalFiles: 0,
+      bytesReceived: 0,
+      totalBytes: 0,
+      folderName: folder.partnerFolderName || folder.editorFolderName || 'folder'
+    });
+
+    try {
+      // Step 1: Listen to SSE for zip creation progress
+      const token = await auth.currentUser?.getIdToken();
+      const eventSource = new EventSource(
+        `/api/jobs/${jobId}/folders/download/progress?folderPath=${encodeURIComponent(folder.folderPath)}&token=${token}`
+      );
+
+      await new Promise((resolve, reject) => {
+        eventSource.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+
+          if (data.stage === 'error') {
+            eventSource.close();
+            reject(new Error(data.message));
+          } else if (data.stage === 'complete') {
+            eventSource.close();
+            setDownloadProgress(prev => ({ ...prev, totalBytes: data.totalBytes }));
+            resolve(data);
+          } else if (data.stage === 'creating') {
+            setDownloadProgress(prev => ({
+              ...prev,
+              progress: data.progress,
+              filesProcessed: data.filesProcessed,
+              totalFiles: data.totalFiles
+            }));
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          reject(new Error('Connection lost'));
+        };
+      });
+
+      // Step 2: Download with ReadableStream for download progress
+      setDownloadProgress(prev => ({ ...prev, stage: 'downloading', progress: 0 }));
+
+      const response = await fetch(
+        `/api/jobs/${jobId}/folders/download?folderPath=${encodeURIComponent(folder.folderPath)}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+
+      if (!response.ok) throw new Error('Download failed');
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Unable to read response');
+
+      const contentLength = +(response.headers.get('Content-Length') || '0');
+      let receivedLength = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        const downloadProgressPercent = contentLength > 0 ? (receivedLength / contentLength) * 100 : 0;
+        setDownloadProgress(prev => ({
+          ...prev,
+          progress: downloadProgressPercent,
+          bytesReceived: receivedLength
+        }));
+      }
+
+      // Create blob and trigger download
+      const blob = new Blob(chunks);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${folder.partnerFolderName || folder.editorFolderName || 'folder'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Close dialog and show success
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+
+      toast({
+        title: "Download complete",
+        description: "Your files have been downloaded as a zip file.",
+      });
+
+    } catch (error) {
+      console.error('Download error:', error);
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -542,10 +967,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
-                      toast({
-                        title: "Feature coming soon",
-                        description: "Delete functionality will be available in a future update.",
-                      });
+                      setFileToDelete(file);
+                      setShowDeleteFileConfirm(true);
                     }}
                     className="text-red-600 focus:text-red-600"
                     data-testid={`menuitem-delete-file-${file.id}`}
@@ -656,7 +1079,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     <div className="space-y-6">
       {/* Header with view toggle and add folder button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Folders</h3>
+        <h3 className="text-base font-normal text-foreground">Folders</h3>
         
         <div className="flex space-x-2">
           <Button 
@@ -744,6 +1167,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                     setCurrentFolderPath(null);
                     setShowFolderContent(false);
                     setSelectedFolderData(null);
+                    setFolderHierarchy([]);
                   }}
                   className="flex items-center space-x-1 hover:text-blue-600 transition-colors"
                   data-testid="breadcrumb-root"
@@ -759,10 +1183,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                       if (showFolderContent && index === getBreadcrumbs().length - 1) {
                         // Already at the folder content, do nothing
                         return;
+                      } else if (showFolderContent && folderHierarchy.length > 0) {
+                        // Navigate to a parent folder in the hierarchy
+                        const targetFolderIndex = index - 1; // Subtract 1 because "All Folders" is at index 0
+                        const targetFolder = folderHierarchy[targetFolderIndex];
+                        const newHierarchy = folderHierarchy.slice(0, targetFolderIndex + 1);
+                        setFolderHierarchy(newHierarchy);
+                        setSelectedFolderData(targetFolder);
                       } else if (showFolderContent) {
                         // Go back to folder list
                         setShowFolderContent(false);
                         setSelectedFolderData(null);
+                        setFolderHierarchy([]);
                       } else {
                         const path = getBreadcrumbs().slice(1, index + 1).join('/');
                         setCurrentFolderPath(path);
@@ -779,7 +1211,16 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           ))}
       </div>
 
-      {showFolderContent && selectedFolderData ? (
+      {showFolderContent && selectedFolderData ? (() => {
+          // Filter out deleted files for instant UI update
+          const filteredFiles = selectedFolderData.files.filter(file => !deletedFileIds.has(file.id));
+          const filteredFolderData = {
+            ...selectedFolderData,
+            files: filteredFiles,
+            fileCount: filteredFiles.length
+          };
+
+          return (
           // Folder Content View
           <div className="space-y-6">
             {/* Folder Header */}
@@ -788,22 +1229,22 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 <Folder className="h-6 w-6 text-blue-600" />
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
-                    {selectedFolderData.partnerFolderName || selectedFolderData.editorFolderName}
+                    {filteredFolderData.partnerFolderName || filteredFolderData.editorFolderName}
                   </h2>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span>{selectedFolderData.fileCount} {selectedFolderData.fileCount === 1 ? 'file' : 'files'}</span>
+                    <span>{filteredFolderData.fileCount} {filteredFolderData.fileCount === 1 ? 'file' : 'files'}</span>
                     {selectedFolderData.orderNumber && (
-                      <Badge variant="outline" className="text-xs">
-                        {selectedFolderData.orderNumber}
-                      </Badge>
+                      <span className="text-sm font-semibold text-rpp-red-main">
+                        #{selectedFolderData.orderNumber}
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
               <div className="flex space-x-2">
-                <Button 
+                <Button
                   onClick={() => setShowUploadModal(true)}
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white"
+                  className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
                   size="sm"
                   data-testid="button-upload-to-folder"
                 >
@@ -823,18 +1264,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             </div>
 
             {/* Subfolders Section */}
-            {foldersData && foldersData.some(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/')) && (
+            {foldersData && foldersData.some(f => f.folderPath.startsWith(filteredFolderData.folderPath + '/')) && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-gray-700">Folders</h3>
                   <span className="text-xs text-gray-500">
-                    {foldersData.filter(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/')).length} folders
+                    {foldersData.filter(f => f.folderPath.startsWith(filteredFolderData.folderPath + '/')).length} folders
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {foldersData
-                    .filter(f => f.folderPath.startsWith(selectedFolderData.folderPath + '/') && 
-                                f.folderPath.split('/').length === selectedFolderData.folderPath.split('/').length + 1)
+                    .filter(f => f.folderPath.startsWith(filteredFolderData.folderPath + '/') && 
+                                f.folderPath.split('/').length === filteredFolderData.folderPath.split('/').length + 1)
                     .map((subfolder) => (
                       <div
                         key={subfolder.folderPath}
@@ -846,7 +1287,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                           onClick={() => handleEnterFolder(subfolder.folderPath)}
                         >
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop()}
+                            {subfolder.partnerFolderName || subfolder.editorFolderName}
                           </p>
                           <p className="text-xs text-gray-500">
                             {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
@@ -873,7 +1314,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   <Button
                     variant="outline"
                     className="h-full min-h-[70px] border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
-                    onClick={() => handleCreateFolder(selectedFolderData.folderPath)}
+                    onClick={() => handleCreateFolder(filteredFolderData.folderPath)}
                   >
                     <div className="text-center">
                       <Plus className="h-5 w-5 mx-auto mb-1 text-gray-400" />
@@ -886,7 +1327,10 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
             {/* Files Section */}
             {(() => {
-              const visibleFiles = selectedFolderData.files.filter(file => !file.fileName.startsWith('.') && file.downloadUrl);
+              const visibleFiles = filteredFolderData.files.filter(file => 
+                !file.fileName.startsWith('.') && 
+                file.downloadUrl
+              );
 
               const handleDragEnter = (e: React.DragEvent) => {
                 e.preventDefault();
@@ -969,7 +1413,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               );
             })()}
           </div>
-        ) : (
+          );
+        })() : (
           // Folder List View
           <div className="space-y-6">
             {foldersToShow.length === 0 ? (
@@ -1022,9 +1467,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         
                         <div className="flex items-center space-x-4">
                           {folder.orderNumber && (
-                            <Badge variant="outline" className="text-xs">
-                              {folder.orderNumber}
-                            </Badge>
+                            <span className="text-sm font-semibold text-rpp-red-main">
+                              #{folder.orderNumber}
+                            </span>
                           )}
                           
                           <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -1070,12 +1515,22 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // TODO: Implement download all functionality
+                                    handleDownloadAll(folder);
                                   }}
+                                  disabled={downloadingFolder === folder.folderPath}
                                   data-testid={`menu-download-all-${folder.folderPath}`}
                                 >
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download All
+                                  {downloadingFolder === folder.folderPath ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Creating zip...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="h-4 w-4 mr-2" />
+                                      Download All
+                                    </>
+                                  )}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={(e) => {
@@ -1127,7 +1582,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
       {/* Image Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-full w-screen h-screen p-0 bg-black border-0 shadow-none m-0">
+        <DialogContent className="max-w-full w-screen h-screen p-0 bg-black border-0 shadow-none m-0 [&>button]:hidden">
           {/* Dark Overlay Background */}
           <div className="absolute inset-0 bg-black" onClick={() => setSelectedImage(null)} />
           
@@ -1393,7 +1848,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               queryClient.refetchQueries({ queryKey: ['/api/jobs', jobId, 'folders'] }),
               queryClient.refetchQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] })
             ]);
-            
+
             // If we were uploading to a specific folder, open it to show the new files
             if (selectedFolderData) {
               // Refetch to get the latest folder data with new files
@@ -1403,7 +1858,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 setSelectedFolderData(updatedFolder);
               }
             }
-            
+
             toast({
               title: "Files uploaded successfully",
               description: `${files.length} file(s) uploaded to the job.`,
@@ -1411,6 +1866,105 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           }}
         />
       )}
+
+      {/* Download Progress Dialog */}
+      <Dialog open={downloadProgress.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {downloadProgress.stage === 'creating' && 'Creating Zip Folder...'}
+              {downloadProgress.stage === 'downloading' && 'Downloading...'}
+            </DialogTitle>
+            <DialogDescription>
+              {downloadProgress.stage === 'creating' && `Preparing ${downloadProgress.folderName} for download...`}
+              {downloadProgress.stage === 'downloading' && `Downloading ${downloadProgress.folderName}...`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {downloadProgress.stage === 'creating' && (
+              <>
+                <Progress value={downloadProgress.progress} className="w-full" />
+                <p className="text-sm text-gray-600 text-center">
+                  Processing {downloadProgress.filesProcessed} / {downloadProgress.totalFiles} files
+                </p>
+              </>
+            )}
+
+            {downloadProgress.stage === 'downloading' && (
+              <>
+                <Progress value={downloadProgress.progress} className="w-full" />
+                <p className="text-sm text-gray-600 text-center">
+                  {formatBytes(downloadProgress.bytesReceived)} / {formatBytes(downloadProgress.totalBytes)}
+                </p>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Folder Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the folder "{folderToDelete?.folderName}" and all files in it.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteConfirm(false);
+              setFolderToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteFolder}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Delete Folder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete File Confirmation Dialog */}
+      <AlertDialog open={showDeleteFileConfirm} onOpenChange={setShowDeleteFileConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the file "{fileToDelete?.originalName}".
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteFileConfirm(false);
+              setFileToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (fileToDelete) {
+                  deleteFileMutation.mutate({ 
+                    fileId: fileToDelete.id,
+                    downloadUrl: fileToDelete.downloadUrl 
+                  });
+                }
+              }}
+              disabled={deleteFileMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              data-testid="button-confirm-delete-file"
+            >
+              {deleteFileMutation.isPending ? 'Deleting...' : 'Delete File'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

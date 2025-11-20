@@ -128,6 +128,7 @@ export interface IStorage {
   getJobsReadyForUpload(editorId: string): Promise<any[]>; // Jobs assigned to editor that are ready for upload
   getEditorUploads(jobId: string): Promise<EditorUpload[]>;
   createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload>;
+  deleteEditorUpload(fileId: string): Promise<void>;
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
   
   // Folder Management
@@ -889,10 +890,11 @@ export class MemStorage implements IStorage {
 
   private validateJobStatusTransition(currentStatus: string, newStatus: string): { valid: boolean; error?: string } {
     const validTransitions: Record<string, string[]> = {
-      'scheduled': ['in_progress', 'cancelled'],
-      'in_progress': ['completed', 'cancelled'],
-      'completed': ['in_progress'], // Allow reopening if needed
-      'cancelled': [] // No transitions from cancelled
+      'booked': ['pending', 'cancelled'],
+      'pending': ['on_hold', 'delivered', 'cancelled'],
+      'on_hold': ['pending', 'delivered', 'cancelled'],
+      'delivered': [], // Terminal state - no transitions from delivered
+      'cancelled': [] // Terminal state - no transitions from cancelled
     };
 
     if (!validTransitions[currentStatus]) {
@@ -1067,39 +1069,30 @@ export class MemStorage implements IStorage {
     return newUpload;
   }
 
+  async deleteEditorUpload(fileId: string): Promise<void> {
+    const upload = this.editorUploads.get(fileId);
+    if (!upload) {
+      throw new Error('File not found');
+    }
+    this.editorUploads.delete(fileId);
+    this.saveToFile();
+  }
+
   async updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined> {
     const job = await this.getJobByJobId(jobId);
     if (!job) return undefined;
 
-    // Treat null status as 'scheduled' (default initial state)
-    let currentStatus = job.status || 'scheduled';
-    let finalJob = job;
+    // Treat null status as 'booked' (default initial state)
+    let currentStatus = job.status || 'booked';
 
-    // Handle transition from scheduled to completed by going through in_progress first
-    if (currentStatus === 'scheduled' && status === 'completed') {
-      console.log(`Job ${job.jobId} transitioning from scheduled → in_progress → completed`);
-      
-      // First transition to in_progress
-      const progressValidation = this.validateJobStatusTransition(currentStatus, 'in_progress');
-      if (!progressValidation.valid) {
-        console.error(`Job ${job.jobId} intermediate status update failed: ${progressValidation.error}`);
-        throw new Error(progressValidation.error);
-      }
-      
-      finalJob = { ...finalJob, status: 'in_progress' };
-      this.jobs.set(job.id, finalJob);
-      currentStatus = 'in_progress';
-      console.log(`Job ${job.jobId} status updated to in_progress`);
-    }
-
-    // Now validate the final transition
+    // Validate the transition
     const validation = this.validateJobStatusTransition(currentStatus, status);
     if (!validation.valid) {
       console.error(`Job ${job.jobId} status update failed: ${validation.error}`);
       throw new Error(validation.error);
     }
 
-    const updatedJob = { ...finalJob, status };
+    const updatedJob = { ...job, status };
     this.jobs.set(job.id, updatedJob);
 
     // Note: Order status updates are now handled separately via markOrderUploaded()

@@ -15,6 +15,7 @@ import { auth } from "@/lib/firebase";
 interface CompletedJob {
   id: string;
   jobId: string;
+  orderNumber: string;
   customerName: string;
   service: string;
   originalFiles: number;
@@ -44,7 +45,7 @@ export default function EditorUploads() {
   const [folderName, setFolderName] = useState("");
 
   // Get real jobs ready for upload from the API
-  const { data: completedJobs = [], isLoading } = useQuery({
+  const { data: completedJobs = [], isLoading } = useQuery<CompletedJob[]>({
     queryKey: ['/api/editor/jobs-ready-for-upload'],
     // Default fetcher will be used - it automatically handles authentication
   });
@@ -113,37 +114,37 @@ export default function EditorUploads() {
     }
   };
 
-  const performActualUpload = async (uploadFile: UploadFile, jobId: string) => {
+  const performActualUpload = async (uploadFile: UploadFile, jobId: string, orderNumber?: string) => {
     const updateProgress = (progress: number) => {
-      setUploadFiles(prev => prev.map(file => 
-        file.id === uploadFile.id 
+      setUploadFiles(prev => prev.map(file =>
+        file.id === uploadFile.id
           ? { ...file, progress, status: progress === 100 ? 'completed' : 'uploading' }
           : file
       ));
     };
 
     const updateStatus = (status: 'pending' | 'uploading' | 'completed' | 'error') => {
-      setUploadFiles(prev => prev.map(file => 
+      setUploadFiles(prev => prev.map(file =>
         file.id === uploadFile.id ? { ...file, status } : file
       ));
     };
 
     try {
       updateStatus('uploading');
-      
+
       // Get current user for authentication check
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
       }
-      
-      console.log(`Starting upload for ${uploadFile.file.name} to job ${jobId}...`);
-      
-      // Upload file - server will auto-detect appropriate order
+
+      console.log(`Starting upload for ${uploadFile.file.name} to job ${jobId}, order ${orderNumber}...`);
+
+      // Upload file with orderNumber to ensure correct folder structure
       const result = await uploadCompletedFileToFirebase(
         uploadFile.file,
         jobId,
-        undefined, // No orderNumber - let server auto-detect
+        orderNumber, // Pass orderNumber for proper folder structure: completed/{jobId}/{orderNumber}/{folderPath}/files
         (progress: UploadProgress) => updateProgress(progress.progress),
         // Pass folder data if folder is being used
         useFolder && folderName ? {
@@ -151,10 +152,10 @@ export default function EditorUploads() {
           editorFolderName: folderName
         } : undefined
       );
-      
+
       console.log(`Upload completed for ${uploadFile.file.name}:`, result);
       updateStatus('completed');
-      
+
       return result;
     } catch (error) {
       console.error(`Upload failed for ${uploadFile.file.name}:`, error);
@@ -171,23 +172,30 @@ export default function EditorUploads() {
       console.error('Selected job not found');
       return;
     }
+
+    // Server requires folderPath and editorFolderName for completed file uploads
+    if (!useFolder || !folderName.trim()) {
+      console.error('Folder path and name are required for completed file uploads');
+      return;
+    }
     
     console.log('[DEBUG] Selected job data:', {
       selectedJob,
       selectedJobData: {
         id: selectedJobData.id,
         jobId: selectedJobData.jobId,
+        orderNumber: selectedJobData.orderNumber,
         customerName: selectedJobData.customerName
       }
     });
 
     setIsUploading(true);
-    
+
     try {
       // Upload all files sequentially to avoid overwhelming the server
       for (const file of uploadFiles) {
-        console.log(`[DEBUG] Uploading file ${file.file.name} for job UUID: ${selectedJobData.id}`);
-        await performActualUpload(file, selectedJobData.id); // Use job.id (UUID) instead of job.jobId (display string)
+        console.log(`[DEBUG] Uploading file ${file.file.name} for job: ${selectedJobData.jobId}, order: ${selectedJobData.orderNumber}`);
+        await performActualUpload(file, selectedJobData.jobId, selectedJobData.orderNumber);
       }
       
       console.log('All uploads completed for job:', selectedJobData.id);

@@ -136,6 +136,10 @@ export class FirestoreStorage implements IStorage {
     return newUser;
   }
 
+  async updateUser(id: string, data: Partial<User>): Promise<void> {
+    await this.db.collection("users").doc(id).update(prepareForFirestore(data));
+  }
+
   // Customers
   async getCustomer(id: string): Promise<Customer | undefined> {
     const docSnap = await this.db.collection("customers").doc(id).get();
@@ -210,6 +214,8 @@ export class FirestoreStorage implements IStorage {
       exclusiveCustomerIds: product.exclusiveCustomerIds || null,
       includedProducts: product.includedProducts || null,
       noCharge: product.noCharge ?? null,
+      productType: product.productType || null,
+      exclusivityType: product.exclusivityType || null,
       id,
       createdAt: new Date()
     };
@@ -674,6 +680,15 @@ export class FirestoreStorage implements IStorage {
     return newUpload;
   }
 
+  async deleteEditorUpload(fileId: string): Promise<void> {
+    const docRef = this.db.collection("editorUploads").doc(fileId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      throw new Error('File not found');
+    }
+    await docRef.delete();
+  }
+
   async getAllEditorUploads(): Promise<EditorUpload[]> {
     const snapshot = await this.db.collection("editorUploads").get();
     return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
@@ -681,6 +696,38 @@ export class FirestoreStorage implements IStorage {
 
   async updateEditorUpload(id: string, data: Partial<EditorUpload>): Promise<void> {
     await this.db.collection("editorUploads").doc(id).update(prepareForFirestore(data));
+  }
+
+  async getExpiredOrderFiles(): Promise<EditorUpload[]> {
+    const now = Timestamp.now();
+    const snapshot = await this.db.collection("editorUploads")
+      .where("status", "==", "for_editing")
+      .where("expiresAt", "<=", now.toDate())
+      .get();
+
+    return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+  }
+
+  async deleteExpiredOrderFile(fileId: string, firebaseUrl: string): Promise<void> {
+    // Delete from Firebase Storage
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+    if (bucketName && firebaseUrl) {
+      try {
+        const bucket = getStorage().bucket(bucketName);
+        const file = bucket.file(firebaseUrl);
+        const [exists] = await file.exists();
+        if (exists) {
+          await file.delete();
+          console.log(`Deleted expired file from storage: ${firebaseUrl}`);
+        }
+      } catch (error) {
+        console.error(`Failed to delete file from storage: ${firebaseUrl}`, error);
+        // Continue to delete from Firestore even if storage deletion fails
+      }
+    }
+
+    // Delete from Firestore
+    await this.deleteEditorUpload(fileId);
   }
 
   async updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined> {
@@ -699,10 +746,17 @@ export class FirestoreStorage implements IStorage {
     const uploads = snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
 
     const folderMap = new Map<string, any>();
-    
+
+    // First, add all folders from editorUploads (folders with files)
+    // Filter out files uploaded for editing (not deliverables)
     uploads.forEach(upload => {
       if (!upload.folderPath) return;
-      
+
+      // Skip files with status 'for_editing' or in 'orders/' folder (for editor download, not client delivery)
+      if (upload.status === 'for_editing' || upload.firebaseUrl?.startsWith('orders/')) {
+        return;
+      }
+
       if (!folderMap.has(upload.folderPath)) {
         folderMap.set(upload.folderPath, {
           folderPath: upload.folderPath,
@@ -713,18 +767,42 @@ export class FirestoreStorage implements IStorage {
           files: []
         });
       }
-      
+
       const folder = folderMap.get(upload.folderPath);
       folder.fileCount++;
       folder.files.push(upload);
     });
 
+    // Then, add all folders from the 'folders' collection (including empty ones)
+    const foldersSnapshot = await this.db.collection("folders").where("jobId", "==", jobId).get();
+    foldersSnapshot.docs.forEach(doc => {
+      const folderData = doc.data();
+      if (!folderMap.has(folderData.folderPath)) {
+        folderMap.set(folderData.folderPath, {
+          folderPath: folderData.folderPath,
+          editorFolderName: "",
+          partnerFolderName: folderData.partnerFolderName,
+          folderToken: folderData.folderToken,
+          orderNumber: undefined,
+          fileCount: 0,
+          files: []
+        });
+      } else {
+        // Folder already exists from editorUploads, update partnerFolderName and folderToken
+        const existingFolder = folderMap.get(folderData.folderPath);
+        if (existingFolder) {
+          existingFolder.partnerFolderName = folderData.partnerFolderName;
+          existingFolder.folderToken = folderData.folderToken;
+        }
+      }
+    });
+
     return Array.from(folderMap.values());
   }
 
-  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string): Promise<{folderPath: string; partnerFolderName: string}> {
-    const folderToken = nanoid(16);
-    const folderPath = parentFolderPath 
+  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, providedFolderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken: string}> {
+    const folderToken = providedFolderToken || nanoid(16);
+    const folderPath = parentFolderPath
       ? `${parentFolderPath}/${folderToken}`
       : `completed/${jobId}/folders/${folderToken}`;
 
@@ -737,7 +815,7 @@ export class FirestoreStorage implements IStorage {
       createdAt: Timestamp.now()
     });
 
-    return { folderPath, partnerFolderName };
+    return { folderPath, partnerFolderName, folderToken };
   }
 
   async updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void> {
@@ -883,7 +961,7 @@ export class FirestoreStorage implements IStorage {
       customerId: activity.customerId || null,
       orderId: activity.orderId || null,
       description: activity.description || null,
-      metadata: activity.metadata || null,
+      metadata: activity.metadata ?? null,
       ipAddress: activity.ipAddress || null,
       userAgent: activity.userAgent || null,
       id,

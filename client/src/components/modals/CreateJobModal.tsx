@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,25 +10,41 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimePickerPreset } from "@/components/ui/time-picker-preset";
 import { useToast } from "@/hooks/use-toast";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import { useAuth } from "@/contexts/AuthContext";
 import CreateProductModal from "./CreateProductModal";
-import { 
-  CalendarIcon, 
-  MapPin, 
-  User, 
-  X, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  CalendarIcon,
+  MapPin,
+  User,
+  X,
+  ChevronDown,
+  ChevronUp,
   Clock,
   AlertCircle,
   Plus,
   Loader2
 } from "lucide-react";
 
+// Extend Window interface for Google Maps
+declare global {
+  interface Window {
+    google?: typeof google;
+  }
+}
+
 interface CreateJobModalProps {
   onClose: () => void;
+}
+
+interface ProductVariation {
+  name: string;
+  price: number;
+  appointmentDuration?: number;
+  noCharge?: boolean;
 }
 
 interface Product {
@@ -38,6 +55,9 @@ interface Product {
   taxRate: string;
   type: string;
   category: string;
+  hasVariations?: boolean;
+  variations?: string; // JSON string
+  appointmentDuration?: number;
 }
 
 interface User {
@@ -54,6 +74,8 @@ interface SelectedProduct {
   price: number;
   quantity: number;
   taxRate: number;
+  variationName?: string;
+  duration?: number; // in minutes
 }
 
 export default function CreateJobModal({ onClose }: CreateJobModalProps) {
@@ -62,6 +84,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
   const [appointmentDuration, setAppointmentDuration] = useState("60");
+  const [manualDuration, setManualDuration] = useState(false);
   const [assignedOperators, setAssignedOperators] = useState<string[]>([]);
   const [appointmentNotes, setAppointmentNotes] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
@@ -111,7 +134,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
       }
     };
 
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
     if (!apiKey) return;
 
     // Check if Google Maps is already loaded
@@ -284,35 +307,81 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     },
   });
 
-  const handleAddProduct = (productId: string) => {
+  const handleAddProduct = (value: string) => {
+    // Value format: "productId" or "productId:variationIndex"
+    const [productId, variationIndex] = value.split(':');
     const product = products.find(p => p.id === productId);
+
     if (product) {
-      const existingProduct = selectedProducts.find(p => p.id === productId);
+      let productTitle = product.title;
+      let productPrice = parseFloat(product.price);
+      let variationName: string | undefined;
+      let duration = product.appointmentDuration || 60; // Default 60 minutes
+
+      // Handle variation selection
+      if (variationIndex !== undefined && product.variations) {
+        const variations: ProductVariation[] = JSON.parse(product.variations);
+        const variation = variations[parseInt(variationIndex)];
+
+        if (variation) {
+          productTitle = `${product.title} - ${variation.name}`;
+          productPrice = variation.noCharge ? 0 : variation.price;
+          variationName = variation.name;
+          duration = variation.appointmentDuration || duration;
+        }
+      }
+
+      // Check if this exact product + variation combo already exists
+      const existingProduct = selectedProducts.find(
+        p => p.id === productId && p.variationName === variationName
+      );
+
       if (existingProduct) {
-        setSelectedProducts(prev => 
-          prev.map(p => p.id === productId ? { ...p, quantity: p.quantity + 1 } : p)
+        setSelectedProducts(prev =>
+          prev.map(p =>
+            p.id === productId && p.variationName === variationName
+              ? { ...p, quantity: p.quantity + 1 }
+              : p
+          )
         );
       } else {
         setSelectedProducts(prev => [...prev, {
-          id: product.id,
-          title: product.title,
-          price: parseFloat(product.price),
+          id: productId,
+          title: productTitle,
+          price: productPrice,
           quantity: 1,
-          taxRate: parseFloat(product.taxRate)
+          taxRate: parseFloat(product.taxRate),
+          variationName,
+          duration
         }]);
       }
     }
   };
 
-  const updateProductQuantity = (productId: string, quantity: number) => {
+  const updateProductQuantity = (productId: string, variationName: string | undefined, quantity: number) => {
     if (quantity <= 0) {
-      setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+      setSelectedProducts(prev => prev.filter(p => !(p.id === productId && p.variationName === variationName)));
     } else {
-      setSelectedProducts(prev => 
-        prev.map(p => p.id === productId ? { ...p, quantity } : p)
+      setSelectedProducts(prev =>
+        prev.map(p => (p.id === productId && p.variationName === variationName) ? { ...p, quantity } : p)
       );
     }
   };
+
+  // Calculate total duration from selected products
+  const calculateTotalDuration = () => {
+    return selectedProducts.reduce((total, product) => {
+      return total + (product.duration || 60) * product.quantity;
+    }, 0);
+  };
+
+  // Update duration when products change (if not manual)
+  useEffect(() => {
+    if (!manualDuration && selectedProducts.length > 0) {
+      const totalDuration = calculateTotalDuration();
+      setAppointmentDuration(totalDuration.toString());
+    }
+  }, [selectedProducts, manualDuration]);
 
   const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -366,8 +435,11 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
   const calculateOrderTotal = () => {
     return selectedProducts.reduce((total, product) => {
-      const subtotal = product.price * product.quantity;
-      const tax = subtotal * (product.taxRate / 100);
+      const price = Number(product.price) || 0;
+      const quantity = Number(product.quantity) || 0;
+      const taxRate = Number(product.taxRate) || 0;
+      const subtotal = price * quantity;
+      const tax = subtotal * (taxRate / 100);
       return total + subtotal + tax;
     }, 0);
   };
@@ -427,24 +499,30 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Job Information Section */}
           <Collapsible open={jobInfoExpanded} onOpenChange={setJobInfoExpanded}>
-            <CollapsibleTrigger 
-              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
-              data-testid="toggle-job-info"
-              onClick={() => setCurrentStep('job-info')}
-            >
-              <span className={`font-medium ${validationErrors.jobInfo ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
-                Job Information
-              </span>
-              {jobInfoExpanded ? (
-                <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
-              )}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 p-3">
+            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
+              <CollapsibleTrigger
+                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
+                data-testid="toggle-job-info"
+                onClick={() => setCurrentStep('job-info')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">1</span>
+                  </div>
+                  <span className={`font-semibold text-base ${validationErrors.jobInfo ? 'text-rpp-red-main' : 'text-foreground'}`}>
+                    Job Information
+                  </span>
+                </div>
+                {jobInfoExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 p-4 bg-card">
               {/* Customer Selection */}
               <div className="space-y-2">
                 <Label htmlFor="customer">Customer</Label>
@@ -531,45 +609,52 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                 {/* Google Maps Preview */}
                 {address && address.trim() && (
                   <div className="mt-3">
-                    <GoogleMapEmbed address={address} height="200px" />
+                    <GoogleMapEmbed address={address} />
                   </div>
                 )}
               </div>
-            </CollapsibleContent>
+              </CollapsibleContent>
+            </div>
           </Collapsible>
 
           {/* Appointment Details Section */}
           <Collapsible open={appointmentExpanded} onOpenChange={setAppointmentExpanded}>
-            <CollapsibleTrigger 
-              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
-              data-testid="toggle-appointment-details"
-              onClick={() => setCurrentStep('appointment')}
-            >
-              <span className={`font-medium ${validationErrors.appointment ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
-                Appointment Details
-              </span>
-              <div className="flex items-center space-x-2">
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSkipAppointment(!skipAppointment);
-                  }}
-                  data-testid="button-skip-appointment"
-                >
-                  Skip Appointment
-                </Button>
-                {appointmentExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
-                )}
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 p-3">
+            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
+              <CollapsibleTrigger
+                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
+                data-testid="toggle-appointment-details"
+                onClick={() => setCurrentStep('appointment')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">2</span>
+                  </div>
+                  <span className={`font-semibold text-base ${validationErrors.appointment ? 'text-rpp-red-main' : 'text-foreground'}`}>
+                    Appointment Details
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSkipAppointment(!skipAppointment);
+                    }}
+                    data-testid="button-skip-appointment"
+                  >
+                    Skip Appointment
+                  </Button>
+                  {appointmentExpanded ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 p-4 bg-card">
               {!skipAppointment && (
                 <>
                   <p className="text-sm text-rpp-grey-light">
@@ -620,11 +705,10 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>Select a day</Label>
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={appointmentDate}
-                        onChange={(e) => setAppointmentDate(e.target.value)}
-                        data-testid="input-appointment-date"
+                        onChange={setAppointmentDate}
+                        minDate={new Date().toISOString().split('T')[0]}
                       />
                     </div>
                   </div>
@@ -632,32 +716,48 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Set a start time</Label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
-                        <Input
-                          type="time"
-                          value={appointmentTime}
-                          onChange={(e) => setAppointmentTime(e.target.value)}
-                          className="pl-10"
-                          data-testid="input-appointment-time"
-                        />
-                      </div>
+                      <TimePickerPreset
+                        value={appointmentTime}
+                        onChange={setAppointmentTime}
+                        interval={5}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Add duration</Label>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label>Duration</Label>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="manual-duration"
+                            checked={manualDuration}
+                            onCheckedChange={(checked) => setManualDuration(checked === true)}
+                          />
+                          <label htmlFor="manual-duration" className="text-xs text-muted-foreground cursor-pointer">
+                            Manual override
+                          </label>
+                        </div>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <Input
                           type="number"
                           value={appointmentDuration}
-                          onChange={(e) => setAppointmentDuration(e.target.value)}
-                          className="w-20"
+                          onChange={(e) => {
+                            setAppointmentDuration(e.target.value);
+                            setManualDuration(true);
+                          }}
+                          className={cn(
+                            "w-full",
+                            !manualDuration && "bg-muted text-muted-foreground cursor-not-allowed"
+                          )}
+                          disabled={!manualDuration}
                           data-testid="input-duration"
                         />
-                        <span className="text-sm text-rpp-grey-light">Minutes</span>
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">Minutes</span>
                       </div>
-                      <Button type="button" variant="link" className="h-auto p-0 text-xs">
-                        Manually set duration
-                      </Button>
+                      {!manualDuration && selectedProducts.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Auto-calculated from selected products
+                        </p>
+                      )}
                     </div>
                   </div>
                 </>
@@ -672,11 +772,44 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                       <SelectValue placeholder="Select product/s" />
                     </SelectTrigger>
                     <SelectContent>
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
-                          {product.title} - ${product.price}
-                        </SelectItem>
-                      ))}
+                      {products.map((product) => {
+                        const hasVariations = product.hasVariations && product.variations;
+                        const variations: ProductVariation[] = hasVariations
+                          ? JSON.parse(product.variations!)
+                          : [];
+
+                        if (hasVariations && variations.length > 0) {
+                          return (
+                            <div key={product.id}>
+                              {/* Product heading */}
+                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-accent/50">
+                                {product.title}
+                              </div>
+                              {/* Variations */}
+                              {variations.map((variation, index) => (
+                                <SelectItem
+                                  key={`${product.id}-${index}`}
+                                  value={`${product.id}:${index}`}
+                                  className="pl-6"
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <span>{variation.name}</span>
+                                    <span className="text-muted-foreground ml-2">
+                                      ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)}
+                                    </span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.title} - ${product.price}
+                            </SelectItem>
+                          );
+                        }
+                      })}
                     </SelectContent>
                   </Select>
                   <Button 
@@ -697,6 +830,59 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                 )}
               </div>
 
+              {/* Selected Products Display */}
+              {selectedProducts.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Selected Products</Label>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedProducts.length} {selectedProducts.length === 1 ? 'product' : 'products'}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedProducts.map((product, index) => {
+                      const uniqueKey = `${product.id}-${product.variationName || 'base'}-${index}`;
+                      return (
+                        <div
+                          key={uniqueKey}
+                          className="flex items-center justify-between p-3 bg-accent/30 rounded-lg border border-border/50"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{product.title}</p>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span>Qty: {product.quantity}</span>
+                              <span>•</span>
+                              <span>${Number(product.price).toFixed(2)} each</span>
+                              {product.duration && (
+                                <>
+                                  <span>•</span>
+                                  <span>{product.duration * product.quantity} min</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateProductQuantity(product.id, product.variationName, 0)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <ChevronUp className="h-4 w-4 rotate-45" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center justify-between p-2 bg-primary/5 rounded-lg border border-primary/20">
+                      <span className="text-sm font-medium">Total Duration</span>
+                      <span className="text-sm font-semibold text-primary">
+                        {calculateTotalDuration()} minutes
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Appointment Notes */}
               {!skipAppointment && (
                 <div className="space-y-2">
@@ -714,26 +900,33 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                   />
                 </div>
               )}
-            </CollapsibleContent>
+              </CollapsibleContent>
+            </div>
           </Collapsible>
 
           {/* Order Summary Section */}
           <Collapsible open={orderSummaryExpanded} onOpenChange={setOrderSummaryExpanded}>
-            <CollapsibleTrigger 
-              className="flex items-center justify-between w-full p-3 bg-rpp-grey-bg hover:bg-rpp-grey-border rounded-lg transition-colors" 
-              data-testid="toggle-order-summary"
-              onClick={() => setCurrentStep('order-summary')}
-            >
-              <span className={`font-medium ${validationErrors.orderSummary ? 'text-rpp-red-main' : 'text-rpp-grey-dark'}`}>
-                Order Summary
-              </span>
-              {orderSummaryExpanded ? (
-                <ChevronUp className="h-4 w-4 text-rpp-grey-light" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-rpp-grey-light" />
-              )}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 p-3">
+            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
+              <CollapsibleTrigger
+                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
+                data-testid="toggle-order-summary"
+                onClick={() => setCurrentStep('order-summary')}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">3</span>
+                  </div>
+                  <span className={`font-semibold text-base ${validationErrors.orderSummary ? 'text-rpp-red-main' : 'text-foreground'}`}>
+                    Order Summary
+                  </span>
+                </div>
+                {orderSummaryExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 p-4 bg-card">
               <p className="text-sm text-rpp-grey-light">
                 Add any extra products to this order. This could be products that do not require an appointment to be provided i.e. digital.
               </p>
@@ -749,13 +942,17 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                     <span className="text-right">Amount</span>
                   </div>
 
-                  {selectedProducts.map((product) => {
-                    const subtotal = product.price * product.quantity;
-                    const tax = subtotal * (product.taxRate / 100);
+                  {selectedProducts.map((product, index) => {
+                    const price = Number(product.price) || 0;
+                    const quantity = Number(product.quantity) || 0;
+                    const taxRate = Number(product.taxRate) || 0;
+                    const subtotal = price * quantity;
+                    const tax = subtotal * (taxRate / 100);
                     const total = subtotal + tax;
+                    const uniqueKey = `${product.id}-${product.variationName || 'base'}-${index}`;
 
                     return (
-                      <div key={product.id} className="grid grid-cols-5 gap-2 text-sm items-center" data-testid={`product-row-${product.id}`}>
+                      <div key={uniqueKey} className="grid grid-cols-5 gap-2 text-sm items-center" data-testid={`product-row-${product.id}`}>
                         <span className="text-rpp-grey-dark">{product.title}</span>
                         <div className="flex items-center justify-center space-x-1">
                           <Button
@@ -763,7 +960,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                             variant="outline"
                             size="sm"
                             className="h-6 w-6 p-0"
-                            onClick={() => updateProductQuantity(product.id, product.quantity - 1)}
+                            onClick={() => updateProductQuantity(product.id, product.variationName, product.quantity - 1)}
                             data-testid={`button-decrease-${product.id}`}
                           >
                             -
@@ -774,13 +971,13 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                             variant="outline"
                             size="sm"
                             className="h-6 w-6 p-0"
-                            onClick={() => updateProductQuantity(product.id, product.quantity + 1)}
+                            onClick={() => updateProductQuantity(product.id, product.variationName, product.quantity + 1)}
                             data-testid={`button-increase-${product.id}`}
                           >
                             +
                           </Button>
                         </div>
-                        <span className="text-center">${product.price.toFixed(2)}</span>
+                        <span className="text-center">${price.toFixed(2)}</span>
                         <span className="text-center">${tax.toFixed(2)}</span>
                         <span className="text-right font-medium">${total.toFixed(2)}</span>
                       </div>
@@ -793,11 +990,12 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
                   </div>
                 </div>
               )}
-            </CollapsibleContent>
+              </CollapsibleContent>
+            </div>
           </Collapsible>
 
           {/* Send Confirmation Email */}
-          <div className="flex items-center space-x-2 pt-4">
+          <div className="flex items-center space-x-2 pt-2 pb-2 px-1">
             <Checkbox
               id="sendConfirmationEmail"
               checked={sendConfirmationEmail}

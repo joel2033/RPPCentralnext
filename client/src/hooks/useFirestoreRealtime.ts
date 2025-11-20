@@ -461,3 +461,97 @@ export function useRealtimeUnreadCount(userId: string | null, partnerId?: string
 
   return { totalUnreadCount, loading };
 }
+
+// Real-time attention items (completed orders + unread messages)
+export function useRealtimeAttentionItems(userId: string | null, partnerId: string | null) {
+  const [attentionItems, setAttentionItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Get real-time conversations with unread messages
+  const { conversations, loading: conversationsLoading } = useRealtimeConversations(userId, partnerId || undefined);
+
+  // Get real-time completed orders
+  const { orders: completedOrders, loading: ordersLoading } = useRealtimeOrders(
+    partnerId,
+    undefined,
+    { status: 'completed' }
+  );
+
+  // Get all jobs to map job details to orders
+  const { jobs, loading: jobsLoading } = useRealtimeJobs(partnerId);
+
+  useEffect(() => {
+    // Wait for all data to load
+    if (conversationsLoading || ordersLoading || jobsLoading) {
+      setLoading(true);
+      return;
+    }
+
+    try {
+      const items: any[] = [];
+      const jobMap = new Map(jobs.map(job => [job.id, job]));
+
+      // 1. Add completed orders (ready for delivery)
+      completedOrders.forEach(order => {
+        const job = order.jobId ? jobMap.get(order.jobId) : null;
+        items.push({
+          id: order.id,
+          type: 'order_completed',
+          title: 'Order Ready for Delivery',
+          description: job?.address || 'Order completed and ready',
+          time: order.dateAccepted || order.createdAt,
+          priority: 'high',
+          projectName: job?.address || '',
+          orderId: order.id,
+          jobId: order.jobId,
+          orderNumber: order.orderNumber,
+          unread: true,
+        });
+      });
+
+      // 2. Add unread messages
+      conversations.forEach(conversation => {
+        // Check if current user is partner or editor
+        const isPartner = conversation.partnerId === partnerId;
+        const unreadCount = isPartner
+          ? (conversation.partnerUnreadCount || 0)
+          : (conversation.editorUnreadCount || 0);
+
+        if (unreadCount > 0) {
+          items.push({
+            id: conversation.id,
+            type: 'message',
+            title: `${unreadCount} New Message${unreadCount > 1 ? 's' : ''}`,
+            description: isPartner
+              ? `From ${conversation.editorName}`
+              : `From ${conversation.partnerName}`,
+            time: conversation.lastMessageAt,
+            priority: 'medium',
+            projectName: conversation.orderId ? '' : 'General',
+            conversationId: conversation.id,
+            unreadCount,
+            unread: true,
+          });
+        }
+      });
+
+      // Sort by time (most recent first)
+      items.sort((a, b) => {
+        const timeA = a.time ? new Date(a.time).getTime() : 0;
+        const timeB = b.time ? new Date(b.time).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setAttentionItems(items);
+      setLoading(false);
+      setError(null);
+    } catch (err) {
+      console.error('Error processing attention items:', err);
+      setError(err as Error);
+      setLoading(false);
+    }
+  }, [conversations, completedOrders, jobs, conversationsLoading, ordersLoading, jobsLoading, userId, partnerId]);
+
+  return { attentionItems, loading, error };
+}

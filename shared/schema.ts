@@ -77,7 +77,8 @@ export const jobs = pgTable("jobs", {
   partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   customerId: varchar("customer_id").references(() => customers.id),
   address: text("address").notNull(),
-  status: text("status").default("scheduled"), // "scheduled", "in_progress", "completed", "cancelled"
+  jobName: text("job_name"), // Optional custom name for the job
+  status: text("status").default("booked"), // "booked", "pending", "on_hold", "delivered", "cancelled"
   assignedTo: varchar("assigned_to").references(() => users.id), // Photographer assigned
   dueDate: timestamp("due_date"),
   appointmentDate: timestamp("appointment_date"),

@@ -448,7 +448,7 @@ export default function Upload() {
           </Card>
 
           {/* Services Card */}
-          <Card className="border-gray-200">
+          <Card className="rounded-2xl border border-black/5 bg-gray-50 shadow-sm">
             <CardContent className="pt-6">
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="w-5 h-5 text-orange-500" />
@@ -463,7 +463,7 @@ export default function Upload() {
               ) : Object.keys(groupedServices).length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8">No services available</p>
               ) : (
-                <Accordion type="multiple" className="w-full">
+                <Accordion type="multiple" className="w-full space-y-2">
                   {Object.entries(groupedServices).map(([categoryId, services]) => {
                     // Find category name
                     const category = serviceCategories.find((cat: any) => cat.id === categoryId);
@@ -500,7 +500,7 @@ export default function Upload() {
                     
                     return (
                       <AccordionItem key={categoryId} value={categoryId} className="border-b-0">
-                        <AccordionTrigger className="hover:no-underline py-3 px-4 hover:bg-gray-50 rounded-lg" data-testid={`category-trigger-${categoryId}`}>
+                        <AccordionTrigger className="group hover:no-underline py-3 px-4 rounded-xl border border-transparent hover:border-gray-200 bg-white/70 hover:bg-white shadow-sm transition" data-testid={`category-trigger-${categoryId}`}>
                           <div className="flex flex-col items-start text-left">
                             <span className="font-medium text-gray-900">{categoryName}</span>
                             {categoryDescription && (
@@ -509,7 +509,7 @@ export default function Upload() {
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="pb-4 pt-2">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                             {services.map((service: any) => {
                               const isSelected = selectedServices.some(s => s.service.id === service.id);
                               
@@ -524,20 +524,20 @@ export default function Upload() {
                                       addService(service);
                                     }
                                   }}
-                                  className="relative p-2.5 rounded-lg border-2 transition-all text-left border-gray-200 hover:border-gray-300 bg-white ml-[0px] mr-[0px] mt-[0px] mb-[0px] pt-[14px] pb-[14px] pl-[14px] pr-[14px]"
+                                  className={`relative p-3 rounded-xl border transition-all text-left bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 ${isSelected ? "border-orange-400 ring-2 ring-orange-200 bg-orange-50" : "border-gray-200 hover:border-gray-300"}`}
                                   data-testid={`service-card-${service.id}`}
                                 >
                                   {isSelected && (
-                                    <div className="absolute top-1.5 right-1.5 bg-orange-500 rounded-full p-0.5">
+                                    <div className="absolute top-1.5 right-1.5 bg-orange-500 rounded-full p-0.5 shadow">
                                       <Check className="w-2.5 h-2.5 text-white" />
                                     </div>
                                   )}
                                   <div className={`w-8 h-8 rounded-lg ${getServiceColor(service.name)} flex items-center justify-center mb-1.5`}>
                                     {getServiceIcon(service.name)}
                                   </div>
-                                  <div className="font-medium text-gray-900 text-xs mb-0.5">{service.name}</div>
-                                  <div className="text-[10px] text-gray-500 mb-1 line-clamp-1">{service.description || service.pricePer}</div>
-                                  <div className="text-orange-600 font-semibold text-xs">
+                                  <div className="font-medium text-gray-900 text-sm mb-0.5">{service.name}</div>
+                                  <div className="text-xs text-gray-500 mb-1 line-clamp-1">{service.description || service.pricePer}</div>
+                                  <div className="text-orange-600 font-semibold text-sm">
                                     ${parseFloat(service.basePrice).toFixed(2)}
                                   </div>
                                 </button>

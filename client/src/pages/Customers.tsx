@@ -116,21 +116,21 @@ export default function Customers() {
         </div>
       </div>
       {/* Customer Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredCustomers.map((customer: any) => (
-          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 rounded-3xl" data-testid={`customer-card-${customer.id}`}>
-            <CardContent className="p-6">
+          <Card key={customer.id} className="border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 rounded-2xl" data-testid={`customer-card-${customer.id}`}>
+            <CardContent className="p-4">
               {/* Customer Info */}
-              <div className="flex items-start gap-4 mb-6">
-                <div className={`w-14 h-14 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0`}>
+              <div className="flex items-start gap-3 mb-4">
+                <div className={`w-10 h-10 ${getAvatarColor(customer.firstName)} rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0`}>
                   {getInitials(customer.firstName, customer.lastName)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-gray-900 dark:text-white font-medium text-[20px]" data-testid={`text-customer-name-${customer.id}`}>
+                  <h3 className="text-gray-900 dark:text-white font-medium text-base" data-testid={`text-customer-name-${customer.id}`}>
                     {customer.firstName} {customer.lastName}
                   </h3>
-                  <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    <Building2 className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <Building2 className="w-3 h-3 mr-1 flex-shrink-0" />
                     <span className="truncate" data-testid={`text-customer-company-${customer.id}`}>
                       {customer.company || 'No company'}
                     </span>
@@ -139,19 +139,19 @@ export default function Customers() {
               </div>
               
               {/* Contact Info */}
-              <div className="space-y-2.5 mb-6">
-                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                  <Mail className="w-4 h-4 mr-2.5 flex-shrink-0 text-gray-400" />
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                  <Mail className="w-3.5 h-3.5 mr-2 flex-shrink-0 text-gray-400" />
                   <span className="truncate" data-testid={`text-customer-email-${customer.id}`}>
                     {customer.email}
                   </span>
                 </div>
                 {customer.phone && (
-                  <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                    <Phone className="w-4 h-4 mr-2.5 flex-shrink-0 text-gray-400" />
+                  <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                    <Phone className="w-3.5 h-3.5 mr-2 flex-shrink-0 text-gray-400" />
                     <span
                       data-testid={`text-customer-phone-${customer.id}`}
-                      className="text-[15px]">
+                      className="text-[12px]">
                       {customer.phone}
                     </span>
                   </div>
@@ -159,22 +159,22 @@ export default function Customers() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 pb-6 border-b border-gray-100 dark:border-gray-700 mb-6">
+              <div className="grid grid-cols-3 gap-3 pb-4 border-b border-gray-100 dark:border-gray-700 mb-4">
                 <div>
-                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Total Value</p>
-                  <p className="text-base text-gray-900 dark:text-white font-medium" data-testid={`text-customer-total-value-${customer.id}`}>
+                  <p className="text-gray-500 dark:text-gray-400 mb-0.5 text-[12px]">Total Value</p>
+                  <p className="text-sm text-gray-900 dark:text-white font-medium" data-testid={`text-customer-total-value-${customer.id}`}>
                     ${customer.totalValue || '0'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Average Job Value</p>
-                  <p className="text-base text-gray-900 dark:text-white font-medium" data-testid={`text-customer-avg-value-${customer.id}`}>
+                  <p className="text-gray-500 dark:text-gray-400 mb-0.5 text-[12px]">Average Job Value</p>
+                  <p className="text-sm text-gray-900 dark:text-white font-medium" data-testid={`text-customer-avg-value-${customer.id}`}>
                     ${customer.averageJobValue || '0'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-500 dark:text-gray-400 mb-1 text-[14px]">Jobs Completed</p>
-                  <p className="text-base font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-jobs-completed-${customer.id}`}>
+                  <p className="text-gray-500 dark:text-gray-400 mb-0.5 text-[12px]">Jobs Completed</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white" data-testid={`text-customer-jobs-completed-${customer.id}`}>
                     {customer.jobsCompleted || 0}
                   </p>
                 </div>
@@ -184,7 +184,8 @@ export default function Customers() {
               <Link href={`/customers/${customer.id}`}>
                 <Button 
                   variant="outline" 
-                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl"
+                  size="sm"
+                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
                   data-testid={`button-view-profile-${customer.id}`}
                 >
                   View Profile

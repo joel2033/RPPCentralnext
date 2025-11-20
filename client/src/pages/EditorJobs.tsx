@@ -162,8 +162,8 @@ export default function EditorJobs() {
       });
 
       if (response.ok) {
-        // Update job status to completed
-        await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', { status: 'completed' });
+        // Update job status to delivered
+        await apiRequest(`/api/editor/jobs/${jobId}/status`, 'PATCH', { status: 'delivered' });
 
         // Refresh the jobs list
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });

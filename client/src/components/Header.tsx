@@ -27,13 +27,19 @@ interface HeaderProps {
   onMenuClick: () => void;
 }
 
+interface SavedSettings {
+  businessProfile?: {
+    businessName?: string;
+  };
+}
+
 export default function Header({ onMenuClick }: HeaderProps) {
   const { userData, logout, currentUser } = useAuth();
   const [, setLocation] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Fetch business settings
-  const { data: savedSettings } = useQuery({
+  const { data: savedSettings } = useQuery<SavedSettings>({
     queryKey: ['/api/settings']
   });
 

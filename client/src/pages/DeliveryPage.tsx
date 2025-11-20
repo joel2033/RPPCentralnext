@@ -6,11 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Alert } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import {
   Download,
   CheckCircle2,
@@ -26,7 +27,9 @@ import {
   AlertCircle,
   Send,
   Star,
-  Play
+  Play,
+  Loader2,
+  Folder
 } from "lucide-react";
 import { format } from "date-fns";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
@@ -49,6 +52,7 @@ interface DeliveryFile {
 interface DeliveryFolder {
   folderPath: string;
   editorFolderName: string;
+  partnerFolderName?: string;
   orderNumber: string;
   fileCount: number;
   files: DeliveryFile[];
@@ -124,7 +128,22 @@ export default function DeliveryPage() {
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const lastScrollY = useRef(0);
-  
+
+  // Subfolder viewing state
+  const [viewingSubfolder, setViewingSubfolder] = useState<string | null>(null);
+
+  // Download progress state
+  const [downloadProgress, setDownloadProgress] = useState({
+    isOpen: false,
+    stage: 'idle' as 'idle' | 'creating' | 'downloading' | 'complete',
+    progress: 0,
+    filesProcessed: 0,
+    totalFiles: 0,
+    bytesReceived: 0,
+    totalBytes: 0,
+    folderName: ''
+  });
+
   // Track which credential type we're using (jobId for preview, deliveryToken for public)
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   
@@ -228,11 +247,11 @@ export default function DeliveryPage() {
   }, []);
 
   // Organize files into folders
-  const folders = deliveryData?.folders || (() => {
+  const allFolders = deliveryData?.folders || (() => {
     if (!deliveryData?.completedFiles) return [];
-    
+
     const folderMap = new Map<string, DeliveryFolder>();
-    
+
     deliveryData.completedFiles.forEach((order) => {
       order.files.forEach((file) => {
         const folderKey = file.folderPath || "All Files";
@@ -250,9 +269,60 @@ export default function DeliveryPage() {
         folder.files.push(file);
       });
     });
-    
+
     return Array.from(folderMap.values());
   })();
+
+  // Filter to show only ROOT folders (not subfolders) for display
+  const getRootFolders = () => {
+    if (!allFolders || !Array.isArray(allFolders)) return [];
+
+    return allFolders.filter(folder => {
+      const segments = folder.folderPath.split('/');
+
+      // Partner folder (root): completed/{jobId}/folders/{token} - EXACTLY 4 segments
+      if (segments.length === 4 && segments[0] === 'completed' && segments[2] === 'folders') {
+        return true;
+      }
+
+      // Editor folder structure (new): completed/{jobId}/{orderNumber}/{folderName} - 3-4 segments
+      if (segments.length >= 3 && segments.length <= 4 && segments[0] === 'completed' && segments[2] !== 'folders') {
+        return true;
+      }
+
+      // Editor folder structure (legacy): Simple folder name like "Photos" (1 segment, no path)
+      if (segments.length === 1 && folder.editorFolderName) {
+        return true;
+      }
+
+      // Special case: "All Files" fallback
+      if (folder.folderPath === "All Files") {
+        return true;
+      }
+
+      // Anything with 5+ segments is a subfolder - don't show at root level
+      return false;
+    });
+  };
+
+  const folders = getRootFolders();
+
+  // Get subfolders for a given parent folder
+  const getSubfolders = (parentFolderPath: string) => {
+    if (!allFolders || !Array.isArray(allFolders)) return [];
+
+    return allFolders.filter(folder => {
+      // Check if this folder is a direct child of the parent
+      if (!folder.folderPath.startsWith(parentFolderPath + '/')) return false;
+
+      // Count segments to ensure it's a direct child (not a grandchild)
+      const parentSegments = parentFolderPath.split('/').length;
+      const folderSegments = folder.folderPath.split('/').length;
+
+      // Direct child should have exactly one more segment than parent
+      return folderSegments === parentSegments + 1;
+    });
+  };
 
   const totalFiles = folders.reduce((sum, folder) => sum + folder.fileCount, 0);
   const totalSize = folders.reduce((sum, folder) => 
@@ -270,6 +340,14 @@ export default function DeliveryPage() {
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   const scrollToFolder = (folderId: string) => {
@@ -309,12 +387,108 @@ export default function DeliveryPage() {
     });
   };
 
-  const handleDownloadAll = () => {
-    folders.forEach((folder) => {
-      folder.files.forEach((file) => {
-        handleDownload(file.downloadUrl, file.originalName);
-      });
+  const handleDownloadAll = async () => {
+    if (!token) return;
+
+    // Open progress dialog
+    setDownloadProgress({
+      isOpen: true,
+      stage: 'creating',
+      progress: 0,
+      filesProcessed: 0,
+      totalFiles: 0,
+      bytesReceived: 0,
+      totalBytes: 0,
+      folderName: 'All Files'
     });
+
+    try {
+      // Step 1: Listen to SSE for zip creation progress (not available for public delivery yet)
+      // For now, we'll skip the progress endpoint and download directly
+
+      // Download the ZIP file using the correct endpoint
+      setDownloadProgress(prev => ({ ...prev, stage: 'downloading', progress: 0 }));
+
+      let response;
+      if (isPreviewMode && currentUser) {
+        // Preview mode - use authenticated endpoint with jobId
+        const idToken = await currentUser.getIdToken();
+        response = await fetch(`/api/jobs/${token}/preview/download-all`, {
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+          },
+        });
+      } else {
+        // Public delivery mode - use delivery token
+        response = await fetch(`/api/delivery/${token}/download-all`);
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(errorData.error || 'Download failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Unable to read response');
+
+      const contentLength = +(response.headers.get('Content-Length') || '0');
+      let receivedLength = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        const downloadProgressPercent = contentLength > 0 ? (receivedLength / contentLength) * 100 : 0;
+        setDownloadProgress(prev => ({
+          ...prev,
+          progress: downloadProgressPercent,
+          bytesReceived: receivedLength,
+          totalBytes: contentLength
+        }));
+      }
+
+      // Create blob and trigger download
+      const blob = new Blob(chunks);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${deliveryData?.job.address || 'delivery'}-all-files.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Close dialog
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+
+    } catch (error) {
+      console.error('Download error:', error);
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+      alert('Download failed. Please try again.');
+    }
   };
 
   const handleDownloadSelected = () => {
@@ -335,6 +509,109 @@ export default function DeliveryPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadFolder = async (folder: DeliveryFolder) => {
+    if (!token) return;
+
+    // Open progress dialog
+    setDownloadProgress({
+      isOpen: true,
+      stage: 'downloading',
+      progress: 0,
+      filesProcessed: 0,
+      totalFiles: 0,
+      bytesReceived: 0,
+      totalBytes: 0,
+      folderName: folder.partnerFolderName || folder.editorFolderName || 'folder'
+    });
+
+    try {
+      // Use different endpoint based on preview mode
+      let response;
+      if (isPreviewMode && currentUser) {
+        // Preview mode - use authenticated endpoint with jobId
+        const idToken = await currentUser.getIdToken();
+        response = await fetch(
+          `/api/jobs/${token}/preview/folders/download?folderPath=${encodeURIComponent(folder.folderPath)}`,
+          {
+            credentials: 'include',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+            },
+          }
+        );
+      } else {
+        // Public delivery mode - use delivery token
+        response = await fetch(
+          `/api/delivery/${token}/folders/download?folderPath=${encodeURIComponent(folder.folderPath)}`
+        );
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Download failed' }));
+        throw new Error(errorData.error || 'Download failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Unable to read response');
+
+      const contentLength = +(response.headers.get('Content-Length') || '0');
+      let receivedLength = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        const downloadProgressPercent = contentLength > 0 ? (receivedLength / contentLength) * 100 : 0;
+        setDownloadProgress(prev => ({
+          ...prev,
+          progress: downloadProgressPercent,
+          bytesReceived: receivedLength
+        }));
+      }
+
+      // Create blob and trigger download
+      const blob = new Blob(chunks);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${folder.partnerFolderName || folder.editorFolderName || 'folder'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Close dialog
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+
+    } catch (error) {
+      console.error('Download error:', error);
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+      alert(error instanceof Error ? error.message : 'Download failed. Please try again.');
+    }
   };
 
   const submitRevisionRequestMutation = useMutation({
@@ -462,6 +739,32 @@ export default function DeliveryPage() {
     return ImageIcon;
   };
 
+  const formatFolderDisplayName = (name: string, folderPath?: string) => {
+    // If name is provided and doesn't look like a path with tokens, use it
+    if (name && !name.includes('/')) {
+      return name;
+    }
+
+    // If we have a folderPath, extract the last meaningful segment
+    if (folderPath) {
+      const segments = folderPath.split('/');
+      // Return the last segment (which should be the folder name or token)
+      // But only if it's not empty
+      const lastSegment = segments[segments.length - 1];
+      if (lastSegment && lastSegment.trim()) {
+        return lastSegment;
+      }
+    }
+
+    // Fallback: if name has slashes, show only the last part
+    if (name && name.includes('/')) {
+      const parts = name.split('/');
+      return parts[parts.length - 1] || name;
+    }
+
+    return name || "Files";
+  };
+
   const getRatingText = (stars: number) => {
     if (stars === 5) return "Excellent!";
     if (stars === 4) return "Great!";
@@ -563,7 +866,8 @@ export default function DeliveryPage() {
               </span>
               <div className="flex items-center gap-3 overflow-x-auto flex-1">
                 {folders.map((folder) => {
-                  const Icon = getFolderIcon(folder.editorFolderName);
+                  const displayName = folder.editorFolderName || folder.folderPath;
+                  const Icon = getFolderIcon(displayName);
                   return (
                     <Button
                       key={folder.folderPath}
@@ -574,7 +878,7 @@ export default function DeliveryPage() {
                       data-testid={`nav-folder-${folder.folderPath}`}
                     >
                       <Icon className="h-4 w-4 mr-2" />
-                      {folder.editorFolderName}
+                      {formatFolderDisplayName(displayName)}
                       <Badge
                         variant="secondary"
                         className="ml-2 text-xs h-5 px-1.5 bg-muted/50"
@@ -587,7 +891,7 @@ export default function DeliveryPage() {
               </div>
               <Button
                 onClick={handleDownloadAll}
-                className="bg-gradient-to-r from-primary to-primary/90 rounded-xl flex-shrink-0"
+                className="bg-gradient-to-r from-primary to-primary rounded-xl flex-shrink-0"
                 size="sm"
                 data-testid="button-download-all-header"
               >
@@ -645,7 +949,8 @@ export default function DeliveryPage() {
             {/* Folder Quick Links */}
             <div className="flex flex-wrap items-center gap-3 mt-8">
               {folders.map((folder) => {
-                const Icon = getFolderIcon(folder.editorFolderName);
+                const displayName = folder.editorFolderName || folder.folderPath;
+                const Icon = getFolderIcon(displayName);
                 return (
                   <Button
                     key={folder.folderPath}
@@ -655,7 +960,7 @@ export default function DeliveryPage() {
                     data-testid={`hero-folder-${folder.folderPath}`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
-                    {folder.editorFolderName}
+                    {formatFolderDisplayName(displayName)}
                     <Badge variant="secondary" className="ml-2 text-xs bg-white/20 text-white border-0">
                       {folder.fileCount}
                     </Badge>
@@ -679,16 +984,49 @@ export default function DeliveryPage() {
             >
               {/* Folder Header */}
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-2xl font-bold" data-testid={`text-folder-${folder.folderPath}`}>
-                    {folder.editorFolderName}
+                    {formatFolderDisplayName(
+                      folder.partnerFolderName || folder.editorFolderName || folder.folderPath,
+                      folder.folderPath
+                    )}
                   </h2>
-                  <Badge variant="secondary" className="border border-border/50">
+                  <Badge variant="outline" className="border border-border/50">
                     {folder.fileCount} files
                   </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {formatFileSize(folder.files.reduce((sum, f) => sum + f.fileSize, 0))}
-                  </span>
+
+                  {/* Subfolder Indicators */}
+                  {(() => {
+                    const subfolders = getSubfolders(folder.folderPath);
+                    if (subfolders.length > 0) {
+                      return (
+                        <div className="flex items-center gap-2 ml-2">
+                          <Separator orientation="vertical" className="h-6" />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Folder className="h-4 w-4" />
+                              Includes:
+                            </span>
+                            {subfolders.map((subfolder) => (
+                              <Badge
+                                key={subfolder.folderPath}
+                                variant="outline"
+                                className="border-primary/30 text-primary bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
+                                onClick={() => setViewingSubfolder(subfolder.folderPath)}
+                              >
+                                <Folder className="h-3 w-3 mr-1" />
+                                {formatFolderDisplayName(
+                                  subfolder.partnerFolderName || subfolder.editorFolderName || subfolder.folderPath,
+                                  subfolder.folderPath
+                                )}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 {/* Folder Actions */}
@@ -711,12 +1049,8 @@ export default function DeliveryPage() {
                   </Button>
                   <Button
                     size="sm"
-                    className="bg-gradient-to-r from-primary to-primary/90 rounded-xl"
-                    onClick={() => {
-                      folder.files.forEach((file) => {
-                        handleDownload(file.downloadUrl, file.originalName);
-                      });
-                    }}
+                    className="bg-gradient-to-r from-primary to-primary rounded-xl"
+                    onClick={() => handleDownloadFolder(folder)}
                     data-testid={`button-download-folder-${folder.folderPath}`}
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -1090,22 +1424,12 @@ export default function DeliveryPage() {
           <div className="flex flex-col lg:flex-row h-full">
             {/* Large Image Display */}
             <div className="flex-1 bg-muted/30 flex items-center justify-center p-4 lg:p-8 relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSelectedMediaForModal(null)}
-                className="absolute top-2 right-2 lg:top-4 lg:right-4 h-9 w-9 lg:h-10 lg:w-10 rounded-xl hover:bg-accent z-10"
-                data-testid="button-close-modal"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-
               {selectedMediaForModal && (
                 <>
                   <ImageWithFallback
                     src={selectedMediaForModal.downloadUrl}
                     alt={selectedMediaForModal.originalName}
-                    className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg shadow-2xl"
+                    className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
                   />
                   {selectedMediaForModal.mimeType.startsWith("video/") && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -1278,6 +1602,133 @@ export default function DeliveryPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Download Progress Dialog */}
+      <Dialog open={downloadProgress.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {downloadProgress.stage === 'creating' && 'Creating Zip Folder...'}
+              {downloadProgress.stage === 'downloading' && 'Downloading...'}
+            </DialogTitle>
+            <DialogDescription>
+              {downloadProgress.stage === 'creating' && `Preparing ${downloadProgress.folderName} for download...`}
+              {downloadProgress.stage === 'downloading' && `Downloading ${downloadProgress.folderName}...`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {downloadProgress.stage === 'creating' && (
+              <>
+                <Progress value={downloadProgress.progress} className="w-full" />
+                <p className="text-sm text-gray-600 text-center">
+                  Processing {downloadProgress.filesProcessed} / {downloadProgress.totalFiles} files
+                </p>
+              </>
+            )}
+
+            {downloadProgress.stage === 'downloading' && (
+              <>
+                <Progress value={downloadProgress.progress} className="w-full" />
+                <p className="text-sm text-gray-600 text-center">
+                  {formatBytes(downloadProgress.bytesReceived)} / {formatBytes(downloadProgress.totalBytes)}
+                </p>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Subfolder Viewer Dialog */}
+      {viewingSubfolder && (() => {
+        const subfolder = allFolders.find(f => f.folderPath === viewingSubfolder);
+        if (!subfolder) return null;
+
+        return (
+          <Dialog open={true} onOpenChange={() => setViewingSubfolder(null)}>
+            <DialogContent className="max-w-6xl max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Folder className="h-5 w-5" />
+                  {formatFolderDisplayName(
+                    subfolder.partnerFolderName || subfolder.editorFolderName || subfolder.folderPath,
+                    subfolder.folderPath
+                  )}
+                </DialogTitle>
+                <DialogDescription>
+                  {subfolder.fileCount} file{subfolder.fileCount !== 1 ? 's' : ''} in this folder
+                </DialogDescription>
+              </DialogHeader>
+
+              <ScrollArea className="h-[60vh] pr-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {subfolder.files.map((file) => {
+                    const isVideo = file.mimeType.startsWith("video/");
+
+                    return (
+                      <div
+                        key={file.id}
+                        className="group relative aspect-square rounded-xl overflow-hidden border-2 border-border bg-muted cursor-pointer hover:shadow-xl transition-all duration-200"
+                        onClick={() => {
+                          setSelectedMediaForModal(file);
+                          setViewingSubfolder(null);
+                        }}
+                      >
+                        <ImageWithFallback
+                          src={file.downloadUrl}
+                          alt={file.originalName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+
+                        {isVideo && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center shadow-lg">
+                              <Play className="h-8 w-8 text-primary ml-1 fill-current" />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-xs truncate">{file.originalName}</p>
+                              <p className="text-white/80 text-xs mt-0.5">
+                                {formatFileSize(file.fileSize)}
+                              </p>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              className="h-8 w-8 rounded-xl flex-shrink-0 ml-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(file.downloadUrl, file.originalName);
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setViewingSubfolder(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => handleDownloadFolder(subfolder)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Folder
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

@@ -149,6 +149,22 @@ export default function Messages() {
   // Use appropriate orders list based on role
   const orders = isEditor ? editorOrders : partnerOrders;
 
+  // Create a map of orderId to order details for quick lookup
+  const orderMap = new Map(orders.map(order => [order.id, order]));
+
+  // Ensure fresh orders when opening the New Conversation dialog (addresses may change)
+  useEffect(() => {
+    if (newConversationDialogOpen) {
+      if (isEditor) {
+        queryClient.invalidateQueries({ queryKey: ["/api/editor/orders"] });
+        queryClient.refetchQueries({ queryKey: ["/api/editor/orders"], exact: true });
+      } else if (isPartner) {
+        queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+        queryClient.refetchQueries({ queryKey: ["/api/orders"], exact: true });
+      }
+    }
+  }, [newConversationDialogOpen, isEditor, isPartner]);
+
   // Fetch team members (for partners only)
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: [`/api/team/invites/${partnerData?.partnerId}`],
@@ -417,6 +433,11 @@ export default function Messages() {
     };
   };
 
+  const getOrderDetails = (orderId: string | null) => {
+    if (!orderId) return null;
+    return orderMap.get(orderId);
+  };
+
   if (conversationsLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -428,7 +449,7 @@ export default function Messages() {
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-4 px-6 pt-6">
       {/* Conversations List */}
-      <Card className="w-96 flex flex-col overflow-hidden shadow-lg">
+      <Card className="w-96 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl">
         <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
@@ -628,6 +649,7 @@ export default function Messages() {
               {conversations.map((conversation) => {
                 const participant = getOtherParticipant(conversation);
                 const isSelected = selectedConversationId === conversation.id;
+                const orderDetails = getOrderDetails(conversation.orderId);
                 return (
                   <button
                     key={conversation.id}
@@ -636,8 +658,8 @@ export default function Messages() {
                       "w-full p-3 rounded-lg text-left transition-all duration-200",
                       "hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
                       "border",
-                      isSelected 
-                        ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md" 
+                      isSelected
+                        ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md"
                         : participant.unreadCount > 0
                           ? "bg-rpp-red-lighter/90 border-rpp-red-main shadow-lg ring-2 ring-rpp-red-main/50"
                           : "border-transparent hover:bg-accent hover:border-muted-foreground/20"
@@ -675,10 +697,15 @@ export default function Messages() {
                             {formatTime(conversation.lastMessageAt)}
                           </span>
                         </div>
+                        {orderDetails && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1 truncate">
+                            {orderDetails.orderNumber} • {orderDetails.jobAddress}
+                          </p>
+                        )}
                         <p className={cn(
                           "text-sm truncate transition-colors",
-                          participant.unreadCount > 0 
-                            ? "text-foreground font-medium" 
+                          participant.unreadCount > 0
+                            ? "text-foreground font-medium"
                             : "text-muted-foreground"
                         )}>
                           {conversation.lastMessageText || "No messages yet"}
@@ -693,26 +720,44 @@ export default function Messages() {
         </ScrollArea>
       </Card>
       {/* Messages Area */}
-      <Card className="flex-1 flex flex-col overflow-hidden shadow-lg">
+      <Card className="flex-1 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl">
         {selectedConversationId ? (
           <>
             {/* Conversation Header */}
             <div className="p-4 border-b bg-muted/30">
               {selectedConversation && (
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
-                    <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
-                      {getInitials(getOtherParticipant(selectedConversation).name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-semibold text-base">
-                      {getOtherParticipant(selectedConversation).name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {getOtherParticipant(selectedConversation).email}
-                    </p>
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
+                      <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
+                        {getInitials(getOtherParticipant(selectedConversation).name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold text-base">
+                        {getOtherParticipant(selectedConversation).name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {getOtherParticipant(selectedConversation).email}
+                      </p>
+                    </div>
                   </div>
+                  {selectedConversation.orderId && getOrderDetails(selectedConversation.orderId) && (
+                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-1">
+                          <span className="text-xs font-medium text-blue-900 dark:text-blue-100">Order:</span>
+                          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                            {getOrderDetails(selectedConversation.orderId)?.orderNumber}
+                          </span>
+                          <span className="text-xs text-blue-600 dark:text-blue-400">•</span>
+                          <span className="text-xs text-blue-700 dark:text-blue-300 truncate">
+                            {getOrderDetails(selectedConversation.orderId)?.jobAddress}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -740,7 +785,7 @@ export default function Messages() {
                           className={cn(
                             "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                             isCurrentUser 
-                              ? "bg-rpp-red-main/10 rounded-br-sm" 
+                              ? "bg-[#FCDED4] rounded-br-sm" 
                               : "bg-gray-200 dark:bg-gray-700 rounded-bl-sm"
                           )}
                         >
