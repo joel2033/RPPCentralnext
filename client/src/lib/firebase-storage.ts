@@ -69,7 +69,33 @@ export const uploadFileToFirebase = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      // Try to get detailed error message from response
+      let errorMessage = `Upload failed: ${response.status} ${response.statusText}`;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('[upload-firebase] Server error response:', errorData);
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } else {
+          // Try to read as text if not JSON
+          const text = await response.text();
+          console.error('[upload-firebase] Server error (non-JSON):', text);
+          if (text) {
+            errorMessage = text.substring(0, 200); // Limit length
+          }
+        }
+      } catch (e) {
+        console.error('[upload-firebase] Error parsing error response:', e);
+        // If response is not JSON, use status text
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
@@ -217,7 +243,19 @@ export const uploadCompletedFileToFirebase = async (
     });
 
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      // Try to get detailed error message from response
+      let errorMessage = `Upload failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (e) {
+        // If response is not JSON, use status text
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();

@@ -66,7 +66,11 @@ export function FileUploadModal({
     const files = Array.from(e.dataTransfer.files).filter(file => 
       file.type.startsWith('image/') || 
       file.name.toLowerCase().endsWith('.dng') ||
-      file.type === 'image/x-adobe-dng'
+      file.type === 'image/x-adobe-dng' ||
+      file.type === 'video/mp4' ||
+      file.type === 'video/quicktime' ||
+      file.name.toLowerCase().endsWith('.mp4') ||
+      file.name.toLowerCase().endsWith('.mov')
     );
     addFiles(files);
   };
@@ -196,8 +200,8 @@ export function FileUploadModal({
                 uploadType // Pass uploadType to determine storage location (orders/ vs completed/)
               );
           
-          // Set timeout for large files (5 minutes for files over 10MB)
-          const timeoutMs = item.file.size > 10 * 1024 * 1024 ? 300000 : 120000;
+          // Set timeout for large files (15 minutes for files over 100MB, 5 minutes for files over 10MB)
+          const timeoutMs = item.file.size > 100 * 1024 * 1024 ? 900000 : item.file.size > 10 * 1024 * 1024 ? 300000 : 120000;
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error(`Upload timeout after ${timeoutMs/1000}s`)), timeoutMs)
           );
@@ -321,7 +325,7 @@ export function FileUploadModal({
               <input
                 type="file"
                 multiple
-                accept="image/*,.dng,.DNG"
+                accept="image/*,.dng,.DNG,video/mp4,video/quicktime,.mp4,.mov,.MOV"
                 onChange={handleFileSelect}
                 className="hidden"
                 id="file-upload-modal"
@@ -355,7 +359,7 @@ export function FileUploadModal({
                 Drag and drop files here
               </p>
               <p className="text-sm text-gray-500 mb-4">
-                Supports images and DNG files
+                Supports images, DNG files, and videos (MP4, MOV)
               </p>
               <label htmlFor="file-upload-modal">
                 <Button variant="outline" asChild>

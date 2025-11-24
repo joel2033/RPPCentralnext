@@ -190,7 +190,13 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
 
   const handleDrop = (e: React.DragEvent, serviceId: string) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/') ||
+      file.type === 'video/mp4' ||
+      file.type === 'video/quicktime' ||
+      file.name.toLowerCase().endsWith('.mp4') ||
+      file.name.toLowerCase().endsWith('.mov')
+    );
     setSelectedServices(selectedServices.map(s => 
       s.id === serviceId ? { ...s, files: [...s.files, ...files] } : s
     ));
@@ -423,10 +429,11 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
                                   <UploadIcon className="w-6 h-6 text-orange-500" />
                                 </div>
                                 <p className="text-sm text-gray-600 mb-1">Click to upload files or drag and drop</p>
-                                <p className="text-xs text-gray-500">JPG, PNG, RAW, or TIFF files</p>
+                                <p className="text-xs text-gray-500">JPG, PNG, RAW, TIFF, MP4, or MOV files</p>
                                 <input
                                   type="file"
                                   multiple
+                                  accept="image/*,video/mp4,video/quicktime,.mp4,.mov,.MOV"
                                   onChange={(e) => handleFileUpload(e, service.id)}
                                   className="hidden"
                                   id={`file-upload-${service.id}`}

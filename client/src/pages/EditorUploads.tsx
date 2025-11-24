@@ -348,12 +348,12 @@ export default function EditorUploads() {
                   Drag and drop your edited files here, or click to browse
                 </p>
                 <p className="text-sm text-gray-500 mb-4">
-                  Supported formats: JPG, PNG, TIFF, PSD (Max 200MB per file)
+                  Supported formats: JPG, PNG, TIFF, PSD, MP4, MOV (Max 500MB per file)
                 </p>
                 <input
                   type="file"
                   multiple
-                  accept="image/*,.psd"
+                  accept="image/*,.psd,video/mp4,video/quicktime,.mp4,.mov,.MOV"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="file-upload-editor"

@@ -3665,7 +3665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     dest: '/tmp/uploads',
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB limit
+      fileSize: 500 * 1024 * 1024, // 500MB limit - increased for video files
     },
   });
 
@@ -3981,13 +3981,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validate file type and size for completed files
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/tif', 'image/x-adobe-dng', 'application/zip'];
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/tif', 'image/x-adobe-dng', 'application/zip', 'video/mp4', 'video/quicktime'];
       if (!allowedTypes.includes(req.file.mimetype)) {
         return res.status(400).json({ error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` });
       }
 
-      // File size limit (100MB)
-      const maxFileSize = 100 * 1024 * 1024;
+      // File size limit (500MB - increased for video files)
+      const maxFileSize = 500 * 1024 * 1024;
       if (req.file.size > maxFileSize) {
         return res.status(400).json({ error: `File too large. Maximum size: ${maxFileSize / 1024 / 1024}MB` });
       }

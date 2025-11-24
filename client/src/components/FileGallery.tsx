@@ -74,6 +74,10 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [selectedImageName, setSelectedImageName] = useState<string>('');
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   const [galleryImages, setGalleryImages] = useState<Array<{ url: string; name: string }>>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedVideoName, setSelectedVideoName] = useState<string>('');
+  const [currentVideoIndex, setCurrentVideoIndex] = useState<number>(0);
+  const [galleryVideos, setGalleryVideos] = useState<Array<{ url: string; name: string }>>([]);
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [showRenameFolderModal, setShowRenameFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -941,6 +945,25 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setSelectedImageName(name);
   };
 
+  const handleVideoClick = (url: string, name: string, folderFiles?: any[]) => {
+    // Build gallery from folder files if provided
+    if (folderFiles) {
+      const videoFiles = folderFiles
+        .filter(file => !file.fileName.startsWith('.') && file.downloadUrl && isVideo(file.mimeType))
+        .map(file => ({ url: file.downloadUrl, name: file.originalName }));
+      
+      setGalleryVideos(videoFiles);
+      const clickedIndex = videoFiles.findIndex(vid => vid.url === url);
+      setCurrentVideoIndex(clickedIndex >= 0 ? clickedIndex : 0);
+    } else {
+      setGalleryVideos([{ url, name }]);
+      setCurrentVideoIndex(0);
+    }
+    
+    setSelectedVideo(url);
+    setSelectedVideoName(name);
+  };
+
   const navigateImage = (direction: 'prev' | 'next') => {
     if (galleryImages.length === 0) return;
     
@@ -954,6 +977,21 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setCurrentImageIndex(newIndex);
     setSelectedImage(galleryImages[newIndex].url);
     setSelectedImageName(galleryImages[newIndex].name);
+  };
+
+  const navigateVideo = (direction: 'prev' | 'next') => {
+    if (galleryVideos.length === 0) return;
+    
+    let newIndex = currentVideoIndex;
+    if (direction === 'next') {
+      newIndex = (currentVideoIndex + 1) % galleryVideos.length;
+    } else {
+      newIndex = currentVideoIndex - 1 < 0 ? galleryVideos.length - 1 : currentVideoIndex - 1;
+    }
+    
+    setCurrentVideoIndex(newIndex);
+    setSelectedVideo(galleryVideos[newIndex].url);
+    setSelectedVideoName(galleryVideos[newIndex].name);
   };
 
   const handleDownload = (url: string, fileName: string) => {
@@ -1051,8 +1089,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           </div>
         ) : isVideo(file.mimeType) ? (
           <div 
-            className="relative aspect-square bg-gray-900"
-            onClick={() => window.open(file.downloadUrl, '_blank')}
+            className="relative aspect-square bg-gray-900 cursor-pointer group"
+            onClick={() => handleVideoClick(file.downloadUrl, file.originalName, folderFiles)}
           >
             <video
               src={file.downloadUrl}
@@ -1060,7 +1098,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               muted
               preload="metadata"
             />
-            <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-all flex items-center justify-center">
               <Play className="h-12 w-12 text-white drop-shadow-lg" />
             </div>
             <div className="absolute top-2 right-2">
@@ -1777,6 +1815,133 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                       {index === currentImageIndex && (
                         <div className="absolute inset-0 bg-white/20 rounded-lg" />
                       )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Video Modal */}
+      <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+        <DialogContent className="max-w-full w-screen h-screen p-0 bg-black border-0 shadow-none m-0 [&>button]:hidden">
+          {/* Dark Overlay Background */}
+          <div className="absolute inset-0 bg-black" onClick={() => setSelectedVideo(null)} />
+          
+          <div className="relative h-full flex flex-col items-center justify-center p-8 z-10">
+            {/* Close Button */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setSelectedVideo(null)}
+              className="absolute top-6 right-6 z-30 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10"
+              data-testid="button-close-video"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+
+            {/* Top Controls */}
+            <div className="absolute top-6 left-6 flex items-center space-x-3 z-20">
+              {galleryVideos.length > 1 && (
+                <div className="bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+                  {currentVideoIndex + 1} / {galleryVideos.length}
+                </div>
+              )}
+              <Button
+                size="sm"
+                onClick={() => selectedVideo && handleDownload(selectedVideo, selectedVideoName)}
+                className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white border-0 rounded-full"
+                data-testid="button-modal-download-video"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+
+            {/* Main Video Container - Floating Effect */}
+            <div className="relative flex-1 flex items-center justify-center w-full max-h-[calc(100%-180px)] mb-4">
+              {/* Previous Arrow - Small */}
+              {galleryVideos.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateVideo('prev');
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-prev-video"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              )}
+
+              {/* Floating Video */}
+              <div className="relative max-w-full max-h-full">
+                <video
+                  src={selectedVideo || ''}
+                  controls
+                  className="max-w-full max-h-[70vh] rounded-lg shadow-2xl shadow-black/50"
+                  onClick={(e) => e.stopPropagation()}
+                  autoPlay
+                />
+                {/* Video Name Overlay */}
+                <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm max-w-md truncate">
+                  {selectedVideoName}
+                </div>
+              </div>
+
+              {/* Next Arrow - Small */}
+              {galleryVideos.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateVideo('next');
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-next-video"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+
+            {/* Thumbnail Carousel */}
+            {galleryVideos.length > 1 && (
+              <div className="w-full max-w-5xl px-4">
+                <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  {galleryVideos.map((vid, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentVideoIndex(index);
+                        setSelectedVideo(vid.url);
+                        setSelectedVideoName(vid.name);
+                      }}
+                      className={`flex-shrink-0 relative group transition-all ${
+                        index === currentVideoIndex 
+                          ? 'ring-2 ring-white scale-110' 
+                          : 'opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
+                      data-testid={`video-thumbnail-${index}`}
+                    >
+                      <video
+                        src={vid.url}
+                        className="w-20 h-20 object-cover rounded-lg"
+                        muted
+                        preload="metadata"
+                      />
+                      {index === currentVideoIndex && (
+                        <div className="absolute inset-0 bg-white/20 rounded-lg" />
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="h-6 w-6 text-white drop-shadow-lg" />
+                      </div>
                     </button>
                   ))}
                 </div>
