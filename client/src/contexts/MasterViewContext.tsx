@@ -41,7 +41,14 @@ const MasterViewContext = createContext<MasterViewContextType | undefined>(undef
 
 /**
  * Default values returned when useMasterView is called outside MasterViewProvider.
- * These represent a "non-master" user state with no special permissions.
+ * 
+ * Security Note: isReadOnly defaults to true (restrictive) for defense-in-depth.
+ * If the provider is missing, we assume the safest posture: deny write operations.
+ * This prevents accidental data modification if components are rendered outside
+ * the proper provider hierarchy. The server-side APIs also enforce permissions,
+ * so this is an additional client-side safeguard.
+ * 
+ * isMaster defaults to false, meaning the user won't be treated as a master user.
  */
 const defaultMasterViewValue: MasterViewContextType = {
   viewingPartnerId: null,
@@ -52,7 +59,7 @@ const defaultMasterViewValue: MasterViewContextType = {
   isMaster: false,
   isSwitchingBusiness: false,
   isViewingOwnBusiness: false,
-  isReadOnly: false,
+  isReadOnly: true, // Secure default: deny writes when provider is missing
   selectPartner: () => {},
   clearSelection: () => {},
   getApiUrl: (baseUrl: string) => baseUrl,
@@ -62,9 +69,14 @@ const defaultMasterViewValue: MasterViewContextType = {
 /**
  * Hook to access MasterView context.
  * 
- * IMPORTANT: This hook must be used within a MasterViewProvider.
- * If used outside the provider, it returns safe default values representing
- * a non-master user (isMaster: false, isReadOnly: false, etc.).
+ * IMPORTANT: This hook should be used within a MasterViewProvider.
+ * If used outside the provider, it returns secure default values:
+ * - isMaster: false (user is not treated as master)
+ * - isReadOnly: true (write operations are blocked for safety)
+ * 
+ * The secure default of isReadOnly: true ensures that if the provider is
+ * somehow missing, the UI will be restrictive rather than permissive.
+ * This follows the principle of "fail secure" - deny by default.
  * 
  * Components using this hook:
  * - FileGallery (for isReadOnly check)
@@ -72,13 +84,17 @@ const defaultMasterViewValue: MasterViewContextType = {
  * - Header (for business selector dropdown)
  * - Sidebar (for navigation permissions)
  * 
- * @returns MasterViewContextType with either the provider's value or safe defaults
+ * @returns MasterViewContextType with either the provider's value or secure defaults
  */
 export const useMasterView = (): MasterViewContextType => {
   const context = useContext(MasterViewContext);
   if (context === undefined) {
-    // Return safe defaults instead of throwing - allows components to work
+    // Return secure defaults instead of throwing - allows components to work
     // outside the provider (e.g., in tests, Storybook, or isolated rendering)
+    // with isReadOnly: true to prevent accidental write operations
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('useMasterView called outside MasterViewProvider - using secure defaults (isReadOnly: true)');
+    }
     return defaultMasterViewValue;
   }
   return context;
