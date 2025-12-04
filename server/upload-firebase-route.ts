@@ -75,7 +75,7 @@ export function registerFirebaseUploadRoute(app: Express) {
         return res.status(400).json({ error: "upload_failed", detail: "No file uploaded" });
       }
 
-      const { jobId, orderNumber, folderPath: rawFolderPath, userId, uploadType } = req.body;
+      const { jobId, orderNumber, folderPath: rawFolderPath, userId, uploadType, folderToken } = req.body;
 
       // Detailed diagnostic logging
       console.log('[upload-firebase] INCOMING', {
@@ -121,6 +121,42 @@ export function registerFirebaseUploadRoute(app: Express) {
         }
       }
       // If no folderPath provided, keep it as null (editor-only uploads, not for JobCard display)
+      
+      // If folderToken is provided, look up the folder to get the correct folderPath and partnerFolderName
+      let resolvedFolderPath: string | null = folderPath;
+      let partnerFolderName: string | null = null;
+      if (folderToken && jobId) {
+        try {
+          // Resolve job ID first
+          const job = await firestoreStorage.getJobByJobId(jobId);
+          if (job?.id) {
+            // Use adminDb from firebase-admin to query folders collection
+            const { adminDb } = await import('./firebase-admin');
+            const foldersSnapshot = await adminDb.collection("folders")
+              .where("jobId", "==", job.id)
+              .where("folderToken", "==", folderToken)
+              .limit(1)
+              .get();
+            
+            if (!foldersSnapshot.empty) {
+              const folderData = foldersSnapshot.docs[0].data();
+              partnerFolderName = folderData.partnerFolderName || null;
+              // Use the folder's path from the database to ensure consistency
+              resolvedFolderPath = folderData.folderPath || folderPath;
+              console.log('[upload-firebase] Found folder for token:', {
+                folderToken,
+                partnerFolderName,
+                folderPath: folderData.folderPath,
+                resolvedFolderPath
+              });
+            } else {
+              console.warn('[upload-firebase] Folder not found for token:', folderToken);
+            }
+          }
+        } catch (folderLookupError) {
+          console.error('[upload-firebase] Error looking up folder:', folderLookupError);
+        }
+      }
 
       const safeName = file.originalname.replace(/\s+/g, '_');
       const ts = Date.now();
@@ -149,9 +185,9 @@ export function registerFirebaseUploadRoute(app: Express) {
         const userPath = userId ? `orders/${userId}` : 'orders';
         const basePath = cleanOrder ? `${userPath}/${jobId}/${cleanOrder}` : `${userPath}/${jobId}`;
 
-        if (folderPath) {
+        if (resolvedFolderPath) {
           // Upload to specific folder (JobCard folder upload)
-          destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+          destPath = `${basePath}/${resolvedFolderPath}/${ts}_${safeName}`;
         } else {
           // Editor-only upload (Upload page) - no folder, goes to 'files' directory
           destPath = `${basePath}/files/${ts}_${safeName}`;
@@ -161,11 +197,11 @@ export function registerFirebaseUploadRoute(app: Express) {
         fileStatus = 'for_editing';
       } else {
         // Editor uploading completed work (or default to completed for backward compatibility)
-        const userPath = userId ? `completed/${userId}` : 'completed';
-        const basePath = cleanOrder ? `${userPath}/${jobId}/${cleanOrder}` : `${userPath}/${jobId}`;
+        // Structure: completed/jobId/[folderPath/]filename (no userId)
+        const basePath = cleanOrder ? `completed/${jobId}/${cleanOrder}` : `completed/${jobId}`;
 
-        if (folderPath) {
-          destPath = `${basePath}/${folderPath}/${ts}_${safeName}`;
+        if (resolvedFolderPath) {
+          destPath = `${basePath}/${resolvedFolderPath}/${ts}_${safeName}`;
         } else {
           destPath = `${basePath}/files/${ts}_${safeName}`;
         }
@@ -176,7 +212,8 @@ export function registerFirebaseUploadRoute(app: Express) {
 
       console.log('[upload-firebase] FIREBASE STORAGE PATH', {
         destPath,
-        folderPath: folderPath || 'null (editor-only upload)',
+        folderPath: resolvedFolderPath || 'null (editor-only upload)',
+        folderToken: folderToken || 'null',
         fileStatus,
         expirationDays
       });
@@ -289,12 +326,14 @@ export function registerFirebaseUploadRoute(app: Express) {
           mimeType: file.mimetype,
           firebaseUrl: destPath,
           downloadUrl: url,
-          folderPath: folderPath || null, // null for editor-only uploads (won't appear in JobCard folders)
+          folderPath: resolvedFolderPath || null, // Use resolved folderPath (from folder document if folderToken exists)
           status: fileStatus,
           notes: null,
-          folderToken: null,
-          partnerFolderName: null,
-          editorFolderName: folderPath || null, // null for editor-only uploads
+          folderToken: folderToken || null, // Use provided folderToken for standalone folders
+          partnerFolderName: partnerFolderName, // Get from folder document if folderToken exists
+          // For folders with folderToken (created via "Add Content"), don't set editorFolderName
+          // This ensures partnerFolderName (user-provided name) is always used for display
+          editorFolderName: folderToken ? null : (resolvedFolderPath || null), // Only set for folders without folderToken
           expiresAt,
         } as any);
       } catch (persistErr) {

@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
-import { hasRoutePermission } from '@/lib/firebaseAuth';
+import { useMasterView } from '@/contexts/MasterViewContext';
+import { hasRoutePermission, UserRole } from '@/lib/firebaseAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,7 +11,15 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, route }) => {
   const { currentUser, userData, loading } = useAuth();
+  const { isMaster, isViewingOwnBusiness } = useMasterView();
   const [, setLocation] = useLocation();
+
+  // Compute effective role for route permissions:
+  // - If master and viewing own business, treat as 'partner' for navigation
+  // - Otherwise, use actual role
+  const effectiveRole: UserRole | null = userData
+    ? (isMaster && isViewingOwnBusiness ? 'partner' : userData.role)
+    : null;
 
   useEffect(() => {
     if (!loading) {
@@ -19,12 +28,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, route }) => {
         return;
       }
       
-      if (userData && !hasRoutePermission(route, userData.role)) {
+      if (effectiveRole && !hasRoutePermission(route, effectiveRole)) {
         setLocation('/dashboard');
         return;
       }
     }
-  }, [loading, currentUser, userData, route, setLocation]);
+  }, [loading, currentUser, effectiveRole, route, setLocation]);
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -40,7 +49,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, route }) => {
     return null;
   }
 
-  if (userData && !hasRoutePermission(route, userData.role)) {
+  if (effectiveRole && !hasRoutePermission(route, effectiveRole)) {
     return null;
   }
 

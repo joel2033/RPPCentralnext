@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 // Removed unused Checkbox import - folders are now mandatory
 import { X, Upload as UploadIcon, FileImage, Plus } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { uploadFileToFirebase, uploadCompletedFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
+import { uploadFileToFirebase, UploadProgress, reserveOrderNumber } from '@/lib/firebase-storage';
 
 interface FileUploadModalProps {
   isOpen: boolean;
@@ -152,53 +152,32 @@ export function FileUploadModal({
         try {
           console.log(`Starting Firebase upload for ${item.file.name} (${(item.file.size / 1024 / 1024).toFixed(2)}MB)...`);
           
-          // Add a timeout wrapper and choose upload function based on type
-          const uploadPromise = uploadType === 'completed' 
-            ? uploadCompletedFileToFirebase(
-                item.file,
-                jobId,
-                currentOrderNumber || undefined,
-                (progress: UploadProgress) => {
-                  console.log(`Progress for ${item.file.name}:`, progress);
-                  setUploadItems(prev => prev.map((uploadItem, index) => 
-                    index === i ? { 
-                      ...uploadItem, 
-                      progress: progress.progress,
-                      status: progress.status === 'completed' ? 'completed' : 'uploading',
-                      url: progress.url
-                    } : uploadItem
-                  ));
-                },
-                // Pass folder data if folder is being used OR if uploading to existing folder
-                useFolder && folderName ? {
-                  folderPath: folderName,
-                  editorFolderName: folderName
-                } : hideFolderInput && folderPath ? {
-                  folderPath: folderPath,
-                  editorFolderName: folderPath.split('/').pop() || folderPath
-                } : undefined
-              )
-            : uploadFileToFirebase(
-                item.file,
-                userId,
-                jobId,
-                // For partner job card uploads targeting a folder, do not send order number
-                (folderPath ? '' : (currentOrderNumber || '')),
-                (progress: UploadProgress) => {
-                  console.log(`Progress for ${item.file.name}:`, progress);
-                  setUploadItems(prev => prev.map((uploadItem, index) =>
-                    index === i ? {
-                      ...uploadItem,
-                      progress: progress.progress,
-                      status: progress.status === 'completed' ? 'completed' : 'uploading',
-                      url: progress.url
-                    } : uploadItem
-                  ));
-                },
-                folderToken, // Pass folder token for standalone folders
-                folderPath, // Pass folder path so server writes into existing/new folder
-                uploadType // Pass uploadType to determine storage location (orders/ vs completed/)
-              );
+          // Use the unified uploadFileToFirebase function for both client and completed uploads
+          // This allows both editors and partners to upload files
+          const uploadPromise = uploadFileToFirebase(
+            item.file,
+            userId,
+            jobId,
+            // For completed uploads, order number is optional (server will auto-detect)
+            // For client uploads, use order number if available (unless uploading to existing folder)
+            uploadType === 'completed' 
+              ? (currentOrderNumber || '') 
+              : (folderPath ? '' : (currentOrderNumber || '')),
+            (progress: UploadProgress) => {
+              console.log(`Progress for ${item.file.name}:`, progress);
+              setUploadItems(prev => prev.map((uploadItem, index) =>
+                index === i ? {
+                  ...uploadItem,
+                  progress: progress.progress,
+                  status: progress.status === 'completed' ? 'completed' : 'uploading',
+                  url: progress.url
+                } : uploadItem
+              ));
+            },
+            folderToken, // Pass folder token for standalone folders
+            folderPath || (useFolder && folderName ? folderName : undefined), // Pass folder path
+            uploadType // Pass uploadType to determine storage location (orders/ vs completed/)
+          );
           
           // Set timeout for large files (15 minutes for files over 100MB, 5 minutes for files over 10MB)
           const timeoutMs = item.file.size > 100 * 1024 * 1024 ? 900000 : item.file.size > 10 * 1024 * 1024 ? 300000 : 120000;

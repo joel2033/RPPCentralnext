@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Mail, Phone, Search, Building2, Filter } from "lucide-react";
 import CreateCustomerModal from "@/components/modals/CreateCustomerModal";
+import { useMasterView } from "@/contexts/MasterViewContext";
 
 export default function Customers() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const { isReadOnly } = useMasterView();
   
   const { data: customers = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/customers"],
@@ -69,14 +71,16 @@ export default function Customers() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Manage your customer relationships and contact information</p>
         </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="hover:bg-rpp-red-dark text-white rounded-full px-6 bg-[#f05a2a]"
-          data-testid="button-new-customer"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Customer
-        </Button>
+        {!isReadOnly && (
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="hover:bg-rpp-red-dark text-white rounded-full px-6 bg-[#f05a2a]"
+            data-testid="button-new-customer"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Customer
+          </Button>
+        )}
       </div>
       {/* Search and Filter Bar */}
       <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm">
@@ -196,7 +200,7 @@ export default function Customers() {
         ))}
       </div>
       {/* Empty States */}
-      {customers.length === 0 && (
+      {customers.length === 0 && !isReadOnly && (
         <div className="col-span-full text-center py-12">
           <div className="text-gray-400 dark:text-gray-500">
             <div className="text-6xl mb-4">👥</div>

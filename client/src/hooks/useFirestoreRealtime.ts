@@ -16,7 +16,8 @@ import type {
   Notification, 
   Job, 
   Order, 
-  EditorUpload 
+  EditorUpload,
+  Appointment
 } from '@shared/schema';
 
 // Helper to convert Firestore timestamps to Date objects
@@ -361,6 +362,68 @@ export function useRealtimeJobs(partnerId: string | null, filters?: {
   }, [partnerId, filters?.status, filters?.customerId, filters?.assignedTo]);
 
   return { jobs, loading, error };
+}
+
+// Real-time appointments for a partner
+export function useRealtimeAppointments(partnerId: string | null) {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!partnerId) {
+      setAppointments([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    
+    // Query appointments by partnerId (fetch all, filter cancelled in memory)
+    // This matches the approach used in the booking API endpoint
+    const q = query(
+      collection(db, 'appointments'),
+      where('partnerId', '==', partnerId)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const appointmentList = snapshot.docs
+          .map(doc => convertTimestamps(doc) as Appointment)
+          .filter(apt => {
+            // Filter out cancelled appointments in memory (more reliable than Firestore != operator)
+            const status = apt.status;
+            return !status || status !== 'cancelled';
+          });
+        
+        console.log('[useRealtimeAppointments] Received appointments:', {
+          count: appointmentList.length,
+          partnerId,
+          appointments: appointmentList.map(apt => ({
+            id: apt.id,
+            appointmentId: apt.appointmentId,
+            jobId: apt.jobId,
+            appointmentDate: apt.appointmentDate,
+            status: apt.status
+          }))
+        });
+        
+        setAppointments(appointmentList);
+        setLoading(false);
+        setError(null);
+      },
+      (err: any) => {
+        console.error('Error listening to appointments:', err);
+        setError(err as Error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [partnerId]);
+
+  return { appointments, loading, error };
 }
 
 // Real-time orders for a partner or editor

@@ -8,7 +8,7 @@ import {
 // Removed Firestore imports to avoid permission issues during development
 import { auth } from "./firebase";
 
-export type UserRole = "partner" | "admin" | "photographer" | "editor";
+export type UserRole = "partner" | "admin" | "photographer" | "editor" | "master";
 
 export interface UserData {
   uid: string;
@@ -138,20 +138,24 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
 };
 
 // Route permissions by role - updated for multi-tenant structure
+// Master role has read-only access to selected partner routes for oversight
+// Master CANNOT access: production-hub, messages, notifications, settings, upload
 export const routePermissions: Record<string, UserRole[]> = {
-  "/dashboard": ["partner", "admin", "photographer"],
-  "/jobs": ["partner", "admin", "photographer"],
-  "/calendar": ["partner", "admin", "photographer"],
-  "/customers": ["partner", "admin", "photographer"],
-  "/products": ["partner", "admin"],
-  "/orders": ["partner", "admin", "photographer"],
-  "/upload": ["partner", "admin", "photographer"],
-  "/settings": ["partner", "photographer"], // Partners and photographers can access settings
+  "/dashboard": ["partner", "admin", "photographer", "master"],
+  "/jobs": ["partner", "admin", "photographer", "master"],
+  "/calendar": ["partner", "admin", "photographer", "master"],
+  "/customers": ["partner", "admin", "photographer", "master"],
+  "/products": ["partner", "admin", "master"],
+  "/orders": ["partner", "admin", "photographer", "master"],
+  "/upload": ["partner", "admin", "photographer"], // Master cannot upload
+  "/settings": ["partner", "photographer"], // Master cannot access settings
   "/team/assignments": ["partner", "admin"], // Only partners and admins can assign team orders
-  "/messages": ["partner", "admin", "photographer"], // Partners can message with editors
-  "/team": ["partner", "admin"], // Team members management
-  "/partnerships": ["partner", "admin"], // Partnership management
+  "/messages": ["partner", "admin", "photographer"], // Master cannot access messages
+  "/team": ["partner", "admin", "master"], // Team members management (read-only for master)
+  "/partnerships": ["partner", "admin", "master"], // Partnership management (read-only for master)
   "/invite-editor": ["partner", "admin"], // Invite editors
+  "/production-hub": ["partner", "admin", "photographer"], // Master cannot access production hub
+  "/notifications": ["partner", "admin", "photographer"], // Master cannot access notifications
   // Editor-specific routes
   "/editor": ["editor"],
   "/editor/dashboard": ["editor"],

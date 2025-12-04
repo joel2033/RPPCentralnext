@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,15 @@ import {
   Plus,
   MoreHorizontal,
   Clock,
-  MapPin
+  MapPin,
+  Loader2
 } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import CreateEventModal from "@/components/modals/CreateEventModal";
 import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal";
+import { useMasterView } from "@/contexts/MasterViewContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRealtimeAppointments } from "@/hooks/useFirestoreRealtime";
 
 interface User {
   id: string;
@@ -66,6 +70,10 @@ export default function Calendar() {
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [miniCalDate, setMiniCalDate] = useState<Date>(new Date());
+  const { isReadOnly } = useMasterView();
+  const { userData } = useAuth();
+  const partnerId = userData?.partnerId || null;
+  
   const [eventTypes, setEventTypes] = useState<EventType[]>([
     { id: 'job', label: 'Job', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true },
     { id: 'unavailable', label: 'Unavailable', color: 'text-red-600', bgColor: 'bg-red-100', checked: true },
@@ -76,7 +84,7 @@ export default function Calendar() {
     { id: 'external-google', label: 'External Google', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true }
   ]);
 
-  const { data: jobs = [], isError: jobsError } = useQuery({
+  const { data: jobs = [], isError: jobsError, isLoading: isLoadingJobs } = useQuery({
     queryKey: ["/api/jobs"],
     retry: 1,
     staleTime: 30000,
@@ -87,6 +95,77 @@ export default function Calendar() {
     retry: 1,
     staleTime: 30000,
   });
+
+  // Use real-time appointments hook for instant updates
+  const { appointments: realtimeAppointments = [], loading: isLoadingAppointments, error: appointmentsError } = useRealtimeAppointments(partnerId);
+
+  // Create a map of job.id -> job for quick lookup
+  const jobsById = useMemo(() => {
+    const map = new Map<string, any>();
+    jobs.forEach((job: any) => {
+      map.set(job.id, job);
+      map.set(job.jobId, job); // Also index by jobId (NanoID) for flexibility
+    });
+    return map;
+  }, [jobs]);
+
+  // Enrich appointments with job data
+  const allAppointments = useMemo(() => {
+    console.log('[Calendar] Processing appointments:', {
+      count: realtimeAppointments.length,
+      appointments: realtimeAppointments.map(apt => ({
+        id: apt.id,
+        appointmentId: apt.appointmentId,
+        jobId: apt.jobId,
+        appointmentDate: apt.appointmentDate,
+        status: apt.status
+      })),
+      jobsCount: jobs.length,
+      jobsByIdKeys: Array.from(jobsById.keys())
+    });
+    
+    return realtimeAppointments.map((apt: any) => {
+      // Find the job for this appointment
+      const job = jobsById.get(apt.jobId) || null;
+      
+      if (!job) {
+        console.warn('[Calendar] Job not found for appointment:', {
+          appointmentId: apt.appointmentId,
+          appointmentJobId: apt.jobId,
+          availableJobIds: Array.from(jobsById.keys())
+        });
+      }
+      
+      // Normalize appointment date
+      let appointmentDate: Date;
+      if (apt.appointmentDate instanceof Date) {
+        appointmentDate = apt.appointmentDate;
+      } else if (apt.appointmentDate?.toDate) {
+        appointmentDate = apt.appointmentDate.toDate();
+      } else if (typeof apt.appointmentDate === 'string') {
+        appointmentDate = new Date(apt.appointmentDate);
+      } else if (apt.appointmentDate?.seconds) {
+        appointmentDate = new Date(apt.appointmentDate.seconds * 1000);
+      } else {
+        appointmentDate = new Date(apt.appointmentDate);
+      }
+      
+      return {
+        ...apt,
+        appointmentDate, // Normalized date
+        job: job, // Include full job data
+      };
+    });
+  }, [realtimeAppointments, jobsById, jobs.length]);
+
+  // Load partner settings to get team member colors (if configured)
+  const { data: settings } = useQuery<any>({
+    queryKey: ["/api/settings"],
+    retry: 1,
+    staleTime: 60000,
+  });
+
+  const teamMemberColors: Record<string, string> = settings?.teamMemberColors || {};
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -115,36 +194,83 @@ export default function Calendar() {
   };
 
   const getJobsForDate = (targetDate: Date) => {
-    if (!jobs || !Array.isArray(jobs)) return [];
+    if (!allAppointments || !Array.isArray(allAppointments)) {
+      return [];
+    }
 
-    return (jobs as any[]).filter((job: any) => {
-      if (!job || (!job.appointmentDate && !job.createdAt)) return false;
-      try {
-        const jobDate = new Date(job.appointmentDate || job.createdAt);
-        if (isNaN(jobDate.getTime())) return false;
-        return jobDate.toDateString() === targetDate.toDateString();
-      } catch (error) {
-        console.error('Invalid date in job:', job);
+    const targetDateString = targetDate.toDateString();
+
+    return allAppointments.filter((appointment: any) => {
+      if (!appointment || !appointment.appointmentDate) {
         return false;
       }
-    }).map((job: any) => ({
-      ...job,
-      id: job.jobId || job.id,
-      title: job.address || 'Untitled Job',
-      type: 'job',
-      time: job.appointmentDate ? (() => {
-        try {
-          return new Date(job.appointmentDate).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          });
-        } catch (error) {
-          return '';
+      try {
+        // Handle different date formats - appointmentDate should already be normalized from the query
+        let appointmentDate: Date;
+        if (appointment.appointmentDate instanceof Date) {
+          appointmentDate = appointment.appointmentDate;
+        } else if (appointment.appointmentDate?.toDate) {
+          appointmentDate = appointment.appointmentDate.toDate();
+        } else if (appointment.appointmentDate?.seconds) {
+          appointmentDate = new Date(appointment.appointmentDate.seconds * 1000);
+        } else {
+          appointmentDate = new Date(appointment.appointmentDate);
         }
-      })() : '',
-      jobId: job.jobId || job.id
-    }));
+        
+        if (isNaN(appointmentDate.getTime())) {
+          return false;
+        }
+        
+        return appointmentDate.toDateString() === targetDateString;
+      } catch (error) {
+        console.error('[Calendar] Error processing appointment date:', error, appointment);
+        return false;
+      }
+    }).map((appointment: any) => {
+      const job = appointment.job || {};
+      
+      // Normalize appointment date for time display
+      let appointmentDate: Date;
+      if (appointment.appointmentDate instanceof Date) {
+        appointmentDate = appointment.appointmentDate;
+      } else if (appointment.appointmentDate?.toDate) {
+        appointmentDate = appointment.appointmentDate.toDate();
+      } else if (appointment.appointmentDate?.seconds) {
+        appointmentDate = new Date(appointment.appointmentDate.seconds * 1000);
+      } else {
+        appointmentDate = new Date(appointment.appointmentDate);
+      }
+      
+      return {
+        ...appointment,
+        // Keep ALL appointment data including products field
+        id: appointment.id, // Internal UUID - needed for fetching full appointment
+        appointmentId: appointment.appointmentId, // NanoID for external reference
+        title: job.address || 'Untitled Job',
+        type: 'job',
+        time: (() => {
+          try {
+            return appointmentDate.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false
+            });
+          } catch (error) {
+            return '';
+          }
+        })(),
+        appointmentDate, // Use normalized date
+        jobId: job.jobId || job.id,
+        address: job.address,
+        assignedTo: appointment.assignedTo || job.assignedTo,
+        customerId: job.customerId,
+        // Include appointment-specific data - ensure products is included
+        estimatedDuration: appointment.estimatedDuration,
+        products: appointment.products, // This should be the JSON string from the database
+        notes: appointment.notes,
+        status: appointment.status,
+      };
+    });
   };
 
   const getEventsForDate = (targetDate: Date) => {
@@ -279,7 +405,12 @@ export default function Calendar() {
 
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDayOfMonth; i++) {
-      days.push(<div key={`empty-${i}`} className="p-2 min-h-[120px] border-r border-b border-gray-100 bg-gray-50"></div>);
+      days.push(
+        <div
+          key={`empty-${i}`}
+          className="p-2 min-h-[120px] border-r border-b border-gray-100 bg-gray-50"
+        ></div>
+      );
     }
 
     // Days of the month
@@ -306,12 +437,25 @@ export default function Calendar() {
               const typeId = (event.type || 'other') as EventKind;
               const visible = eventTypes.find(t => t.id === typeId)?.checked ?? true;
               if (!visible) return null;
-              const title = (event.title || event.address) as string;
-              const short = title.length > 18 ? `${title.substring(0, 18)}...` : title;
+              const title = ((event.title || event.address || '') as string);
+              const short = title && title.length > 18 ? `${title.substring(0, 18)}...` : title;
+              const jobColor =
+                typeId === 'job' && event.assignedTo && teamMemberColors[event.assignedTo as string]
+                  ? teamMemberColors[event.assignedTo as string]
+                  : null;
               return (
                 <div
                   key={event.id || `event-${index}`}
                   className={`rounded-lg p-2 text-xs mb-1 border cursor-pointer hover:shadow-md transition-shadow ${getEventColor(typeId)}`}
+                  style={
+                    jobColor
+                      ? {
+                          backgroundColor: jobColor,
+                          color: '#ffffff',
+                          borderColor: jobColor,
+                        }
+                      : undefined
+                  }
                   title={title}
                   data-testid={`event-${event.id || index}`}
                   onClick={(e) => handleAppointmentClick(event, e)}
@@ -336,6 +480,18 @@ export default function Calendar() {
             )}
           </div>
         </div>
+      );
+    }
+
+    // Trailing empty cells so the month grid is always 6 rows (6 * 7 = 42)
+    const totalCells = firstDayOfMonth + daysInMonth;
+    const maxCells = 42;
+    for (let i = totalCells; i < maxCells; i++) {
+      days.push(
+        <div
+          key={`trailing-${i}`}
+          className="p-2 min-h-[120px] border-r border-b border-gray-100 bg-gray-50"
+        ></div>
       );
     }
 
@@ -389,10 +545,23 @@ export default function Calendar() {
                   if (!visible) return null;
                   const title = (event.title || event.address) as string;
                   const short = title.length > 28 ? `${title.substring(0, 28)}...` : title;
+                  const jobColor =
+                    typeId === 'job' && event.assignedTo && teamMemberColors[event.assignedTo as string]
+                      ? teamMemberColors[event.assignedTo as string]
+                      : null;
                   return (
                     <div
                       key={event.id || `event-${eventIndex}`}
                       className={`rounded-lg p-2 text-xs mb-1 border cursor-pointer hover:shadow-md transition-shadow ${getEventColor(typeId)}`}
+                      style={
+                        jobColor
+                          ? {
+                              backgroundColor: jobColor,
+                              color: '#ffffff',
+                              borderColor: jobColor,
+                            }
+                          : undefined
+                      }
                       title={title}
                       data-testid={`week-event-${event.id || eventIndex}`}
                       onClick={(e) => handleAppointmentClick(event, e)}
@@ -440,10 +609,23 @@ export default function Calendar() {
               if (!visible) return null;
               const title = (event.title || event.address) as string;
               const short = title.length > 36 ? `${title.substring(0, 36)}...` : title;
+              const jobColor =
+                typeId === 'job' && event.assignedTo && teamMemberColors[event.assignedTo as string]
+                  ? teamMemberColors[event.assignedTo as string]
+                  : null;
               return (
                 <div
                   key={event.id || `event-${index}`}
                   className={`rounded-lg p-2 text-xs mb-1 border cursor-pointer hover:shadow-md transition-shadow ${getEventColor(typeId)}`}
+                  style={
+                    jobColor
+                      ? {
+                          backgroundColor: jobColor,
+                          color: '#ffffff',
+                          borderColor: jobColor,
+                        }
+                      : undefined
+                  }
                   title={title}
                   data-testid={`day-event-${event.id || index}`}
                   onClick={(e) => handleAppointmentClick(event, e)}
@@ -505,8 +687,14 @@ export default function Calendar() {
               const first = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth(), 1).getDay();
               const days = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth()+1, 0).getDate();
               const cells: JSX.Element[] = [];
-              for (let i=0;i<first;i++) cells.push(<div key={`e-${i}`} className="py-1" />);
-              for (let d=1; d<=days; d++) {
+
+              // Leading empty cells before the first of the month
+              for (let i = 0; i < first; i++) {
+                cells.push(<div key={`e-${i}`} className="py-1" />);
+              }
+
+              // Actual days of the month
+              for (let d = 1; d <= days; d++) {
                 const thisDate = new Date(miniCalDate.getFullYear(), miniCalDate.getMonth(), d);
                 const isSelected = thisDate.toDateString() === currentDate.toDateString();
                 const isToday = thisDate.toDateString() === new Date().toDateString();
@@ -520,6 +708,13 @@ export default function Calendar() {
                   </button>
                 );
               }
+
+              // Trailing empty cells so the grid is always 6 rows (6 * 7 = 42)
+              const totalCells = first + days;
+              const maxCells = 42;
+              for (let i = totalCells; i < maxCells; i++) {
+                cells.push(<div key={`t-${i}`} className="py-1" />);
+              }
               return cells;
             })()}
           </div>
@@ -527,24 +722,7 @@ export default function Calendar() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Filters</h2>
-            <Button variant="outline" size="sm" className="px-4 py-1.5 rounded-full text-sm" data-testid="today-button">
-              Today
-            </Button>
           </div>
-        </div>
-
-        {/* Tomorrow Section */}
-        <div className="mb-4 rounded-xl border border-gray-200 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-900">Tomorrow</h3>
-            <button className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600" aria-label="More options">
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="text-xs text-gray-500 mb-1">
-            (UTC+10:00) Canberra, Melbourne, Sydney
-          </div>
-          <div className="text-sm text-gray-700">All day EXTERNAL GOOGLE Ella</div>
         </div>
 
         {/* Team Section */}
@@ -559,7 +737,10 @@ export default function Calendar() {
             {users.map((user) => (
               <label key={user.id} className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors" data-testid={`team-member-${user.id}`}>
                 <input type="radio" name="team" className="w-4 h-4" />
-                <div className={`w-8 h-8 rounded-full ${getAvatarColor(user.firstName || user.email)} text-white flex items-center justify-center text-sm font-medium`}>
+                <div
+                  className={`w-8 h-8 rounded-full ${teamMemberColors[user.id] ? '' : getAvatarColor(user.firstName || user.email)} text-white flex items-center justify-center text-sm font-medium`}
+                  style={teamMemberColors[user.id] ? { backgroundColor: teamMemberColors[user.id] } : undefined}
+                >
                   {getInitials(user.firstName, user.lastName) || user.email?.substring(0, 2).toUpperCase()}
                 </div>
                 <span className="text-sm text-gray-700">
@@ -636,30 +817,57 @@ export default function Calendar() {
               <Button variant="outline" size="sm" disabled title="Coming soon">
                 Google Calendar
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="bg-gradient-to-r from-[#F05A2A] to-[#ff6b3d] text-white rounded-lg px-3 py-2 shadow-lg shadow-orange-500/30 hover:shadow-xl transition-all" data-testid="create-button">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => setShowCreateJobModal(true)}>
-                    New Job
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowCreateEventModal(true)}>
-                    Add Event
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {!isReadOnly && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="bg-gradient-to-r from-[#F05A2A] to-[#ff6b3d] text-white rounded-lg px-3 py-2 shadow-lg shadow-orange-500/30 hover:shadow-xl transition-all" data-testid="create-button">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create
+                      <ChevronDown className="w-4 h-4 ml-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => setShowCreateJobModal(true)}>
+                      New Job
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowCreateEventModal(true)}>
+                      Add Event
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             </div>
           </div>
         </div>
 
         {/* Calendar Grid */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden relative">
+          {/* Loading Overlay */}
+          {(isLoadingJobs || isLoadingAppointments) && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 text-rpp-red-main animate-spin" />
+                <p className="text-sm text-gray-600 font-medium">
+                  {isLoadingJobs ? 'Loading calendar...' : 'Loading appointments...'}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Error State */}
+          {appointmentsError && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+              <div className="flex flex-col items-center gap-3 text-center p-4">
+                <p className="text-sm text-red-600 font-medium">
+                  Error loading appointments. Please refresh the page.
+                </p>
+                <p className="text-xs text-gray-500">
+                  {appointmentsError.message}
+                </p>
+              </div>
+            </div>
+          )}
           {viewMode === 'month' && renderMonthView()}
           {viewMode === 'week' && renderWeekView()}
           {viewMode === 'day' && renderDayView()}

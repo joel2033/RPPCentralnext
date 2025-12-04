@@ -2,11 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus, User } from "lucide-react";
-import CreateOrderModal from "@/components/modals/CreateOrderModal";
+import { Link } from "wouter";
 
 export default function Orders() {
   const [activeTab, setActiveTab] = useState("pending");
-  const [showCreateModal, setShowCreateModal] = useState(false);
   
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/orders"],
@@ -61,13 +60,14 @@ export default function Orders() {
           <h2 className="text-2xl font-bold text-rpp-grey-dark">Orders</h2>
           <p className="text-rpp-grey-light">Create, view and manage your post-production orders, right here.</p>
         </div>
-        <Button 
-          onClick={() => setShowCreateModal(true)}
-          className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New order
-        </Button>
+        <Link href="/upload">
+          <Button 
+            className="hover:bg-rpp-red-dark text-white bg-[#f05a2a]"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New order
+          </Button>
+        </Link>
       </div>
 
       {/* Filter Tabs */}
@@ -142,10 +142,6 @@ export default function Orders() {
           </table>
         </div>
       </div>
-
-      {showCreateModal && (
-        <CreateOrderModal onClose={() => setShowCreateModal(false)} />
-      )}
     </div>
   );
 }

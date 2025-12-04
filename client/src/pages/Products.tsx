@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import CreateProductModal from "@/components/modals/CreateProductModal";
 import { apiRequest } from "@/lib/queryClient";
+import { useMasterView } from "@/contexts/MasterViewContext";
 
 export default function Products() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { isReadOnly } = useMasterView();
 
   const { data: products = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/products"],
@@ -91,13 +93,15 @@ export default function Products() {
             Add and manage your products, packages, and add-ons with customizable preferences.
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          className="hover:bg-rpp-red-dark text-white bg-[#f05a2a] whitespace-nowrap"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New product
-        </Button>
+        {!isReadOnly && (
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="hover:bg-rpp-red-dark text-white bg-[#f05a2a] whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New product
+          </Button>
+        )}
       </div>
 
       {/* Products Table */}

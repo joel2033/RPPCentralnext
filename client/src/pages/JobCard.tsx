@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send, Star, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { getAuth } from "firebase/auth";
@@ -13,10 +14,13 @@ import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import ActivityTimeline from "@/components/ActivityTimeline";
 import FileGallery from "@/components/FileGallery";
 import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
+import CreateAppointmentModal from "@/components/modals/CreateAppointmentModal";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { useMasterView } from "@/contexts/MasterViewContext";
+import { auth } from "@/lib/firebase";
 
-const auth = getAuth();
+const firebaseAuth = getAuth();
 
 interface JobCardData {
   id: string;
@@ -62,18 +66,54 @@ export default function JobCard() {
   const jobId = params.jobId;
   const { toast } = useToast();
   const [deliveryModalJob, setDeliveryModalJob] = useState<JobCardData | null>(null);
+  const [showCreateAppointment, setShowCreateAppointment] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
+  const { isReadOnly } = useMasterView();
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
     enabled: !!jobId,
   });
 
+  // Fetch appointments for this job
+  const { data: appointments = [], isLoading: isLoadingAppointments } = useQuery<any[]>({
+    queryKey: ["/api/jobs", jobId, "appointments"],
+    enabled: !!jobId,
+    queryFn: async () => {
+      if (!jobId) return [];
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) {
+          console.error('[JobCard] No auth token available');
+          return [];
+        }
+        
+        const response = await fetch(`/api/jobs/${jobId}/appointments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[JobCard] Appointments API response:', data);
+          return data;
+        }
+        const errorText = await response.text();
+        console.error('[JobCard] Failed to fetch appointments:', response.status, response.statusText, errorText);
+        return [];
+      } catch (error) {
+        console.error('[JobCard] Error fetching appointments:', error);
+        return [];
+      }
+    },
+  });
+
   // Mutation to update job name
   const updateJobNameMutation = useMutation({
     mutationFn: async (newName: string) => {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await firebaseAuth.currentUser?.getIdToken();
       const response = await fetch(`/api/jobs/${jobData?.id}/name`, {
         method: "PATCH",
         headers: {
@@ -306,20 +346,22 @@ export default function JobCard() {
               <Upload className="h-4 w-4 mr-2" />
               Share
             </Button>
-            <Button 
-              size="sm"
-              className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
-              data-testid="button-delivery"
-              onClick={(e) => {
-                e.stopPropagation();
-                const token = jobData.deliveryToken || jobData.jobId;
-                if (!token) return;
-                setDeliveryModalJob(jobData);
-              }}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Deliver
-            </Button>
+            {!isReadOnly && (
+              <Button 
+                size="sm"
+                className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
+                data-testid="button-delivery"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const token = jobData.deliveryToken || jobData.jobId;
+                  if (!token) return;
+                  setDeliveryModalJob(jobData);
+                }}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Deliver
+              </Button>
+            )}
           </div>
           <Badge className={getStatusColor(jobData.status)}>
             {formatStatusForDisplay(jobData.status)}
@@ -433,7 +475,80 @@ export default function JobCard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {jobData.appointmentDate && (
+                {isLoadingAppointments ? (
+                  // Loading skeletons for appointments
+                  <>
+                    {[1, 2].map((i) => (
+                      <div key={i} className="p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-5 w-16" />
+                        </div>
+                        <Skeleton className="h-4 w-32 mb-1" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                    ))}
+                  </>
+                ) : appointments.length > 0 ? (
+                  appointments.map((appointment: any) => {
+                    // Get products from appointment.products field
+                    let appointmentProducts: any[] = [];
+                    try {
+                      if (appointment.products) {
+                        appointmentProducts = typeof appointment.products === 'string' 
+                          ? JSON.parse(appointment.products) 
+                          : appointment.products;
+                      }
+                    } catch (error) {
+                      console.error('[JobCard] Error parsing appointment products:', error);
+                    }
+
+                    return (
+                      <div key={appointment.id} className="p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Scheduled Shoot</span>
+                          <Badge variant="outline">
+                            {appointment.status === 'scheduled' ? 'Upcoming' : 
+                             appointment.status === 'completed' ? 'Completed' :
+                             appointment.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {format(new Date(appointment.appointmentDate), 'MMM dd, yyyy')}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {format(new Date(appointment.appointmentDate), 'h:mm a')}
+                        </p>
+                        {appointment.estimatedDuration && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Duration: {appointment.estimatedDuration} minutes
+                          </p>
+                        )}
+                        {appointmentProducts.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-blue-200">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Products:</p>
+                            <div className="space-y-1">
+                              {appointmentProducts.map((product: any, index: number) => (
+                                <p key={index} className="text-xs text-gray-600">
+                                  {product.name || product.title || product.id}
+                                  {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
+                                  {product.variationName && ` - ${product.variationName}`}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {appointment.notes && (
+                          <div className="mt-2 pt-2 border-t border-blue-200">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Notes:</p>
+                            <p className="text-xs text-gray-600">{appointment.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : jobData?.appointmentDate ? (
+                  // Fallback: Show old appointmentDate if no appointments found
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">Scheduled Shoot</span>
@@ -446,8 +561,14 @@ export default function JobCard() {
                       {format(new Date(jobData.appointmentDate), 'h:mm a')}
                     </p>
                   </div>
-                )}
-                <Button variant="outline" size="sm" className="w-full">
+                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowCreateAppointment(true)}
+                  data-testid="button-schedule-appointment"
+                >
                   <Calendar className="h-4 w-4 mr-2" />
                   Schedule Appointment
                 </Button>
@@ -559,6 +680,19 @@ export default function JobCard() {
             // Refresh the job card data to get updated data
             queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
             queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+          }}
+        />
+      )}
+      {/* Create Appointment Modal */}
+      {showCreateAppointment && (
+        <CreateAppointmentModal
+          jobId={jobData.jobId}
+          onClose={() => setShowCreateAppointment(false)}
+          onCreated={() => {
+            setShowCreateAppointment(false);
+            // Refresh appointments and job card
+            queryClient.invalidateQueries({ queryKey: ["/api/jobs", jobId, "appointments"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/jobs/card", jobId] });
           }}
         />
       )}

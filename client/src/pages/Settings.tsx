@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
+import BookingFormSettings from "@/components/booking/BookingFormSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Building2,
@@ -30,8 +31,12 @@ import {
   XCircle,
   Cog,
   Edit2,
-  X
+  X,
+  ChevronDown,
+  ChevronUp,
+  CalendarDays,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Partnership {
   editorId: string;
@@ -61,6 +66,7 @@ interface BusinessProfile {
   website: string;
   address: string;
   description: string;
+  timeZone?: string;
 }
 
 interface BusinessHours {
@@ -77,12 +83,14 @@ interface SavedSettings {
   businessHours?: BusinessHours;
   defaultMaxRevisionRounds?: number;
   editorDisplayNames?: Record<string, string>; // {editorId: customName}
+  teamMemberColors?: Record<string, string>; // {userId: colorHex}
 }
 
 export default function Settings() {
   const { userData } = useAuth();
   const isPhotographer = userData?.role === 'photographer';
   const [activeTab, setActiveTab] = useState(isPhotographer ? "account" : "company");
+  const [bookingSaveHandler, setBookingSaveHandler] = useState<(() => void) | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [businessHours, setBusinessHours] = useState({
@@ -115,6 +123,7 @@ export default function Settings() {
     address: "123 Business St, City, State 12345",
     website: "https://realpropertyphoto.com",
     description: "We provide high-quality real estate photography services to help showcase properties in their best light.",
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Sydney",
   });
 
   // Default max revision rounds
@@ -124,6 +133,10 @@ export default function Settings() {
   const [editorDisplayNames, setEditorDisplayNames] = useState<Record<string, string>>({});
   const [editingEditorId, setEditingEditorId] = useState<string | null>(null);
   const [tempEditorDisplayNames, setTempEditorDisplayNames] = useState<Record<string, string>>({});
+  const [expandedDisplayNames, setExpandedDisplayNames] = useState<Set<string>>(new Set());
+
+  // Team member colors (custom colors per user for identification)
+  const [teamMemberColors, setTeamMemberColors] = useState<Record<string, string>>({});
 
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
@@ -197,6 +210,9 @@ export default function Settings() {
       if (savedSettings.editorDisplayNames) {
         setEditorDisplayNames(savedSettings.editorDisplayNames);
         setTempEditorDisplayNames(savedSettings.editorDisplayNames);
+      }
+      if (savedSettings.teamMemberColors) {
+        setTeamMemberColors(savedSettings.teamMemberColors);
       }
     } else if (userData?.email) {
       // For photographers, initialize from userData if available
@@ -413,7 +429,8 @@ export default function Settings() {
       businessProfile,
       businessHours,
       defaultMaxRevisionRounds,
-      editorDisplayNames: Object.keys(editorDisplayNames).length > 0 ? editorDisplayNames : undefined
+      editorDisplayNames: Object.keys(editorDisplayNames).length > 0 ? editorDisplayNames : undefined,
+      teamMemberColors: Object.keys(teamMemberColors).length > 0 ? teamMemberColors : undefined
     });
   };
 
@@ -523,20 +540,33 @@ export default function Settings() {
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-600">Manage your business and account settings</p>
         </div>
-        <Button 
-          className="bg-[#f2572c] hover:bg-[#d94820] text-white"
-          onClick={handleSaveSettings}
-          disabled={saveSettingsMutation.isPending}
-          data-testid="button-save-settings"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {saveSettingsMutation.isPending ? "Saving..." : "Save Changes"}
-        </Button>
+        {/* Save button in header */}
+        {activeTab === 'booking' ? (
+          <Button
+            className="bg-[#f2572c] hover:bg-[#d94820] text-white"
+            onClick={() => bookingSaveHandler?.()}
+            disabled={!bookingSaveHandler}
+            data-testid="button-save-booking-settings"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Save Booking Settings
+          </Button>
+        ) : (
+          <Button 
+            className="bg-[#f2572c] hover:bg-[#d94820] text-white"
+            onClick={handleSaveSettings}
+            disabled={saveSettingsMutation.isPending}
+            data-testid="button-save-settings"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saveSettingsMutation.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        )}
       </div>
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full ${isPhotographer ? 'grid-cols-3' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full ${isPhotographer ? 'grid-cols-3' : 'grid-cols-6'}`}>
           {!isPhotographer && (
             <>
               <TabsTrigger value="company" className="flex items-center gap-2">
@@ -550,6 +580,10 @@ export default function Settings() {
               <TabsTrigger value="services" className="flex items-center gap-2">
                 <Wand2 className="w-4 h-4" />
                 <span>Services</span>
+              </TabsTrigger>
+              <TabsTrigger value="booking" className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4" />
+                <span>Booking</span>
               </TabsTrigger>
             </>
           )}
@@ -638,6 +672,38 @@ export default function Settings() {
                     onChange={(e) => setBusinessProfile(prev => ({ ...prev, address: e.target.value }))}
                     data-testid="input-address"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timeZone">Business Time Zone</Label>
+                  <Select
+                    value={businessProfile.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Sydney"}
+                    onValueChange={(value) =>
+                      setBusinessProfile((prev) => ({ ...prev, timeZone: value }))
+                    }
+                  >
+                    <SelectTrigger id="timeZone" data-testid="select-business-timezone">
+                      <SelectValue placeholder="Select time zone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Australia */}
+                      <SelectItem value="Australia/Sydney">Australia/Sydney (NSW/ACT)</SelectItem>
+                      <SelectItem value="Australia/Melbourne">Australia/Melbourne (VIC)</SelectItem>
+                      <SelectItem value="Australia/Brisbane">Australia/Brisbane (QLD)</SelectItem>
+                      <SelectItem value="Australia/Adelaide">Australia/Adelaide (SA)</SelectItem>
+                      <SelectItem value="Australia/Darwin">Australia/Darwin (NT)</SelectItem>
+                      <SelectItem value="Australia/Perth">Australia/Perth (WA)</SelectItem>
+                      <SelectItem value="Australia/Hobart">Australia/Hobart (TAS)</SelectItem>
+                      <SelectItem value="Australia/Lord_Howe">Australia/Lord_Howe</SelectItem>
+                      <SelectItem value="Australia/Broken_Hill">Australia/Broken_Hill</SelectItem>
+                      <SelectItem value="Australia/Eucla">Australia/Eucla</SelectItem>
+                      {/* New Zealand */}
+                      <SelectItem value="Pacific/Auckland">Pacific/Auckland (New Zealand)</SelectItem>
+                      <SelectItem value="Pacific/Chatham">Pacific/Chatham (Chatham Islands)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    This time zone will be used as the default reference for your business hours and bookings.
+                  </p>
                 </div>
               </div>
 
@@ -860,31 +926,56 @@ export default function Settings() {
                       
                       {/* Editor Display Name Section (for partners/admins only) */}
                       {!isPhotographer && partnership.isActive && (
-                        <div className="pt-3 border-t mt-3">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs font-medium text-gray-700">
+                        <Collapsible 
+                          open={expandedDisplayNames.has(partnership.editorId)}
+                          onOpenChange={(open) => {
+                            setExpandedDisplayNames(prev => {
+                              const newSet = new Set(prev);
+                              if (open) {
+                                newSet.add(partnership.editorId);
+                              } else {
+                                newSet.delete(partnership.editorId);
+                              }
+                              return newSet;
+                            });
+                          }}
+                          className="pt-3 border-t mt-3"
+                        >
+                          <CollapsibleTrigger asChild>
+                            <button className="flex items-center justify-between w-full hover:bg-gray-50 -mx-2 px-2 py-1.5 rounded transition-colors">
+                              <Label className="text-xs font-medium text-gray-700 cursor-pointer">
                                 Display Name for Photographers
                               </Label>
-                              {editingEditorId !== partnership.editorId && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setEditingEditorId(partnership.editorId);
-                                    setTempEditorDisplayNames(prev => ({
-                                      ...prev,
-                                      [partnership.editorId]: editorDisplayNames[partnership.editorId] || ''
-                                    }));
-                                  }}
-                                  className="h-6 px-2 text-xs"
-                                >
-                                  <Edit2 className="w-3 h-3 mr-1" />
-                                  Edit
-                                </Button>
-                              )}
-                            </div>
-                            
+                              <div className="flex items-center gap-2">
+                                {editingEditorId !== partnership.editorId && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingEditorId(partnership.editorId);
+                                      setTempEditorDisplayNames(prev => ({
+                                        ...prev,
+                                        [partnership.editorId]: editorDisplayNames[partnership.editorId] || ''
+                                      }));
+                                      // Expand when editing
+                                      setExpandedDisplayNames(prev => new Set(prev).add(partnership.editorId));
+                                    }}
+                                    className="h-6 px-2 text-xs"
+                                  >
+                                    <Edit2 className="w-3 h-3 mr-1" />
+                                    Edit
+                                  </Button>
+                                )}
+                                {expandedDisplayNames.has(partnership.editorId) ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                                )}
+                              </div>
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-2 mt-2">
                             {editingEditorId === partnership.editorId ? (
                               <div className="space-y-2">
                                 <Input
@@ -929,8 +1020,8 @@ export default function Settings() {
                                 </p>
                               </div>
                             )}
-                          </div>
-                        </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       )}
                     </div>
                   ))}
@@ -1049,7 +1140,11 @@ export default function Settings() {
                     >
                       <div className="flex items-center gap-4">
                         <Avatar>
-                          <AvatarFallback>{member.name?.[0] || 'T'}</AvatarFallback>
+                          <AvatarFallback
+                            style={member.id && teamMemberColors[member.id] ? { backgroundColor: teamMemberColors[member.id], color: '#ffffff' } : undefined}
+                          >
+                            {member.name?.[0] || 'T'}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
                           <h4 className="font-medium">{member.name}</h4>
@@ -1065,6 +1160,23 @@ export default function Settings() {
                             <CheckCircle2 className="w-3 h-3 mr-1" />
                             Active
                           </Badge>
+                        )}
+                        {member.status === 'active' && member.id && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Color</span>
+                            <input
+                              type="color"
+                              value={teamMemberColors[member.id] || "#f2572c"}
+                              onChange={(e) =>
+                                setTeamMemberColors(prev => ({
+                                  ...prev,
+                                  [member.id]: e.target.value
+                                }))
+                              }
+                              className="h-7 w-7 rounded-full border p-0 bg-transparent cursor-pointer"
+                              title="Select team member color"
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1112,88 +1224,6 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Editor Display Names for Photographers */}
-          {!isPhotographer && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Editor Display Names
-                </CardTitle>
-                <p className="text-sm text-gray-600">
-                  Set custom display names for editors that photographers will see. This helps maintain privacy by showing generic names like "Photo team" instead of actual studio names.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {partnershipsLoading ? (
-                  <div className="flex justify-center py-8">
-                    <div className="w-8 h-8 border-4 border-gray-200 border-t-[#f2572c] rounded-full animate-spin"></div>
-                  </div>
-                ) : partnerships.filter(p => p.isActive).length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-sm">No active partnerships yet</p>
-                    <p className="text-xs mt-1">Partner with editors to customize their display names</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {partnerships.filter(p => p.isActive).map((partnership) => {
-                      const editorId = partnership.editorId;
-                      const currentDisplayName = editorDisplayNames[editorId] || "";
-                      const defaultName = partnership.editorStudioName;
-
-                      return (
-                        <div key={editorId} className="flex items-center gap-4 p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Label htmlFor={`editor-name-${editorId}`} className="font-medium">
-                                {defaultName}
-                              </Label>
-                              <span className="text-xs text-gray-500">({partnership.editorEmail})</span>
-                            </div>
-                            <Input
-                              id={`editor-name-${editorId}`}
-                              placeholder={`Default: ${defaultName}`}
-                              value={currentDisplayName}
-                              onChange={(e) => {
-                                const newNames = { ...editorDisplayNames };
-                                if (e.target.value.trim()) {
-                                  newNames[editorId] = e.target.value.trim();
-                                } else {
-                                  delete newNames[editorId];
-                                }
-                                setEditorDisplayNames(newNames);
-                              }}
-                              className="w-full"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              {currentDisplayName 
-                                ? `Photographers will see: "${currentDisplayName}"`
-                                : `Photographers will see: "${defaultName}"`}
-                            </p>
-                          </div>
-                          {currentDisplayName && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newNames = { ...editorDisplayNames };
-                                delete newNames[editorId];
-                                setEditorDisplayNames(newNames);
-                              }}
-                            >
-                              Reset
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         {/* Account Tab */}
@@ -1367,6 +1397,13 @@ export default function Settings() {
           </TabsContent>
         )}
 
+        {/* Booking Tab */}
+        <TabsContent value="booking" className="space-y-6">
+          <BookingFormSettings
+            onRegisterSave={(handler) => setBookingSaveHandler(() => handler)}
+          />
+        </TabsContent>
+
         {/* Advanced Tab */}
         <TabsContent value="advanced" className="space-y-6">
           <Card>
@@ -1382,14 +1419,6 @@ export default function Settings() {
                   <h3 className="font-medium mb-2">Custom Domain</h3>
                   <p className="text-sm text-gray-600 mb-4">
                     Connect your own domain for delivery pages and booking forms
-                  </p>
-                  <Badge variant="secondary">Coming Soon</Badge>
-                </div>
-
-                <div className="p-6 border rounded-lg">
-                  <h3 className="font-medium mb-2">Booking Forms</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Customize client intake and booking form fields
                   </p>
                   <Badge variant="secondary">Coming Soon</Badge>
                 </div>

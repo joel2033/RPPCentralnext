@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
+import { VideoThumbnail } from "@/components/VideoThumbnail";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useRealtimeFolders } from "@/hooks/useFirestoreRealtime";
 
@@ -61,6 +62,7 @@ interface DeliveryFolder {
   folderToken?: string;
   uniqueKey?: string;
   isVisible?: boolean;
+  displayOrder?: number;
 }
 
 interface DeliveryPageData {
@@ -133,6 +135,8 @@ export default function DeliveryPage() {
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const lastScrollY = useRef(0);
+  const rafId = useRef<number | null>(null);
+  const showQuickNavRef = useRef(false);
 
   // Subfolder viewing state
   const [viewingSubfolder, setViewingSubfolder] = useState<string | null>(null);
@@ -153,6 +157,12 @@ export default function DeliveryPage() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   // Force re-render when real-time folders change
   const [realtimeUpdateTrigger, setRealtimeUpdateTrigger] = useState(0);
+
+  // Video player state
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedVideoName, setSelectedVideoName] = useState<string>('');
+  const [galleryVideos, setGalleryVideos] = useState<Array<{ url: string; name: string }>>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState<number>(0);
   
   // Try authenticated preview first (if logged in), then fall back to public delivery endpoint
   const { data: deliveryData, isLoading, error } = useQuery<DeliveryPageData>({
@@ -282,23 +292,46 @@ export default function DeliveryPage() {
     }
   }, [deliveryData?.jobReview, reviewSubmitted, deliveryData]);
 
-  // Scroll detection for sticky header
+  // Scroll detection for sticky header - optimized to prevent pulsing
   useEffect(() => {
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      setScrolled(currentScrollY > 50);
-      
-      if (currentScrollY > 400 && currentScrollY < lastScrollY.current) {
-        setShowQuickNav(true);
-      } else {
-        setShowQuickNav(false);
+      // Cancel any pending animation frame
+      if (rafId.current !== null) {
+        cancelAnimationFrame(rafId.current);
       }
-      
-      lastScrollY.current = currentScrollY;
+
+      // Schedule update for next animation frame to batch updates
+      rafId.current = requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const scrollDelta = currentScrollY - lastScrollY.current;
+        setScrolled(currentScrollY > 50);
+        
+        // Improved logic with hysteresis to prevent rapid toggling
+        // Show when scrolling up past 400px, hide when scrolling down past 350px
+        const shouldShow = currentScrollY > 400 && scrollDelta < 0;
+        const shouldHide = currentScrollY < 350 || (scrollDelta > 0 && currentScrollY > 400);
+        
+        // Only update state if value actually changed
+        if (shouldShow && !showQuickNavRef.current) {
+          showQuickNavRef.current = true;
+          setShowQuickNav(true);
+        } else if (shouldHide && showQuickNavRef.current) {
+          showQuickNavRef.current = false;
+          setShowQuickNav(false);
+        }
+        
+        lastScrollY.current = currentScrollY;
+        rafId.current = null;
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId.current !== null) {
+        cancelAnimationFrame(rafId.current);
+      }
+    };
   }, []);
 
   // Organize files into folders
@@ -456,8 +489,14 @@ export default function DeliveryPage() {
   const getRootFolders = () => {
     if (!visibleFolders || !Array.isArray(visibleFolders)) return [];
 
-    return visibleFolders.filter(folder => {
+    const rootFolders = visibleFolders.filter(folder => {
       const segments = folder.folderPath.split('/');
+
+      // Partner folder created via "Add Content": folders/{token} - EXACTLY 2 segments
+      // These are folders created in the completed deliverables section
+      if (segments.length === 2 && segments[0] === 'folders') {
+        return true;
+      }
 
       // Partner folder (root): completed/{jobId}/folders/{token} - EXACTLY 4 segments
       if (segments.length === 4 && segments[0] === 'completed' && segments[2] === 'folders') {
@@ -482,6 +521,15 @@ export default function DeliveryPage() {
       // Anything with 5+ segments is a subfolder - don't show at root level
       return false;
     });
+
+    // Sort folders by displayOrder (ascending), with folders without displayOrder sorted last
+    rootFolders.sort((a, b) => {
+      const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder;
+    });
+
+    return rootFolders;
   };
 
   const folders = getRootFolders();
@@ -527,6 +575,47 @@ export default function DeliveryPage() {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Check if file is a video
+  const isVideo = (mimeType: string) => {
+    return mimeType.startsWith('video/');
+  };
+
+  // Handle video click - build gallery and open video player
+  const handleVideoClick = (url: string, name: string, folderFiles?: DeliveryFile[]) => {
+    // Build gallery from folder files if provided
+    if (folderFiles) {
+      const videoFiles = folderFiles
+        .filter(file => file.downloadUrl && isVideo(file.mimeType))
+        .map(file => ({ url: file.downloadUrl, name: file.originalName }));
+      
+      setGalleryVideos(videoFiles);
+      const clickedIndex = videoFiles.findIndex(vid => vid.url === url);
+      setCurrentVideoIndex(clickedIndex >= 0 ? clickedIndex : 0);
+    } else {
+      setGalleryVideos([{ url, name }]);
+      setCurrentVideoIndex(0);
+    }
+    
+    setSelectedVideo(url);
+    setSelectedVideoName(name);
+  };
+
+  // Navigate between videos
+  const navigateVideo = (direction: 'prev' | 'next') => {
+    if (galleryVideos.length === 0) return;
+    
+    let newIndex = currentVideoIndex;
+    if (direction === 'next') {
+      newIndex = (currentVideoIndex + 1) % galleryVideos.length;
+    } else {
+      newIndex = currentVideoIndex - 1 < 0 ? galleryVideos.length - 1 : currentVideoIndex - 1;
+    }
+    
+    setCurrentVideoIndex(newIndex);
+    setSelectedVideo(galleryVideos[newIndex].url);
+    setSelectedVideoName(galleryVideos[newIndex].name);
   };
 
   const scrollToFolder = (folderId: string) => {
@@ -983,7 +1072,7 @@ export default function DeliveryPage() {
     }
   };
 
-  // Keyboard navigation
+  // Keyboard navigation for image modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedMediaForModal) return;
@@ -995,6 +1084,19 @@ export default function DeliveryPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedMediaForModal, currentFileIndex]);
+
+  // Keyboard navigation for video player
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedVideo) return;
+      if (e.key === "ArrowLeft") navigateVideo('prev');
+      if (e.key === "ArrowRight") navigateVideo('next');
+      if (e.key === "Escape") setSelectedVideo(null);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedVideo, currentVideoIndex, galleryVideos]);
 
   // Show loading state while auth is loading OR query is loading
   if (authLoading || isLoading) {
@@ -1045,19 +1147,21 @@ export default function DeliveryPage() {
             </div>
           </div>
 
-          {/* Quick Navigation Bar */}
-          <div
-            className={`overflow-hidden transition-all duration-300 ${
-              showQuickNav ? "max-h-20 opacity-100 mt-4 border-t border-border/50 pt-4" : "max-h-0 opacity-0"
-            }`}
-          >
-            <div className="flex items-center gap-3">
+          {/* Quick Navigation Bar - Fixed height to prevent layout shifts */}
+          <div className="relative h-20 overflow-hidden">
+            <div
+              className={`absolute inset-x-0 top-0 flex items-center gap-3 border-t border-border/50 pt-4 pb-2 will-change-transform transition-[transform,opacity] duration-300 ease-in-out ${
+                showQuickNav 
+                  ? "translate-y-0 opacity-100 pointer-events-auto" 
+                  : "-translate-y-full opacity-0 pointer-events-none"
+              }`}
+            >
               <span className="text-sm text-muted-foreground whitespace-nowrap mr-2">
                 Jump to:
               </span>
               <div className="flex items-center gap-3 overflow-x-auto flex-1">
                 {folders.map((folder) => {
-                  const displayName = folder.editorFolderName || folder.folderPath;
+                  const displayName = folder.partnerFolderName || folder.editorFolderName || folder.folderPath;
                   const Icon = getFolderIcon(displayName);
                   return (
                     <Button
@@ -1140,7 +1244,7 @@ export default function DeliveryPage() {
             {/* Folder Quick Links */}
             <div className="flex flex-wrap items-center gap-3 mt-8">
               {folders.map((folder) => {
-                const displayName = folder.editorFolderName || folder.folderPath;
+                const displayName = folder.partnerFolderName || folder.editorFolderName || folder.folderPath;
                 const Icon = getFolderIcon(displayName);
                 return (
                   <Button
@@ -1255,7 +1359,7 @@ export default function DeliveryPage() {
                 {folder.files.map((file) => {
                   const isSelected = selectedItems.has(file.id);
                   const hasComments = (file.commentCount || 0) > 0;
-                  const isVideo = file.mimeType.startsWith("video/");
+                  const fileIsVideo = isVideo(file.mimeType);
 
                   return (
                     <div
@@ -1263,16 +1367,31 @@ export default function DeliveryPage() {
                       className={`group relative aspect-square rounded-xl overflow-hidden border-2 bg-muted cursor-pointer hover:shadow-xl transition-all duration-200 ${
                         isSelected ? "border-primary" : "border-border"
                       }`}
-                      onClick={() => setSelectedMediaForModal(file)}
+                      onClick={() => {
+                        if (fileIsVideo) {
+                          handleVideoClick(file.downloadUrl, file.originalName, folder.files);
+                        } else {
+                          setSelectedMediaForModal(file);
+                        }
+                      }}
                       data-testid={`card-media-${file.id}`}
                     >
-                      {/* Image */}
-                      <ImageWithFallback
-                        src={file.downloadUrl}
-                        alt={file.originalName}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
+                      {/* Image or Video Thumbnail */}
+                      {fileIsVideo ? (
+                        <VideoThumbnail
+                          videoUrl={file.downloadUrl}
+                          alt={file.originalName}
+                          className="w-full h-full group-hover:scale-105 transition-transform duration-300"
+                          showPlayIcon={true}
+                        />
+                      ) : (
+                        <ImageWithFallback
+                          src={file.downloadUrl}
+                          alt={file.originalName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                      )}
 
                       {/* Selection Checkbox */}
                       <Button
@@ -1294,15 +1413,6 @@ export default function DeliveryPage() {
                       {hasComments && (
                         <div className="absolute top-3 right-3 z-10 w-7 h-7 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white shadow-lg">
                           <MessageSquare className="h-4 w-4" />
-                        </div>
-                      )}
-
-                      {/* Video Play Icon */}
-                      {isVideo && (
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center shadow-lg">
-                            <Play className="h-8 w-8 text-primary ml-1 fill-current" />
-                          </div>
                         </div>
                       )}
 
@@ -1656,7 +1766,7 @@ export default function DeliveryPage() {
                   data-testid="button-download-modal"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Download Image
+                  Download File
                 </Button>
               </div>
 
@@ -1796,6 +1906,129 @@ export default function DeliveryPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Video Player Modal */}
+      <Dialog open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
+        <DialogContent className="max-w-full w-screen h-screen p-0 bg-black border-0 shadow-none m-0 [&>button]:hidden">
+          {/* Dark Overlay Background */}
+          <div className="absolute inset-0 bg-black" onClick={() => setSelectedVideo(null)} />
+          
+          <div className="relative h-full flex flex-col items-center justify-center p-8 z-10">
+            {/* Close Button */}
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setSelectedVideo(null)}
+              className="absolute top-6 right-6 z-30 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10"
+              data-testid="button-close-video"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+
+            {/* Top Controls */}
+            <div className="absolute top-6 left-6 flex items-center space-x-3 z-20">
+              {galleryVideos.length > 1 && (
+                <div className="bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+                  {currentVideoIndex + 1} / {galleryVideos.length}
+                </div>
+              )}
+              <Button
+                size="sm"
+                onClick={() => selectedVideo && handleDownload(selectedVideo, selectedVideoName)}
+                className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white border-0 rounded-full"
+                data-testid="button-modal-download-video"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+
+            {/* Main Video Container - Floating Effect */}
+            <div className="relative flex-1 flex items-center justify-center w-full max-h-[calc(100%-180px)] mb-4">
+              {/* Previous Arrow - Small */}
+              {galleryVideos.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateVideo('prev');
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-prev-video"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              )}
+
+              {/* Floating Video */}
+              <div className="relative max-w-full max-h-full">
+                <video
+                  src={selectedVideo || ''}
+                  controls
+                  className="max-w-full max-h-[70vh] rounded-lg shadow-2xl shadow-black/50"
+                  onClick={(e) => e.stopPropagation()}
+                  autoPlay
+                />
+              </div>
+
+              {/* Next Arrow - Small */}
+              {galleryVideos.length > 1 && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateVideo('next');
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white rounded-full h-10 w-10 transition-all"
+                  data-testid="button-next-video"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+
+            {/* Thumbnail Carousel */}
+            {galleryVideos.length > 1 && (
+              <div className="w-full max-w-5xl px-4">
+                <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                  {galleryVideos.map((vid, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentVideoIndex(index);
+                        setSelectedVideo(vid.url);
+                        setSelectedVideoName(vid.name);
+                      }}
+                      className={`flex-shrink-0 relative group transition-all ${
+                        index === currentVideoIndex 
+                          ? 'ring-2 ring-white scale-110' 
+                          : 'opacity-60 hover:opacity-100 hover:scale-105'
+                      }`}
+                      data-testid={`video-thumbnail-${index}`}
+                    >
+                      <VideoThumbnail
+                        videoUrl={vid.url}
+                        alt={vid.name}
+                        className="w-20 h-20 rounded-lg"
+                        showPlayIcon={false}
+                      />
+                      {index === currentVideoIndex && (
+                        <div className="absolute inset-0 bg-white/20 rounded-lg" />
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <Play className="h-6 w-6 text-white drop-shadow-lg" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Download Progress Dialog */}
       <Dialog open={downloadProgress.isOpen} onOpenChange={() => {}}>
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
@@ -1856,15 +2089,20 @@ export default function DeliveryPage() {
               <ScrollArea className="h-[60vh] pr-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {subfolder.files.map((file) => {
-                    const isVideo = file.mimeType.startsWith("video/");
+                    const fileIsVideo = isVideo(file.mimeType);
 
                     return (
                       <div
                         key={file.id}
                         className="group relative aspect-square rounded-xl overflow-hidden border-2 border-border bg-muted cursor-pointer hover:shadow-xl transition-all duration-200"
                         onClick={() => {
-                          setSelectedMediaForModal(file);
-                          setViewingSubfolder(null);
+                          if (fileIsVideo) {
+                            handleVideoClick(file.downloadUrl, file.originalName, subfolder.files);
+                            setViewingSubfolder(null);
+                          } else {
+                            setSelectedMediaForModal(file);
+                            setViewingSubfolder(null);
+                          }
                         }}
                       >
                         <ImageWithFallback
@@ -1874,7 +2112,7 @@ export default function DeliveryPage() {
                           loading="lazy"
                         />
 
-                        {isVideo && (
+                        {fileIsVideo && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center shadow-lg">
                               <Play className="h-8 w-8 text-primary ml-1 fill-current" />

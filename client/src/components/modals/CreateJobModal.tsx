@@ -295,6 +295,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
         description: "Job created successfully!",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       onClose();
     },
@@ -470,6 +471,12 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
       totalValue: calculateOrderTotal().toFixed(2),
       propertyImage: coverImage || undefined,
       propertyImageThumbnail: coverImageThumbnail || undefined,
+      products: selectedProducts.map(p => ({
+        id: p.id,
+        title: p.title,
+        quantity: p.quantity,
+        variationName: p.variationName
+      }))
     };
 
     createJobMutation.mutate(jobData);

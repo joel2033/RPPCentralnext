@@ -1,6 +1,24 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { auth } from "@/lib/firebase";
 
+// Store for master view partner ID - set by MasterViewContext
+let masterViewPartnerId: string | null = null;
+
+export function setMasterViewPartnerId(partnerId: string | null) {
+  masterViewPartnerId = partnerId;
+}
+
+export function getMasterViewPartnerId(): string | null {
+  return masterViewPartnerId;
+}
+
+// Helper to append viewingPartnerId to URLs for master view
+function appendMasterViewParam(url: string): string {
+  if (!masterViewPartnerId) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}viewingPartnerId=${encodeURIComponent(masterViewPartnerId)}`;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -26,7 +44,10 @@ export async function apiRequest(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(url, {
+  // Append master view partner ID to URL if set
+  const finalUrl = appendMasterViewParam(url);
+
+  const res = await fetch(finalUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
@@ -51,7 +72,11 @@ export const getQueryFn: <T>(options: {
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(queryKey.join("/") as string, {
+    // Build URL from query key and append master view parameter
+    const baseUrl = queryKey.join("/") as string;
+    const url = appendMasterViewParam(baseUrl);
+
+    const res = await fetch(url, {
       headers,
       credentials: "include",
     });

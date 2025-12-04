@@ -48,8 +48,8 @@ const app = initializeFirebaseAdmin();
 export const adminDb = getFirestore(app);
 export const adminAuth = getAuth(app);
 
-// User role type - updated for multi-tenant structure + editor
-export type UserRole = "partner" | "admin" | "photographer" | "editor";
+// User role type - updated for multi-tenant structure + editor + master (franchisor)
+export type UserRole = "partner" | "admin" | "photographer" | "editor" | "master";
 
 // User data interface with partnerId for multi-tenancy (editors don't need partnerId)
 export interface UserData {

@@ -7,6 +7,8 @@ import {
   type InsertProduct,
   type Job,
   type InsertJob,
+  type Appointment,
+  type InsertAppointment,
   type Order,
   type InsertOrder,
   type OrderService,
@@ -83,6 +85,14 @@ export interface IStorage {
   createJob(job: InsertJob): Promise<Job>;
   updateJob(id: string, job: Partial<Job>): Promise<Job | undefined>;
 
+  // Appointments
+  getAppointments(jobId: string, partnerId: string): Promise<Appointment[]>;
+  getAppointment(id: string): Promise<Appointment | undefined>;
+  getAppointmentByAppointmentId(appointmentId: string): Promise<Appointment | undefined>;
+  createAppointment(appointment: InsertAppointment): Promise<Appointment>;
+  updateAppointment(id: string, appointment: Partial<Appointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: string): Promise<boolean>;
+
   // Orders
   getOrder(id: string): Promise<Order | undefined>;
   getOrders(partnerId: string): Promise<Order[]>; // REQUIRED: Enforces tenant isolation
@@ -132,10 +142,11 @@ export interface IStorage {
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
   
   // Folder Management
-  getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; folderToken?: string; isVisible: boolean; fileCount: number; files: any[]}[]>;
+  getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; folderToken?: string; isVisible: boolean; displayOrder?: number; fileCount: number; files: any[]}[]>;
   createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string, folderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken?: string}>;
   updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void>;
   updateFolderVisibility(jobId: string, folderPath: string, isVisible: boolean, options?: { folderToken?: string | null; orderId?: string | null }): Promise<void>;
+  updateFolderOrder(jobId: string, folders: Array<{ uniqueKey: string; displayOrder: number }>): Promise<void>;
 
   // Team Assignment System
   getPendingOrders(partnerId: string): Promise<Order[]>; // Get unassigned orders for partner
@@ -231,6 +242,7 @@ export class MemStorage implements IStorage {
   private customers: Map<string, Customer>;
   private products: Map<string, Product>;
   private jobs: Map<string, Job>;
+  private appointments: Map<string, Appointment>;
   private orders: Map<string, Order>;
   private orderServices: Map<string, OrderService>;
   private orderFiles: Map<string, OrderFile>;
@@ -257,6 +269,7 @@ export class MemStorage implements IStorage {
     this.customers = new Map();
     this.products = new Map();
     this.jobs = new Map();
+    this.appointments = new Map();
     this.orders = new Map();
     this.orderServices = new Map();
     this.orderFiles = new Map();
@@ -328,6 +341,18 @@ export class MemStorage implements IStorage {
               createdAt: new Date(job.createdAt),
               appointmentDate: job.appointmentDate ? new Date(job.appointmentDate) : null,
               dueDate: job.dueDate ? new Date(job.dueDate) : null
+            });
+          });
+        }
+        
+        // Restore appointments
+        if (data.appointments) {
+          Object.entries(data.appointments).forEach(([id, appointment]: [string, any]) => {
+            this.appointments.set(id, { 
+              ...appointment, 
+              createdAt: new Date(appointment.createdAt),
+              updatedAt: new Date(appointment.updatedAt),
+              appointmentDate: appointment.appointmentDate ? new Date(appointment.appointmentDate) : null
             });
           });
         }
@@ -512,7 +537,7 @@ export class MemStorage implements IStorage {
           });
         }
 
-        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings, ${this.conversations.size} conversations, ${this.messages.size} messages`);
+        console.log(`Loaded data from storage: ${this.customers.size} customers, ${this.jobs.size} jobs, ${this.appointments.size} appointments, ${this.products.size} products, ${this.orders.size} orders, ${this.serviceCategories.size} categories, ${this.editorServices.size} services, ${this.editorUploads.size} uploads, ${this.notifications.size} notifications, ${this.activities.size} activities, ${this.editingOptions.size} editing options, ${this.customerEditingPreferences.size} customer preferences, ${this.partnerSettings.size} partner settings, ${this.conversations.size} conversations, ${this.messages.size} messages`);
       }
     } catch (error) {
       console.error('Failed to load storage data:', error);
@@ -526,6 +551,7 @@ export class MemStorage implements IStorage {
         customers: Object.fromEntries(this.customers.entries()),
         products: Object.fromEntries(this.products.entries()),
         jobs: Object.fromEntries(this.jobs.entries()),
+        appointments: Object.fromEntries(this.appointments.entries()),
         orders: Object.fromEntries(this.orders.entries()),
         orderServices: Object.fromEntries(this.orderServices.entries()),
         orderFiles: Object.fromEntries(this.orderFiles.entries()),
@@ -723,6 +749,52 @@ export class MemStorage implements IStorage {
     this.jobs.set(id, updated);
     this.saveToFile();
     return updated;
+  }
+
+  // Appointments
+  async getAppointments(jobId: string, partnerId: string): Promise<Appointment[]> {
+    return Array.from(this.appointments.values()).filter(
+      apt => apt.jobId === jobId && apt.partnerId === partnerId
+    );
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    return this.appointments.get(id);
+  }
+
+  async getAppointmentByAppointmentId(appointmentId: string): Promise<Appointment | undefined> {
+    return Array.from(this.appointments.values()).find(
+      apt => apt.appointmentId === appointmentId
+    );
+  }
+
+  async createAppointment(insertAppointment: InsertAppointment): Promise<Appointment> {
+    const id = randomUUID();
+    const appointmentId = nanoid(); // NanoID for external reference
+    const appointment: Appointment = {
+      id,
+      appointmentId,
+      ...insertAppointment,
+      status: insertAppointment.status || 'scheduled',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.appointments.set(id, appointment);
+    this.saveToFile();
+    return appointment;
+  }
+
+  async updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment | undefined> {
+    const appointment = this.appointments.get(id);
+    if (!appointment) return undefined;
+    const updated = { ...appointment, ...updates, updatedAt: new Date() };
+    this.appointments.set(id, updated);
+    this.saveToFile();
+    return updated;
+  }
+
+  async deleteAppointment(id: string): Promise<boolean> {
+    return this.appointments.delete(id);
   }
 
   // Orders
@@ -1132,7 +1204,7 @@ export class MemStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; isVisible: boolean; fileCount: number; files: any[]}[]> {
+  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; isVisible: boolean; displayOrder?: number; fileCount: number; files: any[]}[]> {
     const allUploads = Array.from(this.editorUploads.values());
     const jobUploads = allUploads
       .filter(upload => upload.jobId === jobId)
@@ -1223,6 +1295,7 @@ export class MemStorage implements IStorage {
             orderNumber: order?.orderNumber || undefined,
             folderToken: folderToken || undefined,
             isVisible,
+            displayOrder: undefined, // MemStorage doesn't persist order
             fileCount: 0,
             files: []
           };
@@ -1260,7 +1333,16 @@ export class MemStorage implements IStorage {
       }
     }
     
-    return Array.from(foldersMap.values());
+    const folders = Array.from(foldersMap.values());
+    
+    // Sort folders by displayOrder (ascending), with folders without displayOrder sorted last
+    folders.sort((a, b) => {
+      const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder;
+    });
+    
+    return folders;
   }
 
   async updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void> {
@@ -1347,6 +1429,12 @@ export class MemStorage implements IStorage {
       }
     });
     this.saveToFile();
+  }
+
+  async updateFolderOrder(jobId: string, folders: Array<{ uniqueKey: string; displayOrder: number }>): Promise<void> {
+    // MemStorage doesn't persist folder order separately - it's handled in Firestore
+    // This is a no-op for MemStorage since it's only used for development/testing
+    // The actual implementation is in FirestoreStorage
   }
 
   async getUsers(partnerId?: string): Promise<User[]> {
@@ -2321,6 +2409,8 @@ export class MemStorage implements IStorage {
       businessHours: settings.businessHours || null,
       defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
       editorDisplayNames: settings.editorDisplayNames || null,
+      teamMemberColors: settings.teamMemberColors || null,
+      bookingSettings: (settings as any).bookingSettings || null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };

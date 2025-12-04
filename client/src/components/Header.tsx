@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Menu, Bell, Search, ChevronDown, User, LogOut } from "lucide-react";
+import { Menu, Bell, Search, ChevronDown, User, LogOut, Building2, Check } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMasterView } from "@/contexts/MasterViewContext";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -34,9 +35,22 @@ interface SavedSettings {
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const { userData, logout, currentUser } = useAuth();
+  const { userData, logout, currentUser, userRole } = useAuth();
+  const { 
+    viewingPartnerId, 
+    viewingPartnerName, 
+    partners, 
+    partnersLoading, 
+    selectPartner,
+    isMasterViewActive,
+    isSwitchingBusiness,
+    isViewingOwnBusiness
+  } = useMasterView();
   const [, setLocation] = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showBusinessSelector, setShowBusinessSelector] = useState(false);
+
+  const isMaster = userRole === 'master';
 
   // Fetch business settings
   const { data: savedSettings } = useQuery<SavedSettings>({
@@ -107,6 +121,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'master': return 'bg-amber-100 text-amber-800';
       case 'partner': return 'bg-rpp-red-lighter text-rpp-red-dark';
       case 'admin': return 'bg-rpp-red-lighter text-rpp-red-dark';
       case 'photographer': return 'bg-rpp-grey-bg text-rpp-grey-dark';
@@ -143,6 +158,83 @@ export default function Header({ onMenuClick }: HeaderProps) {
             />
             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light" />
           </div>
+
+          {/* Business Selector - Master Role Only */}
+          {isMaster && (
+            <DropdownMenu open={showBusinessSelector} onOpenChange={setShowBusinessSelector}>
+              <DropdownMenuTrigger asChild>
+                <button 
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                    isSwitchingBusiness 
+                      ? 'border-amber-400 bg-amber-100 cursor-wait' 
+                      : 'border-amber-300 bg-amber-50 hover:bg-amber-100'
+                  }`}
+                  data-testid="button-business-selector"
+                  disabled={isSwitchingBusiness}
+                >
+                  {isSwitchingBusiness ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-amber-300 border-t-amber-600 animate-spin" />
+                  ) : (
+                    <Building2 className="w-4 h-4 text-amber-600" />
+                  )}
+                  <span className="text-sm font-medium text-amber-800 max-w-[200px] truncate">
+                    {partnersLoading ? 'Loading...' : (viewingPartnerName || 'Select Business')}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-amber-600 transition-transform ${isSwitchingBusiness ? 'opacity-50' : ''}`} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-72 max-h-96 overflow-y-auto" align="end" sideOffset={5}>
+                <div className="px-3 py-2 border-b bg-amber-50">
+                  <h4 className="text-sm font-semibold text-amber-800">
+                    Viewing as Master
+                  </h4>
+                  <p className="text-xs text-amber-600">
+                    Select a business to view (read-only)
+                  </p>
+                </div>
+                {partnersLoading ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500">
+                    Loading businesses...
+                  </div>
+                ) : partners.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500">
+                    No businesses found
+                  </div>
+                ) : (
+                  partners.map((partner) => (
+                    <DropdownMenuItem
+                      key={partner.partnerId}
+                      className={`flex items-center justify-between px-3 py-2.5 cursor-pointer ${
+                        viewingPartnerId === partner.partnerId 
+                          ? 'bg-amber-100' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        selectPartner(partner.partnerId);
+                        setShowBusinessSelector(false);
+                        // Invalidate all queries to refetch with new partnerId
+                        queryClient.invalidateQueries();
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900">
+                          {partner.partnerId === userData?.partnerId
+                            ? `${partner.businessName} (My Franchise)`
+                            : partner.businessName}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {partner.email}
+                        </span>
+                      </div>
+                      {viewingPartnerId === partner.partnerId && (
+                        <Check className="w-4 h-4 text-amber-600" />
+                      )}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Notifications */}
           <DropdownMenu open={showNotifications} onOpenChange={setShowNotifications} modal={false}>
@@ -244,7 +336,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuContent className="w-56" align="end">
               <div className="px-3 py-2 border-b">
                 <p className="text-sm font-medium">{userData?.email}</p>
-                <p className="text-xs text-rpp-grey-light capitalize">{userData?.role} Account</p>
+                <p className={`text-xs capitalize ${isMaster ? 'text-amber-600 font-medium' : 'text-rpp-grey-light'}`}>
+                  {isMaster ? 'Master (Franchisor)' : `${userData?.role} Account`}
+                </p>
               </div>
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />

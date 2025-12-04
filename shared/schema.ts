@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, decimal, boolean, integer, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -78,16 +78,34 @@ export const jobs = pgTable("jobs", {
   partnerId: text("partner_id").notNull(), // Multi-tenant identifier
   customerId: varchar("customer_id").references(() => customers.id),
   address: text("address").notNull(),
+  latitude: doublePrecision("latitude"), // GPS coordinates for drive time calculations
+  longitude: doublePrecision("longitude"), // GPS coordinates for drive time calculations
   jobName: text("job_name"), // Optional custom name for the job
   status: text("status").default("booked"), // "booked", "pending", "on_hold", "delivered", "cancelled"
   assignedTo: varchar("assigned_to").references(() => users.id), // Photographer assigned
   dueDate: timestamp("due_date"),
-  appointmentDate: timestamp("appointment_date"),
+  appointmentDate: timestamp("appointment_date"), // DEPRECATED: Use appointments table instead
+  estimatedDuration: integer("estimated_duration"), // Estimated duration in minutes (from selected products)
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
   propertyImage: text("property_image"),
   propertyImageThumbnail: text("property_image_thumbnail"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const appointments = pgTable("appointments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  appointmentId: text("appointment_id").notNull().unique(), // NanoID for external reference
+  jobId: varchar("job_id").references(() => jobs.id).notNull(),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  appointmentDate: timestamp("appointment_date").notNull(),
+  estimatedDuration: integer("estimated_duration"), // Duration in minutes (from selected products)
+  assignedTo: varchar("assigned_to").references(() => users.id), // Photographer assigned
+  status: text("status").default("scheduled"), // "scheduled", "in_progress", "completed", "cancelled"
+  products: text("products"), // JSON array of {id, name, quantity, variationName, price, duration}
+  notes: text("notes"), // Appointment-specific notes
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const orders = pgTable("orders", {
@@ -250,6 +268,9 @@ export const partnerSettings = pgTable("partner_settings", {
   businessHours: text("business_hours"), // JSON: {monday: {isOpen, start, end}, tuesday: {...}, ...}
   defaultMaxRevisionRounds: integer("default_max_revision_rounds").default(2), // Default max revision rounds for new orders
   editorDisplayNames: text("editor_display_names"), // JSON: {editorId: customName} - Custom display names for editors shown to photographers
+  teamMemberColors: text("team_member_colors"), // JSON: {userId: colorHex} - Custom colors for team members
+  // Booking form settings
+  bookingSettings: text("booking_settings"), // JSON: booking form configuration
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -355,6 +376,17 @@ export const insertJobSchema = z.object({
   totalValue: z.string().optional(),
   propertyImage: z.string().optional(),
   propertyImageThumbnail: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export const insertAppointmentSchema = z.object({
+  jobId: z.string(),
+  partnerId: z.string(),
+  appointmentDate: z.string().transform(val => new Date(val)),
+  estimatedDuration: z.number().optional(),
+  assignedTo: z.string().optional(),
+  status: z.string().optional(),
+  products: z.string().optional(), // JSON string
   notes: z.string().optional(),
 });
 
@@ -479,6 +511,9 @@ export type InsertProduct = z.infer<typeof insertProductSchema>;
 
 export type Job = typeof jobs.$inferSelect;
 export type InsertJob = z.infer<typeof insertJobSchema>;
+
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;

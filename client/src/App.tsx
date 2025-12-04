@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "./contexts/AuthContext";
+import { MasterViewProvider } from "./contexts/MasterViewContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 // Layout
@@ -32,6 +33,7 @@ import NotFound from "@/pages/not-found";
 
 // Public Pages (No Auth Required)
 import DeliveryPage from "@/pages/DeliveryPage";
+import BookingPage from "@/pages/BookingPage";
 
 // Editor Components
 import EditorLogin from "@/pages/EditorLogin";
@@ -52,6 +54,7 @@ function Router() {
     <Switch>
       {/* Public Routes - No Authentication Required */}
       <Route path="/delivery/:token" component={DeliveryPage} />
+      <Route path="/book/:partnerId" component={BookingPage} />
       
       {/* Partner Authentication */}
       <Route path="/login" component={Login} />
@@ -294,10 +297,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <EditorAuthProvider>
-            <Router />
-            <Toaster />
-          </EditorAuthProvider>
+          <MasterViewProvider>
+            <EditorAuthProvider>
+              <Router />
+              <Toaster />
+            </EditorAuthProvider>
+          </MasterViewProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

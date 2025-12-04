@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMasterView } from "@/contexts/MasterViewContext";
 import { useRealtimeConversations } from "@/hooks/useFirestoreRealtime";
 import {
   Home,
@@ -70,6 +71,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [location, setLocation] = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const { logout, currentUser, userData } = useAuth();
+  const { isMaster, isViewingOwnBusiness } = useMasterView();
 
   // Real-time unread message count from conversations
   const { unreadCount, loading: conversationsLoading } = useRealtimeConversations(
@@ -81,8 +83,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const showUnreadBadge = currentUser && !conversationsLoading && unreadCount > 0;
 
   // Filter menu items based on user role
-  const filteredMenuItems = userData?.role === 'photographer'
-    ? menuItems.filter(item => 
+  // Master users have restricted access - NO Production Hub, Messages, Settings
+  const getFilteredMenuItems = () => {
+    // When master is viewing their own business, treat them like a normal partner
+    if (isMaster && !isViewingOwnBusiness) {
+      return menuItems.filter(item => 
+        item.title === "Dashboard" ||
+        item.title === "Customers" ||
+        item.title === "Calendar" ||
+        item.title === "Jobs" ||
+        item.title === "Reports" ||
+        item.title === "Products"
+        // Excluded: Production Hub, Messages, Settings
+      );
+    }
+    if (userData?.role === 'photographer') {
+      return menuItems.filter(item => 
         item.title === "Dashboard" ||
         item.title === "Customers" ||
         item.title === "Calendar" ||
@@ -90,8 +106,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         item.title === "Production Hub" ||
         item.title === "Messages" ||
         item.title === "Settings"
-      )
-    : menuItems;
+      );
+    }
+    return menuItems;
+  };
+  
+  const filteredMenuItems = getFilteredMenuItems();
 
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev => 

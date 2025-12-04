@@ -7,7 +7,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X, Loader2 } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X, Loader2, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +33,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { FileUploadModal } from "@/components/FileUploadModal";
+import { VideoThumbnail } from "@/components/VideoThumbnail";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMasterView } from "@/contexts/MasterViewContext";
 import { auth } from "@/lib/firebase";
 import { useRealtimeEditorUploads } from "@/hooks/useFirestoreRealtime";
 
@@ -51,6 +70,7 @@ interface FolderData {
   files: CompletedFile[];
   folderToken?: string; // Token for standalone folders (created via "Add Content")
   isVisible?: boolean;
+  displayOrder?: number;
 }
 
 interface FileGalleryProps {
@@ -58,6 +78,203 @@ interface FileGalleryProps {
   jobId: string;
   isLoading?: boolean;
 }
+
+// SortableFolderItem component - must be outside main component to avoid hooks errors
+interface SortableFolderItemProps {
+  folder: FolderData;
+  isReadOnly: boolean;
+  folderVisibility: Record<string, boolean>;
+  downloadingFolder: string | null;
+  onEnterFolder: (folder: FolderData) => void;
+  onToggleVisibility: (folder: FolderData, isVisible: boolean) => void;
+  onCreateSubfolder: (folderPath: string) => void;
+  onDownloadAll: (folder: FolderData) => void;
+  onRenameFolder: (folder: FolderData) => void;
+  onDeleteFolder: (folderPath: string, folderName: string, orderNumber?: string) => void;
+  getFolderKey: (folder: FolderData) => string;
+  getFolderTestId: (prefix: string, folder: FolderData) => string;
+  formatOrderNumber: (orderNumber: string) => string;
+  pendingFolderKey: string | null;
+}
+
+const SortableFolderItem = ({
+  folder,
+  isReadOnly,
+  folderVisibility,
+  downloadingFolder,
+  onEnterFolder,
+  onToggleVisibility,
+  onCreateSubfolder,
+  onDownloadAll,
+  onRenameFolder,
+  onDeleteFolder,
+  getFolderKey,
+  getFolderTestId,
+  formatOrderNumber,
+  pendingFolderKey,
+}: SortableFolderItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: folder.uniqueKey, disabled: isReadOnly });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card 
+        className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+      >
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div 
+              className="flex items-center space-x-3 flex-1 cursor-pointer"
+              onClick={() => onEnterFolder(folder)}
+              data-testid={getFolderTestId('folder-card', folder)}
+            >
+              {!isReadOnly && (
+                <div
+                  {...attributes}
+                  {...listeners}
+                  className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <GripVertical className="h-5 w-5 text-gray-400" />
+                </div>
+              )}
+              <Folder className="h-6 w-6 text-blue-600" />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-medium text-gray-900">
+                  {folder.partnerFolderName || folder.editorFolderName}
+                </h3>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {folder.orderNumber && (
+                <span className="text-sm font-semibold text-rpp-red-main">
+                  {formatOrderNumber(folder.orderNumber)}
+                </span>
+              )}
+              
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <ImageIcon className="h-4 w-4" />
+                <span>{folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}</span>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-600">Visible on delivery:</span>
+                <Switch
+                  checked={folderVisibility[getFolderKey(folder)] ?? (folder.isVisible ?? true)}
+                  onCheckedChange={(checked) => onToggleVisibility(folder, checked)}
+                  data-testid={getFolderTestId('switch-visibility', folder)}
+                  disabled={pendingFolderKey === getFolderKey(folder)}
+                />
+              </div>
+              
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateSubfolder(folder.folderPath);
+                  }}
+                  data-testid={getFolderTestId('button-add-subfolder', folder)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                      data-testid={getFolderTestId('button-folder-menu', folder)}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDownloadAll(folder);
+                      }}
+                      disabled={downloadingFolder === folder.uniqueKey}
+                      data-testid={getFolderTestId('menu-download-all', folder)}
+                    >
+                      {downloadingFolder === folder.uniqueKey ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating zip...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download All
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                    {!isReadOnly && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRenameFolder(folder);
+                          }}
+                          data-testid={getFolderTestId('menu-rename-section', folder)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Rename section
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // TODO: Implement collapse functionality
+                          }}
+                          data-testid={getFolderTestId('menu-collapse-section', folder)}
+                        >
+                          <Folder className="h-4 w-4 mr-2" />
+                          Collapse section
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteFolder(
+                              folder.folderPath,
+                              folder.partnerFolderName || folder.editorFolderName,
+                              folder.orderNumber
+                            );
+                          }}
+                          className="text-red-600"
+                          data-testid={getFolderTestId('menu-delete-section', folder)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete section
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 export default function FileGallery({ completedFiles, jobId, isLoading }: FileGalleryProps) {
   // Debug logging to see what data is being passed to FileGallery
@@ -123,6 +340,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData: user } = useAuth();
+  const { isReadOnly } = useMasterView();
 
   // Get job data to access internal ID for real-time listeners
   const { data: jobData } = useQuery({
@@ -152,18 +370,40 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     });
   };
 
-  // Sync real-time uploads with folders query - only when uploads actually change
-  const prevUploadsCountRef = React.useRef<number>(0);
+  // Sync real-time uploads with folders query - trigger on any upload change
+  const prevUploadIdsRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
-    const currentCount = realtimeUploads.length;
-    // Only invalidate if the count changed (file added or removed)
-    if (prevUploadsCountRef.current !== currentCount && prevUploadsCountRef.current > 0) {
-      // When real-time uploads change, invalidate folders to trigger refetch
+    if (!internalJobId || isRealtimeLoading) return;
+    
+    const currentUploadIds = new Set(realtimeUploads.map(upload => upload.id));
+    const prevUploadIds = prevUploadIdsRef.current;
+    
+    // Check if there are any new uploads (files added)
+    const hasNewUploads = Array.from(currentUploadIds).some(id => !prevUploadIds.has(id));
+    
+    // Check if uploads were removed
+    const hasRemovedUploads = Array.from(prevUploadIds).some(id => !currentUploadIds.has(id));
+    
+    // If uploads changed (added or removed), immediately invalidate and refetch
+    if (hasNewUploads || hasRemovedUploads || (prevUploadIds.size === 0 && currentUploadIds.size > 0)) {
+      console.log('[FileGallery] Real-time uploads changed, refreshing folders:', {
+        newUploads: hasNewUploads,
+        removedUploads: hasRemovedUploads,
+        currentCount: currentUploadIds.size,
+        prevCount: prevUploadIds.size
+      });
+      
+      // Immediately invalidate and refetch folders to show new files
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
       queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+      
+      // Also trigger a refetch to ensure immediate update
+      refetchFolders();
     }
-    prevUploadsCountRef.current = currentCount;
-  }, [realtimeUploads.length, jobId, queryClient]);
+    
+    // Update the ref with current upload IDs
+    prevUploadIdsRef.current = currentUploadIds;
+  }, [realtimeUploads, internalJobId, isRealtimeLoading, jobId, queryClient, refetchFolders]);
 
   // Clear deleted file IDs when real-time listener confirms deletion
   React.useEffect(() => {
@@ -187,16 +427,36 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     }
   }, [realtimeUploads, deletedFileIds]);
 
+  // Update selectedFolderData when folders are refetched (to show new files in folder view)
+  React.useEffect(() => {
+    if (selectedFolderData && foldersData && Array.isArray(foldersData)) {
+      // Find the updated folder data that matches the currently selected folder
+      const updatedFolder = foldersData.find(f => {
+        // Match by uniqueKey if available, otherwise match by folderPath
+        if (selectedFolderData.uniqueKey && f.uniqueKey) {
+          return f.uniqueKey === selectedFolderData.uniqueKey;
+        }
+        return f.folderPath === selectedFolderData.folderPath;
+      });
+      
+      if (updatedFolder) {
+        // Update selectedFolderData with the latest folder data (including new files)
+        setSelectedFolderData(updatedFolder);
+      }
+    }
+  }, [foldersData, selectedFolderData?.uniqueKey, selectedFolderData?.folderPath]);
+
   // Debug: Log folders data when it changes
   console.log('[FileGallery] Folders data:', foldersData);
 
   // Mutation for creating folders
   const createFolderMutation = useMutation({
     mutationFn: async ({ partnerFolderName }: { partnerFolderName: string }) => {
-      return apiRequest(`/api/jobs/${jobId}/folders`, 'POST', {
+      const response = await apiRequest(`/api/jobs/${jobId}/folders`, 'POST', {
         partnerFolderName,
         parentFolderPath: parentFolderPath || undefined
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
@@ -206,13 +466,30 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         description: "The folder is ready for file uploads.",
       });
       setShowCreateFolderModal(false);
+      setShowNewContentSection(false);
       setNewFolderName('');
       setParentFolderPath(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Error creating folder:', error);
+      let errorMessage = 'Please try again.';
+      if (error?.message) {
+        // Clean up error message - remove status code prefix if present
+        errorMessage = error.message.replace(/^\d+:\s*/, '');
+        // Try to parse JSON error if present
+        try {
+          const jsonMatch = errorMessage.match(/\{.*\}/);
+          if (jsonMatch) {
+            const errorData = JSON.parse(jsonMatch[0]);
+            errorMessage = errorData.error || errorData.details || errorData.message || errorMessage;
+          }
+        } catch {
+          // If parsing fails, use the message as-is
+        }
+      }
       toast({
         title: "Failed to create folder",
-        description: "Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -359,6 +636,35 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     },
   });
 
+  // Mutation for updating folder order
+  const updateFolderOrderMutation = useMutation({
+    mutationFn: async (folders: Array<{ uniqueKey: string; displayOrder: number }>) => {
+      console.log('[FileGallery] Updating folder order:', folders);
+      const result = await apiRequest(`/api/jobs/${jobId}/folders/order`, 'PATCH', { folders });
+      console.log('[FileGallery] Folder order update response:', result);
+      return result;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch to get updated order
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/jobs/${jobId}/completed-files`] });
+      // Force a refetch to ensure we get the new order
+      queryClient.refetchQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      toast({
+        title: "Folder order updated",
+        description: "The folder order has been saved.",
+      });
+    },
+    onError: (error) => {
+      console.error('[FileGallery] Failed to update folder order:', error);
+      toast({
+        title: "Failed to update folder order",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Mutation for updating folder visibility
   type UpdateFolderVisibilityVariables = {
     folderPath: string;
@@ -484,6 +790,14 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       });
     }
   }, [foldersData]);
+
+  // Drag and drop sensors - Must be before any early returns
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Early return for loading state - must be AFTER all hooks
   if (isLoading || isFoldersLoading) {
@@ -804,7 +1118,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       }
 
       // Create blob and trigger download
-      const blob = new Blob(chunks);
+      const blob = new Blob(chunks as BlobPart[]);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1038,16 +1352,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCoverPhotoMutation.mutate({ imageUrl: file.downloadUrl });
-                    }}
-                    data-testid={`menuitem-set-cover-${file.id}`}
-                  >
-                    <ImageIcon className="h-4 w-4 mr-2" />
-                    Set as Cover Photo
-                  </DropdownMenuItem>
+                  {!isReadOnly && (
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCoverPhotoMutation.mutate({ imageUrl: file.downloadUrl });
+                      }}
+                      data-testid={`menuitem-set-cover-${file.id}`}
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Set as Cover Photo
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1058,50 +1374,51 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                     <Download className="h-4 w-4 mr-2" />
                     Download File
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toast({
-                        title: "Feature coming soon",
-                        description: "Rename functionality will be available in a future update.",
-                      });
-                    }}
-                    data-testid={`menuitem-rename-file-${file.id}`}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Rename File
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFileToDelete(file);
-                      setShowDeleteFileConfirm(true);
-                    }}
-                    className="text-red-600 focus:text-red-600"
-                    data-testid={`menuitem-delete-file-${file.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete File
-                  </DropdownMenuItem>
+                  {!isReadOnly && (
+                    <>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast({
+                            title: "Feature coming soon",
+                            description: "Rename functionality will be available in a future update.",
+                          });
+                        }}
+                        data-testid={`menuitem-rename-file-${file.id}`}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Rename File
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFileToDelete(file);
+                          setShowDeleteFileConfirm(true);
+                        }}
+                        className="text-red-600 focus:text-red-600"
+                        data-testid={`menuitem-delete-file-${file.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete File
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         ) : isVideo(file.mimeType) ? (
           <div 
-            className="relative aspect-square bg-gray-900 cursor-pointer group"
+            className="relative aspect-square cursor-pointer group"
             onClick={() => handleVideoClick(file.downloadUrl, file.originalName, folderFiles)}
           >
-            <video
-              src={file.downloadUrl}
-              className="w-full h-full object-cover"
-              muted
-              preload="metadata"
+            <VideoThumbnail
+              videoUrl={file.downloadUrl}
+              alt={file.originalName}
+              className="w-full h-full"
+              showPlayIcon={true}
             />
-            <div className="absolute inset-0 bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-all flex items-center justify-center">
-              <Play className="h-12 w-12 text-white drop-shadow-lg" />
-            </div>
-            <div className="absolute top-2 right-2">
+            <div className="absolute top-2 right-2 z-10">
               <Badge variant="secondary" className="text-xs">
                 <Video className="h-3 w-3 mr-1" />
                 Video
@@ -1176,6 +1493,59 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const organizedFolders = organizeFoldersByType();
   const foldersToShow = getFoldersToShow();
 
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = foldersToShow.findIndex((folder) => folder.uniqueKey === active.id);
+    const newIndex = foldersToShow.findIndex((folder) => folder.uniqueKey === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      console.warn('[FileGallery] Could not find folder indices:', { activeId: active.id, overId: over.id, oldIndex, newIndex, foldersToShow: foldersToShow.map(f => f.uniqueKey) });
+      return;
+    }
+
+    const reorderedFolders = arrayMove(foldersToShow, oldIndex, newIndex);
+    
+    // Update displayOrder for the reordered folders (only the ones being displayed)
+    const foldersWithOrder = reorderedFolders.map((folder, index) => ({
+      uniqueKey: folder.uniqueKey,
+      displayOrder: index + 1,
+    }));
+
+    console.log('[FileGallery] Updating folder order:', {
+      oldIndex,
+      newIndex,
+      reorderedCount: reorderedFolders.length,
+      foldersWithOrder: foldersWithOrder.map(f => ({ uniqueKey: f.uniqueKey, displayOrder: f.displayOrder }))
+    });
+
+    // Optimistic UI update: reorder folders in the React Query cache immediately
+    if (Array.isArray(foldersData)) {
+      const rootKeys = new Set(reorderedFolders.map(f => f.uniqueKey));
+
+      const nonRootFolders = foldersData.filter(folder => !rootKeys.has(folder.uniqueKey));
+
+      const reorderedFull = [
+        ...reorderedFolders.map(folder => {
+          const match = foldersWithOrder.find(f => f.uniqueKey === folder.uniqueKey);
+          return match ? { ...folder, displayOrder: match.displayOrder } : folder;
+        }),
+        ...nonRootFolders,
+      ];
+
+      queryClient.setQueryData<FolderData[]>(['/api/jobs', jobId, 'folders'], reorderedFull);
+    }
+
+    // Persist the new order to the backend
+    updateFolderOrderMutation.mutate(foldersWithOrder);
+  };
+
+
   const handleToggleVisibility = (folder: FolderData, isVisible: boolean) => {
     const key = getFolderKey(folder);
     console.log('[FileGallery] Toggling visibility:', {
@@ -1207,17 +1577,19 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
       <div className="flex items-center justify-between">
         <h3 className="text-base font-normal text-foreground">Folders</h3>
         
-        <div className="flex space-x-2">
-          <Button 
-            onClick={() => setShowNewContentSection(true)}
-            variant="outline"
-            size="sm"
-            data-testid="button-add-folder"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Content
-          </Button>
-        </div>
+        {!isReadOnly && (
+          <div className="flex space-x-2">
+            <Button 
+              onClick={() => setShowNewContentSection(true)}
+              variant="outline"
+              size="sm"
+              data-testid="button-add-folder"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Content
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* New Content Section Form */}
@@ -1367,26 +1739,28 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   </div>
                 </div>
               </div>
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => setShowUploadModal(true)}
-                  className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
-                  size="sm"
-                  data-testid="button-upload-to-folder"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload
-                </Button>
-                <Button 
-                  onClick={() => handleCreateFolder(selectedFolderData.folderPath)}
-                  variant="outline"
-                  size="sm"
-                  data-testid="button-create-subfolder"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Subfolder
-                </Button>
-              </div>
+              {!isReadOnly && (
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() => setShowUploadModal(true)}
+                    className="hover:!bg-rpp-red-dark !text-white hover:shadow-lg transition-all !opacity-100 disabled:!opacity-60 disabled:cursor-not-allowed bg-[#f05a2a]"
+                    size="sm"
+                    data-testid="button-upload-to-folder"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload
+                  </Button>
+                  <Button 
+                    onClick={() => handleCreateFolder(selectedFolderData.folderPath)}
+                    variant="outline"
+                    size="sm"
+                    data-testid="button-create-subfolder"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Subfolder
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Subfolders Section */}
@@ -1419,34 +1793,38 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(
-                              subfolder.folderPath,
-                              subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder',
-                              subfolder.orderNumber
-                            );
-                          }}
-                          data-testid={getFolderTestId('button-delete-subfolder', subfolder)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {!isReadOnly && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFolder(
+                                subfolder.folderPath,
+                                subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder',
+                                subfolder.orderNumber
+                              );
+                            }}
+                            data-testid={getFolderTestId('button-delete-subfolder', subfolder)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ))}
-                  <Button
-                    variant="outline"
-                    className="h-full min-h-[70px] border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
-                    onClick={() => handleCreateFolder(filteredFolderData.folderPath)}
-                  >
-                    <div className="text-center">
-                      <Plus className="h-5 w-5 mx-auto mb-1 text-gray-400" />
-                      <span className="text-xs text-gray-500">New Folder</span>
-                    </div>
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      variant="outline"
+                      className="h-full min-h-[70px] border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                      onClick={() => handleCreateFolder(filteredFolderData.folderPath)}
+                    >
+                      <div className="text-center">
+                        <Plus className="h-5 w-5 mx-auto mb-1 text-gray-400" />
+                        <span className="text-xs text-gray-500">New Folder</span>
+                      </div>
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -1505,7 +1883,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         {visibleFiles.map(file => renderFileCard(file, selectedFolderData.files))}
                       </div>
                     </>
-                  ) : (
+                  ) : !isReadOnly ? (
                     <div className="space-y-3">
                       <h3 className="text-sm font-medium text-gray-700">Upload files</h3>
                       <div 
@@ -1533,6 +1911,10 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                           Browse Files
                         </Button>
                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No files in this folder</p>
                     </div>
                   )}
                 </div>
@@ -1565,139 +1947,38 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {foldersToShow.map((folder) => (
-                  <Card 
-                    key={folder.uniqueKey} 
-                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div 
-                          className="flex items-center space-x-3 flex-1 cursor-pointer"
-                          onClick={() => handleEnterFolder(folder)}
-                          data-testid={getFolderTestId('folder-card', folder)}
-                        >
-                          <Folder className="h-6 w-6 text-blue-600" />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-medium text-gray-900">
-                              {folder.partnerFolderName || folder.editorFolderName}
-                            </h3>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-4">
-                          {folder.editorFolderName && folder.orderNumber && (
-                            <span className="text-sm font-semibold text-rpp-red-main">
-                              {formatOrderNumber(folder.orderNumber)}
-                            </span>
-                          )}
-                          
-                          <div className="flex items-center space-x-2 text-sm text-gray-500">
-                            <ImageIcon className="h-4 w-4" />
-                            <span>{folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}</span>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs text-gray-600">Visible on delivery:</span>
-                            <Switch
-                              checked={folderVisibility[getFolderKey(folder)] ?? (folder.isVisible ?? true)}
-                              onCheckedChange={(checked) => handleToggleVisibility(folder, checked)}
-                              data-testid={getFolderTestId('switch-visibility', folder)}
-                              disabled={pendingFolderKey === getFolderKey(folder)}
-                            />
-                          </div>
-                          
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCreateFolder(folder.folderPath);
-                              }}
-                              data-testid={getFolderTestId('button-add-subfolder', folder)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                  data-testid={getFolderTestId('button-folder-menu', folder)}
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownloadAll(folder);
-                                  }}
-                                  disabled={downloadingFolder === folder.uniqueKey}
-                                  data-testid={getFolderTestId('menu-download-all', folder)}
-                                >
-                                  {downloadingFolder === folder.uniqueKey ? (
-                                    <>
-                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                      Creating zip...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Download className="h-4 w-4 mr-2" />
-                                      Download All
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRenameFolder(folder);
-                                  }}
-                                  data-testid={getFolderTestId('menu-rename-section', folder)}
-                                >
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Rename section
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // TODO: Implement collapse functionality
-                                  }}
-                                  data-testid={getFolderTestId('menu-collapse-section', folder)}
-                                >
-                                  <Folder className="h-4 w-4 mr-2" />
-                                  Collapse section
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteFolder(
-                                      folder.folderPath,
-                                      folder.partnerFolderName || folder.editorFolderName,
-                                      folder.orderNumber
-                                    );
-                                  }}
-                                  className="text-red-600"
-                                  data-testid={getFolderTestId('menu-delete-section', folder)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete section
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={foldersToShow.map(f => f.uniqueKey)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {foldersToShow.map((folder) => (
+                      <SortableFolderItem
+                        key={folder.uniqueKey}
+                        folder={folder}
+                        isReadOnly={isReadOnly}
+                        folderVisibility={folderVisibility}
+                        downloadingFolder={downloadingFolder}
+                        onEnterFolder={handleEnterFolder}
+                        onToggleVisibility={handleToggleVisibility}
+                        onCreateSubfolder={handleCreateFolder}
+                        onDownloadAll={handleDownloadAll}
+                        onRenameFolder={handleRenameFolder}
+                        onDeleteFolder={handleDeleteFolder}
+                        getFolderKey={getFolderKey}
+                        getFolderTestId={getFolderTestId}
+                        formatOrderNumber={formatOrderNumber}
+                        pendingFolderKey={pendingFolderKey}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
         )}
@@ -1790,7 +2071,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             {/* Thumbnail Carousel */}
             {galleryImages.length > 1 && (
               <div className="w-full max-w-5xl px-4">
-                <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                <div className="flex items-center justify-center gap-3 overflow-x-auto py-3 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                   {galleryImages.map((img, index) => (
                     <button
                       key={index}
@@ -1800,9 +2081,9 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         setSelectedImage(img.url);
                         setSelectedImageName(img.name);
                       }}
-                      className={`flex-shrink-0 relative group transition-all ${
+                      className={`flex-shrink-0 relative group transition-all duration-200 ease-out outline-none focus:outline-none focus:ring-0 border-0 ${
                         index === currentImageIndex 
-                          ? 'ring-2 ring-white scale-110' 
+                          ? 'scale-125 z-10' 
                           : 'opacity-60 hover:opacity-100 hover:scale-105'
                       }`}
                       data-testid={`thumbnail-${index}`}
@@ -1812,9 +2093,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         alt={img.name}
                         className="w-20 h-20 object-cover rounded-lg"
                       />
-                      {index === currentImageIndex && (
-                        <div className="absolute inset-0 bg-white/20 rounded-lg" />
-                      )}
                     </button>
                   ))}
                 </div>
@@ -1887,10 +2165,6 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   onClick={(e) => e.stopPropagation()}
                   autoPlay
                 />
-                {/* Video Name Overlay */}
-                <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm max-w-md truncate">
-                  {selectedVideoName}
-                </div>
               </div>
 
               {/* Next Arrow - Small */}
@@ -1913,7 +2187,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
             {/* Thumbnail Carousel */}
             {galleryVideos.length > 1 && (
               <div className="w-full max-w-5xl px-4">
-                <div className="flex items-center justify-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                <div className="flex items-center justify-center gap-3 overflow-x-auto py-3 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                   {galleryVideos.map((vid, index) => (
                     <button
                       key={index}
@@ -1923,23 +2197,20 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         setSelectedVideo(vid.url);
                         setSelectedVideoName(vid.name);
                       }}
-                      className={`flex-shrink-0 relative group transition-all ${
+                      className={`flex-shrink-0 relative group transition-all duration-200 ease-out outline-none focus:outline-none focus:ring-0 border-0 ${
                         index === currentVideoIndex 
-                          ? 'ring-2 ring-white scale-110' 
+                          ? 'scale-125 z-10' 
                           : 'opacity-60 hover:opacity-100 hover:scale-105'
                       }`}
                       data-testid={`video-thumbnail-${index}`}
                     >
-                      <video
-                        src={vid.url}
-                        className="w-20 h-20 object-cover rounded-lg"
-                        muted
-                        preload="metadata"
+                      <VideoThumbnail
+                        videoUrl={vid.url}
+                        alt={vid.name}
+                        className="w-20 h-20 rounded-lg"
+                        showPlayIcon={false}
                       />
-                      {index === currentVideoIndex && (
-                        <div className="absolute inset-0 bg-white/20 rounded-lg" />
-                      )}
-                      <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <Play className="h-6 w-6 text-white drop-shadow-lg" />
                       </div>
                     </button>
@@ -2076,8 +2347,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
         </DialogContent>
       </Dialog>
 
-      {/* Partner File Upload Modal */}
-      {showUploadModal && user && (
+      {/* Partner File Upload Modal - Hidden for read-only users */}
+      {showUploadModal && user && !isReadOnly && (
         <FileUploadModal
           isOpen={showUploadModal}
           onClose={() => {
@@ -2088,7 +2359,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           serviceId="general"
           userId={user.uid}
           jobId={jobId}
-          uploadType="client"
+          uploadType="completed"
           folderToken={selectedFolderData?.folderToken} // Pass folder token for standalone folders
           folderPath={selectedFolderData?.folderPath} // Pass folder path
           hideFolderInput={!!selectedFolderData?.folderPath} // Hide folder input when uploading to existing folder

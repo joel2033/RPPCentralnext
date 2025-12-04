@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatsCard } from "@/components/StatsCard";
 import { NeedsAttention } from "@/components/NeedsAttention";
 import { RevenueChart } from "@/components/RevenueChart";
+import { TodaysJobs } from "@/components/TodaysJobs";
 
 export default function Dashboard() {
   const { userData } = useAuth();
@@ -88,10 +89,11 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Needs Your Attention & Revenue Overview - 2 Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Needs Your Attention, Revenue Overview & Today's Jobs - 3 Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <NeedsAttention />
           <RevenueChart />
+          <TodaysJobs jobs={jobs} isLoading={jobsLoading} />
         </div>
 
         {/* Services This Month */}

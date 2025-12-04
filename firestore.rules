@@ -1,124 +1,18 @@
-rules_version = '2';
+rules_version='2'
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // Helper function to get user's partner ID from users collection
-    function getUserPartnerID() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.partnerId;
-    }
-
-    // Users collection - users can read/write their own document
-    match /users/{userId} {
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      allow write: if isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Conversations - users can read conversations where they are partner or editor
-    match /conversations/{conversationId} {
-      allow read: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        resource.data.editorId == request.auth.uid
-      );
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        resource.data.editorId == request.auth.uid
-      );
-    }
-
-    // Messages - users can read/write messages in conversations they have access to
-    match /messages/{messageId} {
-      allow read: if isAuthenticated() && (
-        get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.partnerId == getUserPartnerID() ||
-        get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.editorId == request.auth.uid
-      );
-      allow create: if isAuthenticated();
-    }
-
-    // Notifications - users can read notifications where they are the recipient
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
-      allow write: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
-    }
-
-    // Jobs - partners can read/write their own jobs
-    match /jobs/{jobId} {
-      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-    }
-
-    // Orders - partners and assigned editors can read orders
-    match /orders/{orderId} {
-      allow read: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        resource.data.editorId == request.auth.uid
-      );
-      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-    }
-
-    // Activities - partners can read their own activities
-    match /activities/{activityId} {
-      allow read, list: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-      allow create: if isAuthenticated();
-    }
-
-    // Customers - partners can read/write their own customers
-    match /customers/{customerId} {
-      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-      allow write: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-    }
-
-    // Folders - partners can read folders for their jobs, editors can read folders for jobs they're assigned to
-    match /folders/{folderId} {
-      allow read: if isAuthenticated() && (
-        // Check if folder has partnerId and it matches
-        (resource.data.partnerId != null && resource.data.partnerId == getUserPartnerID()) ||
-        // Or check if the job belongs to the partner
-        (resource.data.jobId != null && 
-         exists(/databases/$(database)/documents/jobs/$(resource.data.jobId)) &&
-         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.partnerId == getUserPartnerID()) ||
-        // Or allow editors to read folders for jobs they're assigned to (via orders)
-        (resource.data.orderId != null &&
-         exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
-         get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid)
-      );
-      allow write: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        (resource.data.jobId != null && 
-         exists(/databases/$(database)/documents/jobs/$(resource.data.jobId)) &&
-         get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.partnerId == getUserPartnerID())
-      );
-    }
-
-    // Editor Uploads - partners can read uploads for their jobs, editors can read their own uploads
-    match /editorUploads/{uploadId} {
-      allow read: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        // Allow editors to read uploads for jobs they're assigned to (via orders)
-        exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
-        get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid
-      );
-      allow write: if isAuthenticated() && (
-        resource.data.partnerId == getUserPartnerID() ||
-        // Allow editors to write their own uploads
-        exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) &&
-        get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.assignedTo == request.auth.uid
-      );
-    }
-
-    // Job Reviews - partners can read reviews for their jobs, public read for delivery page
-    match /jobReviews/{reviewId} {
-      allow read: if isAuthenticated() && resource.data.partnerId == getUserPartnerID();
-      allow create: if true; // Allow public creation (for delivery page)
-    }
-
-    // Default deny all other access
     match /{document=**} {
-      allow read, write: if false;
+      // This rule allows anyone with your database reference to view, edit,
+      // and delete all data in your database. It is useful for getting
+      // started, but it is configured to expire after 30 days because it
+      // leaves your app open to attackers. At that time, all client
+      // requests to your database will be denied.
+      //
+      // Make sure to write security rules for your app before that time, or
+      // else all client requests to your database will be denied until you
+      // update your rules.
+      allow read, write: if request.time < timestamp.date(2026, 1, 2);
     }
   }
 }

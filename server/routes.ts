@@ -66,14 +66,28 @@ interface AuthenticatedRequest extends Request {
   user?: {
     uid: string;
     partnerId?: string;
+    actualPartnerId?: string; // Original partnerId for master users viewing another business
     role: string;
     email: string;
     firstName?: string;
     lastName?: string;
     studioName?: string;
     partnerName?: string;
+    isMasterViewing?: boolean; // True when master is viewing another business
   };
 }
+
+// Helper: determine if a master user should be treated as read-only
+// Master is read-only only when impersonating a different partner's account
+const isMasterReadOnly = (user?: AuthenticatedRequest["user"]): boolean => {
+  if (!user) return false;
+  if (user.role !== "master") return false;
+  if (!user.isMasterViewing) return false;
+  // If we don't know the original partner, be safe and treat as read-only
+  if (!user.actualPartnerId) return true;
+  // Read-only when viewing a different partner than their own
+  return user.partnerId !== user.actualPartnerId;
+};
 
 const requireAuth = async (req: any, res: any, next: any) => {
   try {
@@ -102,6 +116,19 @@ const requireAuth = async (req: any, res: any, next: any) => {
       studioName: userDoc.studioName,
       partnerName: userDoc.partnerName
     };
+
+    // Master role can view any business's data (read-only)
+    // Check for viewingPartnerId query parameter
+    if (userDoc.role === 'master') {
+      const viewingPartnerId = req.query.viewingPartnerId as string;
+      if (viewingPartnerId) {
+        // Store original partnerId and set viewing partnerId
+        req.user.actualPartnerId = userDoc.partnerId;
+        req.user.partnerId = viewingPartnerId;
+        req.user.isMasterViewing = true;
+        console.log(`[Master View] User ${userDoc.email} viewing business: ${viewingPartnerId}`);
+      }
+    }
 
     next();
   } catch (error) {
@@ -151,6 +178,16 @@ const requireAuthSSE = async (req: any, res: any, next: any) => {
       studioName: userDoc.studioName,
       partnerName: userDoc.partnerName
     };
+
+    // Master role can view any business's data (read-only)
+    if (userDoc.role === 'master') {
+      const viewingPartnerId = req.query.viewingPartnerId as string;
+      if (viewingPartnerId) {
+        req.user.actualPartnerId = userDoc.partnerId;
+        req.user.partnerId = viewingPartnerId;
+        req.user.isMasterViewing = true;
+      }
+    }
 
     next();
   } catch (error) {
@@ -396,10 +433,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const job = await storage.createJob(data);
+      // Remove appointmentDate from job data - will be stored in appointments table
+      const { appointmentDate, ...jobDataWithoutAppointment } = data;
+      const job = await storage.createJob(jobDataWithoutAppointment);
+
+      // Extract products from request body if provided
+      const products = (req.body as any).products || (req.body as any).selectedProducts;
+
+      // Create appointment if appointmentDate is provided
+      let appointment = null;
+      if (appointmentDate) {
+        try {
+          // Calculate estimated duration from products if available
+          let estimatedDuration = data.estimatedDuration;
+          if (!estimatedDuration && products && Array.isArray(products) && products.length > 0) {
+            const allProducts = await storage.getProducts(req.user.partnerId);
+            let totalDuration = 0;
+            for (const selectedProduct of products) {
+              const product = allProducts.find(p => p.id === selectedProduct.id);
+              if (product) {
+                const productDuration = product.appointmentDuration || 60;
+                const quantity = selectedProduct.quantity || 1;
+                totalDuration += productDuration * quantity;
+              }
+            }
+            if (totalDuration > 0) {
+              estimatedDuration = totalDuration;
+            }
+          }
+
+          appointment = await storage.createAppointment({
+            jobId: job.id,
+            partnerId: req.user.partnerId,
+            appointmentDate: appointmentDate instanceof Date ? appointmentDate : new Date(appointmentDate),
+            estimatedDuration: estimatedDuration || undefined,
+            assignedTo: data.assignedTo || undefined,
+            products: products ? JSON.stringify(products.map((p: any) => ({
+              id: p.id,
+              name: p.title || p.name,
+              quantity: p.quantity || 1,
+              variationName: p.variationName
+            }))) : undefined,
+            notes: data.notes || undefined,
+            status: 'scheduled',
+          });
+        } catch (appointmentError) {
+          console.error("Failed to create appointment:", appointmentError);
+          // Don't fail the job creation if appointment creation fails
+        }
+      }
 
       // Log activity: Job Creation
       try {
+        const metadata: any = {
+          jobId: job.jobId,
+          address: job.address,
+          status: job.status,
+          customerId: job.customerId,
+          totalValue: job.totalValue,
+          source: 'create_job_modal',
+          appointmentId: appointment?.appointmentId
+        };
+
+        // Add products to metadata if provided
+        if (products && Array.isArray(products) && products.length > 0) {
+          metadata.products = products.map((p: any) => ({
+            id: p.id,
+            name: p.title || p.name,
+            quantity: p.quantity || 1,
+            variationName: p.variationName
+          }));
+        }
+
         await firestoreStorage.createActivity({
           partnerId: req.user.partnerId,
           jobId: job.jobId, // Use NanoID for consistency with frontend
@@ -410,13 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           category: "job",
           title: "Job Created",
           description: `New job created at ${job.address}`,
-          metadata: JSON.stringify({
-            jobId: job.jobId,
-            address: job.address,
-            status: job.status,
-            customerId: job.customerId,
-            totalValue: job.totalValue
-          }),
+          metadata: JSON.stringify(metadata),
           ipAddress: req.ip,
           userAgent: req.get('User-Agent')
         });
@@ -426,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the job creation if activity logging fails
       }
 
-      res.status(201).json(job);
+      res.status(201).json({ ...job, appointmentId: appointment?.appointmentId });
     } catch (error) {
       console.error("Job creation error:", error);
       res.status(400).json({ error: "Invalid job data", details: error instanceof Error ? error.message : "Unknown error" });
@@ -446,6 +545,340 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(job);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch job" });
+    }
+  });
+
+  // Update job (PATCH - partial update)
+  app.patch("/api/jobs/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Get the job first
+      const job = await storage.getJob(id);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Extract allowed fields for update
+      const { appointmentDate, assignedTo, notes, status, jobName, address, latitude, longitude, totalValue, estimatedDuration } = req.body;
+      
+      const updateData: any = {};
+      
+      if (appointmentDate !== undefined) {
+        updateData.appointmentDate = appointmentDate;
+      }
+      if (assignedTo !== undefined) {
+        updateData.assignedTo = assignedTo;
+      }
+      if (notes !== undefined) {
+        updateData.notes = notes;
+      }
+      if (status !== undefined) {
+        updateData.status = status;
+      }
+      if (jobName !== undefined) {
+        updateData.jobName = jobName;
+      }
+      if (address !== undefined) {
+        updateData.address = address;
+      }
+      if (latitude !== undefined) {
+        updateData.latitude = latitude;
+      }
+      if (longitude !== undefined) {
+        updateData.longitude = longitude;
+      }
+      if (totalValue !== undefined) {
+        updateData.totalValue = totalValue;
+      }
+      if (estimatedDuration !== undefined) {
+        updateData.estimatedDuration = estimatedDuration;
+      }
+
+      // Update the job
+      const updatedJob = await storage.updateJob(id, updateData);
+      if (!updatedJob) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Log activity for significant changes
+      try {
+        const changes: string[] = [];
+        if (appointmentDate !== undefined) changes.push('appointment date');
+        if (assignedTo !== undefined) changes.push('assigned photographer');
+        if (status !== undefined) changes.push('status');
+        if (notes !== undefined) changes.push('notes');
+        
+        if (changes.length > 0) {
+          await storage.createActivity({
+            partnerId: req.user.partnerId,
+            jobId: updatedJob.jobId,
+            userId: req.user.uid,
+            userEmail: req.user.email,
+            userName: req.user.email,
+            action: "update",
+            category: "job",
+            title: "Job Updated",
+            description: `Updated ${changes.join(', ')} for job at ${updatedJob.address}`,
+            metadata: JSON.stringify({
+              jobId: updatedJob.jobId,
+              changes: updateData
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent')
+          });
+        }
+      } catch (activityError) {
+        console.error("Failed to create activity for job update:", activityError);
+      }
+
+      res.json(updatedJob);
+    } catch (error: any) {
+      console.error("Error updating job:", error);
+      res.status(500).json({ error: "Failed to update job" });
+    }
+  });
+
+  // Appointments routes
+  // GET /api/jobs/:jobId/appointments - Get all appointments for a job
+  app.get("/api/jobs/:jobId/appointments", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      console.log(`[APPOINTMENTS API] Fetching appointments for jobId: ${jobId}`);
+      
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        console.error(`[APPOINTMENTS API] Job not found for jobId: ${jobId}`);
+        return res.status(404).json({ error: "Job not found" });
+      }
+      
+      if (job.partnerId !== req.user?.partnerId) {
+        console.error(`[APPOINTMENTS API] Access denied - job partnerId: ${job.partnerId}, user partnerId: ${req.user?.partnerId}`);
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      console.log(`[APPOINTMENTS API] Job found: ${job.id}, fetching appointments with job.id: ${job.id}, partnerId: ${req.user.partnerId}`);
+      const appointments = await storage.getAppointments(job.id, req.user.partnerId);
+      console.log(`[APPOINTMENTS API] Found ${appointments.length} appointments for job ${job.id}`);
+      res.json(appointments);
+    } catch (error: any) {
+      console.error("[APPOINTMENTS API] Error fetching appointments:", error);
+      console.error("[APPOINTMENTS API] Error stack:", error.stack);
+      res.status(500).json({ error: "Failed to fetch appointments", details: error.message });
+    }
+  });
+
+  // POST /api/jobs/:jobId/appointments - Create new appointment
+  app.post("/api/jobs/:jobId/appointments", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const job = await storage.getJobByJobId(jobId);
+      if (!job || job.partnerId !== req.user?.partnerId) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      const { appointmentDate, estimatedDuration, assignedTo, products, notes } = req.body;
+      
+      if (!appointmentDate) {
+        return res.status(400).json({ error: "appointmentDate is required" });
+      }
+
+      const appointment = await storage.createAppointment({
+        jobId: job.id,
+        partnerId: req.user.partnerId,
+        appointmentDate: new Date(appointmentDate),
+        estimatedDuration,
+        assignedTo,
+        products: products ? JSON.stringify(products) : undefined,
+        notes,
+        status: 'scheduled',
+      });
+
+      // Log activity
+      try {
+        await firestoreStorage.createActivity({
+          partnerId: req.user.partnerId,
+          jobId: job.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "creation",
+          category: "appointment",
+          title: "Appointment Created",
+          description: `New appointment scheduled for ${new Date(appointmentDate).toLocaleString()}`,
+          metadata: JSON.stringify({
+            appointmentId: appointment.appointmentId,
+            appointmentDate: appointmentDate,
+            products: products || [],
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+        });
+      } catch (activityError) {
+        console.error("Failed to log appointment creation activity:", activityError);
+      }
+
+      res.status(201).json(appointment);
+    } catch (error: any) {
+      console.error("Error creating appointment:", error);
+      res.status(500).json({ error: "Failed to create appointment", details: error.message });
+    }
+  });
+
+  // GET /api/appointments/:id - Get single appointment
+  app.get("/api/appointments/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Try to get appointment by document ID first
+      let appointment = await storage.getAppointment(req.params.id);
+      
+      // If not found, try to get by appointmentId (NanoID)
+      if (!appointment) {
+        appointment = await storage.getAppointmentByAppointmentId(req.params.id);
+      }
+      
+      if (!appointment || appointment.partnerId !== req.user?.partnerId) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      res.json(appointment);
+    } catch (error: any) {
+      console.error("Error fetching appointment:", error);
+      res.status(500).json({ error: "Failed to fetch appointment", details: error.message });
+    }
+  });
+
+  // PATCH /api/appointments/:id - Update appointment
+  app.patch("/api/appointments/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Try to get appointment by document ID first
+      let appointment = await storage.getAppointment(req.params.id);
+      
+      // If not found, try to get by appointmentId (NanoID)
+      if (!appointment) {
+        appointment = await storage.getAppointmentByAppointmentId(req.params.id);
+      }
+      
+      if (!appointment || appointment.partnerId !== req.user?.partnerId) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      
+      // Use the document ID for updates (not appointmentId)
+      const documentId = appointment.id;
+
+      const updates: any = {};
+      if (req.body.appointmentDate !== undefined) {
+        updates.appointmentDate = new Date(req.body.appointmentDate);
+      }
+      if (req.body.estimatedDuration !== undefined) {
+        updates.estimatedDuration = req.body.estimatedDuration;
+      }
+      if (req.body.assignedTo !== undefined) {
+        updates.assignedTo = req.body.assignedTo;
+      }
+      if (req.body.status !== undefined) {
+        updates.status = req.body.status;
+      }
+      if (req.body.products !== undefined) {
+        updates.products = JSON.stringify(req.body.products);
+      }
+      if (req.body.notes !== undefined) {
+        updates.notes = req.body.notes;
+      }
+
+      const updated = await storage.updateAppointment(documentId, updates);
+      if (!updated) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      // Log activity
+      try {
+        const job = await storage.getJob(appointment.jobId);
+        if (job) {
+          await firestoreStorage.createActivity({
+            partnerId: req.user.partnerId,
+            jobId: job.jobId,
+            userId: req.user.uid,
+            userEmail: req.user.email,
+            userName: req.user.email,
+            action: "update",
+            category: "appointment",
+            title: "Appointment Updated",
+            description: `Appointment updated`,
+            metadata: JSON.stringify({
+              appointmentId: appointment.appointmentId,
+              changes: updates,
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent'),
+          });
+        }
+      } catch (activityError) {
+        console.error("Failed to log appointment update activity:", activityError);
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating appointment:", error);
+      res.status(500).json({ error: "Failed to update appointment", details: error.message });
+    }
+  });
+
+  // DELETE /api/appointments/:id - Delete appointment
+  app.delete("/api/appointments/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Try to get appointment by document ID first
+      let appointment = await storage.getAppointment(req.params.id);
+      
+      // If not found, try to get by appointmentId (NanoID)
+      if (!appointment) {
+        appointment = await storage.getAppointmentByAppointmentId(req.params.id);
+      }
+      
+      if (!appointment || appointment.partnerId !== req.user?.partnerId) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      // Use the document ID for deletion (not appointmentId)
+      const documentId = appointment.id;
+      await storage.deleteAppointment(documentId);
+
+      // Log activity
+      try {
+        const job = await storage.getJob(appointment.jobId);
+        if (job) {
+          await firestoreStorage.createActivity({
+            partnerId: req.user.partnerId,
+            jobId: job.jobId,
+            userId: req.user.uid,
+            userEmail: req.user.email,
+            userName: req.user.email,
+            action: "delete",
+            category: "appointment",
+            title: "Appointment Deleted",
+            description: `Appointment deleted`,
+            metadata: JSON.stringify({
+              appointmentId: appointment.appointmentId,
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent'),
+          });
+        }
+      } catch (activityError) {
+        console.error("Failed to log appointment deletion activity:", activityError);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting appointment:", error);
+      res.status(500).json({ error: "Failed to delete appointment", details: error.message });
     }
   });
 
@@ -906,6 +1339,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error submitting order:", error);
       res.status(500).json({ error: "Failed to submit order" });
+    }
+  });
+
+  // ============================================
+  // Master (Franchisor) Endpoints - Read-only access to all businesses
+  // ============================================
+
+  // Get all partners/businesses (master role only)
+  app.get("/api/master/partners", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // Only master role can access this endpoint
+      if (req.user?.role !== 'master') {
+        return res.status(403).json({ error: "Access denied. Master role required." });
+      }
+
+      // Get all users with role 'partner' from Firestore
+      const usersSnapshot = await adminDb.collection('users')
+        .where('role', '==', 'partner')
+        .get();
+
+      const partners: { partnerId: string; businessName: string; email: string; firstName?: string; lastName?: string }[] = [];
+      const partnerIds = new Set<string>();
+
+      // Collect partner data
+      for (const doc of usersSnapshot.docs) {
+        const userData = doc.data();
+        if (userData.partnerId && !partnerIds.has(userData.partnerId)) {
+          partnerIds.add(userData.partnerId);
+          partners.push({
+            partnerId: userData.partnerId,
+            businessName: userData.businessName || userData.email || 'Unknown Business',
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName
+          });
+        }
+      }
+
+      // Ensure the master's own business (partnerId) is included, even if they are not a 'partner' role
+      const masterPartnerId = req.user?.partnerId;
+      if (masterPartnerId && !partnerIds.has(masterPartnerId)) {
+        try {
+          // Try to find any user document for this partnerId (could be master or team member)
+          const masterUsersSnapshot = await adminDb.collection('users')
+            .where('partnerId', '==', masterPartnerId)
+            .limit(1)
+            .get();
+
+          let email = req.user.email;
+          let firstName = req.user.firstName;
+          let lastName = req.user.lastName;
+
+          if (!masterUsersSnapshot.empty) {
+            const masterUserData = masterUsersSnapshot.docs[0].data() as any;
+            email = masterUserData.email || email;
+            firstName = masterUserData.firstName || firstName;
+            lastName = masterUserData.lastName || lastName;
+          }
+
+          partners.push({
+            partnerId: masterPartnerId,
+            businessName: email || 'My Franchise',
+            email,
+            firstName,
+            lastName
+          });
+          partnerIds.add(masterPartnerId);
+        } catch (err) {
+          console.warn(`[master/partners] Failed to ensure master business is included for partnerId ${masterPartnerId}:`, err);
+        }
+      }
+
+      // Fetch partner settings to get proper business names
+      for (const partner of partners) {
+        try {
+          const settingsSnapshot = await adminDb.collection('partnerSettings')
+            .where('partnerId', '==', partner.partnerId)
+            .limit(1)
+            .get();
+
+          if (!settingsSnapshot.empty) {
+            const settings = settingsSnapshot.docs[0].data();
+            if (settings.businessProfile) {
+              const businessProfile = typeof settings.businessProfile === 'string' 
+                ? JSON.parse(settings.businessProfile) 
+                : settings.businessProfile;
+              if (businessProfile.businessName) {
+                partner.businessName = businessProfile.businessName;
+              }
+            }
+          }
+        } catch (err) {
+          // If settings fetch fails, keep the existing name
+          console.warn(`Failed to fetch settings for partner ${partner.partnerId}:`, err);
+        }
+      }
+
+      // Sort by business name
+      partners.sort((a, b) => a.businessName.localeCompare(b.businessName));
+
+      res.json(partners);
+    } catch (error) {
+      console.error("Error fetching partners for master:", error);
+      res.status(500).json({ error: "Failed to fetch partners" });
     }
   });
 
@@ -3974,8 +4511,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Server-side Firebase upload endpoint for completed files (editor deliverables)
-  app.post("/api/upload-completed-files", requireAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/upload-completed-files", requireAuth, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {
+      // Master users cannot upload files when in read-only mode (viewing other businesses)
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Master users have read-only access and cannot upload files for other businesses" });
+      }
+
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
@@ -4265,6 +4807,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete individual file
   app.delete("/api/jobs/:jobId/files/:fileId", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
+      // Master users cannot delete files when in read-only mode (viewing other businesses)
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Master users have read-only access and cannot delete files for other businesses" });
+      }
+
       const { jobId, fileId } = req.params;
 
       if (!req.user?.partnerId) {
@@ -4386,6 +4933,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new folder (for partners to create folders)
   app.post("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
+      // Master users cannot create folders when in read-only mode (viewing other businesses)
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Master users have read-only access and cannot create folders for other businesses" });
+      }
+
       const { jobId } = req.params;
       const { partnerFolderName, parentFolderPath } = req.body;
 
@@ -4492,6 +5044,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete folder (for partners to delete standalone folders)
   app.delete("/api/jobs/:jobId/folders", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
+      // Master users cannot delete folders when in read-only mode (viewing other businesses)
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Master users have read-only access and cannot delete folders for other businesses" });
+      }
+
       const { jobId } = req.params;
       const { folderPath } = req.body;
 
@@ -4704,6 +5261,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error renaming folder:", error);
       res.status(500).json({ 
         error: "Failed to rename folder", 
+        details: error.message 
+      });
+    }
+  });
+
+  app.patch("/api/jobs/:jobId/folders/order", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { folders } = req.body;
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!Array.isArray(folders)) {
+        return res.status(400).json({ error: "folders must be an array" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Validate folders array
+      for (const folder of folders) {
+        if (!folder.uniqueKey || typeof folder.displayOrder !== 'number') {
+          return res.status(400).json({ error: "Each folder must have uniqueKey and displayOrder" });
+        }
+      }
+
+      console.log(`[FOLDER ORDER] Updating order for job ${job.id}:`, folders.map(f => ({ uniqueKey: f.uniqueKey, displayOrder: f.displayOrder })));
+
+      // Update folder order
+      await storage.updateFolderOrder(job.id, folders);
+      
+      console.log(`[FOLDER ORDER] Successfully updated order for job ${job.id}`);
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating folder order:", error);
+      res.status(500).json({ 
+        error: "Failed to update folder order", 
         details: error.message 
       });
     }
@@ -7229,7 +7835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { jobId } = req.params;
 
       // Verify job exists and belongs to user's partner
-      const job = await storage.getJob(jobId);
+      // Use getJobByJobId to handle both UUID and NanoID
+      const job = await storage.getJobByJobId(jobId);
       if (!job) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -7238,7 +7845,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied to this job" });
       }
 
-      const activities = await storage.getJobActivities(jobId, req.user.partnerId);
+      // Use job.jobId (NanoID) for activities query since activities are stored with NanoID
+      const activities = await storage.getJobActivities(job.jobId, req.user.partnerId);
       res.json(activities);
     } catch (error: any) {
       console.error("Error getting job activities:", error);
@@ -7945,13 +8553,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const businessHours = settings?.businessHours ? JSON.parse(settings.businessHours) : null;
 
         const editorDisplayNames = settings?.editorDisplayNames ? JSON.parse(settings.editorDisplayNames) : {};
+        const teamMemberColors = settings?.teamMemberColors ? JSON.parse(settings.teamMemberColors) : {};
 
         return res.json({
           businessProfile: null, // Photographers don't need business profile
           personalProfile,
           businessHours,
           defaultMaxRevisionRounds: settings?.defaultMaxRevisionRounds ?? 2,
-          editorDisplayNames
+          editorDisplayNames,
+          teamMemberColors
         });
       }
 
@@ -7964,7 +8574,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           personalProfile: { profileImage },
           businessHours: null,
           defaultMaxRevisionRounds: 2,
-          editorDisplayNames: {}
+          editorDisplayNames: {},
+          teamMemberColors: {}
         });
       }
 
@@ -7972,13 +8583,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       personalProfile.profileImage = profileImage; // Add profile image from user document
 
       const editorDisplayNames = settings.editorDisplayNames ? JSON.parse(settings.editorDisplayNames) : {};
+      const teamMemberColors = settings.teamMemberColors ? JSON.parse(settings.teamMemberColors) : {};
 
       res.json({
         businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
         personalProfile,
         businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null,
         defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
-        editorDisplayNames
+        editorDisplayNames,
+        teamMemberColors
       });
     } catch (error: any) {
       console.error("Error fetching settings:", error);
@@ -7993,7 +8606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds, editorDisplayNames } = req.body;
+      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds, editorDisplayNames, teamMemberColors } = req.body;
 
       // For photographers, save personal profile to their user document instead of partner settings
       if (req.user.role === 'photographer') {
@@ -8025,13 +8638,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Photographers can still update business hours (shared across team)
-        if (businessHours !== undefined || defaultMaxRevisionRounds !== undefined) {
+        if (businessHours !== undefined || defaultMaxRevisionRounds !== undefined || teamMemberColors !== undefined) {
           const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
             partnerId: req.user.partnerId,
             businessProfile: null, // Photographers don't update business profile
             personalProfile: null, // Photographers don't update partner personal profile
             businessHours: businessHours ? JSON.stringify(businessHours) : null,
-            defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2
+            defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2,
+            editorDisplayNames: undefined,
+            teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : undefined
           });
 
           return res.json({ 
@@ -8054,7 +8669,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         personalProfile: personalProfile ? JSON.stringify(personalProfile) : null,
         businessHours: businessHours ? JSON.stringify(businessHours) : null,
         defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2,
-        editorDisplayNames: editorDisplayNames ? JSON.stringify(editorDisplayNames) : null
+        editorDisplayNames: editorDisplayNames ? JSON.stringify(editorDisplayNames) : null,
+        teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : null
       });
 
       res.json({ 
@@ -8552,6 +9168,1091 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Failed to cleanup expired files",
         details: error.message
       });
+    }
+  });
+
+  // ============================================================================
+  // BOOKING FORM ENDPOINTS
+  // ============================================================================
+
+  // Get booking settings (authenticated partner route)
+  app.get("/api/booking/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      const settings = await storage.getPartnerSettings(req.user.partnerId);
+      
+      // Default booking settings
+      const defaultSettings = {
+        isEnabled: true,
+        timeZone: "Australia/Sydney",
+        allowNewClients: true,
+        requireExistingCustomer: false,
+        minLeadTimeHours: 24,
+        maxDriveDistanceKm: 50,
+        bufferMinutes: 15,
+        timeSlotInterval: 30,
+        allowTeamSelection: false,
+        customQuestions: [],
+        paymentMode: 'invoice',
+        depositPercentage: 0
+      };
+
+      if (!settings || !settings.bookingSettings) {
+        // Return default booking settings
+        console.log('[BookingSettings] GET: No saved settings, returning defaults');
+        return res.json(defaultSettings);
+      }
+
+      // Merge saved settings with defaults to ensure all fields exist
+      // Filter out undefined/null values from saved settings to not override defaults
+      const savedSettings = JSON.parse(settings.bookingSettings);
+      const filteredSaved = Object.fromEntries(
+        Object.entries(savedSettings).filter(([_, v]) => v !== undefined && v !== null)
+      );
+      const mergedSettings = { ...defaultSettings, ...filteredSaved };
+      console.log('[BookingSettings] GET: Returning merged settings, timeSlotInterval:', mergedSettings.timeSlotInterval);
+      res.json(mergedSettings);
+    } catch (error: any) {
+      console.error("Error fetching booking settings:", error);
+      res.status(500).json({ error: "Failed to fetch booking settings" });
+    }
+  });
+
+  // Save booking settings (authenticated partner route)
+  app.put("/api/booking/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      const bookingSettings = req.body;
+      console.log('[BookingSettings] Received settings to save:', JSON.stringify(bookingSettings, null, 2));
+      console.log('[BookingSettings] timeSlotInterval value:', bookingSettings.timeSlotInterval);
+      
+      // Get existing settings and update only bookingSettings
+      const existingSettings = await storage.getPartnerSettings(req.user.partnerId);
+      
+      await storage.savePartnerSettings(req.user.partnerId, {
+        partnerId: req.user.partnerId,
+        businessProfile: existingSettings?.businessProfile || null,
+        personalProfile: existingSettings?.personalProfile || null,
+        businessHours: existingSettings?.businessHours || null,
+        defaultMaxRevisionRounds: existingSettings?.defaultMaxRevisionRounds ?? 2,
+        editorDisplayNames: existingSettings?.editorDisplayNames || null,
+        teamMemberColors: existingSettings?.teamMemberColors || null,
+        bookingSettings: JSON.stringify(bookingSettings)
+      });
+
+      console.log('[BookingSettings] Settings saved successfully');
+      res.json({ success: true, message: "Booking settings saved successfully" });
+    } catch (error: any) {
+      console.error("Error saving booking settings:", error);
+      res.status(500).json({ error: "Failed to save booking settings" });
+    }
+  });
+
+  // Public route: Get booking settings for booking form
+  app.get("/api/booking/public-settings/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      const settings = await storage.getPartnerSettings(partnerId);
+      
+      if (!settings || !settings.bookingSettings) {
+        // Default to enabled for new partners
+        return res.json({
+          isEnabled: true,
+          partnerId,
+          timeZone: "Australia/Sydney",
+          allowNewClients: true,
+          requireExistingCustomer: false,
+          minimumBookingHours: 24,
+          maximumDriveDistanceKm: 50,
+          allowTeamMemberSelection: true,
+          customQuestions: [],
+          paymentMode: 'invoice',
+          depositPercentage: 0,
+          bufferMinutes: 15,
+          timeSlotInterval: 30
+        });
+      }
+
+      const savedSettings = JSON.parse(settings.bookingSettings);
+      
+      // Merge with defaults to ensure all fields exist (handles new fields added after settings were saved)
+      const defaultBookingSettings = {
+        isEnabled: true,
+        timeZone: "Australia/Sydney",
+        allowNewClients: true,
+        requireExistingCustomer: false,
+        minLeadTimeHours: 24,
+        maxDriveDistanceKm: 50,
+        bufferMinutes: 15,
+        timeSlotInterval: 30,
+        allowTeamSelection: false,
+        customQuestions: [],
+        paymentMode: 'invoice',
+        depositPercentage: 0
+      };
+      
+      // Filter out undefined/null values from saved settings to not override defaults
+      const filteredSaved = Object.fromEntries(
+        Object.entries(savedSettings).filter(([_, v]) => v !== undefined && v !== null)
+      );
+      const bookingSettings = { ...defaultBookingSettings, ...filteredSaved };
+      
+      // Also include business info for display
+      const businessProfile = settings.businessProfile ? JSON.parse(settings.businessProfile) : {};
+      const businessHours = settings.businessHours ? JSON.parse(settings.businessHours) : null;
+
+      // Derive final time zone: booking-specific override, then business profile, then default
+      const finalTimeZone =
+        bookingSettings.timeZone ||
+        businessProfile.timeZone ||
+        "Australia/Sydney";
+
+      // In development mode, always enable booking for testing
+      const isEnabled = process.env.NODE_ENV === 'development' 
+        ? true 
+        : bookingSettings.isEnabled ?? true;
+
+      res.json({
+        ...bookingSettings,
+        timeZone: finalTimeZone,
+        isEnabled,
+        partnerId,
+        businessName: businessProfile.businessName || null,
+        businessLogo: businessProfile.logo || null,
+        businessPhone: businessProfile.phone || null,
+        businessEmail: businessProfile.email || null,
+        businessHours
+      });
+    } catch (error: any) {
+      console.error("Error fetching public booking settings:", error);
+      res.status(500).json({ error: "Failed to fetch booking settings" });
+    }
+  });
+
+  // Public route: Get products for booking form
+  app.get("/api/booking/products/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      const products = await storage.getProducts(partnerId);
+      
+      // Filter to only active and live products
+      const bookingProducts = products
+        .filter(p => p.isActive && p.isLive)
+        .map(p => ({
+          id: p.id,
+          partnerId: p.partnerId,
+          title: p.title,
+          description: p.description,
+          type: p.type,
+          category: p.category,
+          price: parseFloat(p.price?.toString() || '0'),
+          taxRate: parseFloat(p.taxRate?.toString() || '10'),
+          hasVariations: p.hasVariations,
+          variations: p.variations ? JSON.parse(p.variations) : null,
+          productType: p.productType || 'onsite',
+          requiresAppointment: p.requiresAppointment ?? true,
+          appointmentDuration: p.appointmentDuration || 60,
+          image: p.image
+        }));
+
+      res.json(bookingProducts);
+    } catch (error: any) {
+      console.error("Error fetching booking products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  // Public route: Get team members for booking form
+  app.get("/api/booking/team/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      const users = await storage.getUsers(partnerId);
+      
+      // Filter to photographers and partners who can be assigned
+      const teamMembers = users
+        .filter(u => u.role === 'photographer' || u.role === 'partner')
+        .map(u => ({
+          id: u.id,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          name: `${u.firstName} ${u.lastName}`.trim(),
+          profileImage: u.profileImage,
+          role: u.role
+        }));
+
+      res.json(teamMembers);
+    } catch (error: any) {
+      console.error("Error fetching team members:", error);
+      res.status(500).json({ error: "Failed to fetch team members" });
+    }
+  });
+
+  // Public route: Get team member availability
+  app.get("/api/booking/team-availability/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      // Get partner settings for business hours
+      const settings = await storage.getPartnerSettings(partnerId);
+      const businessHours = settings?.businessHours ? JSON.parse(settings.businessHours) : null;
+
+      // Get all team members
+      const users = await storage.getUsers(partnerId);
+      const teamMembers = users.filter(u => u.role === 'photographer' || u.role === 'partner');
+
+      // Generate availability based on business hours
+      // In a real implementation, each team member could have their own hours
+      const dayMap: Record<string, number> = {
+        sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+        thursday: 4, friday: 5, saturday: 6
+      };
+
+      const availability: any[] = [];
+
+      for (const member of teamMembers) {
+        if (businessHours) {
+          for (const [day, hours] of Object.entries(businessHours) as [string, any][]) {
+            availability.push({
+              teamMemberId: member.id,
+              dayOfWeek: dayMap[day] ?? 0,
+              startTime: hours.start || '09:00',
+              endTime: hours.end || '17:00',
+              isAvailable: hours.enabled !== false
+            });
+          }
+        } else {
+          // Default availability: Monday-Friday 9-5
+          for (let day = 1; day <= 5; day++) {
+            availability.push({
+              teamMemberId: member.id,
+              dayOfWeek: day,
+              startTime: '09:00',
+              endTime: '17:00',
+              isAvailable: true
+            });
+          }
+        }
+      }
+
+      res.json(availability);
+    } catch (error: any) {
+      console.error("Error fetching team availability:", error);
+      res.status(500).json({ error: "Failed to fetch availability" });
+    }
+  });
+
+  // Public route: Get existing appointments for scheduling
+  app.get("/api/booking/appointments/:partnerId", async (req, res) => {
+    try {
+      const { partnerId } = req.params;
+      const { start, end } = req.query;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      const appointments: any[] = [];
+
+      // Get all jobs for this partner (used for enriching appointments and legacy support)
+      const jobs = await storage.getJobs(partnerId);
+      const jobsById = new Map(jobs.map(j => [j.id, j]));
+
+      // Fetch appointments from the appointments table/collection
+      try {
+        // Query appointments by partnerId (fetch all, filter cancelled in memory)
+        // This is more reliable than Firestore's != operator which has limitations with composite queries
+        const appointmentsSnapshot = await adminDb.collection("appointments")
+          .where("partnerId", "==", partnerId)
+          .get();
+
+        // Filter out cancelled appointments in memory (more reliable than Firestore != operator)
+        const activeAppointments = appointmentsSnapshot.docs.filter(doc => {
+          const status = doc.data().status;
+          return !status || status !== 'cancelled';
+        });
+
+        // Transform appointments from the appointments table
+        console.log('[BOOKING APPOINTMENTS] Raw appointments from Firestore:', appointmentsSnapshot.docs.length);
+        console.log('[BOOKING APPOINTMENTS] Active appointments (after filtering cancelled):', activeAppointments.length);
+        console.log('[BOOKING APPOINTMENTS] Appointment statuses:', appointmentsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          status: doc.data().status || 'undefined'
+        })));
+        
+        for (const doc of activeAppointments) {
+          const apt = doc.data();
+          
+          // Convert Firestore timestamp to Date
+          let appointmentDate: Date;
+          if (apt.appointmentDate?.toDate) {
+            appointmentDate = apt.appointmentDate.toDate();
+          } else if (apt.appointmentDate instanceof Date) {
+            appointmentDate = apt.appointmentDate;
+          } else {
+            appointmentDate = new Date(apt.appointmentDate);
+          }
+
+          console.log('[BOOKING APPOINTMENTS] Processing appointment:', {
+            appointmentId: doc.id,
+            appointmentDate_raw: apt.appointmentDate,
+            appointmentDate_parsed: appointmentDate.toISOString(),
+            assignedTo: apt.assignedTo,
+            dateRange: { start, end }
+          });
+
+          // Filter by date range if provided
+          if (start) {
+            const startDate = new Date(start as string);
+            startDate.setUTCHours(0, 0, 0, 0); // Use UTC to avoid timezone issues
+            if (appointmentDate < startDate) {
+              console.log('[BOOKING APPOINTMENTS] Filtered out (before start):', {
+                appointmentId: doc.id,
+                appointmentDate: appointmentDate.toISOString(),
+                startDate: startDate.toISOString(),
+                assignedTo: apt.assignedTo
+              });
+              continue;
+            }
+          }
+          if (end) {
+            const endDate = new Date(end as string);
+            endDate.setUTCHours(23, 59, 59, 999); // Use UTC to avoid timezone issues
+            if (appointmentDate > endDate) {
+              console.log('[BOOKING APPOINTMENTS] Filtered out (after end):', {
+                appointmentId: doc.id,
+                appointmentDate: appointmentDate.toISOString(),
+                endDate: endDate.toISOString(),
+                assignedTo: apt.assignedTo
+              });
+              continue;
+            }
+          }
+
+          // Get job information for address and coordinates
+          const job = jobsById.get(apt.jobId);
+          const jobId = job?.jobId || apt.jobId;
+
+          // Extract time components from appointmentDate
+          const startHours = appointmentDate.getHours();
+          const startMinutes = appointmentDate.getMinutes();
+          const startTime = `${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}`;
+
+          // Calculate end time based on estimated duration
+          const duration = apt.estimatedDuration || 60;
+          const endDate = new Date(appointmentDate.getTime() + duration * 60 * 1000);
+          const endHours = endDate.getHours();
+          const endMinutes = endDate.getMinutes();
+          const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+
+          // Use appointment's assignedTo, fall back to job's assignedTo if not set
+          const teamMemberId = apt.assignedTo || job?.assignedTo || null;
+
+          appointments.push({
+            id: doc.id,
+            jobId: jobId,
+            partnerId: apt.partnerId,
+            teamMemberId: teamMemberId,
+            appointmentDate: appointmentDate,
+            startTime,
+            endTime,
+            estimatedDuration: duration,
+            status: apt.status || 'scheduled',
+            address: job?.address || '',
+            latitude: job?.latitude || null,
+            longitude: job?.longitude || null,
+          });
+
+          // Log appointment assignment for debugging
+          console.log('[BOOKING APPOINTMENTS] Appointment loaded:', {
+            appointmentId: doc.id,
+            appointmentDate: appointmentDate.toISOString(),
+            startTime,
+            status: apt.status || 'scheduled',
+            appointment_assignedTo: apt.assignedTo,
+            job_assignedTo: job?.assignedTo,
+            final_teamMemberId: teamMemberId,
+            jobId: jobId,
+            address: job?.address || ''
+          });
+        }
+      } catch (error: any) {
+        console.error("Error fetching appointments from appointments table:", error);
+        // Continue to legacy appointments from jobs table
+      }
+
+      // Also include legacy appointments from jobs table (for backward compatibility)
+      const legacyAppointments = jobs
+        .filter(j => j.appointmentDate && j.status !== 'cancelled')
+        .map(j => {
+          const appointmentDate = new Date(j.appointmentDate!);
+          
+          // Filter by date range if provided
+          if (start) {
+            const startDate = new Date(start as string);
+            startDate.setHours(0, 0, 0, 0);
+            if (appointmentDate < startDate) return null;
+          }
+          if (end) {
+            const endDate = new Date(end as string);
+            endDate.setHours(23, 59, 59, 999);
+            if (appointmentDate > endDate) return null;
+          }
+
+          const startHours = appointmentDate.getHours();
+          const startMinutes = appointmentDate.getMinutes();
+          const startTime = `${String(startHours).padStart(2, '0')}:${String(startMinutes).padStart(2, '0')}`;
+          
+          const duration = (j as any).estimatedDuration || 60;
+          const endDate = new Date(appointmentDate.getTime() + duration * 60 * 1000);
+          const endHours = endDate.getHours();
+          const endMinutes = endDate.getMinutes();
+          const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+          
+          return {
+            id: j.id,
+            jobId: j.jobId,
+            partnerId: j.partnerId,
+            teamMemberId: j.assignedTo || null,
+            appointmentDate: j.appointmentDate,
+            startTime,
+            endTime,
+            estimatedDuration: duration,
+            status: j.status,
+            address: j.address,
+            latitude: (j as any).latitude || null,
+            longitude: (j as any).longitude || null,
+          };
+        })
+        .filter(a => a !== null);
+
+      // Combine and deduplicate (prefer appointments table over legacy)
+      const appointmentMap = new Map<string, any>();
+      
+      // Add legacy appointments first
+      legacyAppointments.forEach(apt => {
+        if (apt) {
+          appointmentMap.set(apt.jobId + '_' + apt.appointmentDate?.toString(), apt);
+        }
+      });
+      
+      // Override with appointments table entries (these take precedence)
+      appointments.forEach(apt => {
+        const key = apt.jobId + '_' + apt.appointmentDate?.toString();
+        appointmentMap.set(key, apt);
+      });
+
+      const allAppointments = Array.from(appointmentMap.values());
+      
+      // Sort by appointment date
+      allAppointments.sort((a, b) => {
+        const dateA = new Date(a.appointmentDate);
+        const dateB = new Date(b.appointmentDate);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      // Comprehensive logging of all appointments being returned
+      console.log('[BOOKING APPOINTMENTS] FINAL RESULT:', {
+        partnerId,
+        dateRange: { start, end },
+        totalAppointmentsFromAppointmentsTable: appointments.length,
+        totalLegacyAppointments: legacyAppointments.length,
+        totalAfterDeduplication: allAppointments.length,
+        appointments: allAppointments.map(a => ({
+          id: a.id,
+          appointmentDate: a.appointmentDate?.toISOString(),
+          startTime: a.startTime,
+          status: a.status || 'scheduled',
+          teamMemberId: a.teamMemberId || 'NULL',
+          jobId: a.jobId,
+          address: a.address
+        }))
+      });
+      
+      // Summary log for quick debugging
+      console.log('[BOOKING APPOINTMENTS] SUMMARY:', {
+        partnerId,
+        totalReturned: allAppointments.length,
+        withTeamMember: allAppointments.filter(a => a.teamMemberId).length,
+        withoutTeamMember: allAppointments.filter(a => !a.teamMemberId).length,
+        statusBreakdown: allAppointments.reduce((acc, a) => {
+          const status = a.status || 'scheduled';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>)
+      });
+
+      res.json(allAppointments);
+    } catch (error: any) {
+      console.error("Error fetching appointments:", error);
+      res.status(500).json({ error: "Failed to fetch appointments", details: error.message });
+    }
+  });
+
+  // Simple in-memory cache for drive time results (cleared on server restart)
+  const driveTimeCache: Map<string, { duration: number; distance: number; timestamp: number }> = new Map();
+  const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+  // Public route: Get drive time between two locations using Google Maps API
+  app.get("/api/booking/drive-time", async (req, res) => {
+    try {
+      const { originLat, originLng, destLat, destLng } = req.query;
+      
+      if (!originLat || !originLng || !destLat || !destLng) {
+        return res.status(400).json({ error: "Origin and destination coordinates required" });
+      }
+
+      const oLat = parseFloat(originLat as string);
+      const oLng = parseFloat(originLng as string);
+      const dLat = parseFloat(destLat as string);
+      const dLng = parseFloat(destLng as string);
+
+      if (isNaN(oLat) || isNaN(oLng) || isNaN(dLat) || isNaN(dLng)) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      // Create cache key (round to 4 decimal places for reasonable precision)
+      const cacheKey = `${oLat.toFixed(4)},${oLng.toFixed(4)}-${dLat.toFixed(4)},${dLng.toFixed(4)}`;
+      
+      // Check cache
+      const cached = driveTimeCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return res.json({
+          durationMinutes: cached.duration,
+          distanceKm: cached.distance,
+          source: 'cache'
+        });
+      }
+
+      // Try Google Maps Distance Matrix API
+      const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+      
+      console.log(`[DriveTime API] Request: (${oLat},${oLng}) -> (${dLat},${dLng}), API key: ${googleApiKey ? 'present' : 'missing'}`);
+      
+      if (googleApiKey) {
+        try {
+          const url = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
+            `origins=${oLat},${oLng}&destinations=${dLat},${dLng}` +
+            `&mode=driving&units=metric&key=${googleApiKey}`;
+          
+          const response = await fetch(url);
+          const data = await response.json();
+          
+          console.log(`[DriveTime API] Google response status: ${data.status}`);
+          
+          if (data.status === 'OK' && data.rows?.[0]?.elements?.[0]?.status === 'OK') {
+            const element = data.rows[0].elements[0];
+            const durationMinutes = Math.ceil(element.duration.value / 60);
+            const distanceKm = Math.round(element.distance.value / 100) / 10; // Round to 1 decimal
+            
+            console.log(`[DriveTime API] Google Maps result: ${durationMinutes} min, ${distanceKm} km`);
+            
+            // Cache the result
+            driveTimeCache.set(cacheKey, {
+              duration: durationMinutes,
+              distance: distanceKm,
+              timestamp: Date.now()
+            });
+            
+            return res.json({
+              durationMinutes,
+              distanceKm,
+              source: 'google'
+            });
+          } else {
+            console.log(`[DriveTime API] Google Maps failed: ${data.status}, element: ${data.rows?.[0]?.elements?.[0]?.status}`);
+          }
+        } catch (googleError) {
+          console.error("[DriveTime API] Google Maps API error:", googleError);
+          // Fall through to Haversine calculation
+        }
+      }
+
+      // Fallback: Haversine formula for distance calculation
+      console.log(`[DriveTime API] Using Haversine fallback`);
+      const R = 6371; // Earth's radius in km
+      const dLat2 = toRad(dLat - oLat);
+      const dLng2 = toRad(dLng - oLng);
+      const a = Math.sin(dLat2 / 2) * Math.sin(dLat2 / 2) +
+                Math.cos(toRad(oLat)) * Math.cos(toRad(dLat)) *
+                Math.sin(dLng2 / 2) * Math.sin(dLng2 / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = Math.round(R * c * 10) / 10;
+      
+      // Estimate driving time (average 40km/h in urban areas)
+      const durationMinutes = Math.round((distanceKm / 40) * 60);
+      
+      // Cache the result
+      driveTimeCache.set(cacheKey, {
+        duration: durationMinutes,
+        distance: distanceKm,
+        timestamp: Date.now()
+      });
+      
+      res.json({
+        durationMinutes,
+        distanceKm,
+        source: 'haversine'
+      });
+    } catch (error: any) {
+      console.error("Error calculating drive time:", error);
+      res.status(500).json({ error: "Failed to calculate drive time" });
+    }
+  });
+
+  // Helper function for Haversine calculation
+  function toRad(deg: number): number {
+    return deg * (Math.PI / 180);
+  }
+
+  // Public route: Get drive time from an address to coordinates (geocodes the address first)
+  app.get("/api/booking/drive-time-address", async (req, res) => {
+    try {
+      const { originAddress, destLat, destLng } = req.query;
+      
+      if (!originAddress || !destLat || !destLng) {
+        return res.status(400).json({ error: "Origin address and destination coordinates required" });
+      }
+
+      const dLat = parseFloat(destLat as string);
+      const dLng = parseFloat(destLng as string);
+
+      if (isNaN(dLat) || isNaN(dLng)) {
+        return res.status(400).json({ error: "Invalid destination coordinates" });
+      }
+
+      const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY;
+      
+      console.log(`[DriveTime Address API] Request: "${originAddress}" -> (${dLat},${dLng}), API key: ${googleApiKey ? 'present' : 'missing'}`);
+      
+      if (!googleApiKey) {
+        // Without API key, return a conservative default
+        console.log(`[DriveTime Address API] No API key, returning default`);
+        return res.json({
+          durationMinutes: 30,
+          distanceKm: 20,
+          source: 'default-no-api-key'
+        });
+      }
+
+      // Create cache key using address
+      const cacheKey = `addr:${(originAddress as string).toLowerCase().trim()}-${dLat.toFixed(4)},${dLng.toFixed(4)}`;
+      
+      // Check cache
+      const cached = driveTimeCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        console.log(`[DriveTime Address API] Returning cached result: ${cached.duration} min`);
+        return res.json({
+          durationMinutes: cached.duration,
+          distanceKm: cached.distance,
+          source: 'cache'
+        });
+      }
+
+      try {
+        // Use Distance Matrix API directly with address as origin
+        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
+          `origins=${encodeURIComponent(originAddress as string)}&destinations=${dLat},${dLng}` +
+          `&mode=driving&units=metric&key=${googleApiKey}`;
+        
+        console.log(`[DriveTime Address API] Calling Google Maps API`);
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        console.log(`[DriveTime Address API] Google response status: ${data.status}`);
+        
+        if (data.status === 'OK' && data.rows?.[0]?.elements?.[0]?.status === 'OK') {
+          const element = data.rows[0].elements[0];
+          const durationMinutes = Math.ceil(element.duration.value / 60);
+          const distanceKm = Math.round(element.distance.value / 100) / 10;
+          
+          console.log(`[DriveTime Address API] Google Maps result: ${durationMinutes} min, ${distanceKm} km`);
+          
+          // Cache the result
+          driveTimeCache.set(cacheKey, {
+            duration: durationMinutes,
+            distance: distanceKm,
+            timestamp: Date.now()
+          });
+          
+          return res.json({
+            durationMinutes,
+            distanceKm,
+            source: 'google-address'
+          });
+        } else {
+          console.log(`[DriveTime Address API] Google Maps failed: ${data.status}, element: ${data.rows?.[0]?.elements?.[0]?.status}`);
+        }
+      } catch (googleError) {
+        console.error("[DriveTime Address API] Google Maps API error:", googleError);
+      }
+
+      // Fallback: Return conservative default
+      console.log(`[DriveTime Address API] Returning default fallback`);
+      res.json({
+        durationMinutes: 30,
+        distanceKm: 20,
+        source: 'default-fallback'
+      });
+    } catch (error: any) {
+      console.error("Error calculating drive time from address:", error);
+      res.status(500).json({ error: "Failed to calculate drive time" });
+    }
+  });
+
+  // Public route: Lookup customer by email or phone
+  app.get("/api/booking/customers/lookup", async (req, res) => {
+    try {
+      const { partnerId, contact } = req.query;
+      
+      if (!partnerId || !contact) {
+        return res.status(400).json({ error: "Partner ID and contact required" });
+      }
+
+      const customers = await storage.getCustomers(partnerId as string);
+      
+      // Search by email or phone
+      const contactLower = (contact as string).toLowerCase().trim();
+      const matchedCustomer = customers.find(c => 
+        c.email?.toLowerCase() === contactLower ||
+        c.phone?.replace(/\D/g, '') === contactLower.replace(/\D/g, '')
+      );
+
+      if (matchedCustomer) {
+        res.json({
+          found: true,
+          customer: {
+            id: matchedCustomer.id,
+            firstName: matchedCustomer.firstName,
+            lastName: matchedCustomer.lastName,
+            email: matchedCustomer.email,
+            phone: matchedCustomer.phone,
+            company: matchedCustomer.company
+          }
+        });
+      } else {
+        res.json({ found: false, customer: null });
+      }
+    } catch (error: any) {
+      console.error("Error looking up customer:", error);
+      res.status(500).json({ error: "Failed to lookup customer" });
+    }
+  });
+
+  // Public route: Create new customer from booking form
+  app.post("/api/booking/customers", async (req, res) => {
+    try {
+      const { partnerId, firstName, lastName, email, phone, company } = req.body;
+      
+      if (!partnerId || !firstName || !lastName || !email) {
+        return res.status(400).json({ error: "Partner ID, first name, last name, and email required" });
+      }
+
+      // Check if partner allows new clients
+      const settings = await storage.getPartnerSettings(partnerId);
+      const bookingSettings = settings?.bookingSettings ? JSON.parse(settings.bookingSettings) : {};
+      
+      if (bookingSettings.requireExistingCustomer && !bookingSettings.allowNewClients) {
+        return res.status(403).json({ error: "This business only accepts bookings from existing clients" });
+      }
+
+      // Check if customer already exists
+      const customers = await storage.getCustomers(partnerId);
+      const existingCustomer = customers.find(c => c.email?.toLowerCase() === email.toLowerCase());
+      
+      if (existingCustomer) {
+        return res.json({
+          created: false,
+          customer: {
+            id: existingCustomer.id,
+            firstName: existingCustomer.firstName,
+            lastName: existingCustomer.lastName,
+            email: existingCustomer.email,
+            phone: existingCustomer.phone,
+            company: existingCustomer.company
+          }
+        });
+      }
+
+      // Create new customer
+      const newCustomer = await storage.createCustomer({
+        partnerId,
+        firstName,
+        lastName,
+        email,
+        phone: phone || null,
+        company: company || null,
+        category: null,
+        notes: 'Created via online booking form'
+      });
+
+      res.status(201).json({
+        created: true,
+        customer: {
+          id: newCustomer.id,
+          firstName: newCustomer.firstName,
+          lastName: newCustomer.lastName,
+          email: newCustomer.email,
+          phone: newCustomer.phone,
+          company: newCustomer.company
+        }
+      });
+    } catch (error: any) {
+      console.error("Error creating customer:", error);
+      res.status(500).json({ error: "Failed to create customer" });
+    }
+  });
+
+  // Public route: Create booking
+  app.post("/api/bookings", async (req, res) => {
+    try {
+      const {
+        partnerId,
+        customerId,
+        newCustomer,
+        address,
+        latitude,
+        longitude,
+        appointmentDate,
+        appointmentTime,
+        assignedTo,
+        products,
+        totalValue,
+        notes,
+        specialInstructions,
+        customAnswers
+      } = req.body;
+      
+      console.log('[BOOKING] Received products:', JSON.stringify(products, null, 2));
+
+      if (!partnerId || !address) {
+        return res.status(400).json({ error: "Partner ID and address required" });
+      }
+
+      // Either customerId or newCustomer must be provided
+      let finalCustomerId = customerId;
+      
+      if (!customerId && newCustomer) {
+        // Create the new customer first
+        const customer = await storage.createCustomer({
+          partnerId,
+          firstName: newCustomer.firstName,
+          lastName: newCustomer.lastName,
+          email: newCustomer.email,
+          phone: newCustomer.phone || null,
+          company: newCustomer.company || null,
+          category: null,
+          notes: 'Created via online booking form'
+        });
+        finalCustomerId = customer.id;
+      }
+
+      // Parse appointment date and time
+      let appointmentDateTime: Date | undefined;
+      if (appointmentDate && appointmentTime) {
+        // Handle both 12-hour (e.g., "9:00 AM") and 24-hour (e.g., "09:00") formats
+        let hours: number;
+        let minutes: number;
+        
+        const timeMatch = appointmentTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (timeMatch) {
+          hours = parseInt(timeMatch[1], 10);
+          minutes = parseInt(timeMatch[2], 10);
+          const period = timeMatch[3]?.toUpperCase();
+          
+          // Convert 12-hour to 24-hour if AM/PM present
+          if (period === 'PM' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'AM' && hours === 12) {
+            hours = 0;
+          }
+        } else {
+          // Fallback: try simple split
+          const parts = appointmentTime.split(':').map(Number);
+          hours = parts[0] || 0;
+          minutes = parts[1] || 0;
+        }
+        
+        // Create date from the date string (YYYY-MM-DD format expected)
+        appointmentDateTime = new Date(appointmentDate + 'T00:00:00');
+        if (!isNaN(appointmentDateTime.getTime())) {
+          appointmentDateTime.setHours(hours, minutes, 0, 0);
+        } else {
+          console.error('Invalid appointment date:', appointmentDate);
+          appointmentDateTime = undefined;
+        }
+      }
+
+      // Calculate estimated duration from selected products
+      let estimatedDuration = 60; // Default 60 minutes
+      if (products && Array.isArray(products) && products.length > 0) {
+        // Sum up durations from products
+        const allProducts = await storage.getProducts(partnerId);
+        let totalDuration = 0;
+        for (const selectedProduct of products) {
+          const product = allProducts.find(p => p.id === selectedProduct.id);
+          if (product) {
+            // Use appointmentDuration from product, default to 60 if not set
+            const productDuration = product.appointmentDuration || 60;
+            const quantity = selectedProduct.quantity || 1;
+            totalDuration += productDuration * quantity;
+          }
+        }
+        if (totalDuration > 0) {
+          estimatedDuration = totalDuration;
+        }
+      }
+
+      // Create the job (without appointmentDate - will be stored in appointments table)
+      const job = await storage.createJob({
+        partnerId,
+        customerId: finalCustomerId || undefined,
+        address,
+        latitude: latitude || undefined,
+        longitude: longitude || undefined,
+        status: 'booked',
+        assignedTo: assignedTo || undefined,
+        // appointmentDate removed - use appointments table instead
+        estimatedDuration,
+        totalValue: totalValue?.toString() || '0',
+        notes: [notes, specialInstructions, customAnswers ? `Custom answers: ${JSON.stringify(customAnswers)}` : null]
+          .filter(Boolean)
+          .join('\n\n') || null
+      });
+
+      // Create appointment if appointmentDateTime is provided
+      let appointment = null;
+      if (appointmentDateTime) {
+        // Log assignment for debugging
+        console.log('[BOOKING CREATE] Creating appointment with assignment:', {
+          appointmentDate: appointmentDateTime.toISOString(),
+          assignedTo: assignedTo || 'NOT SET',
+          assignedToType: typeof assignedTo,
+          jobId: job.id,
+          partnerId
+        });
+        
+        appointment = await storage.createAppointment({
+          jobId: job.id,
+          partnerId,
+          appointmentDate: appointmentDateTime,
+          estimatedDuration,
+          assignedTo: assignedTo || undefined,
+          products: products ? JSON.stringify(products.map((p: any) => ({ 
+            id: p.id, 
+            name: p.name, 
+            quantity: p.quantity,
+            variationName: p.variationName,
+            price: p.price,
+            duration: p.duration
+          }))) : undefined,
+          notes: [notes, specialInstructions].filter(Boolean).join('\n\n') || null,
+          status: 'scheduled',
+        });
+        
+        // Verify the appointment was created with correct assignment
+        console.log('[BOOKING CREATE] Appointment created:', {
+          appointmentId: appointment.appointmentId,
+          storedAssignedTo: appointment.assignedTo || 'NOT SET',
+          expectedAssignedTo: assignedTo || 'NOT SET',
+          matches: appointment.assignedTo === assignedTo
+        });
+      }
+
+      // Get customer details for activity log
+      let customerName = 'Online Booking';
+      let customerEmail = '';
+      if (finalCustomerId) {
+        const customer = await storage.getCustomer(finalCustomerId);
+        if (customer) {
+          customerName = `${customer.firstName} ${customer.lastName}`.trim() || 'Online Booking';
+          customerEmail = customer.email || '';
+        }
+      } else if (newCustomer) {
+        customerName = `${newCustomer.firstName} ${newCustomer.lastName}`.trim();
+        customerEmail = newCustomer.email || '';
+      }
+
+      // Log activity: Booking Created via Online Form
+      try {
+        await storage.createActivity({
+          partnerId,
+          jobId: job.jobId,
+          customerId: finalCustomerId || undefined,
+          userId: 'online_booking_form', // Special identifier for public bookings
+          userEmail: customerEmail,
+          userName: customerName,
+          action: "creation",
+          category: "job",
+          title: "Booking Created via Online Form",
+          description: `New booking created by ${customerName} at ${address}`,
+          metadata: JSON.stringify({
+            jobId: job.jobId,
+            address: job.address,
+            status: job.status,
+            customerId: finalCustomerId,
+            totalValue: totalValue,
+            appointmentDate: appointmentDateTime?.toISOString(),
+            appointmentId: appointment?.appointmentId,
+            source: 'online_booking_form',
+            products: products?.map((p: any) => {
+              const productData = { 
+                id: p.id, 
+                name: p.name, 
+                quantity: p.quantity,
+                variationName: p.variationName 
+              };
+              console.log('[BOOKING] Storing product in metadata:', productData);
+              return productData;
+            }),
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        // Log but don't fail the booking if activity creation fails
+        console.error("Failed to create activity for booking:", activityError);
+      }
+
+      res.status(201).json({
+        success: true,
+        message: "Booking created successfully",
+        booking: {
+          id: job.id,
+          jobId: job.jobId,
+          address: job.address,
+          appointmentDate: appointment?.appointmentDate || null,
+          appointmentId: appointment?.appointmentId || null,
+          status: job.status
+        }
+      });
+    } catch (error: any) {
+      console.error("Error creating booking:", error);
+      res.status(500).json({ error: "Failed to create booking" });
     }
   });
 

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Calendar, Clock, User, MoreVertical, ChevronDown, Filter, Download, Edit2, Trash2, Send, Edit, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +30,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useMasterView } from "@/contexts/MasterViewContext";
 
 export default function Jobs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,18 +45,86 @@ export default function Jobs() {
   const [editingJob, setEditingJob] = useState<any>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { isReadOnly } = useMasterView();
   
   const { data: jobs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [] } = useQuery<any[]>({
+  const { data: customers = [], isLoading: isLoadingCustomers } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 
-  const { data: users = [] } = useQuery<any[]>({
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
+
+  // Fetch appointments for all jobs
+  const { data: allAppointments = [], isLoading: isLoadingAppointments } = useQuery<any[]>({
+    queryKey: ["/api/jobs/appointments", jobs.length],
+    queryFn: async () => {
+      if (!jobs || jobs.length === 0) return [];
+      
+      // Get auth token for authenticated requests
+      const { auth } = await import("@/lib/firebase");
+      const token = await auth.currentUser?.getIdToken();
+      
+      // Fetch appointments for each job
+      const appointmentPromises = (jobs as any[]).map(async (job: any) => {
+        try {
+          const response = await fetch(`/api/jobs/${job.jobId}/appointments`, {
+            headers: token ? {
+              'Authorization': `Bearer ${token}`,
+            } : {},
+            credentials: 'include',
+          });
+          if (response.ok) {
+            const appointments = await response.json();
+            // Attach job info to each appointment and normalize dates
+            return appointments.map((apt: any) => {
+              // Convert Firestore Timestamp to Date if needed
+              let appointmentDate = apt.appointmentDate;
+              if (appointmentDate?.toDate) {
+                appointmentDate = appointmentDate.toDate();
+              } else if (typeof appointmentDate === 'string') {
+                appointmentDate = new Date(appointmentDate);
+              } else if (appointmentDate?.seconds) {
+                appointmentDate = new Date(appointmentDate.seconds * 1000);
+              }
+              
+              return {
+                ...apt,
+                appointmentDate, // Normalized date
+                jobId: job.jobId, // Store jobId for lookup
+                jobInternalId: job.id, // Store internal ID
+              };
+            });
+          }
+          return [];
+        } catch (error) {
+          console.error(`Error fetching appointments for job ${job.jobId}:`, error);
+          return [];
+        }
+      });
+      
+      const appointmentArrays = await Promise.all(appointmentPromises);
+      return appointmentArrays.flat();
+    },
+    enabled: jobs.length > 0,
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  // Helper to get the first appointment for a job
+  const getJobAppointment = (job: any) => {
+    if (!allAppointments || allAppointments.length === 0) return null;
+    // Find appointments for this job (match by jobId or internal ID)
+    const jobAppointments = allAppointments.filter((apt: any) => 
+      apt.jobId === job.jobId || apt.jobInternalId === job.id
+    );
+    // Return the first (earliest) appointment
+    return jobAppointments.length > 0 ? jobAppointments[0] : null;
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -101,28 +171,35 @@ export default function Jobs() {
     return `${first}${last}`.toUpperCase();
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'No date set';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: '2-digit'
-    });
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return null;
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dateObj.getTime())) return null;
+      return dateObj.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: '2-digit'
+      });
+    } catch {
+      return null;
+    }
   };
 
-  const formatTime = (dateString: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const calculateDuration = (startDate: string) => {
-    // For demo purposes, showing duration as "1h 30m duration"
-    return '1h 30m duration';
+  const formatTime = (date: Date | string | null | undefined) => {
+    if (!date) return null;
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      if (isNaN(dateObj.getTime())) return null;
+      return dateObj.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return null;
+    }
   };
 
   // Image menu handlers
@@ -284,14 +361,16 @@ export default function Jobs() {
                 Find any job you've ever booked, delivered or completed.
               </p>
             </div>
-            <Button 
-              onClick={() => setShowCreateModal(true)}
-              className="hover:bg-rpp-red-dark text-white rounded-xl font-semibold bg-[#f05a2a]"
-              data-testid="button-create-job"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create new job
-            </Button>
+            {!isReadOnly && (
+              <Button 
+                onClick={() => setShowCreateModal(true)}
+                className="hover:bg-rpp-red-dark text-white rounded-xl font-semibold bg-[#f05a2a]"
+                data-testid="button-create-job"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create new job
+              </Button>
+            )}
           </div>
         </div>
 
@@ -461,18 +540,55 @@ export default function Jobs() {
                     </h3>
                     
                     <div className="flex items-center gap-4 text-sm text-rpp-grey-medium">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span className="font-medium">{formatDate(job.appointmentDate)}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span className="font-medium">{formatTime(job.appointmentDate)} ({calculateDuration(job.appointmentDate)})</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5" />
-                        <span className="font-medium">{getCustomerName(job.customerId)}</span>
-                      </div>
+                      {(() => {
+                        const appointment = getJobAppointment(job);
+                        const appointmentDate = appointment?.appointmentDate || job.appointmentDate;
+                        const formattedDate = formatDate(appointmentDate);
+                        const formattedTime = formatTime(appointmentDate);
+                        const customerName = getCustomerName(job.customerId);
+                        // Show shimmer when data is loading or when we don't have the data yet
+                        const isLoadingDate = isLoadingAppointments || (!appointmentDate && !job.appointmentDate);
+                        const isLoadingTime = isLoadingAppointments || (!appointmentDate && !job.appointmentDate);
+                        const isLoadingName = isLoadingCustomers || !customerName;
+                        
+                        return (
+                          <>
+                            {isLoadingDate ? (
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-gray-300" />
+                                <Skeleton className="h-4 w-24" />
+                              </div>
+                            ) : formattedDate ? (
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span className="font-medium">{formattedDate}</span>
+                              </div>
+                            ) : null}
+                            {isLoadingTime ? (
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-gray-300" />
+                                <Skeleton className="h-4 w-20" />
+                              </div>
+                            ) : formattedTime ? (
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="font-medium">{formattedTime}</span>
+                              </div>
+                            ) : null}
+                            {isLoadingName ? (
+                              <div className="flex items-center gap-1.5">
+                                <User className="w-3.5 h-3.5 text-gray-300" />
+                                <Skeleton className="h-4 w-32" />
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <User className="w-3.5 h-3.5" />
+                                <span className="font-medium">{customerName}</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -579,7 +695,7 @@ export default function Jobs() {
         </div>
 
         {/* Empty State */}
-        {filteredJobs.length === 0 && jobs.length === 0 && (
+        {filteredJobs.length === 0 && jobs.length === 0 && !isReadOnly && (
           <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
             <div className="text-6xl mb-4">📸</div>
             <h3 className="text-xl font-semibold text-rpp-grey-dark mb-2">No jobs yet</h3>
