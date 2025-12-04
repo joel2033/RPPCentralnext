@@ -39,10 +39,47 @@ interface MasterViewContextType {
 
 const MasterViewContext = createContext<MasterViewContextType | undefined>(undefined);
 
-export const useMasterView = () => {
+/**
+ * Default values returned when useMasterView is called outside MasterViewProvider.
+ * These represent a "non-master" user state with no special permissions.
+ */
+const defaultMasterViewValue: MasterViewContextType = {
+  viewingPartnerId: null,
+  viewingPartnerName: null,
+  partners: [],
+  partnersLoading: false,
+  isMasterViewActive: false,
+  isMaster: false,
+  isSwitchingBusiness: false,
+  isViewingOwnBusiness: false,
+  isReadOnly: false,
+  selectPartner: () => {},
+  clearSelection: () => {},
+  getApiUrl: (baseUrl: string) => baseUrl,
+  getQueryKeySuffix: () => [],
+};
+
+/**
+ * Hook to access MasterView context.
+ * 
+ * IMPORTANT: This hook must be used within a MasterViewProvider.
+ * If used outside the provider, it returns safe default values representing
+ * a non-master user (isMaster: false, isReadOnly: false, etc.).
+ * 
+ * Components using this hook:
+ * - FileGallery (for isReadOnly check)
+ * - ProtectedRoute (for isMaster, isViewingOwnBusiness)
+ * - Header (for business selector dropdown)
+ * - Sidebar (for navigation permissions)
+ * 
+ * @returns MasterViewContextType with either the provider's value or safe defaults
+ */
+export const useMasterView = (): MasterViewContextType => {
   const context = useContext(MasterViewContext);
   if (context === undefined) {
-    throw new Error('useMasterView must be used within a MasterViewProvider');
+    // Return safe defaults instead of throwing - allows components to work
+    // outside the provider (e.g., in tests, Storybook, or isolated rendering)
+    return defaultMasterViewValue;
   }
   return context;
 };
