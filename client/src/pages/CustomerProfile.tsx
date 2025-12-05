@@ -8,11 +8,15 @@ import { ArrowLeft, Plus, Search, Phone, Mail, Building2, ChevronDown } from "lu
 import { useLocation } from "wouter";
 import { useState } from "react";
 import CustomerEditingPreferences from "@/components/CustomerEditingPreferences";
+import EditCustomerModal from "@/components/modals/EditCustomerModal";
+import CreateJobModal from "@/components/modals/CreateJobModal";
 
 export default function CustomerProfile() {
   const [, params] = useRoute("/customers/:id");
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
 
   const { data: profileData } = useQuery<any>({
     queryKey: [`/api/customers/${params?.id}/profile`],
@@ -25,10 +29,23 @@ export default function CustomerProfile() {
   const customer = profileData.customer;
   const jobs = profileData.jobs || [];
 
+  // Calculate stats from jobs data
+  const totalSales = jobs.reduce((sum: number, job: any) => {
+    const jobValue = job.totalValue ? parseFloat(job.totalValue) : 0;
+    return sum + jobValue;
+  }, 0);
+
+  const jobsCompleted = jobs.filter((job: any) => 
+    job.status?.toLowerCase() === 'delivered'
+  ).length;
+
+  const totalJobs = jobs.length;
+  const averageJobValue = totalJobs > 0 ? totalSales / totalJobs : 0;
+
   const stats = [
-    { label: "Total Sales", value: `$${customer.totalValue || 0}`, color: "text-rpp-red-main" },
-    { label: "Average Job Value", value: `$${customer.averageJobValue || 0}`, color: "text-rpp-red-main" },
-    { label: "Jobs Completed", value: customer.jobsCompleted || 0, color: "text-rpp-grey-dark" },
+    { label: "Total Sales", value: `$${totalSales.toFixed(2)}`, color: "text-rpp-red-main" },
+    { label: "Average Job Value", value: `$${averageJobValue.toFixed(2)}`, color: "text-rpp-red-main" },
+    { label: "Jobs Completed", value: jobsCompleted, color: "text-rpp-grey-dark" },
   ];
 
   const getStatusColor = (status: string) => {
@@ -55,17 +72,25 @@ export default function CustomerProfile() {
     return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
   };
 
-  const jobsList = jobs.map((job: any) => ({
-    id: job.id,
-    jobId: job.jobId,
-    address: job.address,
-    date: formatDate(job.appointmentDate || job.createdAt),
-    dueDate: job.dueDate ? `Due ${formatDate(job.dueDate)}` : '',
-    status: job.status || 'Booked',
-    statusColor: getStatusColor(job.status),
-    price: job.totalPrice ? `$${parseFloat(job.totalPrice).toFixed(2)}` : '$0.00',
-    propertyImage: job.propertyImageThumbnail || job.propertyImage
-  }));
+  const jobsList = jobs
+    .map((job: any) => ({
+      id: job.id,
+      jobId: job.jobId,
+      address: job.address,
+      date: formatDate(job.appointmentDate || job.createdAt),
+      dueDate: job.dueDate ? `Due ${formatDate(job.dueDate)}` : '',
+      status: job.status || 'Booked',
+      statusColor: getStatusColor(job.status),
+      price: job.totalValue ? `$${parseFloat(job.totalValue).toFixed(2)}` : '$0.00',
+      propertyImage: job.propertyImageThumbnail || job.propertyImage,
+      createdAt: job.createdAt || job.appointmentDate || new Date(0).toISOString()
+    }))
+    .sort((a, b) => {
+      // Sort by createdAt descending (newest first)
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
 
   const initials = customer.firstName && customer.lastName 
     ? `${customer.firstName[0]}${customer.lastName[0]}`.toUpperCase()
@@ -94,7 +119,7 @@ export default function CustomerProfile() {
           </div>
           <Button 
             className="hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium bg-[#f05a2a]"
-            onClick={() => setLocation("/jobs/new")}
+            onClick={() => setShowCreateJobModal(true)}
           >
             <Plus className="w-4 h-4 mr-2" />
             Create new job
@@ -138,7 +163,7 @@ export default function CustomerProfile() {
                   <Button 
                     variant="ghost" 
                     className="text-rpp-red-main hover:bg-rpp-red-lighter text-sm font-semibold"
-                    onClick={() => setLocation("/jobs/new")}
+                    onClick={() => setShowCreateJobModal(true)}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Create new job
@@ -272,6 +297,7 @@ export default function CustomerProfile() {
                   <Button 
                     variant="outline" 
                     className="w-full border-gray-300 text-gray-900 hover:bg-gray-50 rounded-xl font-medium"
+                    onClick={() => setShowEditModal(true)}
                   >
                     Edit Customer
                   </Button>
@@ -287,6 +313,23 @@ export default function CustomerProfile() {
           </div>
         </div>
       </div>
+      
+      {/* Edit Customer Modal */}
+      {showEditModal && customer && params?.id && (
+        <EditCustomerModal
+          onClose={() => setShowEditModal(false)}
+          customer={customer}
+          customerId={params.id}
+        />
+      )}
+
+      {/* Create Job Modal */}
+      {showCreateJobModal && params?.id && (
+        <CreateJobModal
+          onClose={() => setShowCreateJobModal(false)}
+          initialCustomerId={params.id}
+        />
+      )}
     </div>
   );
 }

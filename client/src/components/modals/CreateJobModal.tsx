@@ -7,26 +7,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { DatePicker } from "@/components/ui/date-picker";
-import { TimePickerPreset } from "@/components/ui/time-picker-preset";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
 import { useAuth } from "@/contexts/AuthContext";
 import CreateProductModal from "./CreateProductModal";
+import { format } from "date-fns";
 import {
   CalendarIcon,
   MapPin,
   User,
   X,
-  ChevronDown,
-  ChevronUp,
   Clock,
-  AlertCircle,
   Plus,
-  Loader2
+  Loader2,
+  Mail,
+  Phone,
+  DollarSign,
+  Camera
 } from "lucide-react";
 
 // Extend Window interface for Google Maps
@@ -38,6 +39,7 @@ declare global {
 
 interface CreateJobModalProps {
   onClose: () => void;
+  initialCustomerId?: string;
 }
 
 interface ProductVariation {
@@ -60,7 +62,7 @@ interface Product {
   appointmentDuration?: number;
 }
 
-interface User {
+interface UserType {
   id: string;
   firstName: string;
   lastName: string;
@@ -78,21 +80,40 @@ interface SelectedProduct {
   duration?: number; // in minutes
 }
 
-export default function CreateJobModal({ onClose }: CreateJobModalProps) {
+interface Customer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  company?: string;
+}
+
+export default function CreateJobModal({ onClose, initialCustomerId }: CreateJobModalProps) {
+  // Step state (1-4)
+  const [step, setStep] = useState(1);
+
+  // Step 1: Client selection
+  const [isNewClient, setIsNewClient] = useState(false);
+  const [searchClient, setSearchClient] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [newClientData, setNewClientData] = useState({
+    firstName: "",
+    lastName: "",
+    company: "",
+    email: "",
+    phone: "",
+  });
+
+  // Step 2: Property details
   const [address, setAddress] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [appointmentDate, setAppointmentDate] = useState("");
-  const [appointmentTime, setAppointmentTime] = useState("");
-  const [appointmentDuration, setAppointmentDuration] = useState("60");
-  const [manualDuration, setManualDuration] = useState(false);
-  const [assignedOperators, setAssignedOperators] = useState<string[]>([]);
-  const [appointmentNotes, setAppointmentNotes] = useState("");
+
+  // Step 3: Services & Schedule
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
-  const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
-  const [skipAppointment, setSkipAppointment] = useState(false);
-  const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [coverImageThumbnail, setCoverImageThumbnail] = useState<string | null>(null);
-  const [uploadingCoverImage, setUploadingCoverImage] = useState(false);
+  const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(undefined);
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [specialInstructions, setSpecialInstructions] = useState("");
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
 
   // Address autocomplete states
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
@@ -101,27 +122,43 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
   const autocompleteService = useRef<any>(null);
   const placesService = useRef<any>(null);
 
-  // Collapsible section states
-  const [jobInfoExpanded, setJobInfoExpanded] = useState(true);
-  const [appointmentExpanded, setAppointmentExpanded] = useState(false);
-  const [orderSummaryExpanded, setOrderSummaryExpanded] = useState(false);
-
-  // Multi-step navigation
-  const [currentStep, setCurrentStep] = useState<'job-info' | 'appointment' | 'order-summary'>('job-info');
-
-  // Validation states
-  const [validationErrors, setValidationErrors] = useState({
-    jobInfo: false,
-    appointment: false,
-    orderSummary: false
-  });
-
   // Product creation modal state
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { userData } = useAuth();
+
+  // Fetch data for dropdowns
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+  });
+
+  const { data: users = [] } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
+  });
+
+  // Fetch booking settings for time slot interval
+  const { data: bookingSettings } = useQuery<{ timeSlotInterval?: number }>({
+    queryKey: ["/api/booking/settings"],
+  });
+
+  // Get time slot interval from settings (default to 30 minutes)
+  const timeSlotInterval = bookingSettings?.timeSlotInterval || 30;
+
+  // Pre-select customer if initialCustomerId is provided
+  useEffect(() => {
+    if (initialCustomerId && customers.length > 0) {
+      const customer = customers.find(c => c.id === initialCustomerId);
+      if (customer) {
+        setSelectedCustomer(customer);
+      }
+    }
+  }, [initialCustomerId, customers]);
 
   // Initialize Google Places API
   useEffect(() => {
@@ -137,11 +174,9 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
     if (!apiKey) return;
 
-    // Check if Google Maps is already loaded
     if (window.google && window.google.maps && window.google.maps.places) {
       initGooglePlaces();
     } else {
-      // Load Google Maps API if not already loaded
       const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
       script.async = true;
@@ -171,7 +206,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
     const request = {
       input: value,
-      componentRestrictions: { country: 'au' }, // Restrict to Australia
+      componentRestrictions: { country: 'au' },
       types: ['address']
     };
 
@@ -179,7 +214,7 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
       setIsLoadingPlaces(false);
 
       if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-        setAddressSuggestions(predictions.slice(0, 5)); // Limit to 5 suggestions
+        setAddressSuggestions(predictions.slice(0, 5));
         setShowSuggestions(true);
       } else {
         setAddressSuggestions([]);
@@ -188,84 +223,129 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     });
   };
 
-  // Handle address selection from suggestions
   const handleAddressSelect = (prediction: any) => {
     setAddress(prediction.description);
     setShowSuggestions(false);
     setAddressSuggestions([]);
   };
 
-  // Fetch data for dropdowns
-  const { data: customers = [] } = useQuery<any[]>({
-    queryKey: ["/api/customers"],
-  });
-
-  const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
-  });
-
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-  });
-
-  // Filter users to only show photographers and partners
-  const availableOperators = users.filter(user => 
-    user.role === 'photographer' || user.role === 'partner'
+  // Filter customers by search
+  const filteredCustomers = customers.filter(
+    (customer) =>
+      `${customer.firstName} ${customer.lastName}`.toLowerCase().includes(searchClient.toLowerCase()) ||
+      (customer.company || "").toLowerCase().includes(searchClient.toLowerCase())
   );
 
-  // Validation functions
-  const validateJobInfo = () => {
-    const hasAddress = address.trim().length > 0;
-    return hasAddress;
-  };
+  // Handle adding a product
+  const handleAddProduct = (value: string) => {
+    const [productId, variationIndex] = value.split(':');
+    const product = products.find(p => p.id === productId);
 
-  const validateAppointment = () => {
-    if (skipAppointment) return true;
-    const hasOperator = assignedOperators.length > 0;
-    const hasProducts = selectedProducts.length > 0;
-    return hasOperator && hasProducts;
-  };
+    if (product) {
+      let productTitle = product.title;
+      let productPrice = parseFloat(product.price);
+      let variationName: string | undefined;
+      let duration = product.appointmentDuration || 60;
 
-  const validateOrderSummary = () => {
-    return selectedProducts.length > 0;
-  };
+      if (variationIndex !== undefined && product.variations) {
+        const variations: ProductVariation[] = JSON.parse(product.variations);
+        const variation = variations[parseInt(variationIndex)];
 
-  // Update validation errors when data changes
-  useEffect(() => {
-    setValidationErrors({
-      jobInfo: !validateJobInfo(),
-      appointment: !validateAppointment(),
-      orderSummary: !validateOrderSummary()
-    });
-  }, [address, assignedOperators, selectedProducts, skipAppointment]);
+        if (variation) {
+          productTitle = `${product.title} - ${variation.name}`;
+          productPrice = variation.noCharge ? 0 : variation.price;
+          variationName = variation.name;
+          duration = variation.appointmentDuration || duration;
+        }
+      }
 
-  // Step navigation functions
-  const handleNext = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent form submission
-    if (currentStep === 'job-info' && validateJobInfo()) {
-      setCurrentStep('appointment');
-      setJobInfoExpanded(false);
-      setAppointmentExpanded(true);
-    } else if (currentStep === 'appointment' && validateAppointment()) {
-      setCurrentStep('order-summary');
-      setAppointmentExpanded(false);
-      setOrderSummaryExpanded(true);
+      const existingProduct = selectedProducts.find(
+        p => p.id === productId && p.variationName === variationName
+      );
+
+      if (existingProduct) {
+        setSelectedProducts(prev =>
+          prev.map(p =>
+            p.id === productId && p.variationName === variationName
+              ? { ...p, quantity: p.quantity + 1 }
+              : p
+          )
+        );
+      } else {
+        setSelectedProducts(prev => [...prev, {
+          id: productId,
+          title: productTitle,
+          price: productPrice,
+          quantity: 1,
+          taxRate: parseFloat(product.taxRate),
+          variationName,
+          duration
+        }]);
+      }
     }
   };
 
-  const canProceedToNext = () => {
-    if (currentStep === 'job-info') return validateJobInfo();
-    if (currentStep === 'appointment') return validateAppointment();
+  const removeProduct = (productId: string, variationName?: string) => {
+    setSelectedProducts(prev => prev.filter(p => !(p.id === productId && p.variationName === variationName)));
+  };
+
+  // Calculate totals
+  const calculateTotal = () => {
+    return selectedProducts.reduce((total, product) => {
+      return total + product.price * product.quantity;
+    }, 0);
+  };
+
+  const calculateTotalDuration = () => {
+    return selectedProducts.reduce((total, product) => {
+      return total + (product.duration || 60) * product.quantity;
+    }, 0);
+  };
+
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0 && mins > 0) {
+      return `${hours}h ${mins}m`;
+    } else if (hours > 0) {
+      return `${hours}h`;
+    } else {
+      return `${mins}m`;
+    }
+  };
+
+  // Validation
+  const canProceed = () => {
+    if (step === 1) {
+      if (isNewClient) {
+        return newClientData.firstName.trim() && newClientData.email.trim();
+      }
+      return selectedCustomer !== null;
+    }
+    if (step === 2) {
+      return address.trim().length > 0;
+    }
+    if (step === 3) {
+      return selectedProducts.length > 0 && appointmentDate !== undefined && appointmentTime.trim().length > 0;
+    }
+    if (step === 4) {
+      return true;
+    }
     return false;
   };
 
-  const canSave = () => {
-    return validateJobInfo() && validateAppointment() && validateOrderSummary();
+  // Navigation
+  const handleNext = () => {
+    if (step < 4) setStep(step + 1);
   };
 
+  const handleBack = () => {
+    if (step > 1) setStep(step - 1);
+  };
+
+  // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async (jobData: any) => {
-      // Get Firebase auth token
       const { auth } = await import("@/lib/firebase");
       const token = await auth.currentUser?.getIdToken();
       
@@ -308,175 +388,34 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
     },
   });
 
-  const handleAddProduct = (value: string) => {
-    // Value format: "productId" or "productId:variationIndex"
-    const [productId, variationIndex] = value.split(':');
-    const product = products.find(p => p.id === productId);
-
-    if (product) {
-      let productTitle = product.title;
-      let productPrice = parseFloat(product.price);
-      let variationName: string | undefined;
-      let duration = product.appointmentDuration || 60; // Default 60 minutes
-
-      // Handle variation selection
-      if (variationIndex !== undefined && product.variations) {
-        const variations: ProductVariation[] = JSON.parse(product.variations);
-        const variation = variations[parseInt(variationIndex)];
-
-        if (variation) {
-          productTitle = `${product.title} - ${variation.name}`;
-          productPrice = variation.noCharge ? 0 : variation.price;
-          variationName = variation.name;
-          duration = variation.appointmentDuration || duration;
-        }
-      }
-
-      // Check if this exact product + variation combo already exists
-      const existingProduct = selectedProducts.find(
-        p => p.id === productId && p.variationName === variationName
-      );
-
-      if (existingProduct) {
-        setSelectedProducts(prev =>
-          prev.map(p =>
-            p.id === productId && p.variationName === variationName
-              ? { ...p, quantity: p.quantity + 1 }
-              : p
-          )
-        );
-      } else {
-        setSelectedProducts(prev => [...prev, {
-          id: productId,
-          title: productTitle,
-          price: productPrice,
-          quantity: 1,
-          taxRate: parseFloat(product.taxRate),
-          variationName,
-          duration
-        }]);
-      }
-    }
-  };
-
-  const updateProductQuantity = (productId: string, variationName: string | undefined, quantity: number) => {
-    if (quantity <= 0) {
-      setSelectedProducts(prev => prev.filter(p => !(p.id === productId && p.variationName === variationName)));
-    } else {
-      setSelectedProducts(prev =>
-        prev.map(p => (p.id === productId && p.variationName === variationName) ? { ...p, quantity } : p)
-      );
-    }
-  };
-
-  // Calculate total duration from selected products
-  const calculateTotalDuration = () => {
-    return selectedProducts.reduce((total, product) => {
-      return total + (product.duration || 60) * product.quantity;
-    }, 0);
-  };
-
-  // Update duration when products change (if not manual)
-  useEffect(() => {
-    if (!manualDuration && selectedProducts.length > 0) {
-      const totalDuration = calculateTotalDuration();
-      setAppointmentDuration(totalDuration.toString());
-    }
-  }, [selectedProducts, manualDuration]);
-
-  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid File",
-        description: "Please select an image file",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploadingCoverImage(true);
-
-    try {
-      // Import the upload utility
-      const { uploadImageWithThumbnail } = await import('@/lib/image-utils');
-      
-      // Create a unique file name
-      const timestamp = Date.now();
-      const fileName = `${timestamp}_${file.name}`;
-      
-      // Upload both original and thumbnail
-      const { originalUrl, thumbnailUrl } = await uploadImageWithThumbnail(
-        file,
-        'cover-images',
-        fileName
-      );
-      
-      setCoverImage(originalUrl);
-      setCoverImageThumbnail(thumbnailUrl);
-      
-      toast({
-        title: "Success",
-        description: "Cover image uploaded successfully",
-      });
-    } catch (error) {
-      console.error('Error uploading cover image:', error);
-      toast({
-        title: "Upload Failed",
-        description: "Failed to upload cover image. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploadingCoverImage(false);
-    }
-  };
-
-  const calculateOrderTotal = () => {
-    return selectedProducts.reduce((total, product) => {
-      const price = Number(product.price) || 0;
-      const quantity = Number(product.quantity) || 0;
-      const taxRate = Number(product.taxRate) || 0;
-      const subtotal = price * quantity;
-      const tax = subtotal * (taxRate / 100);
-      return total + subtotal + tax;
-    }, 0);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!address.trim()) {
-      toast({
-        title: "Error",
-        description: "Location is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleSubmit = () => {
     const appointmentDateTime = appointmentDate && appointmentTime 
-      ? `${appointmentDate}T${appointmentTime}:00`
+      ? `${format(appointmentDate, 'yyyy-MM-dd')}T${appointmentTime}:00`
       : undefined;
+
+    const customerId = isNewClient ? undefined : selectedCustomer?.id;
 
     const jobData = {
       partnerId: userData?.partnerId || "partner_192l9bh1xmduwueha",
       address: address.trim(),
       customerId: customerId && customerId !== "none" ? customerId : undefined,
       appointmentDate: appointmentDateTime,
-      assignedTo: assignedOperators.length > 0 ? assignedOperators[0] : undefined,
-      notes: appointmentNotes.trim() || undefined,
-      totalValue: calculateOrderTotal().toFixed(2),
-      propertyImage: coverImage || undefined,
-      propertyImageThumbnail: coverImageThumbnail || undefined,
+      notes: specialInstructions.trim() || undefined,
+      totalValue: calculateTotal().toFixed(2),
       products: selectedProducts.map(p => ({
         id: p.id,
         title: p.title,
         quantity: p.quantity,
         variationName: p.variationName
-      }))
+      })),
+      // If new client, include client data for creation
+      newClient: isNewClient ? {
+        firstName: newClientData.firstName,
+        lastName: newClientData.lastName,
+        email: newClientData.email,
+        phone: newClientData.phone || undefined,
+        company: newClientData.company || undefined,
+      } : undefined,
     };
 
     createJobMutation.mutate(jobData);
@@ -497,558 +436,721 @@ export default function CreateJobModal({ onClose }: CreateJobModalProps) {
 
   return (
     <>
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">New Job</DialogTitle>
-          <DialogDescription className="text-sm text-rpp-grey-light">
-            Create a job for any customer, specifying a location, optional appointment(s), and order details.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Job Information Section */}
-          <Collapsible open={jobInfoExpanded} onOpenChange={setJobInfoExpanded}>
-            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
-              <CollapsibleTrigger
-                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
-                data-testid="toggle-job-info"
-                onClick={() => setCurrentStep('job-info')}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">1</span>
-                  </div>
-                  <span className={`font-semibold text-base ${validationErrors.jobInfo ? 'text-rpp-red-main' : 'text-foreground'}`}>
-                    Job Information
-                  </span>
-                </div>
-                {jobInfoExpanded ? (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                )}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 p-4 bg-card">
-              {/* Customer Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="customer">Customer</Label>
-                <div className="flex space-x-2">
-                  <Select value={customerId} onValueChange={setCustomerId}>
-                    <SelectTrigger className="flex-1" data-testid="select-customer">
-                      <SelectValue placeholder="Select a customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No customer</SelectItem>
-                      {customers.map((customer: any) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.firstName} {customer.lastName}
-                          {customer.company && ` (${customer.company})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" variant="outline" size="sm" data-testid="button-create-customer">
-                    Create
-                  </Button>
-                </div>
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 bg-white rounded-lg">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Create New Job</DialogTitle>
+                <DialogDescription className="mt-1">
+                  {step === 1 && "Choose or add a client for this job"}
+                  {step === 2 && "Enter property details and location"}
+                  {step === 3 && "Select services and schedule appointment"}
+                  {step === 4 && "Review and confirm job details"}
+                </DialogDescription>
               </div>
+              <Badge variant="secondary" className="text-xs px-2.5 py-1">
+                Step {step} of 4
+              </Badge>
+            </div>
 
-              {/* Location */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="address">Location</Label>
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs">
-                    Switch to Job Name
+            {/* Progress indicator */}
+            <div className="flex gap-2 mt-4">
+              <div className={`h-1 flex-1 rounded-full ${step >= 1 ? "bg-primary" : "bg-muted"}`} />
+              <div className={`h-1 flex-1 rounded-full ${step >= 2 ? "bg-primary" : "bg-muted"}`} />
+              <div className={`h-1 flex-1 rounded-full ${step >= 3 ? "bg-primary" : "bg-muted"}`} />
+              <div className={`h-1 flex-1 rounded-full ${step >= 4 ? "bg-primary" : "bg-muted"}`} />
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted [&::-webkit-scrollbar-thumb]:rounded-full">
+            {/* Step 1: Client Selection */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-full">
+                  <Button
+                    variant={isNewClient ? "ghost" : "default"}
+                    size="sm"
+                    onClick={() => setIsNewClient(false)}
+                    className={cn(
+                      "rounded-full flex-1 h-10",
+                      !isNewClient && "bg-primary text-primary-foreground shadow-sm"
+                    )}
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    Existing Client
+                  </Button>
+                  <Button
+                    variant={isNewClient ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setIsNewClient(true)}
+                    className={cn(
+                      "rounded-full flex-1 h-10",
+                      isNewClient && "bg-primary text-primary-foreground shadow-sm"
+                    )}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Client
                   </Button>
                 </div>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-rpp-grey-light z-10" />
-                  <Input
-                    id="address"
-                    value={address}
-                    onChange={(e) => handleAddressChange(e.target.value)}
-                    onFocus={() => address.trim() && addressSuggestions.length > 0 && setShowSuggestions(true)}
-                    placeholder="Start typing to find a location..."
-                    className="pl-10"
-                    required
-                    data-testid="input-address"
-                    autoComplete="off"
-                  />
 
-                  {/* Address Suggestions Dropdown */}
-                  {showSuggestions && (addressSuggestions.length > 0 || isLoadingPlaces) && (
-                    <div className="address-suggestions absolute top-full left-0 right-0 bg-white border border-rpp-grey-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
-                      {isLoadingPlaces ? (
-                        <div className="p-3 text-sm text-rpp-grey-light">
-                          Searching addresses...
-                        </div>
-                      ) : (
-                        addressSuggestions.map((prediction) => (
-                          <button
-                            key={prediction.place_id}
-                            type="button"
-                            className="w-full text-left p-3 hover:bg-rpp-grey-bg border-b border-rpp-grey-border last:border-b-0 transition-colors"
-                            onClick={() => handleAddressSelect(prediction)}
-                            data-testid={`address-suggestion-${prediction.place_id}`}
-                          >
-                            <div className="flex items-start space-x-2">
-                              <MapPin className="w-4 h-4 text-rpp-grey-light mt-0.5 flex-shrink-0" />
-                              <div>
-                                <div className="text-sm font-medium text-rpp-grey-dark">
-                                  {prediction.structured_formatting.main_text}
-                                </div>
-                                <div className="text-xs text-rpp-grey-light">
-                                  {prediction.structured_formatting.secondary_text}
-                                </div>
+                {!isNewClient ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="search-client">Search Client *</Label>
+                      <Input
+                        id="search-client"
+                        placeholder="Search by name or company..."
+                        value={searchClient}
+                        onChange={(e) => setSearchClient(e.target.value)}
+                        className="rounded-xl h-11 bg-muted/50"
+                      />
+                    </div>
+
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {filteredCustomers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => setSelectedCustomer(customer)}
+                          className={cn(
+                            "w-full p-4 rounded-xl border-2 transition-all text-left",
+                            selectedCustomer?.id === customer.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50 bg-background"
+                          )}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium">
+                                {customer.firstName} {customer.lastName}
+                              </p>
+                              {customer.company && (
+                                <p className="text-sm text-muted-foreground">{customer.company}</p>
+                              )}
+                              <div className="flex items-center gap-4 mt-2">
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Mail className="w-3 h-3" />
+                                  {customer.email}
+                                </span>
+                                {customer.phone && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Phone className="w-3 h-3" />
+                                    {customer.phone}
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-rpp-grey-light">
-                  Address won't show? <Button type="button" variant="link" className="h-auto p-0 text-xs">Enter manually</Button>
-                </p>
-
-                {/* Google Maps Preview */}
-                {address && address.trim() && (
-                  <div className="mt-3">
-                    <GoogleMapEmbed address={address} />
-                  </div>
-                )}
-              </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-
-          {/* Appointment Details Section */}
-          <Collapsible open={appointmentExpanded} onOpenChange={setAppointmentExpanded}>
-            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
-              <CollapsibleTrigger
-                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
-                data-testid="toggle-appointment-details"
-                onClick={() => setCurrentStep('appointment')}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">2</span>
-                  </div>
-                  <span className={`font-semibold text-base ${validationErrors.appointment ? 'text-rpp-red-main' : 'text-foreground'}`}>
-                    Appointment Details
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSkipAppointment(!skipAppointment);
-                    }}
-                    data-testid="button-skip-appointment"
-                  >
-                    Skip Appointment
-                  </Button>
-                  {appointmentExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 p-4 bg-card">
-              {!skipAppointment && (
-                <>
-                  <p className="text-sm text-rpp-grey-light">
-                    Schedule one or multiple service visit appointments for this job.
-                  </p>
-
-                  {/* Assign Operators */}
-                  <div className="space-y-2">
-                    <Label>Assign operator(s)</Label>
-                    <Select 
-                      value={assignedOperators[0] || ""} 
-                      onValueChange={(value) => setAssignedOperators(value ? [value] : [])}
-                    >
-                      <SelectTrigger data-testid="select-operators">
-                        <SelectValue placeholder="Add yourself or other team members" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableOperators.map((user) => (
-                          <SelectItem key={user.id} value={user.id} data-testid={`operator-option-${user.id}`}>
-                            {user.firstName && user.lastName 
-                              ? `${user.firstName} ${user.lastName} (${user.role})`
-                              : `${user.email} (${user.role})`
-                            }
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {assignedOperators.length === 0 && (
-                      <div className="flex items-center space-x-2 text-sm text-rpp-red-main">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>You must add at least one operator</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Date and Time */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Timezone</Label>
-                      <Select defaultValue="utc+10">
-                        <SelectTrigger data-testid="select-timezone">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="utc+10">(UTC+10:00) Canberra...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Select a day</Label>
-                      <DatePicker
-                        value={appointmentDate}
-                        onChange={setAppointmentDate}
-                        minDate={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Set a start time</Label>
-                      <TimePickerPreset
-                        value={appointmentTime}
-                        onChange={setAppointmentTime}
-                        interval={5}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <Label>Duration</Label>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="manual-duration"
-                            checked={manualDuration}
-                            onCheckedChange={(checked) => setManualDuration(checked === true)}
-                          />
-                          <label htmlFor="manual-duration" className="text-xs text-muted-foreground cursor-pointer">
-                            Manual override
-                          </label>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Input
-                          type="number"
-                          value={appointmentDuration}
-                          onChange={(e) => {
-                            setAppointmentDuration(e.target.value);
-                            setManualDuration(true);
-                          }}
-                          className={cn(
-                            "w-full",
-                            !manualDuration && "bg-muted text-muted-foreground cursor-not-allowed"
-                          )}
-                          disabled={!manualDuration}
-                          data-testid="input-duration"
-                        />
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">Minutes</span>
-                      </div>
-                      {!manualDuration && selectedProducts.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Auto-calculated from selected products
+                          </div>
+                        </button>
+                      ))}
+                      {filteredCustomers.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                          No customers found. Try a different search or create a new client.
                         </p>
                       )}
                     </div>
                   </div>
-                </>
-              )}
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="client-first-name">First Name *</Label>
+                        <Input
+                          id="client-first-name"
+                          placeholder="John"
+                          value={newClientData.firstName}
+                          onChange={(e) => setNewClientData({ ...newClientData, firstName: e.target.value })}
+                          className="rounded-xl h-11 bg-muted/50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="client-last-name">Last Name</Label>
+                        <Input
+                          id="client-last-name"
+                          placeholder="Smith"
+                          value={newClientData.lastName}
+                          onChange={(e) => setNewClientData({ ...newClientData, lastName: e.target.value })}
+                          className="rounded-xl h-11 bg-muted/50"
+                        />
+                      </div>
+                    </div>
 
-              {/* Products Section */}
-              <div className="space-y-2">
-                <Label>Products</Label>
-                <div className="flex space-x-2">
-                  <Select onValueChange={handleAddProduct}>
-                    <SelectTrigger className="flex-1" data-testid="select-products">
-                      <SelectValue placeholder="Select product/s" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.map((product) => {
-                        const hasVariations = product.hasVariations && product.variations;
-                        const variations: ProductVariation[] = hasVariations
-                          ? JSON.parse(product.variations!)
-                          : [];
+                    <div className="space-y-2">
+                      <Label htmlFor="client-company">Company</Label>
+                      <Input
+                        id="client-company"
+                        placeholder="Smith Realty"
+                        value={newClientData.company}
+                        onChange={(e) => setNewClientData({ ...newClientData, company: e.target.value })}
+                        className="rounded-xl h-11 bg-muted/50"
+                      />
+                    </div>
 
-                        if (hasVariations && variations.length > 0) {
-                          return (
-                            <div key={product.id}>
-                              {/* Product heading */}
-                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-accent/50">
-                                {product.title}
-                              </div>
-                              {/* Variations */}
-                              {variations.map((variation, index) => (
-                                <SelectItem
-                                  key={`${product.id}-${index}`}
-                                  value={`${product.id}:${index}`}
-                                  className="pl-6"
-                                >
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{variation.name}</span>
-                                    <span className="text-muted-foreground ml-2">
-                                      ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.title} - ${product.price}
-                            </SelectItem>
-                          );
-                        }
-                      })}
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setShowCreateProductModal(true)}
-                    data-testid="button-create-product"
-                  >
-                    Create
-                  </Button>
-                </div>
-                {selectedProducts.length === 0 && (
-                  <div className="flex items-center space-x-2 text-sm text-rpp-red-main">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>You must add at least one product</span>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-email">Email Address *</Label>
+                      <Input
+                        id="client-email"
+                        type="email"
+                        placeholder="john@smithrealty.com"
+                        value={newClientData.email}
+                        onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                        className="rounded-xl h-11 bg-muted/50"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="client-phone">Phone Number</Label>
+                      <Input
+                        id="client-phone"
+                        type="tel"
+                        placeholder="(555) 123-4567"
+                        value={newClientData.phone}
+                        onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                        className="rounded-xl h-11 bg-muted/50"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Selected Products Display */}
-              {selectedProducts.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Selected Products</Label>
-                    <Badge variant="secondary" className="text-xs">
-                      {selectedProducts.length} {selectedProducts.length === 1 ? 'product' : 'products'}
-                    </Badge>
-                  </div>
+            {/* Step 2: Property Details */}
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    {selectedProducts.map((product, index) => {
-                      const uniqueKey = `${product.id}-${product.variationName || 'base'}-${index}`;
-                      return (
-                        <div
-                          key={uniqueKey}
-                          className="flex items-center justify-between p-3 bg-accent/30 rounded-lg border border-border/50"
-                        >
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{product.title}</p>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              <span>Qty: {product.quantity}</span>
-                              <span>•</span>
-                              <span>${Number(product.price).toFixed(2)} each</span>
-                              {product.duration && (
-                                <>
-                                  <span>•</span>
-                                  <span>{product.duration * product.quantity} min</span>
-                                </>
-                              )}
+                    <Label htmlFor="address" className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      Property Address *
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="address"
+                        placeholder="Start typing address..."
+                        value={address}
+                        onChange={(e) => handleAddressChange(e.target.value)}
+                        onFocus={() => address.trim() && addressSuggestions.length > 0 && setShowSuggestions(true)}
+                        className="rounded-xl h-11 bg-muted/50"
+                        data-testid="input-address"
+                        autoComplete="off"
+                      />
+                      
+                      {/* Address Suggestions Dropdown */}
+                      {showSuggestions && (addressSuggestions.length > 0 || isLoadingPlaces) && (
+                        <div className="address-suggestions absolute top-full left-0 right-0 bg-background border border-border rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto mt-1">
+                          {isLoadingPlaces ? (
+                            <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Searching addresses...
                             </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => updateProductQuantity(product.id, product.variationName, 0)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                          >
-                            <ChevronUp className="h-4 w-4 rotate-45" />
-                          </Button>
+                          ) : (
+                            addressSuggestions.map((prediction) => (
+                              <button
+                                key={prediction.place_id}
+                                type="button"
+                                className="w-full text-left p-3 hover:bg-muted border-b border-border last:border-b-0 transition-colors"
+                                onClick={() => handleAddressSelect(prediction)}
+                              >
+                                <div className="flex items-start space-x-2">
+                                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {prediction.structured_formatting.main_text}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {prediction.structured_formatting.secondary_text}
+                                    </div>
+                                  </div>
+                                </div>
+                              </button>
+                            ))
+                          )}
                         </div>
-                      );
-                    })}
-                    <div className="flex items-center justify-between p-2 bg-primary/5 rounded-lg border border-primary/20">
-                      <span className="text-sm font-medium">Total Duration</span>
-                      <span className="text-sm font-semibold text-primary">
-                        {calculateTotalDuration()} minutes
-                      </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Address will be validated with Google Maps
+                    </p>
+                  </div>
+
+                  {/* Google Maps Preview */}
+                  {address && address.trim() && (
+                    <div className="mt-4 rounded-xl overflow-hidden border border-border">
+                      <GoogleMapEmbed address={address} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Services & Schedule */}
+            {step === 3 && (
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <Label htmlFor="service-select" className="flex items-center gap-2">
+                        <Camera className="w-4 h-4 text-primary" />
+                        Select Services *
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCreateProductModal(true)}
+                        className="rounded-xl"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create New Service
+                      </Button>
+                    </div>
+                    <Select onValueChange={handleAddProduct}>
+                      <SelectTrigger id="service-select" className="rounded-xl h-11 bg-muted/50">
+                        <SelectValue placeholder="Choose a service to add..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.map((product) => {
+                          const hasVariations = product.hasVariations && product.variations;
+                          const variations: ProductVariation[] = hasVariations
+                            ? JSON.parse(product.variations!)
+                            : [];
+
+                          if (hasVariations && variations.length > 0) {
+                            return (
+                              <div key={product.id}>
+                                <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
+                                  {product.title}
+                                </div>
+                                {variations.map((variation, index) => {
+                                  const isAlreadySelected = selectedProducts.some(
+                                    p => p.id === product.id && p.variationName === variation.name
+                                  );
+                                  return (
+                                    <SelectItem
+                                      key={`${product.id}-${index}`}
+                                      value={`${product.id}:${index}`}
+                                      disabled={isAlreadySelected}
+                                      className="pl-6"
+                                    >
+                                      <div className="flex items-center gap-3 py-1">
+                                        <span className="text-sm">{variation.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)} • {variation.appointmentDuration || 60}m
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </div>
+                            );
+                          } else {
+                            const isAlreadySelected = selectedProducts.some(p => p.id === product.id && !p.variationName);
+                            return (
+                              <SelectItem key={product.id} value={product.id} disabled={isAlreadySelected}>
+                                <div className="flex items-center gap-3 py-1">
+                                  <span className="text-sm">{product.title}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    ${Number(product.price).toFixed(2)} • {product.appointmentDuration || 60}m
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            );
+                          }
+                        })}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Selected Services */}
+                    {selectedProducts.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <Label className="text-xs text-muted-foreground">Selected Services:</Label>
+                        <div className="space-y-2">
+                          {selectedProducts.map((product) => (
+                            <div
+                              key={`${product.id}-${product.variationName || 'base'}`}
+                              className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-xl group hover:bg-primary/10 transition-colors"
+                            >
+                              <div>
+                                <p className="text-sm font-medium">{product.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  ${Number(product.price).toFixed(2)} • {product.duration} minutes
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeProduct(product.id, product.variationName)}
+                                className="h-8 w-8 p-0 rounded-lg hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4 text-primary" />
+                        Shoot Date *
+                      </Label>
+                      <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left rounded-xl h-11 bg-muted/50",
+                              !appointmentDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {appointmentDate ? format(appointmentDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={appointmentDate}
+                            onSelect={(date) => {
+                              setAppointmentDate(date);
+                              setDatePopoverOpen(false);
+                            }}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="time" className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Shoot Time *
+                      </Label>
+                      <Select 
+                        value={appointmentTime} 
+                        onValueChange={setAppointmentTime}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            // Auto-scroll to current time when opening
+                            const scrollToCurrentTime = () => {
+                              const now = new Date();
+                              const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                              // Find the closest time slot within business hours (6am-8pm)
+                              let closestSlot = Math.round(currentMinutes / timeSlotInterval) * timeSlotInterval;
+                              // Clamp to business hours (360 = 6am, 1200 = 8pm)
+                              closestSlot = Math.max(360, Math.min(1200, closestSlot));
+                              const hours = Math.floor(closestSlot / 60);
+                              const minutes = closestSlot % 60;
+                              const time24 = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                              const isPM = hours >= 12;
+                              const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+                              const displayTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${isPM ? 'PM' : 'AM'}`;
+                              
+                              // Calculate the index of the target time slot
+                              const startMinutes = 360; // 6:00 AM
+                              const targetIndex = Math.floor((closestSlot - startMinutes) / timeSlotInterval);
+                              
+                              // Find the viewport container
+                              const viewport = document.querySelector('[data-radix-select-viewport]') as HTMLElement;
+                              if (!viewport) return;
+                              
+                              // Method 1: Find by text content (most reliable for Radix Select)
+                              const items = viewport.querySelectorAll('[role="option"]');
+                              let found = false;
+                              
+                              for (const item of items) {
+                                const text = item.textContent?.trim();
+                                if (text === displayTime) {
+                                  item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                                  found = true;
+                                  break;
+                                }
+                              }
+                              
+                              // Method 2: If not found by text, try by index
+                              if (!found && items.length > targetIndex) {
+                                items[targetIndex].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                                found = true;
+                              }
+                              
+                              // Method 3: Fallback - scroll viewport directly to calculated position
+                              if (!found && viewport) {
+                                const itemHeight = items[0]?.getBoundingClientRect().height || 36;
+                                const scrollPosition = targetIndex * itemHeight - viewport.clientHeight / 2 + itemHeight / 2;
+                                viewport.scrollTo({ top: Math.max(0, scrollPosition), behavior: 'smooth' });
+                              }
+                            };
+                            
+                            // Use multiple attempts with increasing delays to ensure DOM is ready
+                            requestAnimationFrame(() => {
+                              setTimeout(scrollToCurrentTime, 100);
+                              setTimeout(scrollToCurrentTime, 250);
+                              setTimeout(scrollToCurrentTime, 400);
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="time" className="rounded-xl h-11 bg-muted/50">
+                          <SelectValue placeholder="Select time" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {/* Generate time slots based on timeSlotInterval from settings */}
+                          {(() => {
+                            const slots = [];
+                            // Start at 6:00 AM (360 minutes), end at 8:00 PM (1200 minutes)
+                            for (let mins = 360; mins <= 1200; mins += timeSlotInterval) {
+                              const hours = Math.floor(mins / 60);
+                              const minutes = mins % 60;
+                              const time24 = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                              const isPM = hours >= 12;
+                              const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+                              const displayTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${isPM ? 'PM' : 'AM'}`;
+                              slots.push(
+                                <SelectItem key={time24} value={time24}>
+                                  {displayTime}
+                                </SelectItem>
+                              );
+                            }
+                            return slots;
+                          })()}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="instructions">Special Instructions</Label>
+                    <Textarea
+                      id="instructions"
+                      placeholder="Any specific requirements, angles, or details to capture..."
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      className="rounded-xl resize-none bg-muted/50 min-h-[100px]"
+                    />
+                  </div>
+
+                  {selectedProducts.length > 0 && (
+                    <div className="p-4 bg-muted rounded-xl">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium">Order Summary</span>
+                        <span className="text-sm text-muted-foreground">
+                          {selectedProducts.length} service{selectedProducts.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {selectedProducts.map((product) => (
+                          <div key={`summary-${product.id}-${product.variationName || 'base'}`} className="flex items-center justify-between text-sm">
+                            <span>{product.title}</span>
+                            <span className="font-medium">${Number(product.price).toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <Separator className="my-2" />
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Estimated Duration</span>
+                          <span className="text-sm font-medium">{formatDuration(calculateTotalDuration())}</span>
+                        </div>
+                        <Separator className="my-2" />
+                        <div className="flex items-center justify-between font-medium">
+                          <span>Total</span>
+                          <span className="text-primary text-lg">${calculateTotal().toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Summary */}
+            {step === 4 && (
+              <div className="space-y-6">
+                {/* Client Info */}
+                <div className="p-5 bg-background rounded-xl border border-border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <User className="w-5 h-5 text-primary" />
+                    <span className="font-medium">Client Information</span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    {isNewClient ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Name</span>
+                          <span className="font-medium">
+                            {newClientData.firstName} {newClientData.lastName}
+                          </span>
+                        </div>
+                        {newClientData.company && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Company</span>
+                            <span className="font-medium">{newClientData.company}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Email</span>
+                          <span className="font-medium">{newClientData.email}</span>
+                        </div>
+                        {newClientData.phone && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Phone</span>
+                            <span className="font-medium">{newClientData.phone}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : selectedCustomer ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Name</span>
+                          <span className="font-medium">
+                            {selectedCustomer.firstName} {selectedCustomer.lastName}
+                          </span>
+                        </div>
+                        {selectedCustomer.company && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Company</span>
+                            <span className="font-medium">{selectedCustomer.company}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Email</span>
+                          <span className="font-medium">{selectedCustomer.email}</span>
+                        </div>
+                        {selectedCustomer.phone && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Phone</span>
+                            <span className="font-medium">{selectedCustomer.phone}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Property Info */}
+                <div className="p-5 bg-background rounded-xl border border-border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MapPin className="w-5 h-5 text-primary" />
+                    <span className="font-medium">Property Details</span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Address</span>
+                      <span className="font-medium text-right max-w-[60%]">{address}</span>
                     </div>
                   </div>
                 </div>
-              )}
 
-              {/* Appointment Notes */}
-              {!skipAppointment && (
-                <div className="space-y-2">
-                  <Label htmlFor="appointmentNotes">Write appointment notes</Label>
-                  <p className="text-xs text-rpp-grey-light">
-                    Notes may be visible to customers if they are included as attendees on Google or Outlook Calendar events
-                  </p>
-                  <Textarea
-                    id="appointmentNotes"
-                    value={appointmentNotes}
-                    onChange={(e) => setAppointmentNotes(e.target.value)}
-                    placeholder="Add notes for this appointment..."
-                    rows={3}
-                    data-testid="textarea-notes"
-                  />
-                </div>
-              )}
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-
-          {/* Order Summary Section */}
-          <Collapsible open={orderSummaryExpanded} onOpenChange={setOrderSummaryExpanded}>
-            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
-              <CollapsibleTrigger
-                className="flex items-center justify-between w-full p-4 bg-accent/30 hover:bg-accent/50 transition-colors border-b border-border"
-                data-testid="toggle-order-summary"
-                onClick={() => setCurrentStep('order-summary')}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">3</span>
+                {/* Appointment Info */}
+                <div className="p-5 bg-background rounded-xl border border-border">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CalendarIcon className="w-5 h-5 text-primary" />
+                    <span className="font-medium">Appointment Details</span>
                   </div>
-                  <span className={`font-semibold text-base ${validationErrors.orderSummary ? 'text-rpp-red-main' : 'text-foreground'}`}>
-                    Order Summary
-                  </span>
-                </div>
-                {orderSummaryExpanded ? (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                )}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 p-4 bg-card">
-              <p className="text-sm text-rpp-grey-light">
-                Add any extra products to this order. This could be products that do not require an appointment to be provided i.e. digital.
-              </p>
-
-              {/* Selected Products List */}
-              {selectedProducts.length > 0 && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-5 gap-2 text-sm font-medium text-rpp-grey-dark border-b pb-2">
-                    <span>Item</span>
-                    <span className="text-center">Qty</span>
-                    <span className="text-center">Price</span>
-                    <span className="text-center">Tax</span>
-                    <span className="text-right">Amount</span>
-                  </div>
-
-                  {selectedProducts.map((product, index) => {
-                    const price = Number(product.price) || 0;
-                    const quantity = Number(product.quantity) || 0;
-                    const taxRate = Number(product.taxRate) || 0;
-                    const subtotal = price * quantity;
-                    const tax = subtotal * (taxRate / 100);
-                    const total = subtotal + tax;
-                    const uniqueKey = `${product.id}-${product.variationName || 'base'}-${index}`;
-
-                    return (
-                      <div key={uniqueKey} className="grid grid-cols-5 gap-2 text-sm items-center" data-testid={`product-row-${product.id}`}>
-                        <span className="text-rpp-grey-dark">{product.title}</span>
-                        <div className="flex items-center justify-center space-x-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateProductQuantity(product.id, product.variationName, product.quantity - 1)}
-                            data-testid={`button-decrease-${product.id}`}
-                          >
-                            -
-                          </Button>
-                          <span className="w-8 text-center">{product.quantity}</span>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateProductQuantity(product.id, product.variationName, product.quantity + 1)}
-                            data-testid={`button-increase-${product.id}`}
-                          >
-                            +
-                          </Button>
-                        </div>
-                        <span className="text-center">${price.toFixed(2)}</span>
-                        <span className="text-center">${tax.toFixed(2)}</span>
-                        <span className="text-right font-medium">${total.toFixed(2)}</span>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Date</span>
+                      <span className="font-medium">
+                        {appointmentDate ? format(appointmentDate, "EEEE, MMMM d, yyyy") : "Not set"}
+                      </span>
+                    </div>
+                    {appointmentTime && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Time</span>
+                        <span className="font-medium">{appointmentTime}</span>
                       </div>
-                    );
-                  })}
-
-                  <div className="border-t pt-2 flex justify-between items-center font-semibold">
-                    <span>Total</span>
-                    <span data-testid="text-order-total">AUD ${calculateOrderTotal().toFixed(2)}</span>
+                    )}
+                    {specialInstructions && (
+                      <div className="pt-2 border-t border-border mt-2">
+                        <span className="text-muted-foreground block mb-1">Special Instructions</span>
+                        <span className="text-sm">{specialInstructions}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
 
-          {/* Send Confirmation Email */}
-          <div className="flex items-center space-x-2 pt-2 pb-2 px-1">
-            <Checkbox
-              id="sendConfirmationEmail"
-              checked={sendConfirmationEmail}
-              onCheckedChange={(checked) => setSendConfirmationEmail(checked === true)}
-              data-testid="checkbox-confirmation-email"
-            />
-            <Label htmlFor="sendConfirmationEmail" className="text-sm">
-              Send customer confirmation email
-            </Label>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel">
-              Cancel
-            </Button>
-
-            {currentStep !== 'order-summary' ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={!canProceedToNext()}
-                className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="button-next"
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={createJobMutation.isPending || !canSave()}
-                className="bg-rpp-grey-dark hover:bg-rpp-grey-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                data-testid="button-save"
-              >
-                {createJobMutation.isPending ? "Saving..." : "Save"}
-              </Button>
+                {/* Services & Pricing */}
+                <div className="p-5 bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20">
+                  <div className="flex items-center gap-2 mb-4">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                    <span className="font-medium">Services & Pricing</span>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedProducts.map((product) => (
+                      <div key={`final-${product.id}-${product.variationName || 'base'}`} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Camera className="w-4 h-4 text-primary" />
+                          </div>
+                          <span className="text-sm">{product.title}</span>
+                        </div>
+                        <span className="font-medium text-sm">${Number(product.price).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <Separator className="my-3" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Estimated Duration</span>
+                      <span className="text-sm font-medium">{formatDuration(calculateTotalDuration())}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="font-medium">Total Cost</span>
+                      <span className="text-primary text-2xl font-semibold">${calculateTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-    
-    {/* Create Product Modal */}
-    {showCreateProductModal && (
-      <CreateProductModal onClose={() => setShowCreateProductModal(false)} />
-    )}
+
+          {/* Footer */}
+          <div className="border-t border-border px-6 py-4 bg-muted/30">
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                variant="outline"
+                onClick={step === 1 ? onClose : handleBack}
+                className="rounded-xl h-10 px-6"
+              >
+                {step === 1 ? "Cancel" : "Back"}
+              </Button>
+              {step < 4 ? (
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  className="bg-primary hover:bg-primary/90 text-white rounded-xl h-10 px-6"
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!canProceed() || createJobMutation.isPending}
+                  className="bg-primary hover:bg-primary/90 text-white rounded-xl h-10 px-6"
+                >
+                  {createJobMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Job"
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Product Modal */}
+      {showCreateProductModal && (
+        <CreateProductModal onClose={() => setShowCreateProductModal(false)} />
+      )}
     </>
   );
 }

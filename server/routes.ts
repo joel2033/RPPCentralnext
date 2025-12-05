@@ -296,6 +296,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/customers/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      // First verify the customer exists and belongs to this tenant
+      const existingCustomer = await storage.getCustomer(req.params.id);
+      if (!existingCustomer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (existingCustomer.partnerId !== req.user?.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const customer = await storage.updateCustomer(req.params.id, req.body);
+      res.json(customer);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update customer" });
+    }
+  });
+
   // Users - SECURED with authentication and tenant isolation
   app.get("/api/users", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
