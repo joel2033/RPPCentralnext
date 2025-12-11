@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { auth } from "@/lib/firebase";
@@ -39,7 +38,7 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
@@ -48,7 +47,7 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
 
   // Fetch job data if this is an appointment with a jobId
   const jobId = appointment.jobId || (appointment.job?.jobId);
-  const { data: job, isLoading: isLoadingJob } = useQuery<any>({
+  const { data: job } = useQuery<any>({
     queryKey: ["/api/jobs", jobId],
     enabled: !!jobId,
     queryFn: async () => {
@@ -73,7 +72,7 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
   // Fetch full appointment data using the internal ID (UUID, not appointmentId NanoID)
   // The appointment prop should have the internal id from the appointments table
   const appointmentInternalId = appointment.id; // Internal UUID from appointments table
-  const { data: fullAppointment, isLoading: isLoadingFullAppointment } = useQuery<any>({
+  const { data: fullAppointment } = useQuery<any>({
     queryKey: ["/api/appointments", appointmentInternalId],
     enabled: !!appointmentInternalId && !!appointment.appointmentId, // Only fetch if we have both IDs
     queryFn: async () => {
@@ -248,45 +247,33 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
               {/* Date and Time */}
               <div className="flex items-center space-x-3">
                 <Calendar className="w-5 h-5 text-gray-400" />
-                {isLoadingFullAppointment ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-5 w-32" />
-                    <Skeleton className="h-4 w-24" />
+                <div>
+                  <div className="font-medium text-gray-900" data-testid="text-appointment-date">
+                    {appointment.appointmentDate 
+                      ? new Date(appointment.appointmentDate).toLocaleDateString('en-AU', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          year: '2-digit'
+                        })
+                      : 'Date not set'}
                   </div>
-                ) : (
-                  <div>
-                    <div className="font-medium text-gray-900" data-testid="text-appointment-date">
-                      {appointment.appointmentDate 
-                        ? new Date(appointment.appointmentDate).toLocaleDateString('en-AU', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            year: '2-digit'
-                          })
-                        : 'Date not set'}
-                    </div>
-                    <div className="text-sm text-gray-500" data-testid="text-appointment-time">
-                      {appointment.appointmentDate 
-                        ? new Date(appointment.appointmentDate).toLocaleTimeString('en-AU', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true
-                          })
-                        : appointment.time || 'Time not specified'}
-                    </div>
+                  <div className="text-sm text-gray-500" data-testid="text-appointment-time">
+                    {appointment.appointmentDate 
+                      ? new Date(appointment.appointmentDate).toLocaleTimeString('en-AU', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        })
+                      : appointment.time || 'Time not specified'}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Assigned User */}
               <div className="flex items-center space-x-3">
                 <User className="w-5 h-5 text-gray-400" />
-                {isLoadingUsers ? (
-                  <div className="flex items-center space-x-2">
-                    <Skeleton className="h-6 w-6 rounded-full" />
-                    <Skeleton className="h-5 w-32" />
-                  </div>
-                ) : assignedUser ? (
+                {assignedUser ? (
                   <div className="flex items-center space-x-2">
                     <Avatar className="w-6 h-6">
                       <AvatarFallback className={`${getAvatarColor(assignedUser.firstName)} text-white text-xs`}>
@@ -357,13 +344,17 @@ export default function AppointmentDetailsModal({ appointment, onClose }: Appoin
                   <div className="font-medium text-gray-900 mb-2">Products</div>
                   {bookingProducts.length > 0 ? (
                     <div className="space-y-1">
-                      {bookingProducts.map((product: any, index: number) => (
-                        <div key={index} className="text-sm text-gray-600">
-                          {product.name || product.title || product.id} 
-                          {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
-                          {product.variationName && ` - ${product.variationName}`}
-                        </div>
-                      ))}
+                      {bookingProducts.map((product: any, index: number) => {
+                        const productName = product.name || product.title || product.id;
+                        const shouldAppendVariation = !product.name && product.variationName;
+                        return (
+                          <div key={index} className="text-sm text-gray-600">
+                            {productName}
+                            {shouldAppendVariation && ` - ${product.variationName}`}
+                            {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-sm text-gray-500 italic">No products found</p>

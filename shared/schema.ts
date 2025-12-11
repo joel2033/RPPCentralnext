@@ -65,6 +65,7 @@ export const products = pgTable("products", {
   exclusiveCustomerIds: text("exclusive_customer_ids"), // JSON array of customer IDs
   assignedTeamMemberIds: text("assigned_team_member_ids"), // JSON array of team member (photographer) IDs
   includedProducts: text("included_products"), // JSON array of {productId, quantity} for package inclusions
+  availableAddons: text("available_addons"), // JSON array of addon product IDs that can be added to this product/package
   isActive: boolean("is_active").default(true),
   isLive: boolean("is_live").default(true),
   image: text("image"),
@@ -90,6 +91,9 @@ export const jobs = pgTable("jobs", {
   propertyImage: text("property_image"),
   propertyImageThumbnail: text("property_image_thumbnail"),
   notes: text("notes"),
+  billingItems: text("billing_items"), // JSON array of billing line items {id, productId, name, quantity, unitPrice, taxRate, amount}
+  invoiceStatus: text("invoice_status").default("draft"), // "draft", "sent", "paid", "overdue"
+  deliveredAt: timestamp("delivered_at"), // Timestamp when job was marked as delivered (for monthly revenue tracking)
   createdAt: timestamp("created_at").defaultNow(),
 });
 

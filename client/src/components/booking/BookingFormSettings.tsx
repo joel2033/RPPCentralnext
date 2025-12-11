@@ -31,8 +31,6 @@ import {
   GripVertical,
   ExternalLink,
   Settings,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 
 export interface BookingFormSettingsProps {
@@ -54,9 +52,6 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
   // Local state for form
   const [formState, setFormState] = useState<Partial<BookingSettings>>({});
   const [copied, setCopied] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["general", "scheduling"])
-  );
 
   // Initialize form state from settings with defaults for missing values
   useEffect(() => {
@@ -72,18 +67,6 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
       });
     }
   }, [settings]);
-
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(section)) {
-        newSet.delete(section);
-      } else {
-        newSet.add(section);
-      }
-      return newSet;
-    });
-  };
 
   const handleCopyLink = () => {
     const bookingLink = `${window.location.origin}/book/${partnerId}`;
@@ -213,27 +196,16 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
 
       {/* Client Settings */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("clients")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Client Settings
-            </CardTitle>
-            {expandedSections.has("clients") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Client Settings
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Control who can book through your booking form
           </p>
         </CardHeader>
-        {expandedSections.has("clients") && (
-          <CardContent className="space-y-6">
+        <CardContent className="space-y-6">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
               <div>
                 <Label className="font-medium">
@@ -264,32 +236,20 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               </div>
             )}
           </CardContent>
-        )}
       </Card>
 
       {/* Scheduling Rules */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("scheduling")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Scheduling Rules
-            </CardTitle>
-            {expandedSections.has("scheduling") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Scheduling Rules
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Configure booking lead times and buffer periods
           </p>
         </CardHeader>
-        {expandedSections.has("scheduling") && (
-          <CardContent className="space-y-6">
+        <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="minLeadTime">Minimum Booking Notice</Label>
@@ -375,32 +335,20 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               </p>
             </div>
           </CardContent>
-        )}
       </Card>
 
       {/* Travel Settings */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("travel")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Car className="w-5 h-5" />
-              Travel Settings
-            </CardTitle>
-            {expandedSections.has("travel") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="w-5 h-5" />
+            Travel Settings
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Control maximum driving distances between shoots
           </p>
         </CardHeader>
-        {expandedSections.has("travel") && (
-          <CardContent className="space-y-6">
+        <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="maxDriveDistance">Maximum Driving Distance</Label>
               <div className="flex items-center gap-2">
@@ -432,32 +380,20 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               </p>
             </div>
           </CardContent>
-        )}
       </Card>
 
       {/* Team Selection */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("team")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              Team Selection
-            </CardTitle>
-            {expandedSections.has("team") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Team Selection
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Allow clients to choose specific team members
           </p>
         </CardHeader>
-        {expandedSections.has("team") && (
-          <CardContent>
+        <CardContent>
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
               <div>
                 <Label className="font-medium">
@@ -478,32 +414,20 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               />
             </div>
           </CardContent>
-        )}
       </Card>
 
       {/* Payment Settings */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("payment")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              Payment Settings
-            </CardTitle>
-            {expandedSections.has("payment") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            Payment Settings
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Configure payment options for bookings
           </p>
         </CardHeader>
-        {expandedSections.has("payment") && (
-          <CardContent className="space-y-6">
+        <CardContent className="space-y-6">
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
               <div>
                 <Label className="font-medium">Enable Payments</Label>
@@ -629,32 +553,20 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               </>
             )}
           </CardContent>
-        )}
       </Card>
 
       {/* Custom Questions */}
       <Card>
-        <CardHeader
-          className="cursor-pointer"
-          onClick={() => toggleSection("questions")}
-        >
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquarePlus className="w-5 h-5" />
-              Custom Questions
-            </CardTitle>
-            {expandedSections.has("questions") ? (
-              <ChevronUp className="w-5 h-5 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-gray-400" />
-            )}
-          </div>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquarePlus className="w-5 h-5" />
+            Custom Questions
+          </CardTitle>
           <p className="text-sm text-gray-600">
             Add custom questions to gather additional information from clients
           </p>
         </CardHeader>
-        {expandedSections.has("questions") && (
-          <CardContent className="space-y-4">
+        <CardContent className="space-y-4">
             {formState.customQuestions?.map((question, index) => (
               <div
                 key={question.id}
@@ -750,7 +662,6 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               Add Question
             </Button>
           </CardContent>
-        )}
       </Card>
 
     </div>

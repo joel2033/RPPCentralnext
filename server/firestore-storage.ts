@@ -231,6 +231,7 @@ export class FirestoreStorage implements IStorage {
       variations: product.variations || null,
       exclusiveCustomerIds: product.exclusiveCustomerIds || null,
       includedProducts: product.includedProducts || null,
+      availableAddons: product.availableAddons || null,
       noCharge: product.noCharge ?? null,
       productType: product.productType || null,
       exclusivityType: product.exclusivityType || null,
@@ -300,6 +301,8 @@ export class FirestoreStorage implements IStorage {
       propertyImage: job.propertyImage || null,
       propertyImageThumbnail: job.propertyImageThumbnail || null,
       notes: job.notes || null,
+      billingItems: job.billingItems || null,
+      invoiceStatus: job.invoiceStatus || "draft",
       id,
       jobId,
       createdAt: new Date(),
@@ -864,8 +867,13 @@ export class FirestoreStorage implements IStorage {
     if (!job) {
       return undefined;
     }
+    // If marking as delivered, also set deliveredAt timestamp for monthly revenue tracking
+    const updateData: any = { status };
+    if (status === 'delivered' && !job.deliveredAt) {
+      updateData.deliveredAt = new Date();
+    }
     // Now use the actual document ID to update
-    return this.updateJob(job.id, { status });
+    return this.updateJob(job.id, updateData);
   }
 
   // Helper function to normalize folder paths (extract relative portion)

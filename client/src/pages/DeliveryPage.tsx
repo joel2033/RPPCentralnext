@@ -1134,7 +1134,7 @@ export default function DeliveryPage() {
           scrolled ? "shadow-md" : ""
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="max-w-7xl mx-auto px-0 pt-3 pb-0">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-3">
@@ -1150,7 +1150,7 @@ export default function DeliveryPage() {
           {/* Quick Navigation Bar - Fixed height to prevent layout shifts */}
           <div className="relative h-20 overflow-hidden">
             <div
-              className={`absolute inset-x-0 top-0 flex items-center gap-3 border-t border-border/50 pt-4 pb-2 will-change-transform transition-[transform,opacity] duration-300 ease-in-out ${
+              className={`absolute inset-x-0 top-0 flex items-center gap-3 border-t border-border/50 pt-0 pb-0 will-change-transform transition-[transform,opacity] duration-300 ease-in-out ${
                 showQuickNav 
                   ? "translate-y-0 opacity-100 pointer-events-auto" 
                   : "-translate-y-full opacity-0 pointer-events-none"

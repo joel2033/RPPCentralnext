@@ -51,11 +51,11 @@ export default function Jobs() {
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [], isLoading: isLoadingCustomers } = useQuery<any[]>({
+  const { data: customers = [] } = useQuery<any[]>({
     queryKey: ["/api/customers"],
   });
 
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery<any[]>({
+  const { data: users = [] } = useQuery<any[]>({
     queryKey: ["/api/users"],
   });
 
@@ -545,50 +545,45 @@ export default function Jobs() {
                         const appointmentDate = appointment?.appointmentDate || job.appointmentDate;
                         const formattedDate = formatDate(appointmentDate);
                         const formattedTime = formatTime(appointmentDate);
-                        const customerName = getCustomerName(job.customerId);
-                        // Show shimmer when data is loading or when we don't have the data yet
-                        const isLoadingDate = isLoadingAppointments || (!appointmentDate && !job.appointmentDate);
-                        const isLoadingTime = isLoadingAppointments || (!appointmentDate && !job.appointmentDate);
-                        const isLoadingName = isLoadingCustomers || !customerName;
+                        // Show loading when appointments are loading and we don't have appointment data yet
+                        const isAppointmentLoading = isLoadingAppointments && !formattedDate && !formattedTime;
                         
                         return (
                           <>
-                            {isLoadingDate ? (
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-gray-300" />
-                                <Skeleton className="h-4 w-24" />
-                              </div>
-                            ) : formattedDate ? (
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5" />
-                                <span className="font-medium">{formattedDate}</span>
-                              </div>
-                            ) : null}
-                            {isLoadingTime ? (
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-gray-300" />
-                                <Skeleton className="h-4 w-20" />
-                              </div>
-                            ) : formattedTime ? (
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span className="font-medium">{formattedTime}</span>
-                              </div>
-                            ) : null}
-                            {isLoadingName ? (
-                              <div className="flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5 text-gray-300" />
-                                <Skeleton className="h-4 w-32" />
-                              </div>
+                            {isAppointmentLoading ? (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-gray-300" />
+                                  <Skeleton className="h-4 w-20" />
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-gray-300" />
+                                  <Skeleton className="h-4 w-16" />
+                                </div>
+                              </>
                             ) : (
-                              <div className="flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5" />
-                                <span className="font-medium">{customerName}</span>
-                              </div>
+                              <>
+                                {formattedDate && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span className="font-medium">{formattedDate}</span>
+                                  </div>
+                                )}
+                                {formattedTime && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span className="font-medium">{formattedTime}</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </>
                         );
                       })()}
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5" />
+                        <span className="font-medium">{getCustomerName(job.customerId)}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -600,10 +595,6 @@ export default function Jobs() {
                     >
                       {formatStatusForDisplay(job.status || 'booked')}
                     </Badge>
-                    
-                    <div className="text-lg font-bold text-rpp-grey-dark min-w-[90px] text-right">
-                      ${(job.totalAmount || 350).toFixed(2)}
-                    </div>
 
                     {/* Team member avatars */}
                     <div className="flex -space-x-2">

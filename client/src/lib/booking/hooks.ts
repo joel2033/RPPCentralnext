@@ -365,14 +365,15 @@ export function useBookingProducts(partnerId: string) {
             category: p.category,
             price: typeof p.price === 'number' ? p.price : parseFloat(p.price || '0'),
             taxRate: typeof p.taxRate === 'number' ? p.taxRate : parseFloat(p.taxRate || '10'),
-            hasVariations: p.hasVariations,
-            variations: typeof p.variations === 'string' ? JSON.parse(p.variations) : p.variations,
+            hasVariations: p.hasVariations || false,
+            variations: p.variations,
             productType: p.productType || 'onsite',
             requiresAppointment: p.requiresAppointment ?? true,
             appointmentDuration: p.appointmentDuration || 60,
-            isActive: true,
-            isLive: true,
+            isActive: p.isActive !== false,
+            isLive: p.isLive !== false,
             image: p.image,
+            availableAddons: p.availableAddons || null,
           }));
         }
         return getMockProducts(partnerId);

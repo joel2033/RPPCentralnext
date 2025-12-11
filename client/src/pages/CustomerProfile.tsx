@@ -4,12 +4,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowLeft, Plus, Search, Phone, Mail, Building2, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import CustomerEditingPreferences from "@/components/CustomerEditingPreferences";
 import EditCustomerModal from "@/components/modals/EditCustomerModal";
 import CreateJobModal from "@/components/modals/CreateJobModal";
+import { useRealtimeJobs } from "@/hooks/useFirestoreRealtime";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CustomerProfile() {
   const [, params] = useRoute("/customers/:id");
@@ -17,34 +26,99 @@ export default function CustomerProfile() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [timePeriod, setTimePeriod] = useState<"lifetime" | "this-month" | "last-month" | "last-12-months">("lifetime");
+  
+  const { userData } = useAuth();
+  const partnerId = userData?.partnerId || null;
 
-  const { data: profileData } = useQuery<any>({
-    queryKey: [`/api/customers/${params?.id}/profile`],
+  // Fetch customer data
+  const { data: customer } = useQuery<any>({
+    queryKey: [`/api/customers/${params?.id}`],
+    enabled: !!params?.id,
   });
 
-  if (!profileData) {
+  // Real-time jobs for this customer
+  const { jobs: realtimeJobs, loading: jobsLoading } = useRealtimeJobs(partnerId, { 
+    customerId: params?.id 
+  });
+  const jobs = realtimeJobs || [];
+
+  // Memoized stats calculation - recalculates when jobs or timePeriod changes
+  // Must be called before any early returns to follow Rules of Hooks
+  const { totalSales, jobsCompleted, averageJobValue } = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Filter delivered jobs by time period
+    const filteredDeliveredJobs = jobs.filter((job: any) => {
+      // Only include delivered jobs
+      if (job.status?.toLowerCase() !== 'delivered') return false;
+      
+      // For lifetime, include all delivered jobs
+      if (timePeriod === "lifetime") return true;
+      
+      // For time-based filtering, use deliveredAt if available, otherwise fall back to createdAt
+      const dateToUse = job.deliveredAt || job.createdAt;
+      if (!dateToUse) return false;
+      
+      const deliveredDate = new Date(dateToUse);
+      
+      switch (timePeriod) {
+        case "this-month": {
+          return deliveredDate.getFullYear() === currentYear && 
+                 deliveredDate.getMonth() === currentMonth;
+        }
+        case "last-month": {
+          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          return deliveredDate.getFullYear() === lastMonthYear && 
+                 deliveredDate.getMonth() === lastMonth;
+        }
+        case "last-12-months": {
+          const twelveMonthsAgo = new Date(currentYear, currentMonth - 12, 1);
+          return deliveredDate >= twelveMonthsAgo;
+        }
+        default:
+          return true;
+      }
+    });
+
+    // Calculate total sales from billingItems of filtered delivered jobs
+    const totalSales = filteredDeliveredJobs.reduce((sum: number, job: any) => {
+      if (!job.billingItems) return sum;
+      
+      try {
+        const billingItems = typeof job.billingItems === 'string' 
+          ? JSON.parse(job.billingItems) 
+          : job.billingItems;
+        
+        if (!Array.isArray(billingItems) || billingItems.length === 0) return sum;
+        
+        const jobRevenue = billingItems.reduce((itemSum: number, item: any) => {
+          return itemSum + (parseFloat(item.amount?.toString() || "0"));
+        }, 0);
+        
+        return sum + jobRevenue;
+      } catch (e) {
+        console.error(`Error parsing billingItems for job ${job.jobId || job.id}:`, e);
+        return sum;
+      }
+    }, 0);
+
+    const jobsCompleted = filteredDeliveredJobs.length;
+    const averageJobValue = jobsCompleted > 0 ? totalSales / jobsCompleted : 0;
+
+    return { totalSales, jobsCompleted, averageJobValue };
+  }, [jobs, timePeriod]);
+
+  if (!customer || jobsLoading) {
     return <div className="p-6">Loading...</div>;
   }
 
-  const customer = profileData.customer;
-  const jobs = profileData.jobs || [];
-
-  // Calculate stats from jobs data
-  const totalSales = jobs.reduce((sum: number, job: any) => {
-    const jobValue = job.totalValue ? parseFloat(job.totalValue) : 0;
-    return sum + jobValue;
-  }, 0);
-
-  const jobsCompleted = jobs.filter((job: any) => 
-    job.status?.toLowerCase() === 'delivered'
-  ).length;
-
-  const totalJobs = jobs.length;
-  const averageJobValue = totalJobs > 0 ? totalSales / totalJobs : 0;
-
   const stats = [
-    { label: "Total Sales", value: `$${totalSales.toFixed(2)}`, color: "text-rpp-red-main" },
-    { label: "Average Job Value", value: `$${averageJobValue.toFixed(2)}`, color: "text-rpp-red-main" },
+    { label: "Total Sales (ex. GST)", value: `$${totalSales.toFixed(2)}`, color: "text-rpp-red-main" },
+    { label: "Average Job Value (ex. GST)", value: `$${averageJobValue.toFixed(2)}`, color: "text-rpp-red-main" },
     { label: "Jobs Completed", value: jobsCompleted, color: "text-rpp-grey-dark" },
   ];
 
@@ -117,13 +191,26 @@ export default function CustomerProfile() {
               <p className="text-sm text-gray-600">Customer Profile</p>
             </div>
           </div>
-          <Button 
-            className="hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium bg-[#f05a2a]"
-            onClick={() => setShowCreateJobModal(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create new job
-          </Button>
+          <div className="flex items-center gap-3">
+            <Select value={timePeriod} onValueChange={(value: "lifetime" | "this-month" | "last-month" | "last-12-months") => setTimePeriod(value)}>
+              <SelectTrigger className="w-[160px] rounded-xl border-gray-200 bg-white">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lifetime">Lifetime</SelectItem>
+                <SelectItem value="this-month">This Month</SelectItem>
+                <SelectItem value="last-month">Last Month</SelectItem>
+                <SelectItem value="last-12-months">Last 12 Months</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button 
+              className="hover:bg-rpp-red-dark text-white rounded-xl px-5 h-10 shadow-sm font-medium bg-[#f05a2a]"
+              onClick={() => setShowCreateJobModal(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create new job
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -225,9 +312,6 @@ export default function CustomerProfile() {
                         <Badge className={`${job.statusColor} border rounded-full px-3 py-1 text-xs font-semibold`} data-testid={`badge-job-status-${job.jobId || job.id}`}>
                           {job.status}
                         </Badge>
-                        <div className="text-lg font-bold text-rpp-grey-dark" data-testid={`text-job-price-${job.jobId || job.id}`}>
-                          {job.price}
-                        </div>
                       </div>
                     ))
                   )}

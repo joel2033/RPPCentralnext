@@ -1192,7 +1192,13 @@ export class MemStorage implements IStorage {
       throw new Error(validation.error);
     }
 
-    const updatedJob = { ...job, status };
+    // If marking as delivered, also set deliveredAt timestamp for monthly revenue tracking
+    const updateData: any = { status };
+    if (status === 'delivered' && !job.deliveredAt) {
+      updateData.deliveredAt = new Date();
+    }
+    
+    const updatedJob = { ...job, ...updateData };
     this.jobs.set(job.id, updatedJob);
 
     // Note: Order status updates are now handled separately via markOrderUploaded()

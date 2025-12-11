@@ -314,7 +314,7 @@ export function useRealtimeJobs(partnerId: string | null, filters?: {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
+        let jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
         // Always sort client-side (newest first)
         jobList.sort((a, b) => {
           const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
@@ -328,13 +328,23 @@ export function useRealtimeJobs(partnerId: string | null, filters?: {
       (err: any) => {
         // Handle missing index error gracefully
         if (err.code === 'failed-precondition' && err.message?.includes('index')) {
-          console.warn('Firestore index missing for jobs query. Falling back to client-side sorting.');
-          // Try query without any orderBy
+          console.warn('Firestore index missing for jobs query. Falling back to client-side filtering.');
+          // Try query without composite filters - filter client-side instead
           const simpleQ = query(collection(db, 'jobs'), where('partnerId', '==', partnerId));
           const fallbackUnsubscribe = onSnapshot(
             simpleQ,
             (snapshot) => {
-              const jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
+              let jobList = snapshot.docs.map(doc => convertTimestamps(doc) as Job);
+              // Apply filters client-side since we can't use composite index
+              if (filters?.status) {
+                jobList = jobList.filter(job => job.status === filters.status);
+              }
+              if (filters?.customerId) {
+                jobList = jobList.filter(job => job.customerId === filters.customerId);
+              }
+              if (filters?.assignedTo) {
+                jobList = jobList.filter(job => job.assignedTo === filters.assignedTo);
+              }
               jobList.sort((a, b) => {
                 const aDate = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
                 const bDate = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);

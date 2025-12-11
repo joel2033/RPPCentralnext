@@ -587,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Extract allowed fields for update
-      const { appointmentDate, assignedTo, notes, status, jobName, address, latitude, longitude, totalValue, estimatedDuration } = req.body;
+      const { appointmentDate, assignedTo, notes, status, jobName, address, latitude, longitude, totalValue, estimatedDuration, billingItems, invoiceStatus } = req.body;
       
       const updateData: any = {};
       
@@ -620,6 +620,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (estimatedDuration !== undefined) {
         updateData.estimatedDuration = estimatedDuration;
+      }
+      if (billingItems !== undefined) {
+        updateData.billingItems = billingItems;
+      }
+      if (invoiceStatus !== undefined) {
+        updateData.invoiceStatus = invoiceStatus;
       }
 
       // Update the job
@@ -720,6 +726,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes,
         status: 'scheduled',
       });
+
+      // Add products from appointment to job billing items if they don't already exist
+      if (products && Array.isArray(products) && products.length > 0) {
+        try {
+          console.log(`[Appointment] Adding ${products.length} products to billing for job ${job.id}`);
+          
+          // Get current billing items
+          let currentBillingItems: any[] = [];
+          if (job.billingItems) {
+            try {
+              currentBillingItems = typeof job.billingItems === 'string' 
+                ? JSON.parse(job.billingItems) 
+                : job.billingItems;
+              if (!Array.isArray(currentBillingItems)) {
+                currentBillingItems = [];
+              }
+            } catch (e) {
+              console.error("Error parsing existing billingItems:", e);
+              currentBillingItems = [];
+            }
+          }
+          
+          console.log(`[Appointment] Current billing items count: ${currentBillingItems.length}`);
+
+          // Get all products to fetch tax rates
+          const allProducts = await storage.getProducts(req.user.partnerId);
+          
+          // Add new products to billing items
+          const newBillingItems = [...currentBillingItems];
+          let itemsAdded = 0;
+          
+          for (const appointmentProduct of products) {
+            console.log(`[Appointment] Processing product: ${appointmentProduct.id} - ${appointmentProduct.name}`);
+            
+            // Check if this product already exists in billing items
+            const exists = newBillingItems.some((item: any) => 
+              item.productId === appointmentProduct.id && 
+              item.name === appointmentProduct.name
+            );
+            
+            if (!exists) {
+              // Find the product to get tax rate
+              const product = allProducts.find((p: any) => p.id === appointmentProduct.id);
+              const taxRate = product?.taxRate ? parseFloat(product.taxRate.toString()) : 10;
+              
+              // Create billing item
+              const billingItem = {
+                id: nanoid(),
+                productId: appointmentProduct.id,
+                name: appointmentProduct.name,
+                quantity: appointmentProduct.quantity || 1,
+                unitPrice: parseFloat(appointmentProduct.price?.toString() || "0"),
+                taxRate: taxRate,
+                amount: parseFloat(appointmentProduct.price?.toString() || "0") * (appointmentProduct.quantity || 1),
+              };
+              
+              console.log(`[Appointment] Adding billing item:`, billingItem);
+              newBillingItems.push(billingItem);
+              itemsAdded++;
+            } else {
+              console.log(`[Appointment] Product already exists in billing, skipping: ${appointmentProduct.name}`);
+            }
+          }
+          
+          // Always update job with billing items if we processed products
+          if (itemsAdded > 0) {
+            console.log(`[Appointment] Updating job ${job.id} with ${newBillingItems.length} billing items`);
+            const updatedJob = await storage.updateJob(job.id, {
+              billingItems: JSON.stringify(newBillingItems),
+            });
+            console.log(`[Appointment] Job updated successfully. New billing items:`, updatedJob?.billingItems ? 'present' : 'missing');
+          } else {
+            console.log(`[Appointment] No new items to add to billing`);
+          }
+        } catch (billingError: any) {
+          console.error("Error updating billing items from appointment:", billingError);
+          console.error("Error stack:", billingError.stack);
+          // Don't fail the appointment creation, but log the error
+        }
+      }
 
       // Log activity
       try {
@@ -1473,12 +1559,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const totalJobs = jobs.length;
       const totalOrders = orders.length;
-      const totalSales = jobs.reduce((sum, job) => sum + parseFloat(job.totalValue || "0"), 0);
+      
+      // Calculate revenue from billingItems of delivered jobs in the current month only
+      // This automatically resets at the start of each new month
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      const totalSalesExGst = jobs.reduce((sum, job) => {
+        // Only include delivered jobs (completed and billable)
+        if (job.status?.toLowerCase() !== 'delivered') return sum;
+        
+        // Filter by current month: only include jobs delivered this month
+        const deliveredDate = job.deliveredAt 
+          ? new Date(job.deliveredAt) 
+          : (job.createdAt ? new Date(job.createdAt) : null); // Fallback to createdAt for backward compatibility
+        
+        if (deliveredDate) {
+          const deliveredMonth = deliveredDate.getMonth();
+          const deliveredYear = deliveredDate.getFullYear();
+          
+          // Only include jobs delivered in the current month
+          if (deliveredMonth !== currentMonth || deliveredYear !== currentYear) {
+            return sum;
+          }
+        } else {
+          // If no date available, exclude from monthly revenue
+          return sum;
+        }
+        
+        if (!job.billingItems) return sum; // Exclude delivered jobs without billing items
+        
+        try {
+          const billingItems = typeof job.billingItems === 'string' 
+            ? JSON.parse(job.billingItems) 
+            : job.billingItems;
+          
+          if (!Array.isArray(billingItems) || billingItems.length === 0) return sum;
+          
+          // Sum all amounts (already GST-exclusive: unitPrice * quantity)
+          const jobRevenue = billingItems.reduce((itemSum: number, item: any) => {
+            return itemSum + (parseFloat(item.amount?.toString() || "0"));
+          }, 0);
+          
+          return sum + jobRevenue;
+        } catch (e) {
+          console.error(`Error parsing billingItems for job ${job.id}:`, e);
+          return sum; // Exclude jobs with invalid billingItems
+        }
+      }, 0);
 
       res.json({
         jobs: totalJobs,
         orders: totalOrders,
-        sales: totalSales.toFixed(2),
+        sales: totalSalesExGst.toFixed(2),
         customers: customers.length
       });
     } catch (error) {
@@ -5880,7 +6014,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update job status
-      const updatedJob = await storage.updateJob(id, { status });
+      // If marking as delivered, also set deliveredAt timestamp for monthly revenue tracking
+      const updateData: any = { status };
+      if (status === 'delivered' && !job.deliveredAt) {
+        updateData.deliveredAt = new Date();
+      }
+      
+      const updatedJob = await storage.updateJob(id, updateData);
       if (!updatedJob) {
         return res.status(404).json({ error: "Job not found" });
       }
@@ -9369,25 +9509,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const products = await storage.getProducts(partnerId);
       
-      // Filter to only active and live products
+      // Filter to only active and live products (treat null as true for backwards compatibility)
       const bookingProducts = products
-        .filter(p => p.isActive && p.isLive)
-        .map(p => ({
-          id: p.id,
-          partnerId: p.partnerId,
-          title: p.title,
-          description: p.description,
-          type: p.type,
-          category: p.category,
-          price: parseFloat(p.price?.toString() || '0'),
-          taxRate: parseFloat(p.taxRate?.toString() || '10'),
-          hasVariations: p.hasVariations,
-          variations: p.variations ? JSON.parse(p.variations) : null,
-          productType: p.productType || 'onsite',
-          requiresAppointment: p.requiresAppointment ?? true,
-          appointmentDuration: p.appointmentDuration || 60,
-          image: p.image
-        }));
+        .filter(p => p.isActive !== false && p.isLive !== false)
+        .map(p => {
+          // Parse variations and ensure prices are numbers
+          let variations = null;
+          if (p.variations) {
+            try {
+              const parsed = JSON.parse(p.variations);
+              variations = Array.isArray(parsed) ? parsed.map((v: any) => ({
+                ...v,
+                price: parseFloat(v.price?.toString() || '0'),
+                appointmentDuration: parseInt(v.appointmentDuration?.toString() || '60', 10),
+              })) : null;
+            } catch {
+              variations = null;
+            }
+          }
+          
+          // Parse availableAddons
+          let availableAddons: string[] | null = null;
+          if (p.availableAddons) {
+            try {
+              const parsed = JSON.parse(p.availableAddons);
+              availableAddons = Array.isArray(parsed) ? parsed : null;
+            } catch {
+              availableAddons = null;
+            }
+          }
+          
+          return {
+            id: p.id,
+            partnerId: p.partnerId,
+            title: p.title,
+            description: p.description,
+            type: p.type,
+            category: p.category,
+            price: parseFloat(p.price?.toString() || '0'),
+            taxRate: parseFloat(p.taxRate?.toString() || '10'),
+            hasVariations: p.hasVariations || false,
+            variations,
+            productType: p.productType || 'onsite',
+            requiresAppointment: p.requiresAppointment ?? true,
+            appointmentDuration: p.appointmentDuration || 60,
+            isActive: p.isActive !== false,
+            isLive: p.isLive !== false,
+            image: p.image,
+            availableAddons
+          };
+        });
 
       res.json(bookingProducts);
     } catch (error: any) {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useBookingProducts } from "@/lib/booking";
-import type { SelectedProduct, SelectedAddOn, BookingProduct } from "@/lib/booking/types";
+import type { SelectedProduct, SelectedAddOn, BookingProduct, ProductVariation } from "@/lib/booking/types";
 import {
   ChevronRight,
   ChevronLeft,
@@ -57,6 +57,25 @@ const getCategoryIcon = (category?: string, type?: string) => {
   }
 };
 
+// Helper to safely format price values
+const formatPrice = (price: unknown): string => {
+  const numPrice = typeof price === 'number' ? price : parseFloat(String(price) || '0');
+  return numPrice.toFixed(2);
+};
+
+// Helper to format price with tax included (GST)
+const formatPriceWithTax = (price: unknown, taxRate: number = 10): string => {
+  const numPrice = typeof price === 'number' ? price : parseFloat(String(price) || '0');
+  const priceWithTax = numPrice * (1 + taxRate / 100);
+  return priceWithTax.toFixed(2);
+};
+
+// Helper to calculate price with tax
+const getPriceWithTax = (price: unknown, taxRate: number = 10): number => {
+  const numPrice = typeof price === 'number' ? price : parseFloat(String(price) || '0');
+  return numPrice * (1 + taxRate / 100);
+};
+
 export function BookingServicesStep({
   partnerId,
   selectedProducts,
@@ -80,6 +99,9 @@ export function BookingServicesStep({
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>(() =>
     selectedAddOns.map((a) => a.id)
   );
+  const [selectedVariation, setSelectedVariation] = useState<ProductVariation | null>(null);
+  // Track selected variations per product (productId -> variation)
+  const [productVariations, setProductVariations] = useState<Record<string, ProductVariation>>({});
 
   // Fetch products from API
   const { data: products = [], isLoading } = useBookingProducts(partnerId);
@@ -115,6 +137,8 @@ export function BookingServicesStep({
   const handleProductClick = (product: BookingProduct) => {
     setSelectedForAddOns(product);
     setModalQuantity(productQuantities[product.id] || 1);
+    // Restore previously selected variation for this product, or null
+    setSelectedVariation(productVariations[product.id] || null);
     setShowAddOnsModal(true);
   };
 
@@ -134,6 +158,14 @@ export function BookingServicesStep({
         ...prev,
         [selectedForAddOns.id]: modalQuantity,
       }));
+      
+      // Store selected variation if product has variations
+      if (selectedVariation) {
+        setProductVariations((prev) => ({
+          ...prev,
+          [selectedForAddOns.id]: selectedVariation,
+        }));
+      }
     }
     setShowAddOnsModal(false);
   };
@@ -142,18 +174,28 @@ export function BookingServicesStep({
   const calculateTotal = () => {
     let total = 0;
 
-    // Products total
+    // Products total (use variation price if selected, with tax)
     Object.entries(productQuantities).forEach(([id, qty]) => {
       if (qty > 0) {
         const product = products.find((p) => p.id === id);
-        if (product) total += product.price * qty;
+        if (product) {
+          const variation = productVariations[id];
+          const basePrice = (product.hasVariations && variation)
+            ? (typeof variation.price === 'number' ? variation.price : parseFloat(String(variation.price) || '0'))
+            : product.price;
+          // Apply tax to the product price
+          const priceWithTax = getPriceWithTax(basePrice, product.taxRate);
+          total += priceWithTax * qty;
+        }
       }
     });
 
-    // Add-ons total
+    // Add-ons total (with tax)
     selectedAddonIds.forEach((id) => {
       const addon = addons.find((a) => a.id === id);
-      if (addon) total += addon.price;
+      if (addon) {
+        total += getPriceWithTax(addon.price, addon.taxRate);
+      }
     });
 
     return total;
@@ -167,13 +209,23 @@ export function BookingServicesStep({
       if (quantity > 0) {
         const product = products.find((p) => p.id === id);
         if (product) {
+          // Check if there's a selected variation for this product
+          const variation = productVariations[id];
+          const useVariation = product.hasVariations && variation;
+          
           selectedProductsData.push({
             id: product.id,
-            name: product.title,
-            price: product.price,
+            name: useVariation ? `${product.title} - ${variation.name}` : product.title,
+            price: useVariation 
+              ? (typeof variation.price === 'number' ? variation.price : parseFloat(String(variation.price) || '0'))
+              : product.price,
+            taxRate: product.taxRate || 10,
             quantity,
             category: product.category || product.type,
-            duration: product.appointmentDuration,
+            duration: useVariation && variation.appointmentDuration 
+              ? variation.appointmentDuration 
+              : product.appointmentDuration,
+            variationName: useVariation ? variation.name : undefined,
           });
         }
       }
@@ -182,7 +234,7 @@ export function BookingServicesStep({
     const selectedAddOnsData: SelectedAddOn[] = selectedAddonIds
       .map((id) => {
         const addon = addons.find((a) => a.id === id);
-        return addon ? { id: addon.id, name: addon.title, price: addon.price } : null;
+        return addon ? { id: addon.id, name: addon.title, price: addon.price, taxRate: addon.taxRate || 10 } : null;
       })
       .filter((a): a is SelectedAddOn => a !== null);
 
@@ -258,7 +310,7 @@ export function BookingServicesStep({
                 return (
                   <Card
                     key={product.id}
-                    className="rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group"
+                    className="rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group flex flex-col"
                   >
                     <div className="h-48 bg-gradient-to-br from-[#f2572c]/10 via-[#f2572c]/5 to-orange-50 flex items-center justify-center relative overflow-hidden">
                       <div className="absolute inset-0 bg-gradient-to-br from-[#f2572c]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -272,19 +324,23 @@ export function BookingServicesStep({
                         <Icon className="w-16 h-16 text-[#f2572c]/70 relative z-10" />
                       )}
                     </div>
-                    <CardContent className="p-5 space-y-3">
-                      <div>
+                    <CardContent className="p-5 flex flex-col flex-1">
+                      {/* Fixed height content area */}
+                      <div className="flex-1 min-h-[100px]">
                         <h3 className="text-lg font-semibold mb-2">{product.title}</h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                           <Clock className="w-3.5 h-3.5 text-[#f2572c]" />
                           <span>{product.appointmentDuration} min</span>
                         </div>
-                        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                          {product.description}
-                        </p>
+                        {product.description && (
+                          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                            {product.description}
+                          </p>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-3 pt-2">
+                      {/* Options/View details - always at same position */}
+                      <div className="flex items-center gap-3 mb-3 h-6">
                         <button
                           className="flex items-center gap-1.5 text-xs text-[#f2572c] hover:text-[#d94820] transition-colors"
                           onClick={() => handleProductClick(product)}
@@ -297,11 +353,14 @@ export function BookingServicesStep({
                       {quantity === 0 ? (
                         <button
                           className="w-full bg-gradient-to-r from-[#f2572c] to-[#f2572c]/90 hover:from-[#d94820] hover:to-[#f2572c] text-white rounded-xl p-3 flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f2572c]/20 hover:shadow-xl hover:shadow-[#f2572c]/30"
-                          onClick={() => updateQuantity(product, 1)}
+                          onClick={() => handleProductClick(product)}
                         >
                           <Plus className="w-4 h-4" />
                           <span className="text-sm font-medium">
-                            AUD ${product.price.toFixed(2)}
+                            {product.hasVariations && product.variations && product.variations.length > 0
+                              ? `From AUD $${formatPriceWithTax(Math.min(...product.variations.map(v => typeof v.price === 'number' ? v.price : parseFloat(String(v.price) || '0'))), product.taxRate)} inc. GST`
+                              : `AUD $${formatPriceWithTax(product.price, product.taxRate)} inc. GST`
+                            }
                           </span>
                         </button>
                       ) : (
@@ -334,7 +393,13 @@ export function BookingServicesStep({
                               </div>
                             </div>
                             <span className="text-sm font-medium">
-                              AUD ${(product.price * quantity).toFixed(2)}
+                              AUD ${formatPriceWithTax((() => {
+                                const variation = productVariations[product.id];
+                                const unitPrice = (product.hasVariations && variation)
+                                  ? (typeof variation.price === 'number' ? variation.price : parseFloat(String(variation.price) || '0'))
+                                  : (typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'));
+                                return unitPrice * quantity;
+                              })(), product.taxRate)}
                             </span>
                           </div>
                         </button>
@@ -359,7 +424,7 @@ export function BookingServicesStep({
                 return (
                   <Card
                     key={product.id}
-                    className="rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group"
+                    className="rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group flex flex-col"
                   >
                     <div className="h-48 bg-gradient-to-br from-gray-100 via-gray-50 to-white flex items-center justify-center relative overflow-hidden">
                       <div className="absolute inset-0 bg-gradient-to-br from-[#f2572c]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -373,23 +438,27 @@ export function BookingServicesStep({
                         <Icon className="w-16 h-16 text-gray-400/50 relative z-10 group-hover:text-[#f2572c]/70 transition-colors duration-300" />
                       )}
                     </div>
-                    <CardContent className="p-5 space-y-3">
-                      <div>
+                    <CardContent className="p-5 flex flex-col flex-1">
+                      {/* Fixed height content area */}
+                      <div className="flex-1 min-h-[100px]">
                         <h3 className="text-lg font-semibold mb-2">{product.title}</h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                           <Clock className="w-3.5 h-3.5 text-[#f2572c]" />
                           <span>
                             {product.appointmentDuration} -{" "}
                             {product.appointmentDuration + 30} min
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
-                          {product.description}
-                        </p>
+                        {product.description && (
+                          <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">
+                            {product.description}
+                          </p>
+                        )}
                       </div>
 
-                      {product.hasVariations && (
-                        <div className="flex items-center gap-3 pt-2">
+                      {/* Options button - always at same position */}
+                      <div className="flex items-center gap-3 mb-3 h-6">
+                        {product.hasVariations ? (
                           <button
                             className="flex items-center gap-1.5 text-xs text-[#f2572c] hover:text-[#d94820] transition-colors"
                             onClick={() => handleProductClick(product)}
@@ -397,8 +466,10 @@ export function BookingServicesStep({
                             <span>{product.variations?.length || 0} Options</span>
                             <ChevronDown className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-xs text-transparent">-</span>
+                        )}
+                      </div>
 
                       <button
                         className={`w-full rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${
@@ -407,7 +478,10 @@ export function BookingServicesStep({
                             : "bg-gradient-to-r from-[#f2572c] to-[#f2572c]/90 hover:from-[#d94820] hover:to-[#f2572c] text-white shadow-lg shadow-[#f2572c]/20 hover:shadow-xl hover:shadow-[#f2572c]/30"
                         }`}
                         onClick={() => {
-                          if (quantity === 0) {
+                          // Always open modal for products with variations
+                          if (product.hasVariations) {
+                            handleProductClick(product);
+                          } else if (quantity === 0) {
                             updateQuantity(product, 1);
                           } else {
                             handleProductClick(product);
@@ -418,7 +492,10 @@ export function BookingServicesStep({
                           <>
                             <Plus className="w-4 h-4" />
                             <span className="text-sm font-medium">
-                              From AUD ${product.price.toFixed(2)}
+                              {product.hasVariations && product.variations && product.variations.length > 0
+                                ? `From AUD $${formatPriceWithTax(Math.min(...product.variations.map(v => typeof v.price === 'number' ? v.price : parseFloat(String(v.price) || '0'))), product.taxRate)} inc. GST`
+                                : `AUD $${formatPriceWithTax(product.price, product.taxRate)} inc. GST`
+                              }
                             </span>
                           </>
                         ) : (
@@ -447,7 +524,13 @@ export function BookingServicesStep({
                               </div>
                             </div>
                             <span className="text-sm font-medium">
-                              AUD ${(product.price * quantity).toFixed(2)}
+                              AUD ${formatPriceWithTax((() => {
+                                const variation = productVariations[product.id];
+                                const unitPrice = (product.hasVariations && variation)
+                                  ? (typeof variation.price === 'number' ? variation.price : parseFloat(String(variation.price) || '0'))
+                                  : (typeof product.price === 'number' ? product.price : parseFloat(String(product.price) || '0'));
+                                return unitPrice * quantity;
+                              })(), product.taxRate)}
                             </span>
                           </div>
                         )}
@@ -487,7 +570,7 @@ export function BookingServicesStep({
                       </div>
                       <div className="flex items-center gap-2 ml-3">
                         <span className="text-sm font-medium">
-                          ${addon.price.toFixed(2)}
+                          ${formatPriceWithTax(addon.price, addon.taxRate)}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 bg-[#f2572c] rounded-full flex items-center justify-center">
@@ -534,7 +617,7 @@ export function BookingServicesStep({
           </Button>
 
           <button className="flex items-center gap-3 px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors">
-            <span className="text-sm text-gray-500">Summary</span>
+            <span className="text-sm text-gray-500">Total (inc. GST)</span>
             <span className="text-lg font-semibold">
               AUD ${calculateTotal().toFixed(2)}
             </span>
@@ -590,80 +673,121 @@ export function BookingServicesStep({
                     <span>Duration - {selectedForAddOns.appointmentDuration} min</span>
                   </div>
 
-                  <p className="text-sm leading-relaxed text-gray-600 mb-5">
+                  <p className="text-sm leading-relaxed text-gray-600">
                     {selectedForAddOns.description}
                   </p>
-
-                  {/* Variations */}
-                  {selectedForAddOns.hasVariations && selectedForAddOns.variations && (
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <h4 className="text-sm font-medium mb-3">Options Available</h4>
-                      <ul className="space-y-2">
-                        {selectedForAddOns.variations.map((variant, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span>{variant.name}</span>
-                            <span className="font-medium">
-                              ${variant.price.toFixed(2)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
 
-                {/* Right: Add-ons */}
-                {addons.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-base font-medium">Enhance Your Order</h4>
-                      <Badge variant="secondary" className="text-xs">
-                        Optional
-                      </Badge>
+                {/* Right: Options & Add-ons */}
+                <div className="space-y-6">
+                  {/* Variations - Selectable Options */}
+                  {selectedForAddOns.hasVariations && selectedForAddOns.variations && (
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <h4 className="text-sm font-medium mb-3">Options</h4>
+                      <div className="space-y-2">
+                        {selectedForAddOns.variations.map((variant, idx) => {
+                          const isSelected = selectedVariation?.name === variant.name;
+                          const variantPrice = typeof variant.price === 'number' 
+                            ? variant.price 
+                            : parseFloat(String(variant.price) || '0');
+                          
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedVariation(variant)}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                                isSelected
+                                  ? "border-[#f2572c] bg-[#f2572c]/5 shadow-md"
+                                  : "border-gray-200 hover:border-[#f2572c]/50 hover:bg-white"
+                              }`}
+                            >
+                              <span className="text-sm">{variant.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">
+                                  AUD ${formatPriceWithTax(variantPrice, selectedForAddOns.taxRate)} inc. GST
+                                </span>
+                                {isSelected ? (
+                                  <div className="w-5 h-5 bg-[#f2572c] rounded-full flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 border-2 border-gray-300 rounded-full flex items-center justify-center">
+                                    <Plus className="w-3 h-3 text-gray-400" />
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {addons.map((addon) => {
-                        const isAddonSelected = selectedAddonIds.includes(addon.id);
+                  )}
 
-                        return (
-                          <button
-                            key={addon.id}
-                            onClick={() => toggleAddOn(addon.id)}
-                            className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
-                              isAddonSelected
-                                ? "border-[#f2572c] bg-[#f2572c]/5 shadow-md"
-                                : "border-gray-200 hover:border-[#f2572c]/50 hover:bg-gray-50"
-                            }`}
-                          >
-                            <div className="text-left flex-1">
-                              <p className="text-sm font-medium mb-0.5">{addon.title}</p>
-                              <p className="text-xs text-gray-500 line-clamp-1">
-                                {addon.description}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3 ml-4">
-                              <span className="text-sm font-medium">
-                                ${addon.price.toFixed(2)}
-                              </span>
-                              {isAddonSelected ? (
-                                <div className="w-6 h-6 bg-[#f2572c] rounded-full flex items-center justify-center shadow-sm">
-                                  <Check className="w-3.5 h-3.5 text-white" />
+                  {/* Add-ons - filtered by product's availableAddons */}
+                  {(() => {
+                    // Debug logging
+                    console.log('Selected product:', selectedForAddOns.title);
+                    console.log('Available addons config:', selectedForAddOns.availableAddons);
+                    console.log('All addons:', addons.map(a => ({ id: a.id, title: a.title })));
+                    
+                    // Only show addons that are explicitly configured for this product
+                    // If no addons are configured, don't show any
+                    const filteredAddons = selectedForAddOns.availableAddons && selectedForAddOns.availableAddons.length > 0
+                      ? addons.filter(addon => selectedForAddOns.availableAddons?.includes(addon.id))
+                      : []; // Don't show any addons if none are configured
+                    
+                    console.log('Filtered addons:', filteredAddons.map(a => ({ id: a.id, title: a.title })));
+                    
+                    return filteredAddons.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-base font-medium">Add-ons</h4>
+                          <Badge variant="secondary" className="text-xs">
+                            Optional
+                          </Badge>
+                        </div>
+                        <div className="space-y-3">
+                          {filteredAddons.map((addon) => {
+                            const isAddonSelected = selectedAddonIds.includes(addon.id);
+
+                            return (
+                              <button
+                                key={addon.id}
+                                onClick={() => toggleAddOn(addon.id)}
+                                className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                                  isAddonSelected
+                                    ? "border-[#f2572c] bg-[#f2572c]/5 shadow-md"
+                                    : "border-gray-200 hover:border-[#f2572c]/50 hover:bg-gray-50"
+                                }`}
+                              >
+                                <div className="text-left flex-1">
+                                  <p className="text-sm font-medium mb-0.5">{addon.title}</p>
+                                  <p className="text-xs text-gray-500 line-clamp-1">
+                                    {addon.description}
+                                  </p>
                                 </div>
-                              ) : (
-                                <div className="w-6 h-6 border-2 border-gray-300 rounded-full flex items-center justify-center">
-                                  <Plus className="w-3.5 h-3.5 text-gray-400" />
+                                <div className="flex items-center gap-3 ml-4">
+                                  <span className="text-sm font-medium">
+                                    ${formatPriceWithTax(addon.price, addon.taxRate)} inc. GST
+                                  </span>
+                                  {isAddonSelected ? (
+                                    <div className="w-6 h-6 bg-[#f2572c] rounded-full flex items-center justify-center shadow-sm">
+                                      <Check className="w-3.5 h-3.5 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-6 h-6 border-2 border-gray-300 rounded-full flex items-center justify-center">
+                                      <Plus className="w-3.5 h-3.5 text-gray-400" />
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
 
@@ -691,21 +815,35 @@ export function BookingServicesStep({
 
               <div className="flex items-center gap-5">
                 <div className="text-right">
-                  <p className="text-xs text-gray-500 mb-0.5">Total</p>
+                  <p className="text-xs text-gray-500 mb-0.5">Total (inc. GST)</p>
                   <span className="text-2xl font-semibold">
                     AUD $
-                    {(
-                      selectedForAddOns.price * modalQuantity +
-                      selectedAddonIds.reduce((sum, id) => {
+                    {(() => {
+                      // Use selected variation price if available, otherwise base price
+                      const basePrice = selectedVariation 
+                        ? (typeof selectedVariation.price === 'number' ? selectedVariation.price : parseFloat(String(selectedVariation.price) || '0'))
+                        : (typeof selectedForAddOns.price === 'number' ? selectedForAddOns.price : parseFloat(String(selectedForAddOns.price) || '0'));
+                      
+                      // Apply tax to base price
+                      const basePriceWithTax = getPriceWithTax(basePrice, selectedForAddOns.taxRate);
+                      
+                      // Calculate addons total with tax
+                      const addonsTotal = selectedAddonIds.reduce((sum, id) => {
                         const addon = addons.find((a) => a.id === id);
-                        return sum + (addon?.price || 0);
-                      }, 0)
-                    ).toFixed(2)}
+                        if (addon) {
+                          return sum + getPriceWithTax(addon.price, addon.taxRate);
+                        }
+                        return sum;
+                      }, 0);
+                      
+                      return (basePriceWithTax * modalQuantity + addonsTotal).toFixed(2);
+                    })()}
                   </span>
                 </div>
                 <Button
                   onClick={handleModalContinue}
-                  className="bg-[#f2572c] hover:bg-[#d94820] text-white rounded-xl px-8 h-11 shadow-lg shadow-[#f2572c]/25 hover:shadow-xl hover:shadow-[#f2572c]/30 transition-all"
+                  disabled={selectedForAddOns.hasVariations && !selectedVariation}
+                  className="bg-[#f2572c] hover:bg-[#d94820] text-white rounded-xl px-8 h-11 shadow-lg shadow-[#f2572c]/25 hover:shadow-xl hover:shadow-[#f2572c]/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Add to Order
                   <Check className="w-4 h-4 ml-2" />

@@ -56,6 +56,11 @@ function convertTo24Hour(time: string): string {
   return `${hours.toString().padStart(2, '0')}:${minutes}`;
 }
 
+// Helper to calculate price with tax (GST)
+const getPriceWithTax = (price: number, taxRate: number = 10): number => {
+  return price * (1 + taxRate / 100);
+};
+
 // Customer lookup result
 interface CustomerLookupResult {
   found: boolean;
@@ -288,14 +293,14 @@ export function BookingForm({ partnerId }: BookingFormProps) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Calculate totals
+  // Calculate totals (with GST)
   const calculateSubtotal = () => {
     const productsTotal = formData.selectedProducts.reduce(
-      (total, product) => total + product.price * product.quantity,
+      (total, product) => total + getPriceWithTax(product.price, product.taxRate) * product.quantity,
       0
     );
     const addOnsTotal = formData.selectedAddOns.reduce(
-      (total, addon) => total + addon.price,
+      (total, addon) => total + getPriceWithTax(addon.price, addon.taxRate),
       0
     );
     return productsTotal + addOnsTotal;
@@ -890,14 +895,14 @@ export function BookingForm({ partnerId }: BookingFormProps) {
                         {product.quantity > 1 && ` (×${product.quantity})`}
                       </span>
                       <span className="text-sm font-medium">
-                        ${(product.price * product.quantity).toFixed(2)}
+                        ${(getPriceWithTax(product.price, product.taxRate) * product.quantity).toFixed(2)}
                       </span>
                     </div>
                   ))}
                   {formData.selectedAddOns.map((addon, index) => (
                     <div key={`addon-${index}`} className="flex items-center justify-between text-gray-600">
                       <span className="text-sm">+ {addon.name}</span>
-                      <span className="text-sm">${addon.price.toFixed(2)}</span>
+                      <span className="text-sm">${getPriceWithTax(addon.price, addon.taxRate).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -906,7 +911,7 @@ export function BookingForm({ partnerId }: BookingFormProps) {
               {/* Total */}
               <div className="pt-3 border-t">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium">Subtotal</p>
+                  <p className="font-medium">Total (inc. GST)</p>
                   <p className="text-xl font-semibold">${subtotal.toFixed(2)}</p>
                 </div>
                 {settings?.depositEnabled && deposit > 0 && (

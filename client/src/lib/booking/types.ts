@@ -98,6 +98,7 @@ export interface BookingProduct {
   isActive: boolean;
   isLive: boolean; // Visible on booking form
   image?: string;
+  availableAddons?: string[]; // Array of addon product IDs that can be added to this product/package
 }
 
 export interface ProductVariation {
@@ -111,6 +112,7 @@ export interface SelectedProduct {
   id: string;
   name: string;
   price: number;
+  taxRate: number; // Tax rate percentage (e.g., 10 for 10% GST)
   quantity: number;
   category: string;
   duration: number; // appointment duration in minutes
@@ -121,6 +123,7 @@ export interface SelectedAddOn {
   id: string;
   name: string;
   price: number;
+  taxRate: number; // Tax rate percentage (e.g., 10 for 10% GST)
 }
 
 export interface BookingFormData {

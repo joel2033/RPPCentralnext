@@ -32,18 +32,57 @@ export default function Products() {
 
   const updateProductMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      return apiRequest("PATCH", `/api/products/${id}`, updates);
+      return apiRequest(`/api/products/${id}`, "PATCH", updates);
     },
-    onSuccess: () => {
+    onMutate: async ({ id, updates }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/products"] });
+      
+      // Snapshot the previous value
+      const previousProducts = queryClient.getQueryData<any[]>(["/api/products"]);
+      
+      // Optimistically update the cache
+      queryClient.setQueryData<any[]>(["/api/products"], (old) =>
+        old?.map((product) =>
+          product.id === id ? { ...product, ...updates } : product
+        )
+      );
+      
+      return { previousProducts };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousProducts) {
+        queryClient.setQueryData(["/api/products"], context.previousProducts);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     },
   });
 
   const archiveProductMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("PATCH", `/api/products/${id}`, { isActive: false });
+      return apiRequest(`/api/products/${id}`, "PATCH", { isActive: false });
     },
-    onSuccess: () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/products"] });
+      const previousProducts = queryClient.getQueryData<any[]>(["/api/products"]);
+      
+      queryClient.setQueryData<any[]>(["/api/products"], (old) =>
+        old?.map((product) =>
+          product.id === id ? { ...product, isActive: false } : product
+        )
+      );
+      
+      return { previousProducts };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousProducts) {
+        queryClient.setQueryData(["/api/products"], context.previousProducts);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
     },
   });
@@ -208,8 +247,9 @@ export default function Products() {
                   </td>
                   <td className="py-3 px-3 text-center">
                     <Switch
-                      checked={product.isLive}
-                      onCheckedChange={() => toggleProductStatus(product.id, 'isLive', product.isLive)}
+                      checked={!!product.isLive}
+                      onCheckedChange={() => toggleProductStatus(product.id, 'isLive', !!product.isLive)}
+                      disabled={isReadOnly}
                     />
                   </td>
                   <td className="py-3 px-3">

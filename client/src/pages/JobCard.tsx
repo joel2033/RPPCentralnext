@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send, Star, Pencil } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, DollarSign, Upload, Image, FileText, Video, Eye, Building, Send, Star, Pencil, ChevronDown, ChevronUp, Edit, Trash2, MoreVertical } from "lucide-react";
 import { format } from "date-fns";
 import { getAuth } from "firebase/auth";
 import GoogleMapEmbed from "@/components/GoogleMapEmbed";
@@ -15,10 +16,13 @@ import ActivityTimeline from "@/components/ActivityTimeline";
 import FileGallery from "@/components/FileGallery";
 import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
 import CreateAppointmentModal from "@/components/modals/CreateAppointmentModal";
+import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal";
+import BillingSection, { BillingItem } from "@/components/BillingSection";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useMasterView } from "@/contexts/MasterViewContext";
 import { auth } from "@/lib/firebase";
+import { apiRequest } from "@/lib/queryClient";
 
 const firebaseAuth = getAuth();
 
@@ -38,6 +42,8 @@ interface JobCardData {
   propertyImage?: string;
   propertyImageThumbnail?: string;
   notes?: string;
+  billingItems?: string; // JSON string of BillingItem[]
+  invoiceStatus?: string;
   createdAt: string;
   customer?: {
     id: string;
@@ -67,9 +73,16 @@ export default function JobCard() {
   const { toast } = useToast();
   const [deliveryModalJob, setDeliveryModalJob] = useState<JobCardData | null>(null);
   const [showCreateAppointment, setShowCreateAppointment] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
+  const [expandedSections, setExpandedSections] = useState<Record<string, { products: boolean; notes: boolean }>>({});
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const { isReadOnly } = useMasterView();
+  
+  // Billing state
+  const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
+  const [invoiceStatus, setInvoiceStatus] = useState<string>("draft");
 
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
@@ -110,6 +123,72 @@ export default function JobCard() {
     },
   });
 
+  // Initialize billing state from job data
+  useEffect(() => {
+    if (jobData) {
+      // Parse billing items from JSON string
+      if (jobData.billingItems) {
+        try {
+          const parsed = JSON.parse(jobData.billingItems);
+          setBillingItems(Array.isArray(parsed) ? parsed : []);
+        } catch (e) {
+          console.error("Failed to parse billing items:", e);
+          setBillingItems([]);
+        }
+      } else {
+        setBillingItems([]);
+      }
+      setInvoiceStatus(jobData.invoiceStatus || "draft");
+    }
+  }, [jobData]);
+
+  // Mutation to update billing items
+  const updateBillingMutation = useMutation({
+    mutationFn: async ({ items, status }: { items: BillingItem[]; status: string }) => {
+      const token = await firebaseAuth.currentUser?.getIdToken();
+      const response = await fetch(`/api/jobs/${jobData?.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          billingItems: JSON.stringify(items),
+          invoiceStatus: status,
+          // Also update totalValue to match billing total (including tax)
+          totalValue: items.reduce((sum, item) => sum + item.amount + (item.amount * item.taxRate / 100), 0).toFixed(2),
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update billing");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update billing",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler for billing items change
+  const handleBillingItemsChange = (items: BillingItem[]) => {
+    setBillingItems(items);
+    updateBillingMutation.mutate({ items, status: invoiceStatus });
+  };
+
+  // Handler for invoice status change
+  const handleInvoiceStatusChange = (status: string) => {
+    setInvoiceStatus(status);
+    updateBillingMutation.mutate({ items: billingItems, status });
+  };
+
   // Mutation to update job name
   const updateJobNameMutation = useMutation({
     mutationFn: async (newName: string) => {
@@ -140,6 +219,81 @@ export default function JobCard() {
       toast({
         title: "Error",
         description: error.message || "Failed to update job name",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to update job status with optimistic updates
+  const updateJobStatusMutation = useMutation({
+    mutationFn: async (newStatus: string) => {
+      const token = await firebaseAuth.currentUser?.getIdToken();
+      const response = await fetch(`/api/jobs/${jobData?.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update job status");
+      }
+      return response.json();
+    },
+    // Optimistic update - update UI immediately before server responds
+    onMutate: async (newStatus: string) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['/api/jobs/card', jobId] });
+      await queryClient.cancelQueries({ queryKey: ["/api/jobs"] });
+
+      // Snapshot the previous value for rollback
+      const previousJobData = queryClient.getQueryData<JobCardData>(['/api/jobs/card', jobId]);
+      const previousJobsList = queryClient.getQueryData<any[]>(['/api/jobs']);
+
+      // Optimistically update the job card data
+      if (previousJobData) {
+        queryClient.setQueryData<JobCardData>(['/api/jobs/card', jobId], {
+          ...previousJobData,
+          status: newStatus,
+        });
+      }
+
+      // Optimistically update the jobs list
+      if (previousJobsList) {
+        queryClient.setQueryData<any[]>(['/api/jobs'], (old) => {
+          if (!old) return old;
+          return old.map((job) =>
+            job.id === jobData?.id ? { ...job, status: newStatus } : job
+          );
+        });
+      }
+
+      // Return context with previous data for rollback
+      return { previousJobData, previousJobsList };
+    },
+    onSuccess: () => {
+      // Invalidate to ensure we have the latest data from server
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Success",
+        description: "Job status updated successfully!",
+      });
+    },
+    onError: (error: any, newStatus: string, context: any) => {
+      // Rollback to previous data on error
+      if (context?.previousJobData) {
+        queryClient.setQueryData(['/api/jobs/card', jobId], context.previousJobData);
+      }
+      if (context?.previousJobsList) {
+        queryClient.setQueryData(['/api/jobs'], context.previousJobsList);
+      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update job status",
         variant: "destructive",
       });
     },
@@ -281,26 +435,78 @@ export default function JobCard() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Jobs
           </Button>
-          <div className="group relative">
-            {isEditingName ? (
-              <Input
-                value={editNameValue}
-                onChange={(e) => setEditNameValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={handleSaveName}
-                autoFocus
-                className="text-2xl font-bold h-auto py-1 px-2 border-2 border-blue-500 focus-visible:ring-0"
-                data-testid="input-job-name"
-              />
-            ) : (
-              <h1
-                onClick={handleStartEdit}
-                className="text-lg font-medium cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
-                data-testid="heading-job-name"
-              >
-                {jobData.jobName || jobData.address}
-                <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </h1>
+          <div className="flex items-center gap-3">
+            <div className="group relative">
+              {isEditingName ? (
+                <Input
+                  value={editNameValue}
+                  onChange={(e) => setEditNameValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleSaveName}
+                  autoFocus
+                  className="text-2xl font-bold h-auto py-1 px-2 border-2 border-blue-500 focus-visible:ring-0"
+                  data-testid="input-job-name"
+                />
+              ) : (
+                <h1
+                  onClick={handleStartEdit}
+                  className="text-lg font-medium cursor-pointer hover:text-blue-600 transition-colors flex items-center gap-2"
+                  data-testid="heading-job-name"
+                >
+                  {jobData.jobName || jobData.address}
+                  <Pencil className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </h1>
+              )}
+            </div>
+            {!isReadOnly && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-md">
+                    <Badge className={`${getStatusColor(jobData.status)} cursor-pointer hover:opacity-90 hover:shadow-sm transition-all flex items-center gap-1.5 px-2.5 py-1`}>
+                      {formatStatusForDisplay(jobData.status)}
+                      <ChevronDown className="h-3 w-3 opacity-70" />
+                    </Badge>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={() => updateJobStatusMutation.mutate('booked')}
+                    disabled={jobData.status?.toLowerCase() === 'booked'}
+                  >
+                    Booked
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateJobStatusMutation.mutate('pending')}
+                    disabled={jobData.status?.toLowerCase() === 'pending'}
+                  >
+                    Pending
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateJobStatusMutation.mutate('on_hold')}
+                    disabled={jobData.status?.toLowerCase() === 'on_hold'}
+                  >
+                    On Hold
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateJobStatusMutation.mutate('delivered')}
+                    disabled={jobData.status?.toLowerCase() === 'delivered'}
+                  >
+                    Delivered
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => updateJobStatusMutation.mutate('cancelled')}
+                    disabled={jobData.status?.toLowerCase() === 'cancelled'}
+                    className="text-red-600"
+                  >
+                    Cancelled
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {isReadOnly && (
+              <Badge className={getStatusColor(jobData.status)}>
+                {formatStatusForDisplay(jobData.status)}
+              </Badge>
             )}
           </div>
         </div>
@@ -363,9 +569,6 @@ export default function JobCard() {
               </Button>
             )}
           </div>
-          <Badge className={getStatusColor(jobData.status)}>
-            {formatStatusForDisplay(jobData.status)}
-          </Badge>
         </div>
       </div>
 
@@ -401,79 +604,114 @@ export default function JobCard() {
         <div className="space-y-6">
           {/* Property Location */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <MapPin className="h-5 w-5 mr-2" />
-                Property Location
+            <CardHeader 
+              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setExpandedCards(prev => ({ ...prev, propertyLocation: !prev.propertyLocation }))}
+            >
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <MapPin className="h-5 w-5 mr-2" />
+                  Property Location
+                </div>
+                {expandedCards.propertyLocation ? (
+                  <ChevronUp className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-gray-600 font-medium">{jobData.address}</p>
-                <GoogleMapEmbed address={jobData.address} />
-                <Button variant="outline" size="sm" className="w-full">
-                  View Larger Map
-                </Button>
-              </div>
-            </CardContent>
+            {expandedCards.propertyLocation && (
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-gray-600 font-medium">{jobData.address}</p>
+                  <GoogleMapEmbed address={jobData.address} />
+                  <Button variant="outline" size="sm" className="w-full">
+                    View Larger Map
+                  </Button>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
           {/* Customer Section */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <User className="h-5 w-5 mr-2" />
-                Customer
+            <CardHeader 
+              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setExpandedCards(prev => ({ ...prev, customer: !prev.customer }))}
+            >
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <User className="h-5 w-5 mr-2" />
+                  Customer
+                </div>
+                {expandedCards.customer ? (
+                  <ChevronUp className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {jobData.customer ? (
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="h-5 w-5 text-blue-600" />
+            {expandedCards.customer && (
+              <CardContent>
+                {jobData.customer ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{jobData.customer.firstName} {jobData.customer.lastName}</p>
+                        <p className="text-sm text-gray-500">{jobData.customer.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{jobData.customer.firstName} {jobData.customer.lastName}</p>
-                      <p className="text-sm text-gray-500">{jobData.customer.email}</p>
-                    </div>
+                    {jobData.customer.company && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Building className="h-4 w-4" />
+                        <span>{jobData.customer.company}</span>
+                      </div>
+                    )}
+                    {jobData.customer.phone && (
+                      <p className="text-sm text-gray-600">{jobData.customer.phone}</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      asChild
+                      disabled={!customerProfileId}
+                    >
+                      <Link href={customerProfileId ? `/customers/${customerProfileId}` : "#"}>
+                        View Profile
+                      </Link>
+                    </Button>
                   </div>
-                  {jobData.customer.company && (
-                    <div className="flex items-center space-x-2 text-sm text-gray-600">
-                      <Building className="h-4 w-4" />
-                      <span>{jobData.customer.company}</span>
-                    </div>
-                  )}
-                  {jobData.customer.phone && (
-                    <p className="text-sm text-gray-600">{jobData.customer.phone}</p>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    asChild
-                    disabled={!customerProfileId}
-                  >
-                    <Link href={customerProfileId ? `/customers/${customerProfileId}` : "#"}>
-                      View Profile
-                    </Link>
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No customer assigned</p>
-              )}
-            </CardContent>
+                ) : (
+                  <p className="text-gray-500 text-sm">No customer assigned</p>
+                )}
+              </CardContent>
+            )}
           </Card>
 
           {/* Appointments Section */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Calendar className="h-5 w-5 mr-2" />
-                Appointments
+            <CardHeader 
+              className="cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={() => setExpandedCards(prev => ({ ...prev, appointments: !prev.appointments }))}
+            >
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Calendar className="h-5 w-5 mr-2" />
+                  Appointments
+                </div>
+                {expandedCards.appointments ? (
+                  <ChevronUp className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            {expandedCards.appointments && (
+              <CardContent>
               <div className="space-y-4">
                 {isLoadingAppointments ? (
                   // Loading skeletons for appointments
@@ -504,14 +742,82 @@ export default function JobCard() {
                     }
 
                     return (
-                      <div key={appointment.id} className="p-3 bg-blue-50 rounded-lg">
+                      <div 
+                        key={appointment.id} 
+                        className="p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer group relative"
+                        onClick={(e) => {
+                          // Don't open modal if clicking on action buttons
+                          if ((e.target as HTMLElement).closest('.appointment-actions')) {
+                            return;
+                          }
+                          setSelectedAppointment(appointment);
+                        }}
+                      >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">Scheduled Shoot</span>
-                          <Badge variant="outline">
-                            {appointment.status === 'scheduled' ? 'Upcoming' : 
-                             appointment.status === 'completed' ? 'Completed' :
-                             appointment.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">
+                              {appointment.status === 'scheduled' ? 'Upcoming' : 
+                               appointment.status === 'completed' ? 'Completed' :
+                               appointment.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
+                            </Badge>
+                            {!isReadOnly && (
+                              <div className="appointment-actions flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAppointment(appointment);
+                                  }}
+                                  title="Edit appointment"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm("Are you sure you want to delete this appointment?")) {
+                                      try {
+                                        const token = await auth.currentUser?.getIdToken();
+                                        const appointmentId = appointment.appointmentId || appointment.id;
+                                        const response = await fetch(`/api/appointments/${appointmentId}`, {
+                                          method: "DELETE",
+                                          headers: token ? {
+                                            'Authorization': `Bearer ${token}`,
+                                          } : {},
+                                          credentials: 'include',
+                                        });
+                                        if (response.ok) {
+                                          toast({
+                                            title: "Success",
+                                            description: "Appointment deleted successfully!",
+                                          });
+                                          queryClient.invalidateQueries({ queryKey: ["/api/jobs", jobId, "appointments"] });
+                                          queryClient.invalidateQueries({ queryKey: ["/api/jobs/card", jobId] });
+                                        } else {
+                                          throw new Error("Failed to delete appointment");
+                                        }
+                                      } catch (error: any) {
+                                        toast({
+                                          title: "Error",
+                                          description: error.message || "Failed to delete appointment",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  title="Delete appointment"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-gray-600">
                           {format(new Date(appointment.appointmentDate), 'MMM dd, yyyy')}
@@ -526,22 +832,70 @@ export default function JobCard() {
                         )}
                         {appointmentProducts.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-blue-200">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Products:</p>
-                            <div className="space-y-1">
-                              {appointmentProducts.map((product: any, index: number) => (
-                                <p key={index} className="text-xs text-gray-600">
-                                  {product.name || product.title || product.id}
-                                  {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
-                                  {product.variationName && ` - ${product.variationName}`}
-                                </p>
-                              ))}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedSections(prev => ({
+                                  ...prev,
+                                  [appointment.id]: {
+                                    ...prev[appointment.id],
+                                    products: !prev[appointment.id]?.products
+                                  }
+                                }));
+                              }}
+                              className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity"
+                            >
+                              <p className="text-xs font-medium text-gray-700">Products:</p>
+                              {expandedSections[appointment.id]?.products ? (
+                                <ChevronUp className="h-3 w-3 text-gray-500" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3 text-gray-500" />
+                              )}
+                            </button>
+                            {expandedSections[appointment.id]?.products && (
+                              <div className="space-y-1 mt-1">
+                                {appointmentProducts.map((product: any, index: number) => {
+                                  const productName = product.name || product.title || product.id;
+                                  const shouldAppendVariation = !product.name && product.variationName;
+                                  return (
+                                    <p key={index} className="text-xs text-gray-600">
+                                      {productName}
+                                      {shouldAppendVariation && ` - ${product.variationName}`}
+                                      {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
+                                    </p>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         )}
                         {appointment.notes && (
                           <div className="mt-2 pt-2 border-t border-blue-200">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Notes:</p>
-                            <p className="text-xs text-gray-600">{appointment.notes}</p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedSections(prev => ({
+                                  ...prev,
+                                  [appointment.id]: {
+                                    ...prev[appointment.id],
+                                    notes: !prev[appointment.id]?.notes
+                                  }
+                                }));
+                              }}
+                              className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity"
+                            >
+                              <p className="text-xs font-medium text-gray-700">Notes:</p>
+                              {expandedSections[appointment.id]?.notes ? (
+                                <ChevronUp className="h-3 w-3 text-gray-500" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3 text-gray-500" />
+                              )}
+                            </button>
+                            {expandedSections[appointment.id]?.notes && (
+                              <p className="text-xs text-gray-600 mt-1">{appointment.notes}</p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -574,32 +928,20 @@ export default function JobCard() {
                 </Button>
               </div>
             </CardContent>
+            )}
           </Card>
 
-          {/* Billing Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <DollarSign className="h-5 w-5 mr-2" />
-                Billing Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Total Value</span>
-                  <span className="font-medium">${jobData.totalValue || '0.00'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Status</span>
-                  <Badge variant="outline">Draft</Badge>
-                </div>
-                <Button variant="outline" size="sm" className="w-full">
-                  View Invoice
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Billing Section */}
+          <BillingSection
+            jobId={jobData.jobId}
+            billingItems={billingItems}
+            invoiceStatus={invoiceStatus}
+            onBillingItemsChange={handleBillingItemsChange}
+            onInvoiceStatusChange={handleInvoiceStatusChange}
+            isReadOnly={isReadOnly}
+            isCollapsed={!expandedCards.billing}
+            onToggleCollapse={() => setExpandedCards(prev => ({ ...prev, billing: !prev.billing }))}
+          />
 
           {/* Client Review */}
           <Card>
@@ -691,6 +1033,19 @@ export default function JobCard() {
           onCreated={() => {
             setShowCreateAppointment(false);
             // Refresh appointments and job card
+            queryClient.invalidateQueries({ queryKey: ["/api/jobs", jobId, "appointments"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/jobs/card", jobId] });
+          }}
+        />
+      )}
+
+      {/* Appointment Details Modal */}
+      {selectedAppointment && (
+        <AppointmentDetailsModal
+          appointment={selectedAppointment}
+          onClose={() => {
+            setSelectedAppointment(null);
+            // Refresh appointments and job card after closing
             queryClient.invalidateQueries({ queryKey: ["/api/jobs", jobId, "appointments"] });
             queryClient.invalidateQueries({ queryKey: ["/api/jobs/card", jobId] });
           }}

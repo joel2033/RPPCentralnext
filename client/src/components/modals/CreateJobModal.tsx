@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
@@ -27,7 +27,9 @@ import {
   Mail,
   Phone,
   DollarSign,
-  Camera
+  Camera,
+  Package,
+  Box
 } from "lucide-react";
 
 // Extend Window interface for Google Maps
@@ -290,10 +292,22 @@ export default function CreateJobModal({ onClose, initialCustomerId }: CreateJob
   };
 
   // Calculate totals
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return selectedProducts.reduce((total, product) => {
       return total + product.price * product.quantity;
     }, 0);
+  };
+
+  const calculateTax = () => {
+    return selectedProducts.reduce((total, product) => {
+      const itemTotal = product.price * product.quantity;
+      const taxRate = product.taxRate || 10;
+      return total + (itemTotal * taxRate / 100);
+    }, 0);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() + calculateTax();
   };
 
   const calculateTotalDuration = () => {
@@ -709,55 +723,203 @@ export default function CreateJobModal({ onClose, initialCustomerId }: CreateJob
                       <SelectTrigger id="service-select" className="rounded-xl h-11 bg-muted/50">
                         <SelectValue placeholder="Choose a service to add..." />
                       </SelectTrigger>
-                      <SelectContent>
-                        {products.map((product) => {
-                          const hasVariations = product.hasVariations && product.variations;
-                          const variations: ProductVariation[] = hasVariations
-                            ? JSON.parse(product.variations!)
-                            : [];
+                      <SelectContent className="max-h-[300px]">
+                        {/* Packages */}
+                        {products.filter(p => p.type === 'package').length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 py-2 px-2 bg-gray-50">
+                              <Package className="h-3 w-3" />
+                              Packages
+                            </SelectLabel>
+                            {products
+                              .filter(p => p.type === 'package')
+                              .map((product) => {
+                                const hasVariations = product.hasVariations && product.variations;
+                                let variations: ProductVariation[] = [];
+                                if (hasVariations) {
+                                  try {
+                                    variations = JSON.parse(product.variations!);
+                                  } catch (e) {}
+                                }
 
-                          if (hasVariations && variations.length > 0) {
-                            return (
-                              <div key={product.id}>
-                                <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50">
-                                  {product.title}
-                                </div>
-                                {variations.map((variation, index) => {
-                                  const isAlreadySelected = selectedProducts.some(
-                                    p => p.id === product.id && p.variationName === variation.name
-                                  );
+                                if (hasVariations && variations.length > 0) {
                                   return (
-                                    <SelectItem
-                                      key={`${product.id}-${index}`}
-                                      value={`${product.id}:${index}`}
-                                      disabled={isAlreadySelected}
-                                      className="pl-6"
-                                    >
-                                      <div className="flex items-center gap-3 py-1">
-                                        <span className="text-sm">{variation.name}</span>
-                                        <span className="text-xs text-muted-foreground">
-                                          ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)} • {variation.appointmentDuration || 60}m
+                                    <div key={product.id}>
+                                      <div className="px-3 py-1.5 text-xs font-medium text-gray-900 bg-gray-50/50">
+                                        {product.title}
+                                      </div>
+                                      {variations.map((variation, index) => {
+                                        const isAlreadySelected = selectedProducts.some(
+                                          p => p.id === product.id && p.variationName === variation.name
+                                        );
+                                        return (
+                                          <SelectItem
+                                            key={`${product.id}-${index}`}
+                                            value={`${product.id}:${index}`}
+                                            disabled={isAlreadySelected}
+                                            className="pl-6 py-1.5"
+                                          >
+                                            <div className="flex items-center justify-between w-full">
+                                              <span className="text-xs text-gray-700">{variation.name}</span>
+                                              <span className="text-xs text-gray-500 ml-2">
+                                                ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                } else {
+                                  const isAlreadySelected = selectedProducts.some(p => p.id === product.id && !p.variationName);
+                                  return (
+                                    <SelectItem key={product.id} value={product.id} disabled={isAlreadySelected} className="py-1.5">
+                                      <div className="flex items-center justify-between w-full">
+                                        <span className="text-xs text-gray-700">{product.title}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          ${Number(product.price).toFixed(2)}
                                         </span>
                                       </div>
                                     </SelectItem>
                                   );
-                                })}
-                              </div>
-                            );
-                          } else {
-                            const isAlreadySelected = selectedProducts.some(p => p.id === product.id && !p.variationName);
-                            return (
-                              <SelectItem key={product.id} value={product.id} disabled={isAlreadySelected}>
-                                <div className="flex items-center gap-3 py-1">
-                                  <span className="text-sm">{product.title}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    ${Number(product.price).toFixed(2)} • {product.appointmentDuration || 60}m
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            );
-                          }
-                        })}
+                                }
+                              })}
+                          </SelectGroup>
+                        )}
+
+                        {products.filter(p => p.type === 'package').length > 0 && products.filter(p => p.type === 'product').length > 0 && (
+                          <SelectSeparator />
+                        )}
+
+                        {/* Products */}
+                        {products.filter(p => p.type === 'product').length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 py-2 px-2 bg-gray-50">
+                              <Box className="h-3 w-3" />
+                              Products
+                            </SelectLabel>
+                            {products
+                              .filter(p => p.type === 'product')
+                              .map((product) => {
+                                const hasVariations = product.hasVariations && product.variations;
+                                let variations: ProductVariation[] = [];
+                                if (hasVariations) {
+                                  try {
+                                    variations = JSON.parse(product.variations!);
+                                  } catch (e) {}
+                                }
+
+                                if (hasVariations && variations.length > 0) {
+                                  return (
+                                    <div key={product.id}>
+                                      <div className="px-3 py-1.5 text-xs font-medium text-gray-900 bg-gray-50/50">
+                                        {product.title}
+                                      </div>
+                                      {variations.map((variation, index) => {
+                                        const isAlreadySelected = selectedProducts.some(
+                                          p => p.id === product.id && p.variationName === variation.name
+                                        );
+                                        return (
+                                          <SelectItem
+                                            key={`${product.id}-${index}`}
+                                            value={`${product.id}:${index}`}
+                                            disabled={isAlreadySelected}
+                                            className="pl-6 py-1.5"
+                                          >
+                                            <div className="flex items-center justify-between w-full">
+                                              <span className="text-xs text-gray-700">{variation.name}</span>
+                                              <span className="text-xs text-gray-500 ml-2">
+                                                ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                } else {
+                                  const isAlreadySelected = selectedProducts.some(p => p.id === product.id && !p.variationName);
+                                  return (
+                                    <SelectItem key={product.id} value={product.id} disabled={isAlreadySelected} className="py-1.5">
+                                      <div className="flex items-center justify-between w-full">
+                                        <span className="text-xs text-gray-700">{product.title}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          ${Number(product.price).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                }
+                              })}
+                          </SelectGroup>
+                        )}
+
+                        {(products.filter(p => p.type === 'package').length > 0 || products.filter(p => p.type === 'product').length > 0) && products.filter(p => p.type === 'addon').length > 0 && (
+                          <SelectSeparator />
+                        )}
+
+                        {/* Add-ons */}
+                        {products.filter(p => p.type === 'addon').length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 py-2 px-2 bg-gray-50">
+                              <Plus className="h-3 w-3" />
+                              Add-ons
+                            </SelectLabel>
+                            {products
+                              .filter(p => p.type === 'addon')
+                              .map((product) => {
+                                const hasVariations = product.hasVariations && product.variations;
+                                let variations: ProductVariation[] = [];
+                                if (hasVariations) {
+                                  try {
+                                    variations = JSON.parse(product.variations!);
+                                  } catch (e) {}
+                                }
+
+                                if (hasVariations && variations.length > 0) {
+                                  return (
+                                    <div key={product.id}>
+                                      <div className="px-3 py-1.5 text-xs font-medium text-gray-900 bg-gray-50/50">
+                                        {product.title}
+                                      </div>
+                                      {variations.map((variation, index) => {
+                                        const isAlreadySelected = selectedProducts.some(
+                                          p => p.id === product.id && p.variationName === variation.name
+                                        );
+                                        return (
+                                          <SelectItem
+                                            key={`${product.id}-${index}`}
+                                            value={`${product.id}:${index}`}
+                                            disabled={isAlreadySelected}
+                                            className="pl-6 py-1.5"
+                                          >
+                                            <div className="flex items-center justify-between w-full">
+                                              <span className="text-xs text-gray-700">{variation.name}</span>
+                                              <span className="text-xs text-gray-500 ml-2">
+                                                ${variation.noCharge ? '0.00' : Number(variation.price).toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                } else {
+                                  const isAlreadySelected = selectedProducts.some(p => p.id === product.id && !p.variationName);
+                                  return (
+                                    <SelectItem key={product.id} value={product.id} disabled={isAlreadySelected} className="py-1.5">
+                                      <div className="flex items-center justify-between w-full">
+                                        <span className="text-xs text-gray-700">{product.title}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          ${Number(product.price).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                }
+                              })}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
 
@@ -958,8 +1120,17 @@ export default function CreateJobModal({ onClose, initialCustomerId }: CreateJob
                           <span className="text-sm font-medium">{formatDuration(calculateTotalDuration())}</span>
                         </div>
                         <Separator className="my-2" />
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-medium">${calculateSubtotal().toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">GST</span>
+                          <span className="font-medium">${calculateTax().toFixed(2)}</span>
+                        </div>
+                        <Separator className="my-2" />
                         <div className="flex items-center justify-between font-medium">
-                          <span>Total</span>
+                          <span>Total (incl. GST)</span>
                           <span className="text-primary text-lg">${calculateTotal().toFixed(2)}</span>
                         </div>
                       </div>
@@ -1098,8 +1269,17 @@ export default function CreateJobModal({ onClose, initialCustomerId }: CreateJob
                       <span className="text-sm text-muted-foreground">Estimated Duration</span>
                       <span className="text-sm font-medium">{formatDuration(calculateTotalDuration())}</span>
                     </div>
+                    <Separator className="my-3" />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="font-medium">${calculateSubtotal().toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">GST</span>
+                      <span className="font-medium">${calculateTax().toFixed(2)}</span>
+                    </div>
                     <div className="flex items-center justify-between pt-2">
-                      <span className="font-medium">Total Cost</span>
+                      <span className="font-medium">Total (incl. GST)</span>
                       <span className="text-primary text-2xl font-semibold">${calculateTotal().toFixed(2)}</span>
                     </div>
                   </div>

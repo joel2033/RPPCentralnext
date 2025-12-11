@@ -596,7 +596,7 @@ export default function Messages() {
   return (
     <div className="flex h-[calc(100vh-12rem)] gap-4 px-6 pt-6">
       {/* Conversations List */}
-      <Card className="w-96 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl">
+      <Card className="w-96 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl" style={{ overflowX: 'hidden' }}>
         <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-rpp-red-main" />
@@ -784,7 +784,7 @@ export default function Messages() {
             </Dialog>
           )}
         </div>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-x-hidden">
           {filteredConversations.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               <MessageSquare className="h-16 w-16 mx-auto mb-3 opacity-30" />
@@ -792,7 +792,7 @@ export default function Messages() {
               <p className="text-xs mt-1">Start a new conversation to begin messaging</p>
             </div>
           ) : (
-            <div className="p-2 space-y-2">
+            <div className="p-2 space-y-2 max-w-full overflow-x-hidden">
               {filteredConversations.map((conversation) => {
                 const participant = getOtherParticipant(conversation);
                 const isSelected = selectedConversationId === conversation.id;
@@ -802,9 +802,9 @@ export default function Messages() {
                     key={conversation.id}
                     onClick={() => setSelectedConversationId(conversation.id)}
                     className={cn(
-                      "w-full p-3 rounded-lg text-left transition-all duration-200",
+                      "w-full max-w-full p-3 rounded-lg text-left transition-all duration-200",
                       "hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
-                      "border",
+                      "border overflow-hidden",
                       isSelected
                         ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md"
                         : participant.unreadCount > 0
@@ -813,8 +813,8 @@ export default function Messages() {
                     )}
                     data-testid={`conversation-card-${conversation.id}`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="relative">
+                    <div className="flex items-start gap-3 min-w-0 max-w-full">
+                      <div className="relative flex-shrink-0">
                         <Avatar className={cn(
                           "ring-2 transition-all duration-200",
                           isSelected ? "ring-rpp-red-main" : "ring-transparent"
@@ -832,25 +832,38 @@ export default function Messages() {
                           </span>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden" style={{ width: 0 }}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className={cn(
-                            "font-medium truncate transition-colors",
+                            "font-medium truncate transition-colors min-w-0 flex-1",
                             isSelected && "text-rpp-red-main"
-                          )}>
+                          )} style={{ minWidth: 0 }}>
                             {participant.name}
                           </p>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0 ml-2">
                             {formatTime(conversation.lastMessageAt)}
                           </span>
                         </div>
                         {orderDetails && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1 truncate">
-                            {orderDetails.orderNumber} • {orderDetails.jobAddress}
-                          </p>
+                          <div className="mb-1 overflow-hidden" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+                            <p 
+                              className="text-xs text-blue-600 dark:text-blue-400 font-medium block"
+                              style={{ 
+                                width: '100%',
+                                maxWidth: '100%',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                display: 'block'
+                              }}
+                            >
+                              {orderDetails.orderNumber} • {orderDetails.jobAddress}
+                            </p>
+                          </div>
                         )}
                         <p className={cn(
-                          "text-sm truncate transition-colors",
+                          "text-sm truncate transition-colors min-w-0 max-w-full block",
                           participant.unreadCount > 0
                             ? "text-foreground font-medium"
                             : "text-muted-foreground"

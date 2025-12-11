@@ -74,6 +74,7 @@ export default function ProductDetails() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [includedProducts, setIncludedProducts] = useState<Array<{ productId: string; quantity: number }>>([]);
+  const [availableAddons, setAvailableAddons] = useState<string[]>([]);
 
   // Initialize form data when product loads or changes
   useEffect(() => {
@@ -107,6 +108,19 @@ export default function ProductDetails() {
         }
       } else {
         setIncludedProducts([]);
+      }
+
+      // Parse available addons if they exist
+      if (productData.availableAddons) {
+        try {
+          const parsedAddons = JSON.parse(productData.availableAddons);
+          setAvailableAddons(Array.isArray(parsedAddons) ? parsedAddons : []);
+        } catch (e) {
+          console.error("Failed to parse available addons:", e);
+          setAvailableAddons([]);
+        }
+      } else {
+        setAvailableAddons([]);
       }
 
       // Set image preview and uploaded URL if exists
@@ -267,6 +281,7 @@ export default function ProductDetails() {
       assignedTeamMemberIds: selectedTeamMembers.length > 0 ? JSON.stringify(selectedTeamMembers) : null,
       image: uploadedImageUrl || null,
       includedProducts: includedProducts.length > 0 ? JSON.stringify(includedProducts) : null,
+      availableAddons: availableAddons.length > 0 ? JSON.stringify(availableAddons) : null,
     };
 
     updateProductMutation.mutate(updateData);
@@ -628,6 +643,68 @@ export default function ProductDetails() {
                   </div>
                 )}
               </div>
+
+              {/* Available Add-ons Section - Only for products and packages */}
+              {(formData.type === 'product' || formData.type === 'package') && (
+                <div className="border-t border-rpp-grey-border pt-6 mb-6">
+                  <h3 className="text-md font-semibold text-rpp-grey-dark mb-2">Available Add-ons</h3>
+                  <p className="text-sm text-rpp-grey-light mb-4">
+                    Select which add-ons can be offered with this {formData.type}
+                  </p>
+                  <Select
+                    onValueChange={(value) => {
+                      if (!availableAddons.includes(value)) {
+                        setAvailableAddons([...availableAddons, value]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="border-rpp-grey-border mb-4" data-testid="select-available-addons">
+                      <SelectValue placeholder="Select add-on/s" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allProducts
+                        .filter((p: any) => p.type === 'addon' && p.id !== id)
+                        .map((p: any) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.title}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+
+                  {availableAddons.length > 0 && (
+                    <div className="space-y-2">
+                      {availableAddons.map((addonId, index) => {
+                        const addon = allProducts.find((p: any) => p.id === addonId);
+                        if (!addon) return null;
+
+                        return (
+                          <div
+                            key={addonId}
+                            className="flex items-center justify-between bg-rpp-grey-surface p-3 rounded-lg border border-rpp-grey-border"
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <button
+                                onClick={() => setAvailableAddons(availableAddons.filter((_, i) => i !== index))}
+                                className="text-red-500 hover:text-red-700"
+                                data-testid={`button-remove-addon-${index}`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                              <span className="text-sm font-medium text-rpp-grey-dark">
+                                {addon.title}
+                              </span>
+                            </div>
+                            <span className="text-sm font-medium text-rpp-grey-dark">
+                              ${parseFloat(addon.price || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Onsite or Digital Product - Moved before Variations */}
               <div className="border-t border-rpp-grey-border pt-6 mb-6">
