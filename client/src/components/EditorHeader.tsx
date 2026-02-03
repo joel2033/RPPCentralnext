@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, Bell, Search, User } from "lucide-react";
+import { Menu, Bell, Search, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +70,15 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
     },
   });
 
+  // Delete all notifications mutation
+  const deleteAllNotificationsMutation = useMutation({
+    mutationFn: () =>
+      apiRequest('/api/notifications/delete-all', 'DELETE', {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+    },
+  });
+
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read if unread
     if (!notification.read) {
@@ -89,6 +98,13 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
   const handleMarkAllAsRead = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await markAllAsReadMutation.mutateAsync();
+  };
+
+  const handleClearAllNotifications = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to clear all notifications? This action cannot be undone.')) {
+      await deleteAllNotificationsMutation.mutateAsync();
+    }
   };
 
   return (
@@ -140,57 +156,58 @@ export default function EditorHeader({ onMenuClick }: EditorHeaderProps) {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-80 max-h-96 overflow-y-auto" align="end" sideOffset={5}>
-              <div className="px-3 py-2 border-b">
+            <DropdownMenuContent className="w-80 max-h-[500px] flex flex-col" align="end" sideOffset={5}>
+              <div className="px-3 py-2 border-b flex items-center justify-between flex-shrink-0">
                 <h4 className="text-sm font-medium" data-testid="text-notifications-title">
                   Notifications
                 </h4>
-              </div>
-              {unreadNotificationsCount === 0 ? (
-                <div className="px-3 py-4 text-center text-sm text-gray-500" data-testid="text-no-notifications">
-                  No new notifications
-                </div>
-              ) : (
-                notifications.filter(n => !n.read).slice(0, 10).map((notification: any) => (
-                  <DropdownMenuItem
-                    key={notification.id}
-                    className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
-                    onClick={() => handleNotificationClick(notification)}
-                    data-testid={`notification-item-${notification.id}`}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={handleClearAllNotifications}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100"
+                    data-testid="button-clear-all-notifications"
+                    title="Clear all notifications"
                   >
-                    <div className="w-full">
-                      <div className="flex items-center justify-between mb-1">
-                        <h5 className="text-sm font-medium text-gray-900" data-testid={`text-notification-title-${notification.id}`}>
-                          {notification.title}
-                        </h5>
-                        {!notification.read && (
-                          <div className="w-2 h-2 bg-red-500 rounded-full" data-testid={`indicator-unread-${notification.id}`}></div>
-                        )}
+                    <X className="w-3 h-3" />
+                    Clear all
+                  </button>
+                )}
+              </div>
+              <div className="overflow-y-auto flex-1">
+                {notifications.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500" data-testid="text-no-notifications">
+                    No notifications
+                  </div>
+                ) : (
+                  notifications.map((notification: any) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={`px-3 py-3 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
+                      onClick={() => handleNotificationClick(notification)}
+                      data-testid={`notification-item-${notification.id}`}
+                    >
+                      <div className="w-full">
+                        <div className="flex items-center justify-between mb-1">
+                          <h5 className="text-sm font-medium text-gray-900" data-testid={`text-notification-title-${notification.id}`}>
+                            {notification.title}
+                          </h5>
+                          {!notification.read && (
+                            <div className="w-2 h-2 bg-red-500 rounded-full" data-testid={`indicator-unread-${notification.id}`}></div>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 mb-2" data-testid={`text-notification-body-${notification.id}`}>
+                          {notification.body}
+                        </p>
+                        <p className="text-xs text-gray-400" data-testid={`text-notification-time-${notification.id}`}>
+                          {notification.createdAt ? notification.createdAt.toLocaleString() : ''}
+                        </p>
                       </div>
-                      <p className="text-xs text-gray-600 mb-2" data-testid={`text-notification-body-${notification.id}`}>
-                        {notification.body}
-                      </p>
-                      <p className="text-xs text-gray-400" data-testid={`text-notification-time-${notification.id}`}>
-                        {notification.createdAt ? notification.createdAt.toLocaleString() : ''}
-                      </p>
-                    </div>
-                  </DropdownMenuItem>
-                ))
-              )}
-              {unreadNotificationsCount > 10 && (
-                <DropdownMenuItem 
-                  className="px-3 py-2 text-center text-sm text-blue-600 cursor-pointer border-t"
-                  onClick={() => {
-                    setLocation('/editor/notifications');
-                    setShowNotifications(false);
-                  }}
-                  data-testid="link-view-all-notifications"
-                >
-                  View all notifications
-                </DropdownMenuItem>
-              )}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </div>
               {unreadCount > 0 && (
-                <div className="border-t">
+                <div className="border-t flex-shrink-0">
                   <button
                     onClick={handleMarkAllAsRead}
                     className="w-full px-3 py-2 text-sm text-blue-600 hover:bg-gray-50 text-center font-medium"

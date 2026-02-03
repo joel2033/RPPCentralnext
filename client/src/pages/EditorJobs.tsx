@@ -1,141 +1,47 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Download, Upload, FileImage, Calendar, Clock, MapPin, Loader2, CheckCircle, AlertCircle, XCircle, Info, Link } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { auth } from "@/lib/firebase";
-import { FileUploadModal } from "@/components/FileUploadModal";
+import { EditorUploadWorkModal } from "@/components/modals/EditorUploadWorkModal";
+import { OrderInstructionsModal } from "@/components/modals/OrderInstructionsModal";
+import { RevisionFeedbackModal } from "@/components/modals/RevisionFeedbackModal";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-interface EditorJob {
-  id: string;
-  jobId: string;
-  orderId: string;
-  orderNumber: string;
-  customerName: string;
-  address: string;
-  services: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    instructions: string;
-  }>;
-  status: 'pending' | 'processing' | 'in_progress' | 'completed' | 'cancelled';
-  dueDate: string;
-  createdAt: string;
-  originalFiles: Array<{
-    id: string;
-    fileName: string;
-    originalName: string;
-    fileSize: number;
-    mimeType: string;
-    firebaseUrl: string;
-    downloadUrl: string;
-  }>;
-  existingUploads: Array<any>;
-  // Connection validation status
-  connectionStatus?: {
-    isValid: boolean;
-    issues: string[];
-    orderDbId?: string;
-    jobDbId?: string;
-    lastValidated?: string;
-  };
-}
-
-// Connection validation result interface
-interface ConnectionValidation {
-  jobId: string;
-  isValid: boolean;
-  issues: string[];
-  connections: any;
-  timestamp: string;
-}
+import { EditorOrdersKanban, type EditorJob } from "@/components/EditorOrdersKanban";
 
 export default function EditorJobs() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
-  const [selectedJobForValidation, setSelectedJobForValidation] = useState<string | null>(null);
   
   // Confirmation dialog states
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [declineReason, setDeclineReason] = useState("");
+  const [instructionsJob, setInstructionsJob] = useState<EditorJob | null>(null);
+  const [feedbackJob, setFeedbackJob] = useState<EditorJob | null>(null);
   
+  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const { data: jobs = [], isLoading } = useQuery<EditorJob[]>({
     queryKey: ['/api/editor/jobs-ready-for-upload']
   });
-
-  // Query for connection health check
-  const { data: healthCheck } = useQuery({
-    queryKey: ['/api/health/connection-integrity'],
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  // Query for job validation when needed
-  const { data: jobValidation, isLoading: isValidating } = useQuery<ConnectionValidation>({
-    queryKey: ['/api/validate/job', selectedJobForValidation],
-    enabled: !!selectedJobForValidation,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-  });
-
-  // Function to get connection status icon
-  const getConnectionStatusIcon = (job: EditorJob) => {
-    if (!job.connectionStatus) {
-      return <AlertCircle className="w-4 h-4 text-gray-400" />;
-    }
-
-    if (job.connectionStatus.isValid) {
-      return <CheckCircle className="w-4 h-4 text-green-500" />;
-    }
-
-    return <XCircle className="w-4 h-4 text-red-500" />;
-  };
-
-  // Function to get connection status color class
-  const getConnectionStatusColor = (job: EditorJob) => {
-    if (!job.connectionStatus) return "text-gray-500";
-    return job.connectionStatus.isValid ? "text-green-600" : "text-red-600";
-  };
-
-  // Function to validate a specific job
-  const validateJob = async (job: EditorJob) => {
-    setSelectedJobForValidation(job.id);
-    try {
-      await queryClient.refetchQueries({ 
-        queryKey: ['/api/validate/job', job.id] 
-      });
-    } catch (error) {
-      console.error('Error validating job:', error);
-      toast({
-        title: "Validation Error",
-        description: "Failed to validate job connections. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handleUploadClick = (job: EditorJob) => {
     console.log('[DEBUG] Upload clicked for job:', { id: job.id, jobId: job.jobId, orderNumber: job.orderNumber });
@@ -184,35 +90,17 @@ export default function EditorJobs() {
     setSelectedJob(null);
   };
 
+  // Filter jobs by search term across all stages
   const filteredJobs = jobs.filter(job => {
-    const matchesSearch = (job.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (job.address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.services?.some(s => (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all'; // Priority not implemented yet
-
-    return matchesSearch && matchesStatus && matchesPriority;
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      (job.customerName || '').toLowerCase().includes(term) ||
+      (job.address || '').toLowerCase().includes(term) ||
+      job.orderNumber.toLowerCase().includes(term) ||
+      job.services?.some(s => (s.name || '').toLowerCase().includes(term))
+    );
   });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
-      case 'in_revision': return 'bg-orange-100 text-orange-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-orange-100 text-orange-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const handleAcceptOrder = async () => {
     try {
@@ -298,38 +186,45 @@ export default function EditorJobs() {
 
   const handleMarkComplete = async () => {
     try {
-      // Mark the job as complete
+      console.log('[handleMarkComplete] Starting, orderId:', selectedOrderId);
+      // Move the order to human_check status for QC review
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
 
       const token = await user.getIdToken();
-      const response = await fetch(`/api/editor/jobs/${selectedJobId}/status`, {
-        method: 'PATCH',
+      console.log('[handleMarkComplete] Making API call to:', `/api/editor/orders/${selectedOrderId}/mark-complete`);
+      const response = await fetch(`/api/editor/orders/${selectedOrderId}/mark-complete`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: 'completed' })
+        }
       });
+
+      console.log('[handleMarkComplete] Response status:', response.status, response.ok);
 
       if (!response.ok) {
         const error = await response.json();
+        console.error('[handleMarkComplete] API error:', error);
         throw new Error(error.error || 'Failed to mark order as complete');
       }
+
+      const result = await response.json();
+      console.log('[handleMarkComplete] Success:', result);
 
       // Refresh the jobs list
       queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
       queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
 
       toast({
-        title: "Order Completed",
-        description: "The order has been marked as complete.",
+        title: "Sent for QC Review",
+        description: "The order has been sent for quality control review.",
       });
       
       setShowCompleteDialog(false);
-      setSelectedJobId("");
+      setSelectedOrderId("");
     } catch (error: any) {
-      console.error('Error marking order complete:', error);
+      console.error('[handleMarkComplete] Error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to mark order as complete. Please try again.",
@@ -405,6 +300,10 @@ export default function EditorJobs() {
 
       setDownloadProgress(100);
 
+      // Refresh jobs to show updated status
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
       // Hide dialog after a short delay
       setTimeout(() => {
         setIsDownloading(false);
@@ -423,20 +322,79 @@ export default function EditorJobs() {
     }
   };
 
+  // Handler functions for kanban callbacks
+  const onAcceptOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowAcceptDialog(true);
+  };
+
+  const onDeclineOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowDeclineDialog(true);
+  };
+
+  const onMarkComplete = async (orderId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/editor/orders/${orderId}/mark-complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to mark order as complete');
+      }
+
+      // Refresh the jobs list
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
+
+      toast({
+        title: "Sent for QC Review",
+        description: "The order has been sent for quality control review.",
+      });
+    } catch (error: any) {
+      console.error('Error marking order complete:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark order as complete. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const onViewInstructions = (job: EditorJob) => {
+    setInstructionsJob(job);
+    setShowInstructionsModal(true);
+  };
+
+  const onViewFeedback = (job: EditorJob) => {
+    setFeedbackJob(job);
+    setShowFeedbackModal(true);
+  };
+
+  const onStartQC = (job: EditorJob) => {
+    // Navigate to QC page with order ID
+    navigate(`/editor/qc/${job.orderId}`);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="flex space-x-4">
-            <div className="h-10 bg-gray-200 rounded w-64"></div>
-            <div className="h-10 bg-gray-200 rounded w-32"></div>
-            <div className="h-10 bg-gray-200 rounded w-32"></div>
-          </div>
-          <div className="space-y-4">
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-gray-200 rounded w-64"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-96 bg-gray-200 rounded"></div>
+            ))}
           </div>
         </div>
       </div>
@@ -446,49 +404,23 @@ export default function EditorJobs() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Job Queue</h1>
-          <p className="text-gray-600">Manage your editing projects and workflow</p>
+          <h1 className="text-2xl font-bold text-gray-900">My Orders</h1>
+          <p className="text-gray-500">Manage your assigned orders</p>
         </div>
-        <div className="text-sm text-gray-500">
-          {filteredJobs.length} jobs • {filteredJobs.filter(j => j.status === 'pending').length} pending
+        
+        {/* Search */}
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+            data-testid="input-search-jobs"
+          />
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Input
-          placeholder="Search by customer, address, or service..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1"
-          data-testid="input-search-jobs"
-        />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="processing">Processing</SelectItem>
-            <SelectItem value="in_revision">In Revision</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-priority-filter">
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Priority</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Download Progress Dialog */}
@@ -514,238 +446,30 @@ export default function EditorJobs() {
         </DialogContent>
       </Dialog>
 
-      {/* Jobs List */}
-      <div className="space-y-4">
-        {filteredJobs.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <FileImage className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria</p>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredJobs.map((job) => (
-            <Card key={job.orderId} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <FileImage className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{job.customerName || 'Business Name Missing'}</h3>
-                        <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-order-${job.orderNumber}`}>
-                          #{job.orderNumber}
-                        </Badge>
-
-                        {/* Connection Status Indicator */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <div className="flex items-center gap-1">
-                                {getConnectionStatusIcon(job)}
-                                <Link className="w-3 h-3 text-gray-400" />
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <div className="max-w-xs">
-                                <div className="font-semibold mb-1">Job-Order Connection</div>
-                                <div className="text-xs space-y-1">
-                                  <div>Job ID: {job.jobId}</div>
-                                  <div>Order: #{job.orderNumber}</div>
-                                  {job.connectionStatus?.orderDbId && (
-                                    <div>Order DB ID: {job.connectionStatus.orderDbId}</div>
-                                  )}
-                                  {job.connectionStatus?.issues && job.connectionStatus.issues.length > 0 && (
-                                    <div className="mt-2 p-2 bg-red-50 rounded text-red-800 text-xs">
-                                      <div className="font-medium mb-1">Issues:</div>
-                                      {job.connectionStatus.issues.map((issue, idx) => (
-                                        <div key={idx}>• {issue}</div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
-                        <Badge className={getStatusColor(job.status)}>
-                          {job.status.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600 mb-2">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        {job.address}
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1" />
-                          Due: {job.dueDate}
-                        </span>
-                        <span>{job.services?.[0]?.name || 'No service'}</span>
-                        <span>{job.originalFiles?.length || 0} files • {job.services?.length || 0} services</span>
-                      </div>
-                      {job.services && job.services.length > 0 && job.services.some(s => s.instructions) && (
-                        <Collapsible className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" className="w-full justify-start p-0 h-auto">
-                              <span className="font-bold mr-2">Instructions:</span>
-                              <Info className="w-4 h-4 mr-1" />
-                              Click to view
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="mt-2 space-y-1">
-                            {job.services
-                              .filter(service => service.instructions)
-                              .map((service, index) => (
-                                <div key={index} className="ml-2 border-l pl-3 border-blue-200 bg-white p-2 rounded">
-                                  <div className="font-medium text-blue-800 text-xs uppercase tracking-wide mb-1">
-                                    {service.name} ({service.quantity}x)
-                                  </div>
-                                  <div className="text-gray-700">
-                                    {(() => {
-                                      try {
-                                        // Try to parse as JSON
-                                        const parsed = JSON.parse(service.instructions);
-                                        if (Array.isArray(parsed)) {
-                                          return (
-                                            <div className="space-y-2">
-                                              {parsed.map((item, idx) => (
-                                                <div key={idx} className="bg-gray-50 p-2 rounded border-l-2 border-blue-300">
-                                                  {typeof item === 'object' ? (
-                                                    <div>
-                                                      {item.fileName && <div className="font-medium text-gray-800">File: {item.fileName}</div>}
-                                                      {item.detail && <div className="text-sm mt-1">{item.detail}</div>}
-                                                      {item.instruction && <div className="text-sm mt-1">{item.instruction}</div>}
-                                                      {item.notes && <div className="text-sm text-gray-600 mt-1">Notes: {item.notes}</div>}
-                                                    </div>
-                                                  ) : (
-                                                    <div>{String(item)}</div>
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          );
-                                        } else if (typeof parsed === 'object') {
-                                          return (
-                                            <div className="bg-gray-50 p-2 rounded border-l-2 border-blue-300">
-                                              {parsed.fileName && <div className="font-medium text-gray-800">File: {parsed.fileName}</div>}
-                                              {parsed.detail && <div className="text-sm mt-1">{parsed.detail}</div>}
-                                              {parsed.instruction && <div className="text-sm mt-1">{parsed.instruction}</div>}
-                                              {parsed.notes && <div className="text-sm text-gray-600 mt-1">Notes: {parsed.notes}</div>}
-                                            </div>
-                                          );
-                                        } else {
-                                          return <div>{String(parsed)}</div>;
-                                        }
-                                      } catch (e) {
-                                        // If not valid JSON, display as plain text
-                                        return <div>{service.instructions}</div>;
-                                      }
-                                    })()}
-                                  </div>
-                                </div>
-                              ))}
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col space-y-2 ml-4">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDownloadFiles(job)}
-                      disabled={job.status === 'pending'}
-                      data-testid={`button-download-${job.orderNumber}`}
-                      className={job.status === 'pending' ? 'opacity-50 cursor-not-allowed' : ''}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Files
-                    </Button>
-                    {job.status === 'pending' && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => {
-                            setSelectedOrderId(job.orderId);
-                            setShowAcceptDialog(true);
-                          }}
-                          data-testid={`button-accept-${job.id}`}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Accept Order
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-300 text-red-600 hover:bg-red-50"
-                          onClick={() => {
-                            setSelectedOrderId(job.orderId);
-                            setShowDeclineDialog(true);
-                          }}
-                          data-testid={`button-decline-${job.id}`}
-                        >
-                          <XCircle className="w-4 h-4 mr-2" />
-                          Decline Order
-                        </Button>
-                      </>
-                    )}
-                    {job.status === 'processing' && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => handleUploadClick(job)}
-                          data-testid={`button-upload-${job.id}`}
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Results
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="bg-gray-600 hover:bg-gray-700 text-white"
-                          onClick={() => {
-                            setSelectedJobId(job.jobId);
-                            setShowCompleteDialog(true);
-                          }}
-                          data-testid={`button-complete-${job.id}`}
-                        >
-                          Mark Complete
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+      {/* Kanban Board */}
+      <EditorOrdersKanban
+        jobs={filteredJobs}
+        onDownloadFiles={handleDownloadFiles}
+        onUploadClick={handleUploadClick}
+        onAcceptOrder={onAcceptOrder}
+        onDeclineOrder={onDeclineOrder}
+        onMarkComplete={onMarkComplete}
+        onViewInstructions={onViewInstructions}
+        onStartQC={onStartQC}
+        onViewFeedback={onViewFeedback}
+      />
 
       {/* Upload Modal */}
-      {selectedJob && (
-        <FileUploadModal
-          isOpen={isUploadOpen}
-          onClose={() => {
-            setIsUploadOpen(false);
-            setSelectedJob(null);
-          }}
-          serviceName={selectedJob.services?.[0]?.name || "Deliverables"}
-          serviceId={selectedJob.jobId}
-          userId={auth.currentUser?.uid || ""}
-          jobId={selectedJob.jobId}
-          uploadType="completed"
-          orderNumber={selectedJob.orderNumber}
-          onFilesUpload={(serviceId, files, orderNumber) => {
-            handleUploadComplete(selectedJob.jobId, files);
-          }}
-        />
-      )}
+      <EditorUploadWorkModal
+        isOpen={isUploadOpen}
+        onClose={() => {
+          setIsUploadOpen(false);
+          setSelectedJob(null);
+        }}
+        selectedJob={selectedJob}
+        jobs={jobs}
+        onUploadComplete={handleUploadComplete}
+      />
 
       {/* Accept Order Confirmation Dialog */}
       <AlertDialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
@@ -804,22 +528,42 @@ export default function EditorJobs() {
       <AlertDialog open={showCompleteDialog} onOpenChange={setShowCompleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Mark Order as Complete?</AlertDialogTitle>
+            <AlertDialogTitle>Send for QC Review?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to mark this order as complete? This will notify the partner that the work is finished.
+              Are you sure you want to mark this order as complete? This will send the order to the Human Check stage for quality control review before delivery.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleMarkComplete}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-semantic-purple hover:bg-semantic-purple/90"
             >
-              Mark as Complete
+              Send for QC
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Order Instructions Modal */}
+      <OrderInstructionsModal
+        isOpen={showInstructionsModal}
+        onClose={() => {
+          setShowInstructionsModal(false);
+          setInstructionsJob(null);
+        }}
+        job={instructionsJob}
+      />
+
+      {/* Revision Feedback Modal */}
+      <RevisionFeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => {
+          setShowFeedbackModal(false);
+          setFeedbackJob(null);
+        }}
+        job={feedbackJob}
+      />
     </div>
   );
 }

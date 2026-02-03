@@ -271,6 +271,59 @@ export function isTeamMemberAvailable(
 }
 
 // ============================================================================
+// Google Calendar busy blocks (two-way sync)
+// ============================================================================
+
+export interface GoogleCalendarBusyBlock {
+  start: string;
+  end: string;
+  title?: string;
+}
+
+export function useGoogleCalendarBusy(
+  partnerId: string,
+  date: Date | null
+) {
+  const dayStart = date
+    ? new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    : null;
+  const dayEnd = date
+    ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
+    : null;
+  return useQuery<GoogleCalendarBusyBlock[]>({
+    queryKey: ['/api/calendar/google/busy', partnerId, dayStart?.toISOString(), dayEnd?.toISOString()],
+    enabled: !!partnerId && !!date,
+    queryFn: async () => {
+      if (!partnerId || !dayStart || !dayEnd) return [];
+      const params = new URLSearchParams({
+        partnerId,
+        start: dayStart.toISOString(),
+        end: dayEnd.toISOString(),
+      });
+      const res = await fetch(`/api/calendar/google/busy?${params}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+function slotOverlapsBusyBlocks(
+  slotStartMin: number,
+  slotEndMin: number,
+  busyBlocks: GoogleCalendarBusyBlock[],
+  date: Date
+): boolean {
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  for (const block of busyBlocks) {
+    const blockStartMin = Math.max(0, (new Date(block.start).getTime() - dayStart) / 60000);
+    const blockEndMin = Math.min(24 * 60, (new Date(block.end).getTime() - dayStart) / 60000);
+    if (slotStartMin < blockEndMin && slotEndMin > blockStartMin) return true;
+  }
+  return false;
+}
+
+// ============================================================================
 // Appointments
 // ============================================================================
 
@@ -775,6 +828,7 @@ export function useAvailableTimeSlots(
     end: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
   } : undefined);
   const { data: settings } = usePublicBookingConfig(partnerId);
+  const { data: googleBusyBlocks = [] } = useGoogleCalendarBusy(partnerId, date);
   
   // Pre-fetch drive times from Google Maps API
   const { data: driveTimesMap, isLoading: driveTimesLoading } = useDriveTimes(newLocation, appointments);
@@ -1017,16 +1071,24 @@ export function useAvailableTimeSlots(
           }
         }
 
+        const slotStartMin = parseTimeToMinutes(timeStr);
+        const slotEndMin = slotStartMin + serviceDuration;
+        const overlapsGoogle = slotOverlapsBusyBlocks(slotStartMin, slotEndMin, googleBusyBlocks, date);
+        const finalAvailable = overlapsGoogle ? [] : availableTeamMembers;
+        const finalReason = overlapsGoogle
+          ? 'Google Calendar busy'
+          : (finalAvailable.length === 0 ? lastConflictReason || 'No team members available' : undefined);
+
         allSlots.push({
           time: timeStr,
-          available: availableTeamMembers.length > 0,
-          teamMemberIds: availableTeamMembers,
-          conflictReason: availableTeamMembers.length === 0 ? lastConflictReason || 'No team members available' : undefined,
+          available: finalAvailable.length > 0,
+          teamMemberIds: finalAvailable,
+          conflictReason: finalAvailable.length === 0 ? finalReason : undefined,
         });
       }
 
     return allSlots;
-  }, [date, duration, teamMemberId, newLocation, teamMembers, availability, appointments, settings, driveTimesMap]);
+  }, [date, duration, teamMemberId, newLocation, teamMembers, availability, appointments, settings, driveTimesMap, googleBusyBlocks]);
 
   return { slots, isLoading: driveTimesLoading };
 }

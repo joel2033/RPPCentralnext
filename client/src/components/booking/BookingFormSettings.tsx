@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePartnerBookingConfig } from "@/lib/booking";
+import { apiRequest } from "@/lib/queryClient";
+import { auth } from "@/lib/firebase";
 import type { BookingFormSettings as BookingSettings, CustomQuestion } from "@/lib/booking/types";
 import {
   Link2,
@@ -31,6 +34,9 @@ import {
   GripVertical,
   ExternalLink,
   Settings,
+  MapPin,
+  Calendar,
+  Loader2,
 } from "lucide-react";
 
 export interface BookingFormSettingsProps {
@@ -48,6 +54,33 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
     updateSettings,
     isUpdating,
   } = usePartnerBookingConfig(partnerId);
+
+  const queryClient = useQueryClient();
+  const { data: calendarStatus, isLoading: calendarStatusLoading } = useQuery<{ connected: boolean; twoWaySyncEnabled: boolean }>({
+    queryKey: ["/api/calendar/google/status"],
+    enabled: !!partnerId,
+    queryFn: async () => {
+      const res = await apiRequest("/api/calendar/google/status", "GET");
+      return res.json();
+    },
+  });
+  const updateCalendarSettingsMutation = useMutation({
+    mutationFn: async (twoWaySyncEnabled: boolean) => {
+      const res = await apiRequest("/api/calendar/google/settings", "PUT", { twoWaySyncEnabled });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/status"] });
+    },
+  });
+  const disconnectCalendarMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("/api/calendar/google/disconnect", "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/status"] });
+    },
+  });
 
   // Local state for form
   const [formState, setFormState] = useState<Partial<BookingSettings>>({});
@@ -95,6 +128,60 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
       onRegisterSave(handleSave);
     }
   }, [onRegisterSave, handleSave]);
+
+  // Handle OAuth redirect (Google Calendar connect callback)
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    const parts = hash.replace("#", "").split("&");
+    const params = Object.fromEntries(parts.map((p) => {
+      const [k, v] = p.split("=");
+      return [k || "", v || ""];
+    }));
+    const calendarConnected = params.calendar_connected === "1";
+    const calendarError = params.calendar_error ? decodeURIComponent(params.calendar_error) : null;
+    if (calendarConnected) {
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/google/status"] });
+      toast({ title: "Google Calendar connected", description: "Your calendar is now linked." });
+      window.history.replaceState(null, "", window.location.pathname + "#booking");
+    }
+    if (calendarError) {
+      toast({ title: "Google Calendar error", description: calendarError, variant: "destructive" });
+      window.history.replaceState(null, "", window.location.pathname + "#booking");
+    }
+  }, [queryClient, toast]);
+
+  const handleConnectGoogleCalendar = useCallback(async () => {
+    try {
+      const res = await fetch("/api/calendar/google/auth-url", {
+        method: "GET",
+        headers: auth.currentUser
+          ? { Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }
+          : {},
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 503 && (data.code === "GOOGLE_CALENDAR_NOT_CONFIGURED" || data.code === "GOOGLE_CALENDAR_BASE_URL_REQUIRED")) {
+          toast({
+            title: "Google Calendar not configured",
+            description: data.detail || "Add GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET (and BASE_URL if needed) to the server environment.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const errMsg = data.error || data.detail || `Request failed (${res.status})`;
+        toast({
+          title: "Failed to connect",
+          description: typeof errMsg === "string" ? errMsg : String(data.error || res.status),
+          variant: "destructive",
+        });
+        return;
+      }
+      if (data.authUrl) window.location.href = data.authUrl;
+    } catch (e) {
+      toast({ title: "Failed to connect", description: (e as Error).message, variant: "destructive" });
+    }
+  }, [toast]);
 
   // Custom questions management
   const addCustomQuestion = () => {
@@ -191,6 +278,63 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
             />
             <Label>Enable online booking</Label>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Calendar */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Google Calendar
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Sync appointments to Google Calendar and block out times from your calendar when two-way sync is on
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {calendarStatusLoading ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading…
+            </div>
+          ) : calendarStatus?.connected ? (
+            <>
+              <div className="flex items-center gap-2 text-green-600">
+                <Check className="w-4 h-4" />
+                <span>Connected to Google Calendar</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <Label className="font-medium">Two-way sync</Label>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Block out times in booking when you have events in Google Calendar
+                  </p>
+                </div>
+                <Switch
+                  checked={calendarStatus.twoWaySyncEnabled}
+                  onCheckedChange={(checked) => updateCalendarSettingsMutation.mutate(checked)}
+                  disabled={updateCalendarSettingsMutation.isPending}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => disconnectCalendarMutation.mutate()}
+                disabled={disconnectCalendarMutation.isPending}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                {disconnectCalendarMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Disconnect
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleConnectGoogleCalendar} className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Connect Google Calendar
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -380,6 +524,88 @@ export function BookingFormSettings({ onRegisterSave }: BookingFormSettingsProps
               </p>
             </div>
           </CardContent>
+      </Card>
+
+      {/* Service Area Restrictions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Service Area Restrictions (If applicable)
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Control where new bookings can be made by restricting them to your specified service areas.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() =>
+                setFormState((prev) => ({
+                  ...prev,
+                  restrictToServiceAreas: false,
+                }))
+              }
+              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                formState.restrictToServiceAreas === false || formState.restrictToServiceAreas === undefined
+                  ? "border-[#f2572c] bg-[#f2572c]/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                  formState.restrictToServiceAreas === false || formState.restrictToServiceAreas === undefined
+                    ? "border-[#f2572c]"
+                    : "border-gray-300"
+                }`}>
+                  {(formState.restrictToServiceAreas === false || formState.restrictToServiceAreas === undefined) && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#f2572c]" />
+                  )}
+                </div>
+                <div>
+                  <Label className="font-medium cursor-pointer">Allow bookings in all areas</Label>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Enable this option if you want to accept bookings for any location, even outside of your predefined service areas. Ideal for businesses with a broader reach.
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                setFormState((prev) => ({
+                  ...prev,
+                  restrictToServiceAreas: true,
+                }))
+              }
+              className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                formState.restrictToServiceAreas === true
+                  ? "border-[#f2572c] bg-[#f2572c]/5"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                  formState.restrictToServiceAreas === true
+                    ? "border-[#f2572c]"
+                    : "border-gray-300"
+                }`}>
+                  {formState.restrictToServiceAreas === true && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#f2572c]" />
+                  )}
+                </div>
+                <div>
+                  <Label className="font-medium cursor-pointer">Restrict to service areas only</Label>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Choose this option to limit bookings to your designated service areas. Customers located outside these areas will be prompted to contact you.
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Team Selection */}

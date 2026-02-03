@@ -40,7 +40,9 @@ import {
   type Conversation,
   type InsertConversation,
   type Message,
-  type InsertMessage
+  type InsertMessage,
+  type ServiceArea,
+  type InsertServiceArea
 } from "@shared/schema";
 import { adminDb } from "./firebase-admin";
 import { type IStorage, type OrderReservation } from "./storage";
@@ -421,6 +423,20 @@ export class FirestoreStorage implements IStorage {
     return docSnap.exists ? docToObject<Order>(docSnap) : undefined;
   }
 
+  async getOrderByNumber(orderNumber: string, partnerId: string): Promise<Order | undefined> {
+    const snapshot = await this.db.collection("orders")
+      .where("orderNumber", "==", orderNumber)
+      .where("partnerId", "==", partnerId)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) {
+      return undefined;
+    }
+    
+    return docToObject<Order>(snapshot.docs[0]);
+  }
+
   async getOrders(partnerId: string): Promise<Order[]> {
     const ref = this.db.collection("orders");
     const snapshot = await ref.where("partnerId", "==", partnerId).get();
@@ -597,7 +613,14 @@ export class FirestoreStorage implements IStorage {
     
     // Get job details, services, customer info, and files for each order
     const jobPromises = orders.map(async (order) => {
-      const job = order.jobId ? await this.getJobByJobId(order.jobId) : null;
+      // order.jobId may be the job document id (from CreateOrderModal) or the human-readable jobId
+      let job = null;
+      if (order.jobId) {
+        job = await this.getJob(order.jobId).catch(() => undefined) ?? undefined;
+        if (!job) {
+          job = await this.getJobByJobId(order.jobId).catch(() => undefined) ?? undefined;
+        }
+      }
       
       // Get partner's business name from partnerSettings
       let businessName = "Business Name Missing";
@@ -635,6 +658,36 @@ export class FirestoreStorage implements IStorage {
         .get();
       const existingUploads = uploadsSnapshot.docs.map(doc => docToObject<EditorUpload>(doc));
       
+      // Get file comments for orders in revision status
+      let fileComments: any[] = [];
+      if (order.status === 'in_revision') {
+        fileComments = await this.getFileCommentsForOrder(order.id);
+      }
+
+      // Resolve customer editing preferences for editors (from customer profile in partner dashboard)
+      let editingPreferences: any[] = [];
+      const customerId = order.customerId || job?.customerId;
+      if (customerId && order.partnerId) {
+        try {
+          const [options, preferences] = await Promise.all([
+            this.getEditingOptions(order.partnerId),
+            this.getCustomerEditingPreferences(customerId)
+          ]);
+          editingPreferences = options.map((option: any) => {
+            const pref = preferences.find((p: any) => p.editingOptionId === option.id);
+            return {
+              id: option.id,
+              name: option.name,
+              description: option.description ?? undefined,
+              isEnabled: pref?.isEnabled ?? false,
+              notes: pref?.notes ?? undefined
+            };
+          });
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for order:", order.id, prefErr);
+        }
+      }
+      
       return {
         id: order.id,
         jobId: order.jobId || "",
@@ -649,7 +702,11 @@ export class FirestoreStorage implements IStorage {
         originalFiles: originalFiles || [],
         existingUploads: existingUploads || [],
         jobAddress: job?.address || "Unknown Address",
-        partnerId: order.partnerId // Include partnerId for security checks
+        partnerId: order.partnerId, // Include partnerId for security checks
+        revisionNotes: (order as any).revisionNotes || null,
+        revisionCount: (order as any).usedRevisionRounds || 0,
+        fileComments: fileComments,
+        editingPreferences
       };
     });
 
@@ -732,6 +789,11 @@ export class FirestoreStorage implements IStorage {
     return snapshot.docs.map(doc => docToObject<EditorService>(doc));
   }
 
+  async getEditorService(serviceId: string): Promise<EditorService | undefined> {
+    const docSnap = await this.db.collection("editorServices").doc(serviceId).get();
+    return docSnap.exists ? docToObject<EditorService>(docSnap) : undefined;
+  }
+
   async createEditorService(service: InsertEditorService): Promise<EditorService> {
     const id = nanoid();
     const newService: EditorService = {
@@ -782,8 +844,14 @@ export class FirestoreStorage implements IStorage {
   // Editor Uploads
   async getJobsReadyForUpload(editorId: string): Promise<any[]> {
     const orders = await this.getEditorJobs(editorId);
+    // Include all statuses that should appear in the kanban board
     const filtered = orders.filter((order: any) => 
-      order.status === "pending" || order.status === "processing" || order.status === "uploaded"
+      order.status === "pending" || 
+      order.status === "processing" || 
+      order.status === "in_revision" ||
+      order.status === "human_check" ||
+      order.status === "completed" ||
+      order.status === "uploaded"
     );
     return filtered;
   }
@@ -791,6 +859,17 @@ export class FirestoreStorage implements IStorage {
   async getEditorUploads(jobId: string): Promise<EditorUpload[]> {
     const snapshot = await this.db.collection("editorUploads").where("jobId", "==", jobId).get();
     return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+  }
+
+  async getEditorUploadsForOrder(orderId: string): Promise<EditorUpload[]> {
+    const snapshot = await this.db.collection("editorUploads").where("orderId", "==", orderId).get();
+    return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+  }
+
+  async getEditorUpload(fileId: string): Promise<EditorUpload | undefined> {
+    const doc = await this.db.collection("editorUploads").doc(fileId).get();
+    if (!doc.exists) return undefined;
+    return docToObject<EditorUpload>(doc);
   }
 
   async createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload> {
@@ -833,10 +912,13 @@ export class FirestoreStorage implements IStorage {
     const now = Timestamp.now();
     const snapshot = await this.db.collection("editorUploads")
       .where("status", "==", "for_editing")
-      .where("expiresAt", "<=", now.toDate())
+      .where("expiresAt", "<=", now) // Compare Timestamp to Timestamp for consistency
       .get();
 
-    return snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
+    // Filter out any files with null/undefined expiresAt as a safety check
+    return snapshot.docs
+      .map(doc => docToObject<EditorUpload>(doc))
+      .filter(file => file.expiresAt != null);
   }
 
   async deleteExpiredOrderFile(fileId: string, firebaseUrl: string): Promise<void> {
@@ -895,7 +977,7 @@ export class FirestoreStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; fileCount: number; files: any[]; folderToken?: string; isVisible: boolean; displayOrder?: number}[]> {
+  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; fileCount: number; files: any[]; folderToken?: string; isVisible: boolean; displayOrder?: number}[]> {
     const snapshot = await this.db.collection("editorUploads").where("jobId", "==", jobId).get();
     const uploads = snapshot.docs.map(doc => docToObject<EditorUpload>(doc));
 
@@ -981,9 +1063,8 @@ export class FirestoreStorage implements IStorage {
           uniqueKey,
           rawFolderPath: rawPath,
           folderPath: normalizedPath || rawPath,
-          // For folders with folderToken (created via "Add Content"), don't set editorFolderName
-          // This ensures partnerFolderName (user-provided name) is always used for display
-          editorFolderName: folderData.folderToken ? "" : (folderData.editorFolderName || ""),
+          // Use editorFolderName from the folder document, fallback to partnerFolderName
+          editorFolderName: folderData.editorFolderName || folderData.partnerFolderName || "",
           partnerFolderName: folderData.partnerFolderName || undefined,
           folderToken: folderData.folderToken,
           orderId: folderData.orderId || undefined,
@@ -1001,6 +1082,7 @@ export class FirestoreStorage implements IStorage {
         console.log('[getUploadFolders] Added folder from folders collection:', {
           uniqueKey,
           folderPath: normalizedPath || rawPath,
+          editorFolderName: folderData.editorFolderName,
           partnerFolderName: folderData.partnerFolderName,
           folderToken: folderData.folderToken
         });
@@ -1036,39 +1118,55 @@ export class FirestoreStorage implements IStorage {
         return;
       }
 
+      let folder: FolderAccumulator | undefined;
+      
       if (!folderMap.has(uniqueKey)) {
-        // Folder doesn't exist yet - create it from upload
-        // This happens for folders that don't exist in the folders collection
+        // Check if a folder with the same path already exists in pathIndex
+        // This handles cases where uploads have different folderTokens than the folder document
+        const existingByPath = pathIndex.get(normalizedPath || rawPath)?.[0] || pathIndex.get(rawPath)?.[0];
+        
+        if (existingByPath) {
+          // Use the existing folder instead of creating a new one
+          folder = existingByPath;
+          if (upload.orderId) {
+            orderIds.add(upload.orderId);
+          }
+        } else {
+          // Folder doesn't exist yet - create it from upload
+          // This happens for folders that don't exist in the folders collection
+          if (upload.orderId) {
+            orderIds.add(upload.orderId);
+          }
+
+          const accumulator: FolderAccumulator = {
+            uniqueKey,
+            rawFolderPath: rawPath,
+            folderPath: normalizedPath || rawPath,
+            editorFolderName: upload.editorFolderName || "",
+            partnerFolderName: upload.partnerFolderName || undefined,
+            folderToken: upload.folderToken || undefined,
+            orderId: upload.orderId || null,
+            orderNumber: undefined,
+            isVisible: true,
+            displayOrder: undefined,
+            fileCount: 0,
+            files: []
+          };
+
+          folderMap.set(uniqueKey, accumulator);
+          registerInPathIndex(rawPath, accumulator);
+          if (normalizedPath && normalizedPath !== rawPath) {
+            registerInPathIndex(normalizedPath, accumulator);
+          }
+          folder = accumulator;
+        }
+      } else {
         if (upload.orderId) {
+          // Track orderIds for existing folders
           orderIds.add(upload.orderId);
         }
-
-        const accumulator: FolderAccumulator = {
-          uniqueKey,
-          rawFolderPath: rawPath,
-          folderPath: normalizedPath || rawPath,
-          editorFolderName: upload.editorFolderName || "",
-          partnerFolderName: upload.partnerFolderName || undefined,
-          folderToken: upload.folderToken || undefined,
-          orderId: upload.orderId || null,
-          orderNumber: undefined,
-          isVisible: true,
-          displayOrder: undefined,
-          fileCount: 0,
-          files: []
-        };
-
-        folderMap.set(uniqueKey, accumulator);
-        registerInPathIndex(rawPath, accumulator);
-        if (normalizedPath && normalizedPath !== rawPath) {
-          registerInPathIndex(normalizedPath, accumulator);
-        }
-      } else if (upload.orderId) {
-        // Track orderIds for existing folders
-        orderIds.add(upload.orderId);
+        folder = folderMap.get(uniqueKey);
       }
-
-      const folder = folderMap.get(uniqueKey);
       if (!folder) return;
 
       // Ensure we retain whichever orderId is set first for this folder
@@ -1096,8 +1194,9 @@ export class FirestoreStorage implements IStorage {
     });
 
 
-    // Lookup order numbers for folders associated with orders
+    // Lookup order numbers and statuses for folders associated with orders
     let orderNumberMap: Map<string, string> | undefined;
+    let orderStatusMap: Map<string, string> | undefined;
     if (orderIds.size > 0) {
       const orderFetches = Array.from(orderIds).map(async (orderId) => {
         const docSnap = await this.db.collection("orders").doc(orderId).get();
@@ -1105,14 +1204,20 @@ export class FirestoreStorage implements IStorage {
           return null;
         }
         const order = docToObject<Order>(docSnap);
-        return order?.orderNumber ? { orderId, orderNumber: order.orderNumber } : null;
+        return order ? { orderId, orderNumber: order.orderNumber, status: order.status } : null;
       });
 
       const orderResults = await Promise.all(orderFetches);
       orderNumberMap = new Map<string, string>();
+      orderStatusMap = new Map<string, string>();
       orderResults.forEach(result => {
-        if (result?.orderNumber) {
-          orderNumberMap!.set(result.orderId, result.orderNumber);
+        if (result) {
+          if (result.orderNumber) {
+            orderNumberMap!.set(result.orderId, result.orderNumber);
+          }
+          if (result.status) {
+            orderStatusMap!.set(result.orderId, result.status);
+          }
         }
       });
     }
@@ -1121,6 +1226,17 @@ export class FirestoreStorage implements IStorage {
       if (folder.orderId && orderNumberMap?.has(folder.orderId)) {
         folder.orderNumber = orderNumberMap.get(folder.orderId);
       }
+
+      // Filter files to only include those where the order status is 'completed' (QC passed)
+      // Files without an orderId are also filtered out (they need to be associated with an order)
+      // This ensures files don't appear in delivery until human check passes
+      const filteredFiles = folder.files.filter(file => {
+        if (!file.orderId) {
+          return false; // No order association - don't show
+        }
+        const orderStatus = orderStatusMap?.get(file.orderId);
+        return orderStatus === 'completed'; // Only show if order passed QC
+      });
 
       const visibilityKey = this.getFolderVisibilityKey(jobId, {
         uniqueKey: folder.uniqueKey,
@@ -1138,8 +1254,8 @@ export class FirestoreStorage implements IStorage {
         partnerFolderName: folder.partnerFolderName,
         orderId: folder.orderId || null,
         orderNumber: folder.orderNumber,
-        fileCount: folder.fileCount,
-        files: folder.files,
+        fileCount: filteredFiles.length, // Use filtered file count
+        files: filteredFiles, // Use filtered files
         folderToken: folder.folderToken,
         isVisible: typeof folder.isVisible === 'boolean' ? folder.isVisible : true,
         displayOrder: folder.displayOrder
@@ -1156,7 +1272,7 @@ export class FirestoreStorage implements IStorage {
     return folders;
   }
 
-  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, _orderId?: string, providedFolderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken: string}> {
+  async createFolder(jobId: string, partnerFolderName: string, parentFolderPath?: string, orderId?: string, providedFolderToken?: string): Promise<{folderPath: string; partnerFolderName: string; folderToken: string}> {
     const folderToken = providedFolderToken || nanoid(16);
     // Use relative paths without completed/ or orders/ prefix for consistency
     const folderPath = parentFolderPath
@@ -1177,15 +1293,30 @@ export class FirestoreStorage implements IStorage {
     });
 
     const folderId = nanoid();
-    await this.db.collection("folders").doc(folderId).set({
+    const folderDoc = {
+      jobId,
+      folderPath,
+      partnerFolderName,
+      // Store editorFolderName same as partnerFolderName for editor-created folders
+      editorFolderName: partnerFolderName,
+      folderToken,
+      // Store orderId to associate folder with specific order
+      orderId: orderId || null,
+      isVisible: true,
+      displayOrder: maxDisplayOrder + 1,
+      createdAt: Timestamp.now()
+    };
+    
+    console.log(`[FirestoreStorage.createFolder] Creating folder with doc:`, JSON.stringify({
+      folderId,
       jobId,
       folderPath,
       partnerFolderName,
       folderToken,
-      isVisible: true,
-      displayOrder: maxDisplayOrder + 1,
-      createdAt: Timestamp.now()
-    });
+      orderId: orderId || null
+    }));
+    
+    await this.db.collection("folders").doc(folderId).set(folderDoc);
 
     return { folderPath, partnerFolderName, folderToken };
   }
@@ -1478,6 +1609,25 @@ export class FirestoreStorage implements IStorage {
     }
 
     await this.db.collection("notifications").doc(id).delete();
+  }
+
+  async deleteAllNotifications(recipientId: string, partnerId: string): Promise<void> {
+    const notificationsSnapshot = await this.db
+      .collection("notifications")
+      .where("recipientId", "==", recipientId)
+      .where("partnerId", "==", partnerId)
+      .get();
+
+    if (notificationsSnapshot.empty) {
+      return;
+    }
+
+    const batch = this.db.batch();
+    notificationsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
   }
 
   // Activity Tracking (Audit Log)
@@ -1863,7 +2013,8 @@ export class FirestoreStorage implements IStorage {
         businessProfile: settings.businessProfile || null,
         personalProfile: settings.personalProfile || null,
         businessHours: settings.businessHours || null,
-        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds !== undefined ? settings.defaultMaxRevisionRounds : 2,
+        enableClientRevisionLimit: settings.enableClientRevisionLimit !== undefined ? settings.enableClientRevisionLimit : false,
+        clientRevisionRoundLimit: settings.clientRevisionRoundLimit !== undefined ? settings.clientRevisionRoundLimit : 2,
         editorDisplayNames: settings.editorDisplayNames || null,
         teamMemberColors: settings.teamMemberColors || null,
         bookingSettings: (settings as any).bookingSettings || null,
@@ -1885,6 +2036,11 @@ export class FirestoreStorage implements IStorage {
 
   async getJobFileComments(jobId: string): Promise<FileComment[]> {
     const snapshot = await this.db.collection("fileComments").where("jobId", "==", jobId).get();
+    return snapshot.docs.map(doc => docToObject<FileComment>(doc));
+  }
+
+  async getFileCommentsForOrder(orderId: string): Promise<FileComment[]> {
+    const snapshot = await this.db.collection("fileComments").where("orderId", "==", orderId).get();
     return snapshot.docs.map(doc => docToObject<FileComment>(doc));
   }
 
@@ -2145,6 +2301,57 @@ export class FirestoreStorage implements IStorage {
     };
     await this.db.collection("messages").doc(id).set(prepareForFirestore(newMessage));
     return newMessage;
+  }
+
+  // Service Areas Implementation
+  async getServiceAreas(partnerId: string): Promise<ServiceArea[]> {
+    // Simple query without compound index requirement - filter in memory
+    const snapshot = await this.db.collection("service_areas")
+      .where("partnerId", "==", partnerId)
+      .get();
+    const areas = snapshot.docs.map(doc => docToObject<ServiceArea>(doc));
+    // Sort by createdAt in memory
+    return areas.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateA - dateB;
+    });
+  }
+
+  async getServiceArea(id: string): Promise<ServiceArea | undefined> {
+    const doc = await this.db.collection("service_areas").doc(id).get();
+    return doc.exists ? docToObject<ServiceArea>(doc) : undefined;
+  }
+
+  async createServiceArea(serviceArea: InsertServiceArea): Promise<ServiceArea> {
+    const id = nanoid();
+    const newServiceArea: ServiceArea = {
+      ...serviceArea,
+      id,
+      color: serviceArea.color || '#3B82F6',
+      assignedOperatorIds: serviceArea.assignedOperatorIds || null,
+      isActive: serviceArea.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    await this.db.collection("service_areas").doc(id).set(prepareForFirestore(newServiceArea));
+    return newServiceArea;
+  }
+
+  async updateServiceArea(id: string, updates: Partial<ServiceArea>): Promise<ServiceArea | undefined> {
+    const existing = await this.getServiceArea(id);
+    if (!existing) return undefined;
+    
+    const updateData = {
+      ...updates,
+      updatedAt: new Date()
+    };
+    await this.db.collection("service_areas").doc(id).update(prepareForFirestore(updateData));
+    return { ...existing, ...updateData } as ServiceArea;
+  }
+
+  async deleteServiceArea(id: string): Promise<void> {
+    await this.db.collection("service_areas").doc(id).delete();
   }
 }
 

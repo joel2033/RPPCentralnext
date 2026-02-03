@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Upload, FileImage, Calendar, DollarSign, Package, Loader2, Check, X } from "lucide-react";
+import { 
+  Clock, 
+  Upload, 
+  Loader2, 
+  Check, 
+  X, 
+  ChevronRight, 
+  RefreshCw, 
+  MessageSquare,
+  ArrowRight
+} from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { FileUploadModal } from "@/components/FileUploadModal";
 import { apiRequest } from "@/lib/queryClient";
@@ -38,7 +49,7 @@ interface EditorJob {
     downloadUrl: string;
   }>;
   existingUploads: Array<any>;
-  partnerId?: string; // For security validation
+  partnerId?: string;
 }
 
 export default function EditorDashboard() {
@@ -47,7 +58,6 @@ export default function EditorDashboard() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<EditorJob | null>(null);
   
-  // Confirmation dialog states
   const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
@@ -56,15 +66,15 @@ export default function EditorDashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Fetch jobs using API endpoint instead of direct Firestore
   const { data: editorJobs = [], isLoading } = useQuery<EditorJob[]>({
     queryKey: ['/api/editor/jobs-ready-for-upload'],
-    refetchInterval: 5000, // Poll every 5 seconds for updates
+    refetchInterval: 5000,
   });
 
+  const totalOrders = editorJobs.length;
+  const revisionJobs = editorJobs.filter(job => job.status === 'in_revision');
+  const processingJobs = editorJobs.filter(job => job.status === 'processing');
   const pendingJobs = editorJobs.filter(job => job.status === 'pending');
-  const inProgressJobs = editorJobs.filter(job => job.status === 'processing');
-  const completedThisWeek = editorJobs.filter(job => job.status === 'completed').length;
 
   const handleUploadClick = (job: EditorJob) => {
     setSelectedJob(job);
@@ -73,7 +83,6 @@ export default function EditorDashboard() {
 
   const handleUploadComplete = async (jobId: string, uploads: any[]) => {
     try {
-      // Record the uploads in the backend
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
 
@@ -90,7 +99,6 @@ export default function EditorDashboard() {
       });
 
       if (response.ok) {
-        // Refresh the jobs list
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs-ready-for-upload'] });
         queryClient.invalidateQueries({ queryKey: ['/api/editor/jobs'] });
 
@@ -196,22 +204,16 @@ export default function EditorDashboard() {
 
   const handleDownloadFiles = async (job: EditorJob) => {
     try {
-      console.log('Download button clicked for order:', job.orderNumber);
-      
-      // Show progress dialog
       setIsDownloading(true);
       setDownloadProgress(10);
       
-      // Create the API request with authentication headers
       const headers: Record<string, string> = {};
       
-      // Add auth header if user is authenticated
       if (auth.currentUser) {
         const token = await auth.currentUser.getIdToken();
         headers.Authorization = `Bearer ${token}`;
         setDownloadProgress(25);
       } else {
-        console.error('No authenticated user found');
         setIsDownloading(false);
         return;
       }
@@ -230,7 +232,6 @@ export default function EditorDashboard() {
 
       setDownloadProgress(70);
 
-      // Get the filename from the response headers
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = 'job_files.zip';
       if (contentDisposition) {
@@ -242,10 +243,8 @@ export default function EditorDashboard() {
 
       setDownloadProgress(85);
 
-      // Convert response to blob
       const blob = await response.blob();
       
-      // Create download link and trigger download
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -253,13 +252,11 @@ export default function EditorDashboard() {
       document.body.appendChild(link);
       link.click();
       
-      // Clean up
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
       setDownloadProgress(100);
       
-      // Hide dialog after a short delay
       setTimeout(() => {
         setIsDownloading(false);
         setDownloadProgress(0);
@@ -272,26 +269,75 @@ export default function EditorDashboard() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
-      case 'in_revision': return 'bg-orange-100 text-orange-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  // Calculate due time display
+  const getDueTimeDisplay = (dueDate: string) => {
+    const due = new Date(dueDate);
+    const now = new Date();
+    const diffMs = due.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffHours < 0) return { text: 'Overdue', urgent: true };
+    if (diffHours < 6) return { text: `Due in ${diffHours} hours`, urgent: true };
+    if (diffHours < 24) return { text: `Due in ${diffHours} hours`, urgent: false };
+    return { text: `Due in ${diffDays} day${diffDays > 1 ? 's' : ''}`, urgent: false };
+  };
+
+  // Get action button based on status
+  const getActionButton = (job: EditorJob) => {
+    switch (job.status) {
+      case 'pending':
+        return (
+          <Button 
+            size="sm" 
+            className="btn-primary-gradient"
+            onClick={() => {
+              setSelectedOrderId(job.orderId);
+              setShowAcceptDialog(true);
+            }}
+          >
+            Start
+          </Button>
+        );
+      case 'processing':
+        return (
+          <Button 
+            size="sm" 
+            className="btn-primary-gradient"
+            onClick={() => handleUploadClick(job)}
+          >
+            Continue
+          </Button>
+        );
+      case 'in_revision':
+        return (
+          <Button 
+            size="sm" 
+            className="btn-primary-gradient"
+            onClick={() => handleUploadClick(job)}
+          >
+            Fix
+          </Button>
+        );
+      default:
+        return null;
     }
   };
 
   if (isLoading) {
     return (
       <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-32 bg-gray-200 rounded"></div>
+        <div className="animate-pulse space-y-6">
+          <div className="h-10 bg-gray-200 rounded w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-24 bg-gray-200 rounded-xl"></div>
+            <div className="h-24 bg-gray-200 rounded-xl"></div>
+          </div>
+          <div className="h-16 bg-gray-200 rounded-xl"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded-xl"></div>
+            <div className="h-20 bg-gray-200 rounded-xl"></div>
+            <div className="h-20 bg-gray-200 rounded-xl"></div>
           </div>
         </div>
       </div>
@@ -299,23 +345,23 @@ export default function EditorDashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-rpp-grey-pale min-h-screen">
       {/* Download Progress Dialog */}
       <Dialog open={isDownloading} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="sm:max-w-md rounded-2xl" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-rpp-orange" />
               Preparing Download
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-rpp-grey">
               Zipping files and preparing your download...
             </p>
             <div className="space-y-2">
               <Progress value={downloadProgress} className="w-full" />
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-xs text-rpp-grey-light text-center">
                 {downloadProgress}% complete
               </p>
             </div>
@@ -343,9 +389,9 @@ export default function EditorDashboard() {
         />
       )}
 
-      {/* Accept Order Confirmation Dialog */}
+      {/* Accept Order Dialog */}
       <Dialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Accept Order</DialogTitle>
             <DialogDescription>
@@ -359,14 +405,13 @@ export default function EditorDashboard() {
                 setShowAcceptDialog(false);
                 setSelectedOrderId("");
               }}
-              data-testid="button-cancel-accept"
+              className="rounded-xl"
             >
               Cancel
             </Button>
             <Button 
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="btn-primary-gradient rounded-xl"
               onClick={handleAcceptOrder}
-              data-testid="button-confirm-accept"
             >
               <Check className="w-4 h-4 mr-2" />
               Accept Order
@@ -375,9 +420,9 @@ export default function EditorDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Decline Order Confirmation Dialog */}
+      {/* Decline Order Dialog */}
       <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Decline Order</DialogTitle>
             <DialogDescription>
@@ -385,16 +430,15 @@ export default function EditorDashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-rpp-grey-darkest mb-2 block">
               Reason for declining (optional)
             </label>
             <Textarea
               placeholder="Let the partner know why you're declining this order..."
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
-              className="w-full"
+              className="w-full rounded-xl"
               rows={4}
-              data-testid="textarea-decline-reason"
             />
           </div>
           <DialogFooter>
@@ -405,14 +449,14 @@ export default function EditorDashboard() {
                 setSelectedOrderId("");
                 setDeclineReason("");
               }}
-              data-testid="button-cancel-decline"
+              className="rounded-xl"
             >
               Cancel
             </Button>
             <Button 
               variant="destructive"
               onClick={handleDeclineOrder}
-              data-testid="button-confirm-decline"
+              className="rounded-xl"
             >
               <X className="w-4 h-4 mr-2" />
               Decline Order
@@ -421,183 +465,167 @@ export default function EditorDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Editor Dashboard</h1>
-          <p className="text-gray-600">Manage your editing projects and deliverables</p>
-        </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Package className="w-4 h-4 mr-2" />
-          My Products
-        </Button>
+      {/* Welcome Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-rpp-grey-darkest">Welcome back! 👋</h1>
+        <p className="text-rpp-grey">You have {totalOrders} orders to work on.</p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+          <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending Jobs</p>
-                <p className="text-2xl font-bold text-gray-900">{pendingJobs.length}</p>
+                <p className="text-sm text-rpp-grey">My Orders</p>
+                <p className="text-3xl font-bold text-rpp-grey-darkest">{totalOrders}</p>
               </div>
-              <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Download className="h-4 w-4 text-yellow-600" />
+              <div className="w-12 h-12 bg-rpp-orange-subtle rounded-full flex items-center justify-center">
+                <Clock className="w-6 h-6 text-rpp-orange" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
+        <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+          <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">In Progress</p>
-                <p className="text-2xl font-bold text-gray-900">{inProgressJobs.length}</p>
+                <p className="text-sm text-rpp-grey">Revisions</p>
+                <p className="text-3xl font-bold text-rpp-grey-darkest">{revisionJobs.length}</p>
               </div>
-              <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <FileImage className="h-4 w-4 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Completed This Week</p>
-                <p className="text-2xl font-bold text-gray-900">{completedThisWeek}</p>
-              </div>
-              <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <Upload className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Earnings This Month</p>
-                <p className="text-2xl font-bold text-gray-900">$1,245</p>
-              </div>
-              <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-green-600" />
+              <div className="w-12 h-12 bg-rpp-orange-subtle rounded-full flex items-center justify-center">
+                <RefreshCw className="w-6 h-6 text-rpp-orange" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Jobs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Recent Jobs</span>
-            <Button variant="outline" size="sm">
-              View All Jobs
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {editorJobs.slice(0, 5).map((job) => (
-              <div key={job.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-center space-x-4">
-                  <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileImage className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium text-gray-900">{job.customerName}</h4>
-                      <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-order-${job.orderNumber}`}>
-                        #{job.orderNumber}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600">{job.address}</p>
-                    <p className="text-xs text-gray-500">{job.services[0]?.name || 'Service'} • {job.originalFiles?.length || 0} files</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-right">
-                    <Badge className={getStatusColor(job.status)}>
-                      {job.status.replace('_', ' ')}
-                    </Badge>
-                    <p className="text-xs text-gray-500 mt-1">Due: {job.dueDate}</p>
-                  </div>
-                  <div className="flex space-x-2">
-                    {job.status === 'pending' ? (
-                      <>
-                        <Button 
-                          size="sm" 
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => {
-                            setSelectedOrderId(job.orderId);
-                            setShowAcceptDialog(true);
-                          }}
-                          data-testid={`button-accept-${job.orderNumber}`}
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          Accept Order
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="border-red-300 text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            setSelectedOrderId(job.orderId);
-                            setShowDeclineDialog(true);
-                          }}
-                          data-testid={`button-decline-${job.orderNumber}`}
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          Decline Order
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          disabled={true}
-                          className="opacity-50 cursor-not-allowed"
-                          data-testid={`button-download-${job.orderNumber}`}
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleDownloadFiles(job)}
-                          data-testid={`button-download-${job.orderNumber}`}
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                        {job.status === 'processing' && (
-                          <Button 
-                            size="sm" 
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            onClick={() => handleUploadClick(job)}
-                            data-testid={`button-upload-${job.id}`}
-                          >
-                            <Upload className="w-4 h-4 mr-1" />
-                            Upload
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+      {/* Revision Requests Banner */}
+      {revisionJobs.length > 0 && (
+        <Card className="bg-rpp-orange-subtle border-none rounded-2xl overflow-hidden">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rpp-orange/20 rounded-full flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-rpp-orange" />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div>
+                <p className="font-semibold text-rpp-orange">{revisionJobs.length} Revision Request{revisionJobs.length > 1 ? 's' : ''}</p>
+                <p className="text-sm text-rpp-orange/80">Client feedback needs addressing</p>
+              </div>
+            </div>
+            <Link href="/editor/revisions">
+              <Button className="btn-primary-gradient rounded-xl">
+                Review
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Your Orders Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-rpp-grey-darkest">Your Orders</h2>
+          <Link href="/editor/jobs">
+            <Button variant="ghost" className="text-rpp-grey hover:text-rpp-grey-darkest">
+              View All
+            </Button>
+          </Link>
+        </div>
+
+        <div className="space-y-3">
+          {[...revisionJobs, ...processingJobs, ...pendingJobs].slice(0, 5).map((job) => {
+            const dueInfo = getDueTimeDisplay(job.dueDate);
+            const isRevision = job.status === 'in_revision';
+            const isUrgent = dueInfo.urgent;
+            
+            return (
+              <Card 
+                key={job.id} 
+                className="card-hover border border-rpp-grey-lighter rounded-2xl"
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-rpp-grey-darkest">
+                          {job.orderNumber}
+                        </span>
+                        {isUrgent && (
+                          <Badge className="badge-pill badge-urgent text-xs">
+                            Urgent
+                          </Badge>
+                        )}
+                        {isRevision && (
+                          <Badge className="badge-pill badge-revision text-xs flex items-center gap-1">
+                            <RefreshCw className="w-3 h-3" />
+                            Revision
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-rpp-grey mb-1">{job.address}</p>
+                      <div className="flex items-center gap-1 text-xs">
+                        <Clock className="w-3 h-3" />
+                        <span className={dueInfo.urgent ? 'text-semantic-red' : 'text-rpp-grey'}>
+                          {dueInfo.text}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getActionButton(job)}
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="text-rpp-grey hover:text-rpp-grey-darkest"
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {editorJobs.length === 0 && (
+            <Card className="border border-rpp-grey-lighter rounded-2xl">
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-rpp-grey-lightest rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-rpp-grey-light" />
+                </div>
+                <h3 className="font-semibold text-rpp-grey-darkest mb-1">No orders yet</h3>
+                <p className="text-sm text-rpp-grey">New orders will appear here when assigned to you.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Ready to Upload CTA */}
+      {processingJobs.length > 0 && (
+        <Card className="bg-rpp-orange-subtle border-none rounded-2xl overflow-hidden">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rpp-orange/20 rounded-full flex items-center justify-center">
+                <Upload className="w-5 h-5 text-rpp-orange" />
+              </div>
+              <div>
+                <p className="font-semibold text-rpp-orange">Ready to Upload?</p>
+                <p className="text-sm text-rpp-orange/80">Upload completed files for client delivery</p>
+              </div>
+            </div>
+            <Link href="/editor/uploads">
+              <Button className="btn-primary-gradient rounded-xl">
+                Upload Files
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

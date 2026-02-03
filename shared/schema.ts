@@ -39,6 +39,8 @@ export const customers = pgTable("customers", {
   // Accounting integration (Xero, QuickBooks, etc.)
   accountingIntegration: text("accounting_integration"), // e.g., "xero", "quickbooks", "myob"
   accountingContactId: text("accounting_contact_id"), // Customer/Contact ID in the accounting software
+  // Revision limit override - null = use default, "unlimited" = no limit, or number string for custom limit
+  revisionLimitOverride: text("revision_limit_override"),
   totalValue: decimal("total_value", { precision: 10, scale: 2 }).default("0"),
   averageJobValue: decimal("average_job_value", { precision: 10, scale: 2 }).default("0"),
   jobsCompleted: integer("jobs_completed").default(0),
@@ -108,6 +110,8 @@ export const appointments = pgTable("appointments", {
   status: text("status").default("scheduled"), // "scheduled", "in_progress", "completed", "cancelled"
   products: text("products"), // JSON array of {id, name, quantity, variationName, price, duration}
   notes: text("notes"), // Appointment-specific notes
+  googleCalendarEventId: text("google_calendar_event_id"), // Google Calendar event ID for sync
+  googleCalendarId: text("google_calendar_id"), // Google Calendar ID (optional)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -118,7 +122,7 @@ export const orders = pgTable("orders", {
   orderNumber: text("order_number").notNull().unique(),
   jobId: varchar("job_id").references(() => jobs.id),
   customerId: varchar("customer_id").references(() => customers.id),
-  status: text("status").default("pending"), // "pending", "processing", "in_revision", "completed", "cancelled"
+  status: text("status").default("pending"), // "pending", "processing", "in_revision", "human_check", "completed", "cancelled"
   assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id),
   estimatedTotal: decimal("estimated_total", { precision: 10, scale: 2 }).default("0"),
@@ -126,6 +130,9 @@ export const orders = pgTable("orders", {
   filesExpiryDate: timestamp("files_expiry_date"), // 14 days from upload
   maxRevisionRounds: integer("max_revision_rounds").default(2), // Max allowed revision rounds (configurable per order)
   usedRevisionRounds: integer("used_revision_rounds").default(0), // Number of revision rounds used
+  revisionNotes: text("revision_notes"), // Notes for revision requests
+  approvedBy: text("approved_by"), // Who approved the order: "admin", "partner", "auto"
+  approvedAt: timestamp("approved_at"), // When the order was approved/completed
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -270,7 +277,8 @@ export const partnerSettings = pgTable("partner_settings", {
   businessProfile: text("business_profile"), // JSON: businessName, tagline, email, phone, address, website, description
   personalProfile: text("personal_profile"), // JSON: firstName, lastName, email, phone, bio
   businessHours: text("business_hours"), // JSON: {monday: {isOpen, start, end}, tuesday: {...}, ...}
-  defaultMaxRevisionRounds: integer("default_max_revision_rounds").default(2), // Default max revision rounds for new orders
+  enableClientRevisionLimit: boolean("enable_client_revision_limit").default(false), // When enabled, end clients are limited to revision rounds after job delivery
+  clientRevisionRoundLimit: integer("client_revision_round_limit").default(2), // Number of revision rounds allowed when limit is enabled
   editorDisplayNames: text("editor_display_names"), // JSON: {editorId: customName} - Custom display names for editors shown to photographers
   teamMemberColors: text("team_member_colors"), // JSON: {userId: colorHex} - Custom colors for team members
   // Booking form settings
@@ -347,6 +355,19 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   readAt: timestamp("read_at"), // When the message was read by recipient
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Service areas (geographic regions where partner operates)
+export const serviceAreas = pgTable("service_areas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  partnerId: text("partner_id").notNull(), // Multi-tenant identifier
+  name: text("name").notNull(), // e.g., "Newcastle", "Central Coast"
+  polygon: text("polygon").notNull(), // GeoJSON Polygon format: {"type":"Polygon","coordinates":[[[lng,lat]...]]}
+  color: text("color").default("#3B82F6"), // Hex color for map display
+  assignedOperatorIds: text("assigned_operator_ids"), // JSON array of user IDs assigned to this area
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Insert schemas
@@ -503,6 +524,12 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   readAt: true,
 });
 
+export const insertServiceAreaSchema = createInsertSchema(serviceAreas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -566,3 +593,6 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+export type ServiceArea = typeof serviceAreas.$inferSelect;
+export type InsertServiceArea = z.infer<typeof insertServiceAreaSchema>;

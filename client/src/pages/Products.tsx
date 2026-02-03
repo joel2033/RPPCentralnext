@@ -4,7 +4,9 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, MoreHorizontal, Archive, Edit } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, MoreHorizontal, Archive, Edit, Search, Filter } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +19,11 @@ import { useMasterView } from "@/contexts/MasterViewContext";
 
 export default function Products() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [liveFilter, setLiveFilter] = useState("all");
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { isReadOnly } = useMasterView();
@@ -112,6 +119,53 @@ export default function Products() {
     );
   };
 
+  // Get unique categories from products
+  const uniqueCategories = Array.from(
+    new Set(
+      products
+        .map((p: any) => p.category)
+        .filter((cat: any) => cat && cat.trim() !== "")
+    )
+  ).sort();
+
+  // Filter products
+  const filteredProducts = (products || []).filter((product: any) => {
+    // Search filter
+    const matchesSearch =
+      product.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // Type filter
+    if (typeFilter !== "all") {
+      const productType = product.type?.toLowerCase() || "product";
+      if (typeFilter === "product" && productType !== "product") return false;
+      if (typeFilter === "package" && productType !== "package") return false;
+      if (typeFilter === "addon" && productType !== "addon") return false;
+    }
+
+    // Category filter
+    if (categoryFilter !== "all" && product.category !== categoryFilter) {
+      return false;
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      if (statusFilter === "active" && !product.isActive) return false;
+      if (statusFilter === "inactive" && product.isActive) return false;
+    }
+
+    // Live filter
+    if (liveFilter !== "all") {
+      if (liveFilter === "live" && !product.isLive) return false;
+      if (liveFilter === "not-live" && product.isLive) return false;
+    }
+
+    return true;
+  });
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -143,6 +197,88 @@ export default function Products() {
         )}
       </div>
 
+      {/* Search and Filter Bar */}
+      <div className="flex items-center justify-between mb-6 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-rpp-grey-border">
+        <div className="flex items-center gap-4 flex-1 flex-wrap">
+          <div className="relative flex-1 max-w-md min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl"
+              data-testid="input-search-products"
+            />
+          </div>
+          
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-40 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-type-filter">
+              <div className="flex items-center">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Type" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="product">Product</SelectItem>
+              <SelectItem value="package">Package</SelectItem>
+              <SelectItem value="addon">Add-on</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {uniqueCategories.length > 0 && (
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-48 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-category-filter">
+                <div className="flex items-center">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Category" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-36 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-status-filter">
+              <div className="flex items-center">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={liveFilter} onValueChange={setLiveFilter}>
+            <SelectTrigger className="w-36 border-gray-200 dark:border-gray-700 rounded-xl" data-testid="select-live-filter">
+              <div className="flex items-center">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Live" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="live">Live</SelectItem>
+              <SelectItem value="not-live">Not Live</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="text-sm text-gray-500 dark:text-gray-400 ml-4 whitespace-nowrap" data-testid="text-products-count">
+          {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+        </div>
+      </div>
+
       {/* Products Table */}
       <div className="bg-white rounded-xl shadow-sm border border-rpp-grey-border overflow-hidden">
         <div className="overflow-x-auto">
@@ -160,7 +296,8 @@ export default function Products() {
               </tr>
             </thead>
             <tbody>
-              {(products || []).map((product: any) => (
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product: any) => (
                 <tr
                   key={product.id}
                   className="border-b border-rpp-grey-border hover:bg-gray-50"
@@ -278,13 +415,24 @@ export default function Products() {
                     </DropdownMenu>
                   </td>
                 </tr>
-              )) || (
+              ))
+              ) : (
                 <tr>
                   <td colSpan={8} className="py-12 text-center">
                     <div className="text-rpp-grey-light">
-                      <div className="text-6xl mb-4">📦</div>
-                      <h3 className="text-lg font-medium mb-2">No products yet</h3>
-                      <p className="text-sm">Create your first product to get started</p>
+                      {products.length === 0 ? (
+                        <>
+                          <div className="text-6xl mb-4">📦</div>
+                          <h3 className="text-lg font-medium mb-2">No products yet</h3>
+                          <p className="text-sm">Create your first product to get started</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-4xl mb-4">🔍</div>
+                          <h3 className="text-lg font-medium mb-2">No products found</h3>
+                          <p className="text-sm">Try adjusting your search or filter criteria</p>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

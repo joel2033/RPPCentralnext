@@ -40,7 +40,9 @@ import {
   type Conversation,
   type InsertConversation,
   type Message,
-  type InsertMessage
+  type InsertMessage,
+  type ServiceArea,
+  type InsertServiceArea
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { writeFileSync, readFileSync, existsSync } from "fs";
@@ -95,6 +97,7 @@ export interface IStorage {
 
   // Orders
   getOrder(id: string): Promise<Order | undefined>;
+  getOrderByNumber(orderNumber: string, partnerId: string): Promise<Order | undefined>;
   getOrders(partnerId: string): Promise<Order[]>; // REQUIRED: Enforces tenant isolation
   getOrdersForEditor(editorId: string): Promise<Order[]>; // Editor-specific: Returns orders assigned to this editor
   createOrder(order: InsertOrder): Promise<Order>;
@@ -127,6 +130,7 @@ export interface IStorage {
 
   // Editor Services
   getEditorServices(editorId: string): Promise<EditorService[]>;
+  getEditorService(serviceId: string): Promise<EditorService | undefined>; // Get single service by ID
   createEditorService(service: InsertEditorService): Promise<EditorService>;
   updateEditorService(id: string, updates: Partial<EditorService>, editorId: string): Promise<EditorService | undefined>;
   deleteEditorService(id: string, editorId: string): Promise<void>;
@@ -137,6 +141,8 @@ export interface IStorage {
   // Editor Uploads
   getJobsReadyForUpload(editorId: string): Promise<any[]>; // Jobs assigned to editor that are ready for upload
   getEditorUploads(jobId: string): Promise<EditorUpload[]>;
+  getEditorUploadsForOrder(orderId: string): Promise<EditorUpload[]>; // Get uploads by order ID
+  getEditorUpload(fileId: string): Promise<EditorUpload | undefined>; // Get single upload by ID
   createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload>;
   deleteEditorUpload(fileId: string): Promise<void>;
   updateJobStatusAfterUpload(jobId: string, status: string): Promise<Job | undefined>;
@@ -160,6 +166,7 @@ export interface IStorage {
   markNotificationRead(id: string, recipientId: string): Promise<Notification | undefined>;
   markAllNotificationsRead(recipientId: string, partnerId: string): Promise<void>;
   deleteNotification(id: string, recipientId: string): Promise<void>;
+  deleteAllNotifications(recipientId: string, partnerId: string): Promise<void>;
 
   // Activity Tracking (Audit Log)
   createActivity(activity: InsertActivity): Promise<Activity>;
@@ -211,6 +218,7 @@ export interface IStorage {
   // File Comments
   getFileComments(fileId: string): Promise<FileComment[]>;
   getJobFileComments(jobId: string): Promise<FileComment[]>;
+  getFileCommentsForOrder(orderId: string): Promise<FileComment[]>; // Get all comments for files in an order
   createFileComment(comment: InsertFileComment): Promise<FileComment>;
   updateFileCommentStatus(id: string, status: string): Promise<FileComment | undefined>;
 
@@ -235,6 +243,13 @@ export interface IStorage {
   markConversationAsRead(conversationId: string, isPartnerReading: boolean): Promise<void>;
   getConversationMessages(conversationId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+
+  // Service Areas
+  getServiceAreas(partnerId: string): Promise<ServiceArea[]>;
+  getServiceArea(id: string): Promise<ServiceArea | undefined>;
+  createServiceArea(serviceArea: InsertServiceArea): Promise<ServiceArea>;
+  updateServiceArea(id: string, updates: Partial<ServiceArea>): Promise<ServiceArea | undefined>;
+  deleteServiceArea(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -802,6 +817,12 @@ export class MemStorage implements IStorage {
     return this.orders.get(id);
   }
 
+  async getOrderByNumber(orderNumber: string, partnerId: string): Promise<Order | undefined> {
+    return Array.from(this.orders.values()).find(
+      order => order.orderNumber === orderNumber && order.partnerId === partnerId
+    );
+  }
+
   async getOrders(partnerId?: string): Promise<Order[]> {
     const allOrders = Array.from(this.orders.values());
     return partnerId ? allOrders.filter(order => order.partnerId === partnerId) : allOrders;
@@ -970,9 +991,10 @@ export class MemStorage implements IStorage {
   private validateOrderStatusTransition(currentStatus: string, newStatus: string): { valid: boolean; error?: string } {
     const validTransitions: Record<string, string[]> = {
       'pending': ['processing', 'cancelled'],
-      'processing': ['in_progress', 'cancelled', 'in_revision'],
-      'in_progress': ['completed', 'in_revision', 'cancelled'],
-      'in_revision': ['in_progress', 'cancelled'],
+      'processing': ['in_progress', 'cancelled', 'in_revision', 'human_check'],
+      'in_progress': ['completed', 'in_revision', 'cancelled', 'human_check'],
+      'in_revision': ['in_progress', 'cancelled', 'human_check'],
+      'human_check': ['completed', 'in_revision', 'cancelled'],
       'completed': ['in_revision'], // Allow reopening completed orders if needed
       'cancelled': [] // No transitions from cancelled
     };
@@ -1094,9 +1116,14 @@ export class MemStorage implements IStorage {
       console.log(`[DEBUG] Assigned order: ${order.orderNumber}, status: ${order.status}, assignedTo: ${order.assignedTo}`);
     });
     
+    // Include all statuses that should appear in the kanban board
     const editorOrders = allOrders.filter(order => 
       order.assignedTo === editorId && 
-      (order.status === 'pending' || order.status === 'processing')
+      (order.status === 'pending' || 
+       order.status === 'processing' || 
+       order.status === 'in_revision' ||
+       order.status === 'human_check' ||
+       order.status === 'completed')
     );
     console.log(`[DEBUG] Orders ready for upload (assigned + pending/processing): ${editorOrders.length}`);
 
@@ -1107,10 +1134,33 @@ export class MemStorage implements IStorage {
       }
       
       const job = await this.getJobByJobId(order.jobId!);
-      const customer = order.customerId ? await this.getCustomer(order.customerId) : null;
+      const customerId = order.customerId || job?.customerId;
+      const customer = customerId ? await this.getCustomer(customerId) : null;
       const orderServices = await this.getOrderServices(order.id);
       const orderFiles = await this.getOrderFiles(order.id);
       const existingUploads = await this.getEditorUploads(order.jobId!);
+
+      let editingPreferences: any[] = [];
+      if (customerId && order.partnerId) {
+        try {
+          const [options, preferences] = await Promise.all([
+            this.getEditingOptions(order.partnerId),
+            this.getCustomerEditingPreferences(customerId)
+          ]);
+          editingPreferences = options.map((option: any) => {
+            const pref = preferences.find((p: any) => p.editingOptionId === option.id);
+            return {
+              id: option.id,
+              name: option.name,
+              description: option.description ?? undefined,
+              isEnabled: pref?.isEnabled ?? false,
+              notes: pref?.notes ?? undefined
+            };
+          });
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for order:", order.id, prefErr);
+        }
+      }
 
       if (job) {
         jobsData.push({
@@ -1133,7 +1183,8 @@ export class MemStorage implements IStorage {
           existingUploads: existingUploads,
           status: order.status,
           dueDate: job.dueDate?.toISOString(),
-          createdAt: order.createdAt?.toISOString()
+          createdAt: order.createdAt?.toISOString(),
+          editingPreferences
         });
       }
     }
@@ -1148,6 +1199,15 @@ export class MemStorage implements IStorage {
   async getEditorUploads(jobId: string): Promise<EditorUpload[]> {
     const allUploads = Array.from(this.editorUploads.values());
     return allUploads.filter(upload => upload.jobId === jobId);
+  }
+
+  async getEditorUploadsForOrder(orderId: string): Promise<EditorUpload[]> {
+    const allUploads = Array.from(this.editorUploads.values());
+    return allUploads.filter(upload => upload.orderId === orderId);
+  }
+
+  async getEditorUpload(fileId: string): Promise<EditorUpload | undefined> {
+    return this.editorUploads.get(fileId);
   }
 
   async createEditorUpload(editorUpload: InsertEditorUpload): Promise<EditorUpload> {
@@ -1210,7 +1270,7 @@ export class MemStorage implements IStorage {
   }
 
   // Folder Management
-  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderNumber?: string; folderToken?: string; isVisible: boolean; displayOrder?: number; fileCount: number; files: any[]}[]> {
+  async getUploadFolders(jobId: string): Promise<{uniqueKey: string; folderPath: string; editorFolderName: string; partnerFolderName?: string; orderId?: string | null; orderNumber?: string; folderToken?: string; isVisible: boolean; displayOrder?: number; fileCount: number; files: any[]}[]> {
     const allUploads = Array.from(this.editorUploads.values());
     const jobUploads = allUploads
       .filter(upload => upload.jobId === jobId)
@@ -1321,8 +1381,7 @@ export class MemStorage implements IStorage {
           }
         }
 
-        // Add file to folder data
-        folderData.fileCount++;
+        // Add file to folder data (we'll filter based on order status later)
         folderData.files.push({
           id: upload.id,
           fileName: upload.fileName,
@@ -1334,21 +1393,38 @@ export class MemStorage implements IStorage {
           notes: upload.notes,
           folderPath: upload.folderPath,
           editorFolderName: upload.editorFolderName,
-          partnerFolderName: upload.partnerFolderName
+          partnerFolderName: upload.partnerFolderName,
+          orderId: upload.orderId // Include orderId for filtering
         });
       }
     }
     
-    const folders = Array.from(foldersMap.values());
+    // Filter files based on order status - only include files where order has passed QC (status === 'completed')
+    // This ensures files don't appear in delivery until human check passes
+    const filteredFolders = Array.from(foldersMap.values()).map(folder => {
+      const filteredFiles = folder.files.filter((file: any) => {
+        if (!file.orderId) {
+          return false; // No order association - don't show
+        }
+        const order = this.orders.get(file.orderId);
+        return order?.status === 'completed'; // Only show if order passed QC
+      });
+      
+      return {
+        ...folder,
+        fileCount: filteredFiles.length,
+        files: filteredFiles
+      };
+    });
     
     // Sort folders by displayOrder (ascending), with folders without displayOrder sorted last
-    folders.sort((a, b) => {
+    filteredFolders.sort((a, b) => {
       const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
       const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
       return aOrder - bOrder;
     });
     
-    return folders;
+    return filteredFolders;
   }
 
   async updateFolderName(jobId: string, folderPath: string, newPartnerFolderName: string): Promise<void> {
@@ -1493,6 +1569,10 @@ export class MemStorage implements IStorage {
     return allServices.filter(service => service.editorId === editorId);
   }
 
+  async getEditorService(serviceId: string): Promise<EditorService | undefined> {
+    return this.editorServices.get(serviceId);
+  }
+
   async createEditorService(insertService: InsertEditorService): Promise<EditorService> {
     const id = randomUUID();
     const service: EditorService = {
@@ -1545,10 +1625,29 @@ export class MemStorage implements IStorage {
         job = this.jobs.get(order.jobId);
       }
 
-      // Get customer details
-      let customer = null;
-      if (order.customerId) {
-        customer = this.customers.get(order.customerId);
+      const customerId = order.customerId || job?.customerId;
+      const customer = customerId ? this.customers.get(customerId) ?? null : null;
+
+      let editingPreferences: any[] = [];
+      if (customerId && order.partnerId) {
+        try {
+          const [options, preferences] = await Promise.all([
+            this.getEditingOptions(order.partnerId),
+            this.getCustomerEditingPreferences(customerId)
+          ]);
+          editingPreferences = options.map((option: any) => {
+            const pref = preferences.find((p: any) => p.editingOptionId === option.id);
+            return {
+              id: option.id,
+              name: option.name,
+              description: option.description ?? undefined,
+              isEnabled: pref?.isEnabled ?? false,
+              notes: pref?.notes ?? undefined
+            };
+          });
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for order:", order.id, prefErr);
+        }
       }
 
       // Get order services (which contain the editor services and instructions)
@@ -1601,7 +1700,8 @@ export class MemStorage implements IStorage {
         dueDate: order.filesExpiryDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
         priority: 'medium', // Default priority - could be added to schema later
         instructions: instructions ? JSON.parse(instructions) : null,
-        files
+        files,
+        editingPreferences
       };
 
       jobs.push(editorJob);
@@ -1727,6 +1827,19 @@ export class MemStorage implements IStorage {
     const notification = this.notifications.get(id);
     if (notification && notification.recipientId === recipientId) {
       this.notifications.delete(id);
+      this.saveToFile();
+    }
+  }
+
+  async deleteAllNotifications(recipientId: string, partnerId: string): Promise<void> {
+    const notificationsToDelete: string[] = [];
+    for (const [id, notification] of this.notifications.entries()) {
+      if (notification.recipientId === recipientId && notification.partnerId === partnerId) {
+        notificationsToDelete.push(id);
+      }
+    }
+    notificationsToDelete.forEach(id => this.notifications.delete(id));
+    if (notificationsToDelete.length > 0) {
       this.saveToFile();
     }
   }
@@ -2413,7 +2526,8 @@ export class MemStorage implements IStorage {
       businessProfile: settings.businessProfile || null,
       personalProfile: settings.personalProfile || null,
       businessHours: settings.businessHours || null,
-      defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
+      enableClientRevisionLimit: settings.enableClientRevisionLimit ?? false,
+      clientRevisionRoundLimit: settings.clientRevisionRoundLimit ?? 2,
       editorDisplayNames: settings.editorDisplayNames || null,
       teamMemberColors: settings.teamMemberColors || null,
       bookingSettings: (settings as any).bookingSettings || null,
@@ -2436,6 +2550,12 @@ export class MemStorage implements IStorage {
   async getJobFileComments(jobId: string): Promise<FileComment[]> {
     return Array.from(this.fileComments.values())
       .filter(comment => comment.jobId === jobId)
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async getFileCommentsForOrder(orderId: string): Promise<FileComment[]> {
+    return Array.from(this.fileComments.values())
+      .filter(comment => comment.orderId === orderId)
       .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
   }
 
@@ -2644,6 +2764,51 @@ export class MemStorage implements IStorage {
     this.messages.set(id, newMessage);
     this.saveToFile();
     return newMessage;
+  }
+
+  // Service Areas Implementation
+  private serviceAreas: Map<string, ServiceArea> = new Map();
+
+  async getServiceAreas(partnerId: string): Promise<ServiceArea[]> {
+    return Array.from(this.serviceAreas.values())
+      .filter(area => area.partnerId === partnerId && (area.isActive ?? true))
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
+  }
+
+  async getServiceArea(id: string): Promise<ServiceArea | undefined> {
+    return this.serviceAreas.get(id);
+  }
+
+  async createServiceArea(serviceArea: InsertServiceArea): Promise<ServiceArea> {
+    const id = randomUUID();
+    const newServiceArea: ServiceArea = {
+      ...serviceArea,
+      id,
+      color: serviceArea.color || '#3B82F6',
+      assignedOperatorIds: serviceArea.assignedOperatorIds || null,
+      isActive: serviceArea.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.serviceAreas.set(id, newServiceArea);
+    this.saveToFile();
+    return newServiceArea;
+  }
+
+  async updateServiceArea(id: string, updates: Partial<ServiceArea>): Promise<ServiceArea | undefined> {
+    const serviceArea = this.serviceAreas.get(id);
+    if (!serviceArea) {
+      return undefined;
+    }
+    const updatedServiceArea = { ...serviceArea, ...updates, updatedAt: new Date() };
+    this.serviceAreas.set(id, updatedServiceArea);
+    this.saveToFile();
+    return updatedServiceArea;
+  }
+
+  async deleteServiceArea(id: string): Promise<void> {
+    this.serviceAreas.delete(id);
+    this.saveToFile();
   }
 }
 

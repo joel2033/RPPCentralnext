@@ -75,7 +75,7 @@ export function registerFirebaseUploadRoute(app: Express) {
         return res.status(400).json({ error: "upload_failed", detail: "No file uploaded" });
       }
 
-      const { jobId, orderNumber, folderPath: rawFolderPath, userId, uploadType, folderToken } = req.body;
+      const { jobId, orderNumber, folderPath: rawFolderPath, userId, uploadType, folderToken, editorFolderName: rawEditorFolderName } = req.body;
 
       // Detailed diagnostic logging
       console.log('[upload-firebase] INCOMING', {
@@ -219,6 +219,65 @@ export function registerFirebaseUploadRoute(app: Express) {
       });
 
       const bucket = getStorage().bucket(bucketName);
+
+      // Check for existing files with the same name in the same folder and delete them
+      // This ensures files are replaced rather than duplicated
+      try {
+        const job = await firestoreStorage.getJobByJobId(jobId);
+        if (job?.id) {
+          const { adminDb } = await import('./firebase-admin');
+          
+          // Build query for existing files with same originalName in the same folder
+          let existingFilesQuery = adminDb.collection("editorUploads")
+            .where("jobId", "==", job.id)
+            .where("originalName", "==", file.originalname);
+          
+          // Handle folderPath matching - need to match null or the specific folder path
+          if (resolvedFolderPath) {
+            existingFilesQuery = existingFilesQuery.where("folderPath", "==", resolvedFolderPath);
+          } else {
+            // For files without a folder path (editor-only uploads), match null folderPath
+            existingFilesQuery = existingFilesQuery.where("folderPath", "==", null);
+          }
+          
+          const existingFilesSnapshot = await existingFilesQuery.get();
+          
+          if (!existingFilesSnapshot.empty) {
+            console.log(`[upload-firebase] Found ${existingFilesSnapshot.docs.length} existing file(s) with same name "${file.originalname}" in folder "${resolvedFolderPath || 'null'}" - will replace`);
+            
+            // Delete each existing file
+            for (const doc of existingFilesSnapshot.docs) {
+              const existingFile = doc.data();
+              const existingFileId = doc.id;
+              
+              try {
+                // Delete from Firebase Storage first
+                if (existingFile.firebaseUrl) {
+                  const existingGcsFile = bucket.file(existingFile.firebaseUrl);
+                  const [exists] = await existingGcsFile.exists();
+                  if (exists) {
+                    await existingGcsFile.delete();
+                    console.log(`[upload-firebase] Deleted existing file from storage: ${existingFile.firebaseUrl}`);
+                  } else {
+                    console.log(`[upload-firebase] Existing file not found in storage (already deleted?): ${existingFile.firebaseUrl}`);
+                  }
+                }
+                
+                // Delete from Firestore
+                await firestoreStorage.deleteEditorUpload(existingFileId);
+                console.log(`[upload-firebase] Deleted existing file record from Firestore: ${existingFileId} (${existingFile.originalName})`);
+              } catch (deleteError: any) {
+                console.error(`[upload-firebase] Error deleting existing file ${existingFileId}:`, deleteError.message);
+                // Continue with upload even if deletion fails - don't block the new upload
+              }
+            }
+          }
+        }
+      } catch (duplicateCheckError: any) {
+        console.error('[upload-firebase] Error checking for duplicate files:', duplicateCheckError.message);
+        // Continue with upload even if duplicate check fails
+      }
+
       const gcsFile = bucket.file(destPath);
 
       try {
@@ -317,9 +376,38 @@ export function registerFirebaseUploadRoute(app: Express) {
         const job = jobId ? await firestoreStorage.getJobByJobId(jobId) : null;
         const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
+        // Resolve actual order ID from order number to ensure folder grouping consistency
+        // cleanOrder is the order NUMBER without # (e.g., "00059"), but we need the order UUID
+        // Order numbers in the database are stored WITH the # prefix (e.g., "#00059")
+        let resolvedOrderId: string | null = null;
+        if (cleanOrder && job?.partnerId) {
+          try {
+            // Try with # prefix first (how orders are stored in DB)
+            let order = await firestoreStorage.getOrderByNumber(`#${cleanOrder}`, job.partnerId);
+            if (!order) {
+              // Fallback: try without # in case the order was stored differently
+              order = await firestoreStorage.getOrderByNumber(cleanOrder, job.partnerId);
+            }
+            if (order?.id) {
+              resolvedOrderId = order.id;
+              console.log(`[upload-firebase] Resolved order number ${cleanOrder} to order ID ${order.id}`);
+            } else {
+              console.warn(`[upload-firebase] Could not find order for number ${cleanOrder}, using null`);
+            }
+          } catch (orderLookupErr) {
+            console.error('[upload-firebase] Error looking up order by number:', orderLookupErr);
+          }
+        }
+
+        // Determine the editor folder name to store
+        // Priority: 1) Explicit editorFolderName from client, 2) partnerFolderName from folder document, 3) resolvedFolderPath
+        const editorFolderNameToStore = rawEditorFolderName 
+          ? String(rawEditorFolderName).trim() 
+          : (partnerFolderName || resolvedFolderPath || null);
+        
         await firestoreStorage.createEditorUpload({
           jobId: job?.id || jobId,
-          orderId: cleanOrder ? cleanOrder : null,
+          orderId: resolvedOrderId,
           fileName: safeName,
           originalName: file.originalname,
           fileSize: file.size,
@@ -331,9 +419,7 @@ export function registerFirebaseUploadRoute(app: Express) {
           notes: null,
           folderToken: folderToken || null, // Use provided folderToken for standalone folders
           partnerFolderName: partnerFolderName, // Get from folder document if folderToken exists
-          // For folders with folderToken (created via "Add Content"), don't set editorFolderName
-          // This ensures partnerFolderName (user-provided name) is always used for display
-          editorFolderName: folderToken ? null : (resolvedFolderPath || null), // Only set for folders without folderToken
+          editorFolderName: editorFolderNameToStore, // Use explicit name from client or fallback
           expiresAt,
         } as any);
       } catch (persistErr) {

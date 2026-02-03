@@ -21,6 +21,9 @@ export interface BookingFormSettings {
   // Team settings
   allowTeamSelection: boolean; // Allow clients to select specific team members
   
+  // Service area settings
+  restrictToServiceAreas: boolean; // Restrict bookings to defined service areas only
+  
   // Payment settings
   paymentEnabled: boolean;
   paymentMethod: 'stripe' | 'invoice' | 'both';
@@ -193,6 +196,7 @@ export const DEFAULT_BOOKING_SETTINGS: Omit<BookingFormSettings, 'partnerId' | '
   bufferMinutes: 30,
   timeSlotInterval: 30,
   allowTeamSelection: false,
+  restrictToServiceAreas: false,
   paymentEnabled: false,
   paymentMethod: 'invoice',
   depositEnabled: false,

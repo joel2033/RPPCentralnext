@@ -74,7 +74,7 @@ export default function Customers() {
         {!isReadOnly && (
           <Button 
             onClick={() => setShowCreateModal(true)}
-            className="hover:bg-rpp-red-dark text-white rounded-full px-6 bg-[#f05a2a]"
+            className="hover:bg-rpp-red-dark text-white rounded-2xl px-6 bg-gradient-to-r from-[#f05a2a] to-[#ff6b3d] shadow-[0px_4px_12px_0px_rgba(0,0,0,0.15),0px_4px_12px_0px_rgba(0,0,0,0.15)] border-none"
             data-testid="button-new-customer"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -189,7 +189,7 @@ export default function Customers() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="w-full border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+                  className="w-full border-[0.5px] border-gray-300/10 dark:border-gray-600/10 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
                   data-testid={`button-view-profile-${customer.id}`}
                 >
                   View Profile

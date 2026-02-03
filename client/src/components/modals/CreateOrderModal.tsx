@@ -230,10 +230,11 @@ export default function CreateOrderModal({ onClose }: CreateOrderModalProps) {
     }
 
     const { total } = calculateTotal();
+    const selectedJobObj = sortedJobs.find((j: any) => j.id === selectedJob);
     const orderPayload = {
       partnerId: userData.partnerId,
       jobId: selectedJob || null,
-      customerId: null,
+      customerId: selectedJobObj?.customerId ?? null,
       assignedTo: selectedSupplier || null,
       createdBy: userData?.email || "admin",
       estimatedTotal: total.toFixed(2),

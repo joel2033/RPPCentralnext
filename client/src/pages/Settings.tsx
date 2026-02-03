@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
 import BookingFormSettings from "@/components/booking/BookingFormSettings";
+import ServiceAreasManager from "@/components/ServiceAreasManager";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Building2,
@@ -81,7 +82,8 @@ interface SavedSettings {
   personalProfile?: PersonalProfile;
   businessProfile?: BusinessProfile;
   businessHours?: BusinessHours;
-  defaultMaxRevisionRounds?: number;
+  enableClientRevisionLimit?: boolean;
+  clientRevisionRoundLimit?: number;
   editorDisplayNames?: Record<string, string>; // {editorId: customName}
   teamMemberColors?: Record<string, string>; // {userId: colorHex}
 }
@@ -89,7 +91,19 @@ interface SavedSettings {
 export default function Settings() {
   const { userData } = useAuth();
   const isPhotographer = userData?.role === 'photographer';
-  const [activeTab, setActiveTab] = useState(isPhotographer ? "account" : "company");
+  
+  // Get initial tab from URL hash, or default based on role
+  const getInitialTab = () => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['company', 'team', 'services', 'booking', 'account', 'availability', 'advanced'].includes(hash)) {
+        return hash;
+      }
+    }
+    return isPhotographer ? "account" : "company";
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab());
   const [bookingSaveHandler, setBookingSaveHandler] = useState<(() => void) | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -126,8 +140,9 @@ export default function Settings() {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Sydney",
   });
 
-  // Default max revision rounds
-  const [defaultMaxRevisionRounds, setDefaultMaxRevisionRounds] = useState(2);
+  // Enable client revision limit toggle and round limit
+  const [enableClientRevisionLimit, setEnableClientRevisionLimit] = useState(false);
+  const [clientRevisionRoundLimit, setClientRevisionRoundLimit] = useState(2);
 
   // Editor display names (custom names for photographers)
   const [editorDisplayNames, setEditorDisplayNames] = useState<Record<string, string>>({});
@@ -156,15 +171,35 @@ export default function Settings() {
     queryKey: ['/api/settings']
   });
 
+  // Update activeTab when URL hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && ['company', 'team', 'services', 'booking', 'account', 'availability', 'advanced'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    
+    // Check hash on mount
+    handleHashChange();
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   // Update activeTab when userData loads to ensure photographers start on account tab
   useEffect(() => {
     if (!userData) return;
     
     const isPhotographerRole = userData.role === 'photographer';
-    if (isPhotographerRole && activeTab !== 'account' && activeTab !== 'availability' && activeTab !== 'advanced') {
-      setActiveTab('account');
-    } else if (!isPhotographerRole && activeTab === 'availability') {
-      setActiveTab('company');
+    // Only override if no hash is set
+    if (!window.location.hash) {
+      if (isPhotographerRole && activeTab !== 'account' && activeTab !== 'availability' && activeTab !== 'advanced') {
+        setActiveTab('account');
+      } else if (!isPhotographerRole && activeTab === 'availability') {
+        setActiveTab('company');
+      }
     }
   }, [userData, activeTab]);
 
@@ -204,8 +239,11 @@ export default function Settings() {
       if (savedSettings.businessHours) {
         setBusinessHours(savedSettings.businessHours);
       }
-      if (savedSettings.defaultMaxRevisionRounds !== undefined) {
-        setDefaultMaxRevisionRounds(savedSettings.defaultMaxRevisionRounds);
+      if (savedSettings.enableClientRevisionLimit !== undefined) {
+        setEnableClientRevisionLimit(savedSettings.enableClientRevisionLimit);
+      }
+      if (savedSettings.clientRevisionRoundLimit !== undefined) {
+        setClientRevisionRoundLimit(savedSettings.clientRevisionRoundLimit);
       }
       if (savedSettings.editorDisplayNames) {
         setEditorDisplayNames(savedSettings.editorDisplayNames);
@@ -341,7 +379,7 @@ export default function Settings() {
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({
-    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; defaultMaxRevisionRounds: number; editorDisplayNames?: Record<string, string> }) => {
+    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; enableClientRevisionLimit: boolean; clientRevisionRoundLimit: number; editorDisplayNames?: Record<string, string> }) => {
       return apiRequest("/api/settings", "PUT", data);
     },
     onSuccess: (_, variables) => {
@@ -428,7 +466,8 @@ export default function Settings() {
       personalProfile,
       businessProfile,
       businessHours,
-      defaultMaxRevisionRounds,
+      enableClientRevisionLimit,
+      clientRevisionRoundLimit,
       editorDisplayNames: Object.keys(editorDisplayNames).length > 0 ? editorDisplayNames : undefined,
       teamMemberColors: Object.keys(teamMemberColors).length > 0 ? teamMemberColors : undefined
     });
@@ -444,7 +483,8 @@ export default function Settings() {
       personalProfile,
       businessProfile,
       businessHours,
-      defaultMaxRevisionRounds,
+      enableClientRevisionLimit,
+      clientRevisionRoundLimit,
       editorDisplayNames: updatedNames
     });
   };
@@ -779,28 +819,51 @@ export default function Settings() {
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="defaultMaxRevisionRounds">Default maximum revision rounds</Label>
-                <Select 
-                  value={defaultMaxRevisionRounds.toString()}
-                  onValueChange={(value) => setDefaultMaxRevisionRounds(parseInt(value))}
-                >
-                  <SelectTrigger data-testid="select-max-revision-rounds">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">0 rounds (no revisions)</SelectItem>
-                    <SelectItem value="1">1 round</SelectItem>
-                    <SelectItem value="2">2 rounds</SelectItem>
-                    <SelectItem value="3">3 rounds</SelectItem>
-                    <SelectItem value="4">4 rounds</SelectItem>
-                    <SelectItem value="5">5 rounds</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500">
-                  This sets the default number of revision rounds allowed per order. You can override this on a per-order basis.
-                </p>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="enableClientRevisionLimit">Limit client revision requests</Label>
+                  <p className="text-xs text-gray-500">
+                    When enabled, end clients will be limited to a set number of revision rounds after job delivery. This does not affect your ability to request unlimited revisions.
+                  </p>
+                </div>
+                <Switch
+                  id="enableClientRevisionLimit"
+                  checked={enableClientRevisionLimit}
+                  onCheckedChange={setEnableClientRevisionLimit}
+                  data-testid="toggle-client-revision-limit"
+                />
               </div>
+              
+              {enableClientRevisionLimit && (
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="space-y-2">
+                    <Label htmlFor="clientRevisionRoundLimit">Maximum revision rounds</Label>
+                    <Select 
+                      value={clientRevisionRoundLimit.toString()}
+                      onValueChange={(value) => setClientRevisionRoundLimit(parseInt(value))}
+                    >
+                      <SelectTrigger className="w-48" data-testid="select-revision-round-limit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 round</SelectItem>
+                        <SelectItem value="2">2 rounds</SelectItem>
+                        <SelectItem value="3">3 rounds</SelectItem>
+                        <SelectItem value="4">4 rounds</SelectItem>
+                        <SelectItem value="5">5 rounds</SelectItem>
+                        <SelectItem value="6">6 rounds</SelectItem>
+                        <SelectItem value="7">7 rounds</SelectItem>
+                        <SelectItem value="8">8 rounds</SelectItem>
+                        <SelectItem value="9">9 rounds</SelectItem>
+                        <SelectItem value="10">10 rounds</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      This is the default limit for all clients. You can override this for individual customers on their profile page.
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1213,15 +1276,11 @@ export default function Settings() {
                 Service Areas
               </CardTitle>
               <p className="text-sm text-gray-600">
-                Manage the geographic areas you serve
+                Define your service areas and assign team members to specific regions
               </p>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-gray-500">
-                <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="mb-2">Service area management coming soon</p>
-                <p className="text-sm">Define cities, regions, and coverage areas for your services</p>
-              </div>
+            <CardContent className="overflow-visible">
+              <ServiceAreasManager />
             </CardContent>
           </Card>
         </TabsContent>

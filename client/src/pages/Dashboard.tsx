@@ -8,7 +8,12 @@ import { TodaysJobs } from "@/components/TodaysJobs";
 
 export default function Dashboard() {
   const { userData } = useAuth();
-  const { data: stats, isLoading: statsLoading } = useQuery<{jobs: number, sales: string, orders: number}>({
+  const { data: stats, isLoading: statsLoading } = useQuery<{
+    jobs: number;
+    sales: string;
+    orders: number;
+    activeClientsThisMonth?: number;
+  }>({
     queryKey: ["/api/dashboard/stats"],
   });
 
@@ -16,20 +21,15 @@ export default function Dashboard() {
     queryKey: ["/api/jobs"],
   });
 
-  const { data: customers = [], isLoading: customersLoading } = useQuery<any[]>({
-    queryKey: ["/api/customers"],
-  });
-
   const { data: settings } = useQuery<any>({
     queryKey: ["/api/settings"],
   });
 
-
-  // Calculate stats from actual data - no placeholders
+  // All stats reset at the start of each month (from /api/dashboard/stats)
   const activeProjects = stats?.jobs;
   const totalOrders = stats?.orders;
   const monthlyRevenue = stats?.sales ? parseFloat(stats.sales).toFixed(1) : undefined;
-  const activeClients = customers.length > 0 ? customers.length : undefined;
+  const activeClients = stats?.activeClientsThisMonth;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -82,7 +82,7 @@ export default function Dashboard() {
             icon={UserCheck}
             iconBgColor="bg-gradient-to-br from-green-50 to-green-100"
             iconColor="text-support-green"
-            isLoading={customersLoading}
+            isLoading={statsLoading}
           />
         </div>
 

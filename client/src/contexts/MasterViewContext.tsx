@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useAuth } from './AuthContext';
+import { AuthContext } from './AuthContext';
 import { setMasterViewPartnerId } from '@/lib/queryClient';
 
 interface Partner {
@@ -105,7 +105,13 @@ interface MasterViewProviderProps {
 }
 
 export const MasterViewProvider: React.FC<MasterViewProviderProps> = ({ children }) => {
-  const { userData, userRole, currentUser } = useAuth();
+  // Use useContext directly to avoid throwing error if AuthProvider is not available
+  // This allows MasterViewProvider to work in editor routes that use EditorAuthProvider
+  const authContext = useContext(AuthContext);
+  const userData = authContext?.userData || null;
+  const userRole = authContext?.userRole || null;
+  const currentUser = authContext?.currentUser || null;
+  
   const [viewingPartnerId, setViewingPartnerId] = useState<string | null>(null);
   const [viewingPartnerName, setViewingPartnerName] = useState<string | null>(null);
   const [partners, setPartners] = useState<Partner[]>([]);

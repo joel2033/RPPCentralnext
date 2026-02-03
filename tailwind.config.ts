@@ -61,6 +61,55 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
+        // PRD Color System
+        rpp: {
+          orange: {
+            DEFAULT: "#F05A2A",
+            hover: "#D94E24",
+            light: "#FF6B3D",
+            subtle: "rgba(240, 90, 42, 0.1)",
+          },
+          sidebar: {
+            DEFAULT: "#2F373F",
+            dark: "#3F474F",
+          },
+          grey: {
+            darkest: "#1F2937",
+            dark: "#3F474F",
+            DEFAULT: "#6B7280",
+            light: "#9CA3AF",
+            lighter: "#E5E7EB",
+            lightest: "#F3F4F6",
+            pale: "#F9FAFB",
+          },
+        },
+        semantic: {
+          yellow: {
+            DEFAULT: "#F59E0B",
+            light: "#FEF3C7",
+            dark: "#D97706",
+          },
+          green: {
+            DEFAULT: "#10B981",
+            light: "#D1FAE5",
+            dark: "#047857",
+          },
+          blue: {
+            DEFAULT: "#3B82F6",
+            light: "#DBEAFE",
+            dark: "#1D4ED8",
+          },
+          red: {
+            DEFAULT: "#EF4444",
+            light: "#FEE2E2",
+            dark: "#DC2626",
+          },
+          purple: {
+            DEFAULT: "#8B5CF6",
+            light: "#EDE9FE",
+            dark: "#6D28D9",
+          },
+        },
       },
       keyframes: {
         "accordion-down": {

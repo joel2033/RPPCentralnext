@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -167,6 +168,42 @@ export default function Calendar() {
 
   const teamMemberColors: Record<string, string> = settings?.teamMemberColors || {};
 
+  // Visible date range for Google Calendar busy blocks (month / week / day)
+  const visibleRange = useMemo(() => {
+    if (viewMode === "month") {
+      const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
+      return { start, end };
+    }
+    if (viewMode === "week") {
+      const d = new Date(currentDate);
+      const day = d.getDay();
+      const diff = d.getDate() - day;
+      const start = new Date(d.getFullYear(), d.getMonth(), diff);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const end = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59);
+    return { start, end };
+  }, [currentDate, viewMode]);
+
+  const { data: googleBusyBlocks = [] } = useQuery<{ start: string; end: string; title?: string }[]>({
+    queryKey: ["/api/calendar/google/busy", visibleRange.start.toISOString(), visibleRange.end.toISOString()],
+    enabled: !!partnerId,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        start: visibleRange.start.toISOString(),
+        end: visibleRange.end.toISOString(),
+      });
+      const res = await apiRequest(`/api/calendar/google/busy?${params}`, "GET");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
@@ -274,22 +311,51 @@ export default function Calendar() {
   };
 
   const getEventsForDate = (targetDate: Date) => {
-    // Mock events for demonstration - in real app this would come from API
-    const mockEvents = [
-      { id: 'e1', title: 'EXTERNAL GOOGLE Ellie 5 Edna', type: 'external-google', time: '08:00-09:00', date: new Date(2025, 8, 5), address: '5 Edna Street' },
-      { id: 'e2', title: 'EXTERNAL GOOGLE Reilly 101 Reid', type: 'external-google', time: '09:00-10:00', date: new Date(2025, 8, 5), address: '101 Reid Avenue' },
-      { id: 'e3', title: 'EXTERNAL GOOGLE Ellie and another', type: 'external-google', time: '06:00-08:00', date: new Date(2025, 8, 12), address: '12 Ellie Place' },
-      { id: 'e4', title: 'EXTERNAL GOOGLE 105 Elam Place', type: 'external-google', time: '06:00-08:00', date: new Date(2025, 8, 19), address: '105 Elam Place' },
-      { id: 'e5', title: 'EXTERNAL GOOGLE Glenview', type: 'external-google', time: '10:00-12:00', date: new Date(2025, 8, 26), address: 'Glenview Terrace' },
-    ];
-
-    if (!targetDate || typeof targetDate.toDateString !== 'function') {
-      return [];
-    }
-
-    return mockEvents.filter(event => 
-      event.date.toDateString() === targetDate.toDateString()
-    );
+    if (!targetDate || typeof targetDate.toDateString !== "function") return [];
+    const targetKey = targetDate.toDateString();
+    const sameDayAppointments = allAppointments.filter((apt: any) => {
+      let d: Date;
+      const ad = apt.appointmentDate;
+      if (ad instanceof Date) d = ad;
+      else if (ad?.toDate) d = ad.toDate();
+      else d = new Date(ad);
+      return d.toDateString() === targetKey;
+    });
+    return googleBusyBlocks
+      .filter((block) => new Date(block.start).toDateString() === targetKey)
+      .filter((block) => {
+        const blockStart = new Date(block.start).getTime();
+        const blockEnd = new Date(block.end).getTime();
+        const isOurAppointment = sameDayAppointments.some((apt: any) => {
+          let aptDate: Date;
+          const ad = apt.appointmentDate;
+          if (ad instanceof Date) aptDate = ad;
+          else if (ad?.toDate) aptDate = ad.toDate();
+          else aptDate = new Date(ad);
+          const aptStart = aptDate.getTime();
+          const aptEnd = aptStart + (apt.estimatedDuration ?? 60) * 60 * 1000;
+          const overlaps = blockStart < aptEnd && blockEnd > aptStart;
+          const title = (block.title || "").trim();
+          const address = (apt.job?.address || "").trim();
+          const titleMatch = title.length > 0 && address.length > 0 && (address.startsWith(title.slice(0, 25)) || title.startsWith(address.slice(0, 25)));
+          return overlaps && titleMatch;
+        });
+        return !isOurAppointment;
+      })
+      .map((block, i) => {
+        const start = new Date(block.start);
+        const end = new Date(block.end);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const timeStr = `${pad(start.getHours())}:${pad(start.getMinutes())}-${pad(end.getHours())}:${pad(end.getMinutes())}`;
+        return {
+          id: `google-${block.start}-${i}`,
+          title: block.title || "Google Calendar",
+          type: "external-google" as const,
+          time: timeStr,
+          date: new Date(block.start),
+          address: block.title || "",
+        };
+      });
   };
 
   const toggleEventType = (eventTypeId: string) => {

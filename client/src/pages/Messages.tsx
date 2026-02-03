@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, MessageSquare, Loader2, Plus, Info } from "lucide-react";
+import { Send, MessageSquare, Loader2, Plus, Info, Check, CheckCheck } from "lucide-react";
 import { useRealtimeConversations, useRealtimeMessages } from "@/hooks/useFirestoreRealtime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,6 @@ export default function Messages() {
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [isGeneralConversation, setIsGeneralConversation] = useState(false);
-  // Optimistic message state for instant UI updates (must be declared before use)
   const [optimisticMessages, setOptimisticMessages] = useState<Map<string, Message>>(new Map());
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -103,39 +102,32 @@ export default function Messages() {
   const { userData: partnerData } = useAuth();
   const { userData: editorData } = useEditorAuth();
 
-  // Determine current user's email and ID based on role
   const currentUserEmail = currentUser?.email || editorData?.email || partnerData?.email;
   const currentUserId = currentUser?.uid || editorData?.uid;
   const currentUserPartnerId = partnerData?.partnerId;
 
-  // Real-time conversations with Firestore
   const { conversations = [], loading: conversationsLoading } = useRealtimeConversations(
     currentUserId || null,
     currentUserPartnerId,
     partnerData?.role
   );
 
-  // Real-time messages with Firestore
   const { messages = [], loading: messagesLoading } = useRealtimeMessages(selectedConversationId);
 
-  // Merge real-time messages with optimistic messages for instant UI updates
-  // Filter out optimistic messages that have been confirmed by real-time updates
   const displayMessages = selectedConversationId
     ? (() => {
         const optimisticMsgs = Array.from(optimisticMessages.values()).filter(
           msg => msg.conversationId === selectedConversationId
         );
         
-        // Remove optimistic messages that match real messages (same content and recent timestamp)
         const filteredOptimistic = optimisticMsgs.filter(optMsg => {
           const optContent = optMsg.content.trim();
           const optTime = optMsg.createdAt instanceof Date ? optMsg.createdAt : new Date(optMsg.createdAt);
-          // Check if a real message with same content exists (within last 5 seconds)
           const hasMatchingRealMessage = messages.some(realMsg => {
             const realContent = realMsg.content.trim();
             const realTime = realMsg.createdAt instanceof Date ? realMsg.createdAt : new Date(realMsg.createdAt);
             const timeDiff = Math.abs(realTime.getTime() - optTime.getTime());
-            return realContent === optContent && timeDiff < 5000; // 5 second window
+            return realContent === optContent && timeDiff < 5000;
           });
           return !hasMatchingRealMessage;
         });
@@ -151,54 +143,41 @@ export default function Messages() {
       })()
     : messages;
 
-  // Determine if current user is an editor or partner
   const isEditor = editorData?.role === "editor";
   const isPartner = partnerData?.role === "partner";
   const isPhotographer = partnerData?.role === "photographer";
 
-  // Filter conversations for photographers to only show their own
   const filteredConversations = isPhotographer
     ? conversations.filter(conv => {
-        // For photographers, only show conversations where they are the participant
-        // Check if conversation has participantId matching current user
         return (conv as any).participantId === currentUserId || conv.partnerId === currentUserPartnerId;
       })
     : conversations;
   
-  // Get the selected conversation from the filtered conversations array
   const selectedConversation = filteredConversations.find(c => c.id === selectedConversationId);
 
-  // Fetch partnerships for editors
   const { data: editorPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/editor/partnerships"],
     enabled: isEditor,
   });
 
-  // Fetch partnerships for partners and photographers
   const { data: partnerPartnerships = [] } = useQuery<Partnership[]>({
     queryKey: ["/api/partnerships"],
     enabled: isPartner || isPhotographer,
   });
 
-  // Fetch orders (for partners and photographers)
   const { data: partnerOrders = [] } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
     enabled: isPartner || isPhotographer,
   });
 
-  // Fetch orders for editors
   const { data: editorOrders = [] } = useQuery<Order[]>({
     queryKey: ["/api/editor/orders"],
     enabled: isEditor,
   });
 
-  // Use appropriate orders list based on role
   const orders = isEditor ? editorOrders : partnerOrders;
-
-  // Create a map of orderId to order details for quick lookup
   const orderMap = new Map(orders.map(order => [order.id, order]));
 
-  // Ensure fresh orders when opening the New Conversation dialog (addresses may change)
   useEffect(() => {
     if (newConversationDialogOpen) {
       if (isEditor) {
@@ -211,22 +190,18 @@ export default function Messages() {
     }
   }, [newConversationDialogOpen, isEditor, isPartner]);
 
-  // Fetch team members (for partners and photographers)
   const { data: teamMembers = [] } = useQuery<TeamMember[]>({
     queryKey: [`/api/team/invites/${partnerData?.partnerId}`],
     enabled: (isPartner || isPhotographer) && !!partnerData?.partnerId,
   });
 
-  // Use the appropriate partnerships list based on user role
   const partnerships = isEditor ? editorPartnerships : partnerPartnerships;
 
-  // Fetch settings to get editor display names (for photographers)
   const { data: settings } = useQuery<{ editorDisplayNames?: Record<string, string> }>({
     queryKey: ['/api/settings'],
     enabled: isPhotographer || isPartner,
   });
 
-  // Helper function to get display name for editor (custom name for photographers, default for others)
   const getEditorDisplayName = (editorId: string, defaultName: string): string => {
     if (isPhotographer && settings?.editorDisplayNames?.[editorId]) {
       return settings.editorDisplayNames[editorId];
@@ -234,14 +209,12 @@ export default function Messages() {
     return defaultName;
   };
 
-  // Combine editors and team members into contacts list (for partners and photographers)
-  // For editors, combine partners into contacts list
   const contacts: Contact[] = isEditor
     ? editorPartnerships.filter(p => p.isActive).map(p => ({
         id: p.partnerId,
         name: p.partnerName,
         email: p.partnerEmail,
-        type: "editor" as const, // Use "editor" type for consistency, even though these are partners
+        type: "editor" as const,
       }))
     : [
         ...partnerPartnerships.filter(p => p.isActive).map(p => ({
@@ -258,7 +231,6 @@ export default function Messages() {
         })),
       ];
 
-  // Mark conversation as read when selected
   const markAsReadMutation = useMutation({
     mutationFn: async (conversationId: string) => {
       const token = await auth.currentUser?.getIdToken();
@@ -273,18 +245,12 @@ export default function Messages() {
       return response.json();
     },
     onMutate: async (conversationId) => {
-      // Cancel any outgoing refetches to avoid overwriting our optimistic update
       await queryClient.cancelQueries({ queryKey: ["/api/conversations"] });
-
-      // Snapshot the previous value
       const previousConversations = queryClient.getQueryData<Conversation[]>(["/api/conversations"]);
-
-      // Optimistically update the conversation's unread count to 0
       queryClient.setQueryData<Conversation[]>(["/api/conversations"], (old) => {
         if (!old) return old;
         return old.map((conv) => {
           if (conv.id === conversationId) {
-            // Check if current user is the editor in this conversation
             const isEditor = conv.editorId === currentUserId;
             return {
               ...conv,
@@ -295,23 +261,18 @@ export default function Messages() {
           return conv;
         });
       });
-
-      // Return context with previous data for rollback on error
       return { previousConversations };
     },
     onError: (err, conversationId, context) => {
-      // Rollback to previous data on error
       if (context?.previousConversations) {
         queryClient.setQueryData(["/api/conversations"], context.previousConversations);
       }
     },
     onSettled: async () => {
-      // Always refetch after mutation to ensure we have server state
       await queryClient.refetchQueries({ queryKey: ["/api/conversations"], exact: true });
     },
   });
 
-  // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
       const token = await auth.currentUser?.getIdToken();
@@ -327,10 +288,7 @@ export default function Messages() {
       return response.json();
     },
     onMutate: async ({ conversationId, content }) => {
-      // Cancel any outgoing refetches to avoid overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: [`/api/conversations/${conversationId}`] });
-
-      // Create optimistic message
       const optimisticMessage: Message = {
         id: `temp-${Date.now()}-${Math.random()}`,
         conversationId,
@@ -342,27 +300,18 @@ export default function Messages() {
         readAt: null,
         createdAt: new Date(),
       };
-
-      // Add to optimistic messages map
       setOptimisticMessages(prev => {
         const newMap = new Map(prev);
         newMap.set(optimisticMessage.id, optimisticMessage);
         return newMap;
       });
-
-      // Clear input immediately for instant feedback
       setMessageInput("");
-
-      // Scroll to bottom immediately for optimistic message
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
       });
-
       return { optimisticMessage };
     },
     onSuccess: (data, variables, context) => {
-      // Remove optimistic message immediately - real-time listener will add the real one
-      // Use a small delay to ensure the real message has time to arrive from Firestore
       setTimeout(() => {
         if (context?.optimisticMessage) {
           setOptimisticMessages(prev => {
@@ -374,7 +323,6 @@ export default function Messages() {
       }, 100);
     },
     onError: (error, variables, context) => {
-      // Remove optimistic message on error
       if (context?.optimisticMessage) {
         setOptimisticMessages(prev => {
           const newMap = new Map(prev);
@@ -382,7 +330,6 @@ export default function Messages() {
           return newMap;
         });
       }
-      // Restore input on error
       setMessageInput(variables.content);
       toast({
         title: "Error",
@@ -392,12 +339,9 @@ export default function Messages() {
     },
   });
 
-  // Create conversation mutation
   const createConversationMutation = useMutation({
     mutationFn: async ({ contactId, orderId }: { contactId: string; orderId?: string }) => {
       const token = await auth.currentUser?.getIdToken();
-
-      // Find the contact (editor/partner or team member)
       const contact = contacts.find(c => c.id === contactId);
       if (!contact) throw new Error("Contact not found");
 
@@ -410,14 +354,12 @@ export default function Messages() {
         body: JSON.stringify(
           isEditor
             ? {
-                // Editor creating conversation with partner
                 partnerId: contact.id,
                 partnerEmail: contact.email,
                 partnerName: contact.name,
                 orderId: orderId || undefined,
               }
             : {
-                // Partner creating conversation with editor
                 editorId: contact.id,
                 editorEmail: contact.email,
                 editorName: contact.name,
@@ -449,7 +391,6 @@ export default function Messages() {
     },
   });
 
-  // Remove optimistic messages when real messages with matching content arrive
   useEffect(() => {
     if (messages.length > 0 && optimisticMessages.size > 0) {
       const optimisticMsgs = Array.from(optimisticMessages.values());
@@ -459,14 +400,12 @@ export default function Messages() {
         const optContent = optMsg.content.trim();
         const optTime = optMsg.createdAt instanceof Date ? optMsg.createdAt : new Date(optMsg.createdAt);
         
-        // Check if a real message with same content exists (within 10 second window)
         const hasMatchingRealMessage = messages.some(realMsg => {
           const realContent = realMsg.content.trim();
           const realTime = realMsg.createdAt instanceof Date ? realMsg.createdAt : new Date(realMsg.createdAt);
           const timeDiff = Math.abs(realTime.getTime() - optTime.getTime());
-          // Match by content and sender (to avoid false matches)
           const sameSender = realMsg.senderId === optMsg.senderId || realMsg.senderEmail === optMsg.senderEmail;
-          return realContent === optContent && sameSender && timeDiff < 10000; // 10 second window
+          return realContent === optContent && sameSender && timeDiff < 10000;
         });
         
         if (hasMatchingRealMessage) {
@@ -484,17 +423,14 @@ export default function Messages() {
     }
   }, [messages, optimisticMessages]);
 
-  // Scroll to bottom when messages change (including optimistic updates)
   useEffect(() => {
     if (displayMessages && displayMessages.length > 0) {
-      // Use requestAnimationFrame for instant, smooth scroll
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
       });
     }
-  }, [displayMessages.length]); // Only depend on length to avoid unnecessary scrolls
+  }, [displayMessages.length]);
 
-  // Mark conversation as read when opened
   useEffect(() => {
     if (selectedConversationId) {
       markAsReadMutation.mutate(selectedConversationId);
@@ -503,7 +439,6 @@ export default function Messages() {
 
   const handleSendMessage = () => {
     if (!selectedConversationId || !messageInput.trim()) return;
-
     sendMessageMutation.mutate({
       conversationId: selectedConversationId,
       content: messageInput.trim(),
@@ -529,7 +464,6 @@ export default function Messages() {
       return;
     }
 
-    // Backend will handle duplicate conversation checking
     createConversationMutation.mutate({
       contactId: selectedContactId,
       orderId: isGeneralConversation ? undefined : selectedOrderId,
@@ -563,11 +497,9 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation: Conversation) => {
-    // Check if current user is the editor in this conversation
     const isEditor = conversation.editorId === currentUserId;
     const isPartner = !isEditor;
     
-    // For photographers, use custom display name if available
     let editorName = conversation.editorName;
     if (isPhotographer && isPartner && settings?.editorDisplayNames?.[conversation.editorId]) {
       editorName = settings.editorDisplayNames[conversation.editorId];
@@ -587,19 +519,19 @@ export default function Messages() {
 
   if (conversationsLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex h-full items-center justify-center bg-rpp-grey-pale">
+        <Loader2 className="h-8 w-8 animate-spin text-rpp-orange" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] gap-4 px-6 pt-6">
+    <div className="flex h-[calc(100vh-12rem)] gap-4 p-6 bg-rpp-grey-pale">
       {/* Conversations List */}
-      <Card className="w-96 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl" style={{ overflowX: 'hidden' }}>
-        <div className="p-4 border-b flex items-center justify-between bg-background/50 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-rpp-red-main" />
+      <Card className="w-96 flex flex-col overflow-hidden rounded-2xl border border-rpp-grey-lighter bg-white shadow-sm" style={{ overflowX: 'hidden' }}>
+        <div className="p-4 border-b border-rpp-grey-lighter flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-rpp-grey-darkest flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-rpp-orange" />
             Messages
           </h2>
           {((isPartner || isPhotographer || isEditor) && (contacts.length > 0 || (isPhotographer && orders.length > 0))) && (
@@ -607,21 +539,21 @@ export default function Messages() {
               <DialogTrigger asChild>
                 <Button 
                   size="sm" 
-                  className="!bg-[#f2572c] hover:!bg-rpp-red-dark text-white"
+                  className="btn-primary-gradient rounded-xl"
                   data-testid="button-new-conversation"
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   New
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-md rounded-2xl">
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-rpp-red-main" />
+                  <DialogTitle className="flex items-center gap-2 text-rpp-grey-darkest">
+                    <MessageSquare className="h-5 w-5 text-rpp-orange" />
                     Start New Conversation
                   </DialogTitle>
                 </DialogHeader>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-rpp-grey">
                   {isEditor 
                     ? "Select an order and partner to begin messaging"
                     : "Select an order and editor to begin messaging"}
@@ -631,8 +563,8 @@ export default function Messages() {
                   {/* Order Selection */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="order-select">Select Order</Label>
-                      <span className="text-red-500 text-sm">*</span>
+                      <Label htmlFor="order-select" className="text-rpp-grey-darkest">Select Order</Label>
+                      <span className="text-semantic-red text-sm">*</span>
                     </div>
                     <Select 
                       value={selectedOrderId} 
@@ -642,13 +574,16 @@ export default function Messages() {
                       <SelectTrigger 
                         id="order-select"
                         data-testid="select-order"
-                        className={isGeneralConversation ? "opacity-50" : ""}
+                        className={cn(
+                          "rounded-xl border-rpp-grey-lighter focus:border-rpp-orange",
+                          isGeneralConversation && "opacity-50"
+                        )}
                       >
                         <SelectValue placeholder="Choose an order..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl">
                         {orders.map((order) => (
-                          <SelectItem key={order.id} value={order.id}>
+                          <SelectItem key={order.id} value={order.id} className="rounded-lg">
                             {order.orderNumber} • {order.jobAddress}
                           </SelectItem>
                         ))}
@@ -666,11 +601,12 @@ export default function Messages() {
                             setSelectedOrderId("");
                           }
                         }}
+                        className="border-rpp-grey-lighter data-[state=checked]:bg-rpp-orange data-[state=checked]:border-rpp-orange"
                         data-testid="checkbox-general-conversation"
                       />
                       <label
                         htmlFor="general-conversation"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        className="text-sm font-medium text-rpp-grey-darkest cursor-pointer"
                       >
                         General conversation
                       </label>
@@ -680,10 +616,10 @@ export default function Messages() {
                   {/* Contact Selection */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="contact-select">
+                      <Label htmlFor="contact-select" className="text-rpp-grey-darkest">
                         {isEditor ? "Select Partner" : "Select Contact"}
                       </Label>
-                      <span className="text-red-500 text-sm">*</span>
+                      <span className="text-semantic-red text-sm">*</span>
                     </div>
                     <Select 
                       value={selectedContactId} 
@@ -692,25 +628,24 @@ export default function Messages() {
                       <SelectTrigger 
                         id="contact-select"
                         data-testid="select-contact"
+                        className="rounded-xl border-rpp-grey-lighter focus:border-rpp-orange"
                       >
                         <SelectValue placeholder={isEditor ? "Choose a partner..." : "Choose a contact..."} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl">
                         {isEditor ? (
-                          // For editors, show partners
                           contacts.map((contact) => (
-                            <SelectItem key={contact.id} value={contact.id}>
+                            <SelectItem key={contact.id} value={contact.id} className="rounded-lg">
                               {contact.name}
                             </SelectItem>
                           ))
                         ) : (
-                          // For partners, show editors and team members grouped
                           <>
                             {contacts.filter(c => c.type === "editor").length > 0 && (
                               <SelectGroup>
                                 <SelectLabel>Editors</SelectLabel>
                                 {contacts.filter(c => c.type === "editor").map((contact) => (
-                                  <SelectItem key={contact.id} value={contact.id}>
+                                  <SelectItem key={contact.id} value={contact.id} className="rounded-lg">
                                     {contact.name}
                                   </SelectItem>
                                 ))}
@@ -720,7 +655,7 @@ export default function Messages() {
                               <SelectGroup>
                                 <SelectLabel>Team Members</SelectLabel>
                                 {contacts.filter(c => c.type === "team").map((contact) => (
-                                  <SelectItem key={contact.id} value={contact.id}>
+                                  <SelectItem key={contact.id} value={contact.id} className="rounded-lg">
                                     {contact.name}
                                   </SelectItem>
                                 ))}
@@ -734,13 +669,13 @@ export default function Messages() {
 
                   {/* Order Assignment Info */}
                   {!isGeneralConversation && selectedOrderId && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="bg-semantic-blue-light border border-semantic-blue/30 rounded-xl p-3">
                       <div className="flex gap-2">
-                        <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <Info className="h-4 w-4 text-semantic-blue mt-0.5 flex-shrink-0" />
                         <div>
-                          <h4 className="text-sm font-medium text-blue-900 mb-1">Order Assignment</h4>
-                          <p className="text-xs text-blue-800">
-                            This conversation will be linked to the selected order. You can discuss editing requirements, share feedback, and track progress.
+                          <h4 className="text-sm font-medium text-semantic-blue-dark mb-1">Order Assignment</h4>
+                          <p className="text-xs text-semantic-blue">
+                            This conversation will be linked to the selected order.
                           </p>
                         </div>
                       </div>
@@ -757,6 +692,7 @@ export default function Messages() {
                       setSelectedContactId("");
                       setIsGeneralConversation(false);
                     }}
+                    className="rounded-xl border-rpp-grey-lighter"
                     data-testid="button-cancel-conversation"
                   >
                     Cancel
@@ -764,7 +700,7 @@ export default function Messages() {
                   <Button
                     onClick={handleStartConversation}
                     disabled={createConversationMutation.isPending || !selectedContactId || (!isGeneralConversation && !selectedOrderId)}
-                    className="hover:bg-rpp-red-dark text-white bg-[#f47b5c]"
+                    className="btn-primary-gradient rounded-xl"
                     data-testid="button-start-conversation"
                   >
                     {createConversationMutation.isPending ? (
@@ -786,10 +722,12 @@ export default function Messages() {
         </div>
         <ScrollArea className="flex-1 overflow-x-hidden">
           {filteredConversations.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              <MessageSquare className="h-16 w-16 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No conversations yet</p>
-              <p className="text-xs mt-1">Start a new conversation to begin messaging</p>
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-rpp-grey-lightest rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-8 w-8 text-rpp-grey-light" />
+              </div>
+              <p className="text-sm font-medium text-rpp-grey-darkest mb-1">No conversations yet</p>
+              <p className="text-xs text-rpp-grey">Start a new conversation to begin messaging</p>
             </div>
           ) : (
             <div className="p-2 space-y-2 max-w-full overflow-x-hidden">
@@ -802,14 +740,14 @@ export default function Messages() {
                     key={conversation.id}
                     onClick={() => setSelectedConversationId(conversation.id)}
                     className={cn(
-                      "w-full max-w-full p-3 rounded-lg text-left transition-all duration-200",
-                      "hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
-                      "border overflow-hidden",
+                      "w-full max-w-full p-3 rounded-xl text-left transition-all duration-200",
+                      "hover:shadow-md active:scale-[0.99]",
+                      "border overflow-hidden card-hover",
                       isSelected
-                        ? "bg-rpp-red-main/10 border-rpp-red-main shadow-md"
+                        ? "bg-rpp-orange-subtle border-rpp-orange shadow-sm"
                         : participant.unreadCount > 0
-                          ? "bg-rpp-red-lighter/90 border-rpp-red-main shadow-lg ring-2 ring-rpp-red-main/50"
-                          : "border-transparent hover:bg-accent hover:border-muted-foreground/20"
+                          ? "bg-rpp-orange-subtle/50 border-rpp-orange/50"
+                          : "border-rpp-grey-lighter hover:border-rpp-orange/30"
                     )}
                     data-testid={`conversation-card-${conversation.id}`}
                   >
@@ -817,17 +755,17 @@ export default function Messages() {
                       <div className="relative flex-shrink-0">
                         <Avatar className={cn(
                           "ring-2 transition-all duration-200",
-                          isSelected ? "ring-rpp-red-main" : "ring-transparent"
+                          isSelected ? "ring-rpp-orange" : "ring-transparent"
                         )}>
                           <AvatarFallback className={cn(
-                            "font-semibold",
-                            isSelected && "bg-rpp-red-main/20 text-rpp-red-main"
+                            "font-semibold bg-rpp-orange text-white",
+                            isSelected && "bg-rpp-orange"
                           )}>
                             {getInitials(participant.name)}
                           </AvatarFallback>
                         </Avatar>
                         {participant.unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold">
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-semantic-red text-white text-xs font-bold">
                             {participant.unreadCount}
                           </span>
                         )}
@@ -835,28 +773,19 @@ export default function Messages() {
                       <div className="flex-1 min-w-0 overflow-hidden" style={{ width: 0 }}>
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className={cn(
-                            "font-medium truncate transition-colors min-w-0 flex-1",
-                            isSelected && "text-rpp-red-main"
+                            "font-medium truncate transition-colors min-w-0 flex-1 text-rpp-grey-darkest",
+                            isSelected && "text-rpp-orange"
                           )} style={{ minWidth: 0 }}>
                             {participant.name}
                           </p>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0 ml-2">
+                          <span className="text-xs text-rpp-grey whitespace-nowrap flex-shrink-0 ml-2">
                             {formatTime(conversation.lastMessageAt)}
                           </span>
                         </div>
                         {orderDetails && (
                           <div className="mb-1 overflow-hidden" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
                             <p 
-                              className="text-xs text-blue-600 dark:text-blue-400 font-medium block"
-                              style={{ 
-                                width: '100%',
-                                maxWidth: '100%',
-                                minWidth: 0,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                display: 'block'
-                              }}
+                              className="text-xs text-semantic-blue font-medium block truncate"
                             >
                               {orderDetails.orderNumber} • {orderDetails.jobAddress}
                             </p>
@@ -865,8 +794,8 @@ export default function Messages() {
                         <p className={cn(
                           "text-sm truncate transition-colors min-w-0 max-w-full block",
                           participant.unreadCount > 0
-                            ? "text-foreground font-medium"
-                            : "text-muted-foreground"
+                            ? "text-rpp-grey-darkest font-medium"
+                            : "text-rpp-grey"
                         )}>
                           {conversation.lastMessageText || "No messages yet"}
                         </p>
@@ -879,39 +808,40 @@ export default function Messages() {
           )}
         </ScrollArea>
       </Card>
+
       {/* Messages Area */}
-      <Card className="flex-1 flex flex-col overflow-hidden rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl shadow-md transition-shadow duration-300 hover:shadow-xl">
+      <Card className="flex-1 flex flex-col overflow-hidden rounded-2xl border border-rpp-grey-lighter bg-white shadow-sm">
         {selectedConversationId ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b bg-muted/30">
+            <div className="p-4 border-b border-rpp-grey-lighter bg-rpp-grey-lightest/50">
               {selectedConversation && (
                 <div>
                   <div className="flex items-center gap-3 mb-3">
-                    <Avatar className="h-12 w-12 ring-2 ring-rpp-red-main/20">
-                      <AvatarFallback className="bg-rpp-red-main/10 text-rpp-red-main font-semibold text-base">
+                    <Avatar className="h-12 w-12 ring-2 ring-rpp-orange/20">
+                      <AvatarFallback className="bg-rpp-orange text-white font-semibold text-base">
                         {getInitials(getOtherParticipant(selectedConversation).name)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-semibold text-base">
+                      <p className="font-semibold text-base text-rpp-grey-darkest">
                         {getOtherParticipant(selectedConversation).name}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-rpp-grey">
                         {getOtherParticipant(selectedConversation).email}
                       </p>
                     </div>
                   </div>
                   {selectedConversation.orderId && getOrderDetails(selectedConversation.orderId) && (
-                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                    <div className="bg-semantic-blue-light border border-semantic-blue/20 rounded-xl px-3 py-2">
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1.5 flex-1">
-                          <span className="text-xs font-medium text-blue-900 dark:text-blue-100">Order:</span>
-                          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                          <span className="text-xs font-medium text-semantic-blue-dark">Order:</span>
+                          <span className="text-sm font-semibold text-semantic-blue">
                             {getOrderDetails(selectedConversation.orderId)?.orderNumber}
                           </span>
-                          <span className="text-xs text-blue-600 dark:text-blue-400">•</span>
-                          <span className="text-xs text-blue-700 dark:text-blue-300 truncate">
+                          <span className="text-xs text-semantic-blue">•</span>
+                          <span className="text-xs text-semantic-blue truncate">
                             {getOrderDetails(selectedConversation.orderId)?.jobAddress}
                           </span>
                         </div>
@@ -926,7 +856,7 @@ export default function Messages() {
             <ScrollArea className="flex-1 p-4 max-h-[calc(100vh-20rem)]">
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <Loader2 className="h-6 w-6 animate-spin text-rpp-orange" />
                 </div>
               ) : (
                 <div className="space-y-3 pb-4">
@@ -943,27 +873,25 @@ export default function Messages() {
                       >
                         <div
                           className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
+                            "max-w-[70%] rounded-2xl px-4 py-3 shadow-sm transition-all",
                             isCurrentUser 
-                              ? "bg-[#FCDED4] rounded-br-sm" 
-                              : "bg-gray-200 dark:bg-gray-700 rounded-bl-sm"
+                              ? "bg-rpp-orange text-white rounded-br-md" 
+                              : "bg-rpp-grey-lightest text-rpp-grey-darkest rounded-bl-md"
                           )}
                         >
-                          <p className={cn(
-                            "whitespace-pre-wrap break-words text-[18px]",
-                            isCurrentUser 
-                              ? "text-gray-900 dark:text-gray-100" 
-                              : "text-gray-900 dark:text-gray-100"
-                          )}>
+                          <p className="whitespace-pre-wrap break-words text-[15px]">
                             {message.content}
                           </p>
                           <p
                             className={cn(
                               "text-xs mt-1.5 flex items-center gap-1",
-                              isCurrentUser ? "justify-end text-gray-600 dark:text-gray-400" : "justify-start text-gray-600 dark:text-gray-400"
+                              isCurrentUser ? "justify-end text-white/70" : "justify-start text-rpp-grey"
                             )}
                           >
                             {formatTime(message.createdAt)}
+                            {isCurrentUser && (
+                              <CheckCheck className="w-3.5 h-3.5 ml-1" />
+                            )}
                           </p>
                         </div>
                       </div>
@@ -975,7 +903,7 @@ export default function Messages() {
             </ScrollArea>
 
             {/* Message Input */}
-            <div className="p-4 border-t bg-muted/20">
+            <div className="p-4 border-t border-rpp-grey-lighter bg-rpp-grey-lightest/30">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -987,7 +915,7 @@ export default function Messages() {
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   placeholder="Type a message..."
-                  className="focus-visible:ring-rpp-red-main"
+                  className="rounded-xl border-rpp-grey-lighter focus:border-rpp-orange"
                   data-testid="input-message"
                   autoFocus
                 />
@@ -995,28 +923,27 @@ export default function Messages() {
                   type="submit"
                   disabled={!messageInput.trim()}
                   size="icon"
-                  variant="default"
-                  className="bg-rpp-red-main hover:bg-rpp-red-dark text-white transition-all hover:scale-105 disabled:opacity-70 disabled:bg-rpp-red-main/70 disabled:cursor-not-allowed"
-                  style={{
-                    backgroundColor: messageInput.trim() ? '#DC2626' : 'rgba(220, 38, 38, 0.7)',
-                    opacity: messageInput.trim() ? 1 : 0.7,
-                    color: 'white'
-                  }}
+                  className={cn(
+                    "rounded-xl transition-all",
+                    messageInput.trim() 
+                      ? "btn-primary-gradient" 
+                      : "bg-rpp-grey-lighter text-rpp-grey"
+                  )}
                   data-testid="button-send-message"
                 >
-                  <Send className="h-4 w-4 text-white" style={{ color: 'white' }} />
+                  <Send className="h-4 w-4" />
                 </Button>
               </form>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center">
             <div className="text-center p-8">
-              <div className="inline-block p-6 rounded-full bg-muted/30 mb-4">
-                <MessageSquare className="h-16 w-16 opacity-40" />
+              <div className="w-20 h-20 bg-rpp-grey-lightest rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="h-10 w-10 text-rpp-grey-light" />
               </div>
-              <p className="text-lg font-medium mb-2">No conversation selected</p>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              <p className="text-lg font-semibold text-rpp-grey-darkest mb-2">No conversation selected</p>
+              <p className="text-sm text-rpp-grey max-w-sm mx-auto">
                 Choose a conversation from the list or start a new one to begin messaging
               </p>
             </div>

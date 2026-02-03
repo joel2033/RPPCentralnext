@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import dotenv from "dotenv";
+// Load .env.local first (override), then .env
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cron from "node-cron";

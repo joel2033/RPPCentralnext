@@ -156,11 +156,11 @@ export const routePermissions: Record<string, UserRole[]> = {
   "/invite-editor": ["partner", "admin"], // Invite editors
   "/production-hub": ["partner", "admin", "photographer"], // Master cannot access production hub
   "/notifications": ["partner", "admin", "photographer"], // Master cannot access notifications
+  "/reports": ["partner", "admin", "master"], // Job reports and analytics
   // Editor-specific routes
   "/editor": ["editor"],
   "/editor/dashboard": ["editor"],
   "/editor/jobs": ["editor"],
-  "/editor/downloads": ["editor"],
   "/editor/uploads": ["editor"],
   "/editor/products": ["editor"],
   "/editor/settings": ["editor"],

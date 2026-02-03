@@ -57,7 +57,7 @@ const getIcon = (type: AttentionItem['type']) => {
 const getPriorityColor = (priority: AttentionItem['priority']) => {
   switch (priority) {
     case 'high':
-      return 'bg-rpp-red-lighter text-rpp-red-main border-rpp-red-light';
+      return 'bg-rpp-red-lighter text-white border-gray-200/10';
     case 'medium':
       return 'bg-support-green/10 text-support-green border-support-green/20';
     case 'low':
@@ -118,19 +118,27 @@ export function NeedsAttention() {
     }
   };
 
+  const hasItems = attentionItems.length > 0;
+
   return (
-    <Card className="bg-white border-0 rounded-3xl shadow-rpp-card overflow-hidden">
-      <CardHeader className="p-6 pb-4">
+    <Card className={`bg-white rounded-3xl overflow-hidden transition-all duration-300 border-0 ${
+      hasItems 
+        ? 'animate-pulse-glow shadow-rpp-card' 
+        : 'shadow-rpp-card'
+    }`}>
+      <CardHeader className={`p-6 pb-4 ${
+        unreadCount > 0 ? 'bg-gradient-to-r from-rpp-red-lighter/30 to-transparent' : ''
+      }`}>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rpp-red-lighter to-rpp-red-light flex items-center justify-center">
-              <Bell className="w-5 h-5 text-rpp-red-main" />
+              <Bell className={`w-5 h-5 text-rpp-red-main ${hasItems ? 'animate-bell-ring' : ''}`} />
             </div>
             <div>
               <CardTitle className="flex items-center gap-2.5 text-base font-bold text-rpp-grey-dark">
                 Needs Your Attention
                 {unreadCount > 0 && (
-                  <Badge variant="destructive" className="rounded-full h-5 min-w-5 px-1.5 text-xs font-bold">
+                  <Badge variant="destructive" className="rounded-full h-6 min-w-6 px-2 text-xs font-bold animate-pulse bg-rpp-red-main">
                     {unreadCount}
                   </Badge>
                 )}
@@ -172,12 +180,17 @@ export function NeedsAttention() {
                   <div
                     key={item.id}
                     onClick={() => handleItemClick(item)}
-                    className={`p-4 hover:bg-rpp-grey-bg/50 transition-colors cursor-pointer relative ${
-                      item.unread ? 'bg-rpp-red-lighter/20' : ''
+                    className={`p-4 hover:bg-rpp-grey-bg/50 transition-all cursor-pointer relative ${
+                      item.unread 
+                        ? 'bg-gradient-to-r from-rpp-red-lighter/30 to-rpp-red-lighter/10 shadow-sm' 
+                        : ''
                     }`}
                     data-testid={`attention-item-${item.id}`}
                   >
-                    {item.priority === 'high' && (
+                    {item.unread && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-rpp-red-main rounded-r-full animate-pulse" />
+                    )}
+                    {item.priority === 'high' && !item.unread && (
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-rpp-red-main rounded-r-full" />
                     )}
 
@@ -202,7 +215,7 @@ export function NeedsAttention() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <h4 className={`text-sm text-rpp-grey-dark ${item.unread ? 'font-semibold' : 'font-medium'}`}>
+                          <h4 className={`text-sm ${item.unread ? 'font-bold text-rpp-grey-dark' : 'font-medium text-rpp-grey-dark'}`}>
                             {item.title}
                           </h4>
                           <Badge

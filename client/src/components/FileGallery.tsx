@@ -4,10 +4,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X, Loader2, GripVertical } from "lucide-react";
+import { Download, Eye, FileImage, File, Calendar, User, Plus, Edit, FolderPlus, Folder, Video, FileText, Image as ImageIcon, Map, Play, MoreVertical, Upload, Trash2, ChevronLeft, ChevronRight, X, Loader2, GripVertical, Check } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -38,6 +39,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMasterView } from "@/contexts/MasterViewContext";
 import { auth } from "@/lib/firebase";
 import { useRealtimeEditorUploads } from "@/hooks/useFirestoreRealtime";
+import { OrderDetailsModal, OrderDetails } from "@/components/modals/OrderDetailsModal";
+import { RequestRevisionModal, RevisionRequestData } from "@/components/modals/RequestRevisionModal";
 
 interface CompletedFile {
   id: string;
@@ -89,12 +92,15 @@ interface SortableFolderItemProps {
   onToggleVisibility: (folder: FolderData, isVisible: boolean) => void;
   onCreateSubfolder: (folderPath: string) => void;
   onDownloadAll: (folder: FolderData) => void;
+  onSelectAllImages: (folder: FolderData) => void;
+  areAllImagesSelected: (folder: FolderData) => boolean;
   onRenameFolder: (folder: FolderData) => void;
-  onDeleteFolder: (folderPath: string, folderName: string, orderNumber?: string) => void;
+  onDeleteFolder: (folder: FolderData) => void;
   getFolderKey: (folder: FolderData) => string;
   getFolderTestId: (prefix: string, folder: FolderData) => string;
   formatOrderNumber: (orderNumber: string) => string;
   pendingFolderKey: string | null;
+  onOrderClick: (orderId: string | null | undefined) => void;
 }
 
 const SortableFolderItem = ({
@@ -106,12 +112,15 @@ const SortableFolderItem = ({
   onToggleVisibility,
   onCreateSubfolder,
   onDownloadAll,
+  onSelectAllImages,
+  areAllImagesSelected,
   onRenameFolder,
   onDeleteFolder,
   getFolderKey,
   getFolderTestId,
   formatOrderNumber,
   pendingFolderKey,
+  onOrderClick,
 }: SortableFolderItemProps) => {
   const {
     attributes,
@@ -153,16 +162,22 @@ const SortableFolderItem = ({
               <Folder className="h-6 w-6 text-blue-600" />
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-medium text-gray-900">
-                  {folder.partnerFolderName || folder.editorFolderName}
+                  {folder.partnerFolderName || folder.editorFolderName || 'Unnamed Folder'}
                 </h3>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              {folder.orderNumber && (
-                <span className="text-sm font-semibold text-rpp-red-main">
-                  {formatOrderNumber(folder.orderNumber)}
-                </span>
+              {(folder.orderId || folder.orderNumber) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOrderClick(folder.orderId);
+                  }}
+                  className="text-sm font-semibold text-rpp-red-main hover:text-rpp-orange hover:underline cursor-pointer transition-colors"
+                >
+                  {folder.orderNumber ? formatOrderNumber(folder.orderNumber) : `Order: ${folder.orderId}`}
+                </button>
               )}
               
               <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -209,6 +224,16 @@ const SortableFolderItem = ({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
+                        onSelectAllImages(folder);
+                      }}
+                      data-testid={getFolderTestId('menu-select-all-images', folder)}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      {areAllImagesSelected(folder) ? 'Deselect All Images' : 'Select All Images'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
                         onDownloadAll(folder);
                       }}
                       disabled={downloadingFolder === folder.uniqueKey}
@@ -251,11 +276,8 @@ const SortableFolderItem = ({
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            onDeleteFolder(
-                              folder.folderPath,
-                              folder.partnerFolderName || folder.editorFolderName,
-                              folder.orderNumber
-                            );
+                            e.preventDefault();
+                            onDeleteFolder(folder);
                           }}
                           className="text-red-600"
                           data-testid={getFolderTestId('menu-delete-section', folder)}
@@ -315,7 +337,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [newContentSectionName, setNewContentSectionName] = useState('');
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [folderToDelete, setFolderToDelete] = useState<{ folderPath: string; folderName: string } | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<{ folderPath: string; folderName: string; folderToken?: string } | null>(null);
   const [showDeleteFileConfirm, setShowDeleteFileConfirm] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<CompletedFile | null>(null);
   // Track deleted file IDs for instant UI updates
@@ -336,6 +358,18 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
   const [isDragging, setIsDragging] = useState(false);
   // Track which folder is currently being updated (for UI loading state)
   const [pendingFolderKey, setPendingFolderKey] = useState<string | null>(null);
+  
+  // Order details modal state
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [isLoadingOrderDetails, setIsLoadingOrderDetails] = useState(false);
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
+  
+  // Multi-select state for image downloads
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [isDownloadingSelected, setIsDownloadingSelected] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -522,8 +556,8 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
 
   // Mutation for deleting folders
   const deleteFolderMutation = useMutation({
-    mutationFn: async ({ folderPath }: { folderPath: string }) => {
-      return apiRequest(`/api/jobs/${jobId}/folders`, 'DELETE', { folderPath });
+    mutationFn: async ({ folderPath, folderToken }: { folderPath: string; folderToken?: string }) => {
+      return apiRequest(`/api/jobs/${jobId}/folders`, 'DELETE', { folderPath, folderToken });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
@@ -1002,28 +1036,125 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     setShowRenameFolderModal(true);
   };
 
-  const handleDeleteFolder = (folderPath: string, folderName: string, orderNumber?: string) => {
+  const handleDeleteFolder = (folder: FolderData) => {
     // Prevent deletion if folder has an order attached
-    if (orderNumber) {
+    if (folder.orderNumber) {
       toast({
         title: "Cannot delete folder",
-        description: `This folder is attached to ${orderNumber} and cannot be deleted.`,
+        description: `This folder is attached to ${folder.orderNumber} and cannot be deleted.`,
         variant: "destructive",
       });
       return;
     }
 
-    // Show confirmation modal
-    setFolderToDelete({ folderPath, folderName });
+    // Show confirmation modal - store both folderPath and folderToken for deletion
+    setFolderToDelete({ folderPath: folder.folderPath, folderName: folder.partnerFolderName || folder.editorFolderName, folderToken: folder.folderToken });
     setShowDeleteConfirm(true);
   };
 
   const confirmDeleteFolder = () => {
     if (folderToDelete) {
-      deleteFolderMutation.mutate({ folderPath: folderToDelete.folderPath });
+      deleteFolderMutation.mutate({ folderPath: folderToDelete.folderPath, folderToken: folderToDelete.folderToken });
       setShowDeleteConfirm(false);
       setFolderToDelete(null);
     }
+  };
+
+  // Order details modal handlers
+  const handleOrderClick = async (orderId: string | null | undefined) => {
+    if (!orderId) return;
+    
+    setSelectedOrderId(orderId);
+    setIsOrderDetailsOpen(true);
+    setIsLoadingOrderDetails(true);
+    setOrderDetails(null);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/orders/${orderId}/details`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch order details");
+      }
+
+      const data = await response.json();
+      setOrderDetails(data);
+    } catch (error: any) {
+      console.error("Error fetching order details:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load order details",
+        variant: "destructive",
+      });
+      setIsOrderDetailsOpen(false);
+    } finally {
+      setIsLoadingOrderDetails(false);
+    }
+  };
+
+  const handleRequestRevision = () => {
+    setIsOrderDetailsOpen(false);
+    setIsRevisionModalOpen(true);
+  };
+
+  const handleRevisionSubmit = async (data: RevisionRequestData) => {
+    if (!selectedOrderId) return;
+    
+    setIsSubmittingRevision(true);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/orders/${selectedOrderId}/revisions/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit revision request");
+      }
+
+      toast({
+        title: "Revision Requested",
+        description: "Your revision request has been submitted successfully.",
+      });
+
+      // Refresh folders/orders data
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs', jobId, 'folders'] });
+      
+      setIsRevisionModalOpen(false);
+      setSelectedOrderId(null);
+      setOrderDetails(null);
+    } catch (error: any) {
+      console.error("Error submitting revision:", error);
+      throw error;
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
+
+  const handleCloseOrderDetails = () => {
+    setIsOrderDetailsOpen(false);
+    setSelectedOrderId(null);
+    setOrderDetails(null);
+  };
+
+  const handleCloseRevisionModal = () => {
+    setIsRevisionModalOpen(false);
   };
 
   const handleDownloadAll = async (folder: FolderData) => {
@@ -1240,6 +1371,65 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Multi-select helper functions
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFileIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllImagesInFolder = (folder: FolderData) => {
+    const imageFileIds = folder.files
+      .filter(file => !file.fileName.startsWith('.') && file.downloadUrl && isImage(file.mimeType))
+      .map(file => file.id);
+    
+    setSelectedFileIds(prev => {
+      const newSet = new Set(prev);
+      // Check if all images in folder are already selected
+      const allSelected = imageFileIds.every(id => newSet.has(id));
+      if (allSelected) {
+        // Deselect all images in this folder
+        imageFileIds.forEach(id => newSet.delete(id));
+      } else {
+        // Select all images in this folder
+        imageFileIds.forEach(id => newSet.add(id));
+      }
+      return newSet;
+    });
+  };
+
+  const clearFileSelection = () => {
+    setSelectedFileIds(new Set());
+  };
+
+  const areAllImagesSelectedInFolder = (folder: FolderData): boolean => {
+    const imageFileIds = folder.files
+      .filter(file => !file.fileName.startsWith('.') && file.downloadUrl && isImage(file.mimeType))
+      .map(file => file.id);
+    
+    if (imageFileIds.length === 0) return false;
+    return imageFileIds.every(id => selectedFileIds.has(id));
+  };
+
+  const getSelectedFilesData = (): CompletedFile[] => {
+    // Collect all files from all folders that match selected IDs
+    const allFiles: CompletedFile[] = [];
+    foldersData?.forEach(folder => {
+      folder.files.forEach(file => {
+        if (selectedFileIds.has(file.id)) {
+          allFiles.push(file);
+        }
+      });
+    });
+    return allFiles;
+  };
+
   const handleImageClick = (url: string, name: string, folderFiles?: any[]) => {
     // Build gallery from folder files if provided
     if (folderFiles) {
@@ -1315,15 +1505,180 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
     link.click();
   };
 
+  const handleDownloadSelected = async () => {
+    const selectedFiles = getSelectedFilesData();
+    
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select at least one image to download.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Single file: download directly
+    if (selectedFiles.length === 1) {
+      const file = selectedFiles[0];
+      handleDownload(file.downloadUrl, file.originalName);
+      toast({
+        title: "Downloading...",
+        description: `Downloading ${file.originalName}`,
+      });
+      clearFileSelection();
+      return;
+    }
+
+    // Multiple files: zip and download
+    setIsDownloadingSelected(true);
+    
+    // Show download progress
+    setDownloadProgress({
+      isOpen: true,
+      stage: 'creating',
+      progress: 0,
+      filesProcessed: 0,
+      totalFiles: selectedFiles.length,
+      bytesReceived: 0,
+      totalBytes: 0,
+      folderName: 'selected images'
+    });
+
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const fileIds = selectedFiles.map(f => f.id);
+      
+      // Call the backend endpoint to create zip
+      const response = await fetch(`/api/jobs/${jobId}/files/download`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ fileIds }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create download');
+      }
+
+      // Update progress to downloading stage
+      setDownloadProgress(prev => ({ 
+        ...prev, 
+        stage: 'downloading', 
+        progress: 0 
+      }));
+
+      // Get the blob and trigger download
+      const contentLength = +(response.headers.get('Content-Length') || '0');
+      const reader = response.body?.getReader();
+      
+      if (!reader) {
+        throw new Error('Unable to read response');
+      }
+
+      let receivedLength = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        const downloadProgressPercent = contentLength > 0 ? (receivedLength / contentLength) * 100 : 0;
+        setDownloadProgress(prev => ({
+          ...prev,
+          progress: downloadProgressPercent,
+          bytesReceived: receivedLength,
+          totalBytes: contentLength
+        }));
+      }
+
+      // Create blob and trigger download
+      const blob = new Blob(chunks);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'selected-images.zip';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Close dialog and show success
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+
+      toast({
+        title: "Download complete",
+        description: `${selectedFiles.length} images downloaded as a zip file.`,
+      });
+
+      // Clear selection after successful download
+      clearFileSelection();
+
+    } catch (error) {
+      console.error('[FileGallery] Download error:', error);
+      setDownloadProgress({
+        isOpen: false,
+        stage: 'idle',
+        progress: 0,
+        filesProcessed: 0,
+        totalFiles: 0,
+        bytesReceived: 0,
+        totalBytes: 0,
+        folderName: ''
+      });
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingSelected(false);
+    }
+  };
+
   const renderFileCard = (file: CompletedFile, folderFiles?: any[]) => {
     console.log('[FileGallery] Rendering file card for:', file.fileName, 'URL:', file.downloadUrl);
+    const isFileSelected = selectedFileIds.has(file.id);
+    const isImageFile = isImage(file.mimeType);
+    
     return (
       <Card 
         key={file.id} 
-        className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+        className={`overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group ${
+          isFileSelected ? 'ring-2 ring-[#f2572c] ring-offset-2' : ''
+        }`}
       >
       <CardContent className="p-0">
-        {isImage(file.mimeType) ? (
+        {isImageFile ? (
           <div 
             className="relative aspect-square"
             onClick={() => handleImageClick(file.downloadUrl, file.originalName, folderFiles)}
@@ -1334,8 +1689,35 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
               className="w-full h-full object-cover"
               loading="lazy"
             />
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 group-focus-within:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
-              <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className={`absolute inset-0 transition-all duration-200 flex items-center justify-center ${
+              isFileSelected 
+                ? 'bg-black bg-opacity-30' 
+                : 'bg-black bg-opacity-0 group-hover:bg-opacity-40 group-focus-within:bg-opacity-40'
+            }`}>
+              {!isFileSelected && (
+                <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </div>
+            {/* Selection checkbox overlay - top left */}
+            <div 
+              className={`absolute top-2 left-2 z-10 ${
+                isFileSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              } transition-opacity`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFileSelection(file.id);
+              }}
+            >
+              <div 
+                className={`h-6 w-6 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${
+                  isFileSelected 
+                    ? 'bg-[#f2572c] border-[#f2572c] text-white' 
+                    : 'bg-white/90 border-gray-300 hover:border-[#f2572c]'
+                }`}
+                data-testid={`checkbox-select-${file.id}`}
+              >
+                {isFileSelected && <Check className="h-4 w-4" />}
+              </div>
             </div>
             {/* Image menu overlay */}
             <div className="absolute top-2 right-2 z-10">
@@ -1731,10 +2113,16 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                   </h2>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
                     <span>{filteredFolderData.fileCount} {filteredFolderData.fileCount === 1 ? 'file' : 'files'}</span>
-                    {selectedFolderData.orderNumber && (
-                      <span className="text-sm font-semibold text-rpp-red-main">
-                        {formatOrderNumber(selectedFolderData.orderNumber)}
-                      </span>
+                    {(selectedFolderData.orderId || selectedFolderData.orderNumber) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOrderClick(selectedFolderData.orderId);
+                        }}
+                        className="text-sm font-semibold text-rpp-red-main hover:text-rpp-orange hover:underline cursor-pointer transition-colors"
+                      >
+                        {selectedFolderData.orderNumber ? formatOrderNumber(selectedFolderData.orderNumber) : `Order: ${selectedFolderData.orderId}`}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -1787,7 +2175,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                           onClick={() => handleEnterFolder(subfolder)}
                         >
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {subfolder.partnerFolderName || subfolder.editorFolderName}
+                            {subfolder.partnerFolderName || subfolder.editorFolderName || 'Folder'}
                           </p>
                           <p className="text-xs text-gray-500">
                             {subfolder.fileCount} {subfolder.fileCount === 1 ? 'file' : 'files'}
@@ -1800,11 +2188,7 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                             className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100 hover:text-red-600"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteFolder(
-                                subfolder.folderPath,
-                                subfolder.partnerFolderName?.split('/').pop() || subfolder.editorFolderName.split('/').pop() || 'Unnamed Folder',
-                                subfolder.orderNumber
-                              );
+                              handleDeleteFolder(subfolder);
                             }}
                             data-testid={getFolderTestId('button-delete-subfolder', subfolder)}
                           >
@@ -1968,12 +2352,15 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
                         onToggleVisibility={handleToggleVisibility}
                         onCreateSubfolder={handleCreateFolder}
                         onDownloadAll={handleDownloadAll}
+                        onSelectAllImages={selectAllImagesInFolder}
+                        areAllImagesSelected={areAllImagesSelectedInFolder}
                         onRenameFolder={handleRenameFolder}
                         onDeleteFolder={handleDeleteFolder}
                         getFolderKey={getFolderKey}
                         getFolderTestId={getFolderTestId}
                         formatOrderNumber={formatOrderNumber}
                         pendingFolderKey={pendingFolderKey}
+                        onOrderClick={handleOrderClick}
                       />
                     ))}
                   </div>
@@ -2486,6 +2873,64 @@ export default function FileGallery({ completedFiles, jobId, isLoading }: FileGa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Multi-select Floating Action Bar */}
+      {selectedFileIds.size > 0 && (
+        <Card className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 shadow-2xl animate-in slide-in-from-bottom-4">
+          <div className="p-4 flex items-center gap-4">
+            <Badge variant="secondary" className="border" data-testid="badge-selection-count">
+              {selectedFileIds.size} {selectedFileIds.size === 1 ? 'image' : 'images'} selected
+            </Badge>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleDownloadSelected}
+                disabled={isDownloadingSelected}
+                className="bg-[#f2572c] hover:bg-[#d94a24] text-white rounded-lg"
+                data-testid="button-download-selected"
+              >
+                {isDownloadingSelected ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {isDownloadingSelected ? 'Downloading...' : 'Download Selected'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFileSelection}
+                className="rounded-lg"
+                data-testid="button-clear-selection"
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        isOpen={isOrderDetailsOpen}
+        onClose={handleCloseOrderDetails}
+        order={orderDetails}
+        onRequestRevision={handleRequestRevision}
+        isLoading={isLoadingOrderDetails}
+      />
+
+      {/* Request Revision Modal */}
+      {orderDetails && (
+        <RequestRevisionModal
+          isOpen={isRevisionModalOpen}
+          onClose={handleCloseRevisionModal}
+          orderNumber={orderDetails.orderNumber}
+          services={orderDetails.services.map(s => ({ id: s.id, name: s.name }))}
+          onSubmit={handleRevisionSubmit}
+          isSubmitting={isSubmittingRevision}
+        />
+      )}
     </div>
   );
 }

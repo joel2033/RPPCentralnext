@@ -3,8 +3,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Upload, ChevronDown, ChevronUp, User, Receipt, Users, FileText, Trash2, Plus } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { X, Upload, ChevronDown, ChevronUp, User, Receipt, Users, FileText, Trash2, Plus, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,8 +53,13 @@ export default function EditCustomerModal({ onClose, customer, customerId }: Edi
     customerDetails: true,
     billingPreferences: false,
     teamMembers: false,
-    customerNotes: false
+    customerNotes: false,
+    deliverySettings: false
   });
+
+  // Revision limit override state
+  const [revisionOverrideType, setRevisionOverrideType] = useState<"default" | "unlimited" | "custom">("default");
+  const [customRevisionLimit, setCustomRevisionLimit] = useState(2);
 
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -119,6 +126,16 @@ export default function EditCustomerModal({ onClose, customer, customerId }: Edi
       
       if (customer.profileImage) {
         setImagePreview(customer.profileImage);
+      }
+
+      // Initialize revision limit override
+      if (customer.revisionLimitOverride === null || customer.revisionLimitOverride === undefined) {
+        setRevisionOverrideType("default");
+      } else if (customer.revisionLimitOverride === "unlimited") {
+        setRevisionOverrideType("unlimited");
+      } else {
+        setRevisionOverrideType("custom");
+        setCustomRevisionLimit(parseInt(customer.revisionLimitOverride) || 2);
       }
     }
   }, [customer]);
@@ -218,6 +235,14 @@ export default function EditCustomerModal({ onClose, customer, customerId }: Edi
     // Remove UI-only 'id' field from team members before saving
     const cleanedTeamMembers = teamMembers.map(({ id, ...member }) => member);
     
+    // Calculate revision limit override value
+    let revisionLimitOverride: string | null = null;
+    if (revisionOverrideType === "unlimited") {
+      revisionLimitOverride = "unlimited";
+    } else if (revisionOverrideType === "custom") {
+      revisionLimitOverride = customRevisionLimit.toString();
+    }
+
     const customerPayload = {
       firstName: customerData.firstName,
       lastName: customerData.lastName,
@@ -240,6 +265,8 @@ export default function EditCustomerModal({ onClose, customer, customerId }: Edi
       accountingContactId: customerData.accountingContactId || null,
       // Team members as JSON string (without UI-only id field)
       teamMembers: cleanedTeamMembers.length > 0 ? JSON.stringify(cleanedTeamMembers) : null,
+      // Revision limit override
+      revisionLimitOverride,
     };
 
     updateCustomerMutation.mutate(customerPayload);
@@ -724,6 +751,87 @@ export default function EditCustomerModal({ onClose, customer, customerId }: Edi
                   className="border-gray-300 min-h-24"
                   data-testid="textarea-notes"
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Delivery Settings Section */}
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => toggleSection('deliverySettings')}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
+              data-testid="button-toggle-delivery-settings"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Delivery Settings</h3>
+                  <p className="text-xs text-gray-500">Configure revision limits for this customer</p>
+                </div>
+              </div>
+              {expandedSections.deliverySettings ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </button>
+            
+            {expandedSections.deliverySettings && (
+              <div className="px-4 pb-4 border-t border-gray-100 mt-0 pt-4 space-y-4">
+                <Label className="text-sm font-medium text-gray-700">Revision Limit</Label>
+                <RadioGroup
+                  value={revisionOverrideType}
+                  onValueChange={(value) => setRevisionOverrideType(value as "default" | "unlimited" | "custom")}
+                  className="space-y-3"
+                >
+                  <div className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value="default" id="edit-default" />
+                    <div className="flex-1">
+                      <Label htmlFor="edit-default" className="font-medium cursor-pointer">Use default settings</Label>
+                      <p className="text-xs text-gray-500">Apply your global revision limit settings to this customer</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value="unlimited" id="edit-unlimited" />
+                    <div className="flex-1">
+                      <Label htmlFor="edit-unlimited" className="font-medium cursor-pointer">Unlimited revisions</Label>
+                      <p className="text-xs text-gray-500">This customer can request unlimited revisions after delivery</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
+                    <RadioGroupItem value="custom" id="edit-custom" className="mt-1" />
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="edit-custom" className="font-medium cursor-pointer">Custom limit</Label>
+                      <p className="text-xs text-gray-500">Set a specific revision limit for this customer</p>
+                      {revisionOverrideType === "custom" && (
+                        <Select
+                          value={customRevisionLimit.toString()}
+                          onValueChange={(value) => setCustomRevisionLimit(parseInt(value))}
+                        >
+                          <SelectTrigger className="w-40 mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 round</SelectItem>
+                            <SelectItem value="2">2 rounds</SelectItem>
+                            <SelectItem value="3">3 rounds</SelectItem>
+                            <SelectItem value="4">4 rounds</SelectItem>
+                            <SelectItem value="5">5 rounds</SelectItem>
+                            <SelectItem value="6">6 rounds</SelectItem>
+                            <SelectItem value="7">7 rounds</SelectItem>
+                            <SelectItem value="8">8 rounds</SelectItem>
+                            <SelectItem value="9">9 rounds</SelectItem>
+                            <SelectItem value="10">10 rounds</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                </RadioGroup>
               </div>
             )}
           </div>

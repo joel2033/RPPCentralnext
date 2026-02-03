@@ -15,6 +15,7 @@ import { ArrowLeft, Plus, Search, Phone, Mail, Building2, ChevronDown } from "lu
 import { useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import CustomerEditingPreferences from "@/components/CustomerEditingPreferences";
+import CustomerDeliverySettings from "@/components/CustomerDeliverySettings";
 import EditCustomerModal from "@/components/modals/EditCustomerModal";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import { useRealtimeJobs } from "@/hooks/useFirestoreRealtime";
@@ -227,8 +228,13 @@ export default function CustomerProfile() {
           ))}
         </div>
 
-        {/* Editing Preferences Section */}
-        <div className="mb-8">
+        {/* Customer Settings (Collapsible Accordions) */}
+        <div className="space-y-3 mb-6">
+          <CustomerDeliverySettings 
+            customerId={params?.id || ""} 
+            customerName={`${customer.firstName} ${customer.lastName}`}
+            revisionLimitOverride={customer.revisionLimitOverride || null}
+          />
           <CustomerEditingPreferences 
             customerId={params?.id || ""} 
             customerName={`${customer.firstName} ${customer.lastName}`}

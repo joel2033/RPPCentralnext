@@ -222,11 +222,12 @@ export default function Upload() {
     const estimatedTotal = selectedServices.reduce((total, service) => 
       total + (parseFloat(service.service.basePrice) * service.quantity), 0) + 0.25;
 
-    // Prepare order data
+    // Prepare order data (include customerId from job so editors get customer editing preferences)
+    const selectedJob = jobs.find((j: any) => j.id === orderDetails.jobId);
     const orderData = {
       partnerId: user.partnerId,
       jobId: orderDetails.jobId || null,
-      customerId: null, // Will be handled if job has a customer
+      customerId: selectedJob?.customerId ?? null,
       createdBy: user.uid,
       assignedTo: selectedEditor, // Add selected editor assignment
       orderNumber: reservedOrderNumber, // Include reserved order number

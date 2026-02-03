@@ -285,3 +285,134 @@ If you didn't expect this invitation, you can safely ignore this email.
   );
 }
 
+/**
+ * Send revision request notification email to editor
+ */
+export async function sendRevisionRequestEmail(
+  editorEmail: string,
+  editorName: string,
+  orderNumber: string,
+  revisionNotes: string,
+  customerName: string,
+  jobAddress: string,
+  services: string[],
+  dashboardLink: string
+): Promise<EmailResult> {
+  const servicesHtml = services.map(s => `<li>${s}</li>`).join('');
+  const servicesList = services.join(', ');
+  
+  // Format revision notes with proper line breaks
+  const formattedNotes = revisionNotes.replace(/\n/g, '<br>');
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Revision Requested for Order #${orderNumber}</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="background-color: #f97316; color: #ffffff; padding: 8px 16px; border-radius: 6px; display: inline-block; font-weight: bold;">
+            Revision Requested
+          </div>
+        </div>
+        
+        <h1 style="color: #1a1a1a; margin-top: 0; text-align: center;">Order #${orderNumber}</h1>
+        
+        <p style="margin-bottom: 20px;">Hello ${editorName},</p>
+        
+        <p>A revision has been requested for one of your orders. Please review the details below and make the necessary adjustments.</p>
+        
+        <div style="background-color: #ffffff; padding: 20px; border-radius: 6px; margin: 20px 0; border: 1px solid #e5e7eb;">
+          <h3 style="margin-top: 0; color: #374151;">Order Information</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Order Number:</td>
+              <td style="padding: 8px 0; font-weight: bold;">#${orderNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Customer:</td>
+              <td style="padding: 8px 0;">${customerName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #6b7280;">Job Address:</td>
+              <td style="padding: 8px 0;">${jobAddress}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <div style="background-color: #fff7ed; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #f97316;">
+          <h3 style="margin-top: 0; color: #c2410c;">Revision Details</h3>
+          
+          <div style="margin-bottom: 15px;">
+            <strong style="color: #374151;">Services Requiring Revision:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+              ${servicesHtml}
+            </ul>
+          </div>
+          
+          <div>
+            <strong style="color: #374151;">Revision Notes:</strong>
+            <div style="margin-top: 10px; padding: 15px; background-color: #ffffff; border-radius: 4px; white-space: pre-wrap;">
+              ${formattedNotes}
+            </div>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${dashboardLink}" 
+             style="background-color: #f97316; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+            View Order in Dashboard
+          </a>
+        </div>
+        
+        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+          Or copy and paste this link into your browser:<br>
+          <a href="${dashboardLink}" style="color: #f97316; word-break: break-all;">${dashboardLink}</a>
+        </p>
+        
+        <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+          This order is now in "In Revision" status and will appear in your dashboard. Please address the revision request as soon as possible.
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const textContent = `
+Revision Requested for Order #${orderNumber}
+
+Hello ${editorName},
+
+A revision has been requested for one of your orders. Please review the details below and make the necessary adjustments.
+
+ORDER INFORMATION
+-----------------
+Order Number: #${orderNumber}
+Customer: ${customerName}
+Job Address: ${jobAddress}
+
+REVISION DETAILS
+----------------
+Services Requiring Revision: ${servicesList}
+
+Revision Notes:
+${revisionNotes}
+
+View your order in the dashboard:
+${dashboardLink}
+
+This order is now in "In Revision" status and will appear in your dashboard. Please address the revision request as soon as possible.
+  `;
+
+  return sendEmail(
+    editorEmail,
+    `Revision Requested for Order #${orderNumber}`,
+    htmlContent,
+    textContent
+  );
+}
+

@@ -44,19 +44,43 @@
   --rpp-red-pale: hsl(13, 88%, 82%);
   --rpp-red-palest: hsl(13, 88%, 91%);
   
-  --rpp-grey-darkest: hsl(207, 14%, 22%);
-  --rpp-grey-dark: hsl(207, 5%, 38%);
-  --rpp-grey: hsl(207, 5%, 52%);
-  --rpp-grey-light: hsl(207, 4%, 68%);
-  --rpp-grey-lighter: hsl(207, 4%, 83%);
-  --rpp-grey-lightest: hsl(210, 4%, 92%);
-  --rpp-grey-pale: hsl(210, 4%, 96%);
+  /* PRD Orange System */
+  --rpp-orange: #F05A2A;
+  --rpp-orange-hover: #D94E24;
+  --rpp-orange-light: #FF6B3D;
+  --rpp-orange-subtle: rgba(240, 90, 42, 0.1);
+  
+  /* PRD Grey Palette */
+  --rpp-grey-darkest: #1F2937;
+  --rpp-grey-dark: #3F474F;
+  --rpp-grey: #6B7280;
+  --rpp-grey-light: #9CA3AF;
+  --rpp-grey-lighter: #E5E7EB;
+  --rpp-grey-lightest: #F3F4F6;
+  --rpp-grey-pale: #F9FAFB;
+  
+  /* PRD Sidebar Colors */
+  --rpp-sidebar-bg: #2F373F;
+  --rpp-sidebar-dark: #3F474F;
   
   --background-surface: hsl(0, 0%, 98%);
   
-  --support-yellow: hsl(45, 90%, 60%);
-  --support-green: hsl(145, 65%, 45%);
-  --support-blue: hsl(210, 90%, 60%);
+  /* Semantic Colors from PRD */
+  --support-yellow: #F59E0B;
+  --support-yellow-light: #FEF3C7;
+  --support-yellow-dark: #D97706;
+  --support-green: #10B981;
+  --support-green-light: #D1FAE5;
+  --support-green-dark: #047857;
+  --support-blue: #3B82F6;
+  --support-blue-light: #DBEAFE;
+  --support-blue-dark: #1D4ED8;
+  --support-red: #EF4444;
+  --support-red-light: #FEE2E2;
+  --support-red-dark: #DC2626;
+  --support-purple: #8B5CF6;
+  --support-purple-light: #EDE9FE;
+  --support-purple-dark: #6D28D9;
 }
 
 .dark {
@@ -86,12 +110,18 @@
     @apply border-border;
   }
 
+  html {
+    scrollbar-gutter: stable;
+    overflow-y: scroll; /* Always show vertical scrollbar to prevent layout shift */
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: var(--font-size);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+    /* Don't set overflow on body to avoid double scrollbars - html handles it */
   }
 
   h1, h2, h3, h4 {
@@ -191,6 +221,46 @@
   .hover\:bg-rpp-red-dark:hover { background-color: var(--rpp-red-dark); }
   .hover\:text-rpp-red-dark:hover { color: var(--rpp-red-dark); }
   .hover\:text-rpp-grey-darkest:hover { color: var(--rpp-grey-darkest); }
+  
+  /* PRD Orange Utilities */
+  .bg-rpp-orange { background-color: var(--rpp-orange); }
+  .bg-rpp-orange-hover { background-color: var(--rpp-orange-hover); }
+  .bg-rpp-orange-light { background-color: var(--rpp-orange-light); }
+  .bg-rpp-orange-subtle { background-color: var(--rpp-orange-subtle); }
+  .text-rpp-orange { color: var(--rpp-orange); }
+  .text-rpp-orange-hover { color: var(--rpp-orange-hover); }
+  .border-rpp-orange { border-color: var(--rpp-orange); }
+  
+  /* PRD Sidebar Utilities */
+  .bg-rpp-sidebar { background-color: var(--rpp-sidebar-bg); }
+  .bg-rpp-sidebar-dark { background-color: var(--rpp-sidebar-dark); }
+  .border-rpp-sidebar-dark { border-color: var(--rpp-sidebar-dark); }
+  
+  /* Semantic Color Utilities */
+  .bg-semantic-yellow { background-color: var(--support-yellow); }
+  .bg-semantic-yellow-light { background-color: var(--support-yellow-light); }
+  .text-semantic-yellow { color: var(--support-yellow); }
+  .text-semantic-yellow-dark { color: var(--support-yellow-dark); }
+  
+  .bg-semantic-green { background-color: var(--support-green); }
+  .bg-semantic-green-light { background-color: var(--support-green-light); }
+  .text-semantic-green { color: var(--support-green); }
+  .text-semantic-green-dark { color: var(--support-green-dark); }
+  
+  .bg-semantic-blue { background-color: var(--support-blue); }
+  .bg-semantic-blue-light { background-color: var(--support-blue-light); }
+  .text-semantic-blue { color: var(--support-blue); }
+  .text-semantic-blue-dark { color: var(--support-blue-dark); }
+  
+  .bg-semantic-red { background-color: var(--support-red); }
+  .bg-semantic-red-light { background-color: var(--support-red-light); }
+  .text-semantic-red { color: var(--support-red); }
+  .text-semantic-red-dark { color: var(--support-red-dark); }
+  
+  .bg-semantic-purple { background-color: var(--support-purple); }
+  .bg-semantic-purple-light { background-color: var(--support-purple-light); }
+  .text-semantic-purple { color: var(--support-purple); }
+  .text-semantic-purple-dark { color: var(--support-purple-dark); }
 }
 
 .sidebar-transition { 
@@ -212,14 +282,210 @@
 .modal-backdrop { 
   backdrop-filter: blur(4px); 
 }
+
+.nav-item {
+  transition: background-color 200ms ease, color 200ms ease, box-shadow 200ms ease, border-radius 0s !important;
+}
+
 .nav-item.active {
-  background-color: var(--rpp-red-palest) !important;
-  color: var(--rpp-red-main) !important;
+  background: linear-gradient(90deg, rgba(240, 90, 42, 1) 0%, rgba(255, 107, 61, 1) 100%) !important;
+  color: rgba(255, 255, 255, 1) !important;
+  border-color: rgba(0, 0, 0, 0) !important;
+  border-style: none !important;
+  border-image: none !important;
+  border-radius: 16px !important;
+  border-top-left-radius: 16px !important;
+  border-top-right-radius: 16px !important;
+  border-bottom-right-radius: 16px !important;
+  border-bottom-left-radius: 16px !important;
   position: relative;
-  box-shadow: 0 2px 8px rgba(232, 120, 84, 0.15);
+  box-shadow: 0px 4px 12px 0px rgba(255, 107, 61, 0.15), 0px 4px 12px 0px rgba(255, 107, 61, 0.15), 0px 4px 12px 0px rgba(232, 120, 84, 0.15) !important;
 }
 
 .nav-item.active .lucide {
-  color: var(--rpp-red-main) !important;
+  color: rgba(255, 255, 255, 1) !important;
+}
+
+/* PRD Button Styles */
+.btn-primary-gradient {
+  background: linear-gradient(135deg, #F05A2A 0%, #FF6B3D 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 200ms ease;
+  box-shadow: 0 2px 4px rgba(240, 90, 42, 0.15);
+}
+
+.btn-primary-gradient:hover {
+  background: linear-gradient(135deg, #D94E24 0%, #F05A2A 100%);
+  box-shadow: 0 4px 8px rgba(240, 90, 42, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-primary-gradient:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(240, 90, 42, 0.2);
+}
+
+.btn-primary-gradient:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* PRD Card Hover Effect */
+.card-hover {
+  transition: all 200ms ease;
+}
+
+.card-hover:hover {
+  border-color: rgba(240, 90, 42, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* PRD Badge Pill Style */
+.badge-pill {
+  border-radius: 9999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  height: auto !important;
+  min-height: 20px;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* PRD Status Badges */
+.badge-new {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1D4ED8;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-progress {
+  background: rgba(240, 90, 42, 0.1);
+  color: #D94E24;
+  border: 1px solid rgba(240, 90, 42, 0.3);
+}
+
+.badge-completed {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-issue {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-urgent {
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+}
+
+.badge-revision {
+  background: #F59E0B;
+  color: #FFFFFF;
+  border: none;
+}
+
+/* PRD Input Focus States */
+input:focus, textarea:focus, select:focus {
+  border-color: #F05A2A;
+  outline: 2px solid rgba(240, 90, 42, 0.1);
+  outline-offset: 0;
+}
+
+/* PRD Progress Bar */
+.progress-bar-rpp {
+  background: #E5E7EB;
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-bar-rpp .progress-fill {
+  background: linear-gradient(90deg, #F05A2A 0%, #FF6B3D 100%);
+  height: 100%;
+  border-radius: 8px;
+  transition: width 300ms ease;
+}
+
+/* PRD Skeleton Loader */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #F3F4F6 0%, #E5E7EB 50%, #F3F4F6 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* PRD Modal Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-slide-in {
+  animation: slideIn 200ms ease-out;
+}
+
+/* PRD Focus Visible States */
+*:focus-visible {
+  outline: 2px solid #F05A2A;
+  outline-offset: 2px;
+}
+
+/* Pulsing glow animation for attention cards */
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(240, 90, 42, 0.4), 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(240, 90, 42, 0), 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.8s ease-out infinite;
+}
+
+/* Bell ring animation */
+@keyframes bell-ring {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  10%, 30% {
+    transform: rotate(-10deg);
+  }
+  20%, 40% {
+    transform: rotate(10deg);
+  }
+  50% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-bell-ring {
+  animation: bell-ring 1s ease-in-out infinite;
+  transform-origin: top center;
 }
 

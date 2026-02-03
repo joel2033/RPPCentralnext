@@ -2,13 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, FileImage, X, Plus, Check, Clock, AlertCircle } from "lucide-react";
+import { Upload, FileImage, X, Check, Clock, AlertCircle, FolderOpen } from "lucide-react";
 import { uploadCompletedFileToFirebase, UploadProgress } from "@/lib/firebase-storage";
 import { auth } from "@/lib/firebase";
 
@@ -40,21 +39,17 @@ export default function EditorUploads() {
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [uploadNotes, setUploadNotes] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  // Folder functionality
   const [useFolder, setUseFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
 
-  // Get real jobs ready for upload from the API
   const { data: completedJobs = [], isLoading } = useQuery<CompletedJob[]>({
     queryKey: ['/api/editor/jobs-ready-for-upload'],
-    // Default fetcher will be used - it automatically handles authentication
   });
 
-  // Sort jobs: newest to oldest (by completedDate, then by dueDate as fallback)
   const sortedJobs = [...completedJobs].sort((a, b) => {
     const dateA = new Date(a.completedDate || a.dueDate || 0).getTime();
     const dateB = new Date(b.completedDate || b.dueDate || 0).getTime();
-    return dateB - dateA; // Newest first
+    return dateB - dateA;
   });
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,18 +101,18 @@ export default function EditorUploads() {
 
   const getFileIcon = (type: string) => {
     if (type.startsWith('image/')) {
-      return <FileImage className="w-5 h-5 text-blue-600" />;
+      return <FileImage className="w-5 h-5 text-rpp-orange" />;
     }
-    return <FileImage className="w-5 h-5 text-gray-600" />;
+    return <FileImage className="w-5 h-5 text-rpp-grey" />;
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Clock className="w-4 h-4 text-gray-500" />;
-      case 'uploading': return <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />;
-      case 'completed': return <Check className="w-4 h-4 text-green-600" />;
-      case 'error': return <AlertCircle className="w-4 h-4 text-red-600" />;
-      default: return <Clock className="w-4 h-4 text-gray-500" />;
+      case 'pending': return <Clock className="w-4 h-4 text-rpp-grey-light" />;
+      case 'uploading': return <div className="w-4 h-4 border-2 border-rpp-orange border-t-transparent rounded-full animate-spin" />;
+      case 'completed': return <Check className="w-4 h-4 text-semantic-green" />;
+      case 'error': return <AlertCircle className="w-4 h-4 text-semantic-red" />;
+      default: return <Clock className="w-4 h-4 text-rpp-grey-light" />;
     }
   };
 
@@ -139,30 +134,23 @@ export default function EditorUploads() {
     try {
       updateStatus('uploading');
 
-      // Get current user for authentication check
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
       }
 
-      console.log(`Starting upload for ${uploadFile.file.name} to job ${jobId}, order ${orderNumber}...`);
-
-      // Upload file with orderNumber to ensure correct folder structure
       const result = await uploadCompletedFileToFirebase(
         uploadFile.file,
         jobId,
-        orderNumber, // Pass orderNumber for proper folder structure: completed/{jobId}/{orderNumber}/{folderPath}/files
+        orderNumber,
         (progress: UploadProgress) => updateProgress(progress.progress),
-        // Pass folder data if folder is being used
         useFolder && folderName ? {
           folderPath: folderName,
           editorFolderName: folderName
         } : undefined
       );
 
-      console.log(`Upload completed for ${uploadFile.file.name}:`, result);
       updateStatus('completed');
-
       return result;
     } catch (error) {
       console.error(`Upload failed for ${uploadFile.file.name}:`, error);
@@ -180,34 +168,18 @@ export default function EditorUploads() {
       return;
     }
 
-    // Server requires folderPath and editorFolderName for completed file uploads
     if (!useFolder || !folderName.trim()) {
       console.error('Folder path and name are required for completed file uploads');
       return;
     }
-    
-    console.log('[DEBUG] Selected job data:', {
-      selectedJob,
-      selectedJobData: {
-        id: selectedJobData.id,
-        jobId: selectedJobData.jobId,
-        orderNumber: selectedJobData.orderNumber,
-        customerName: selectedJobData.customerName
-      }
-    });
 
     setIsUploading(true);
 
     try {
-      // Upload all files sequentially to avoid overwhelming the server
       for (const file of uploadFiles) {
-        console.log(`[DEBUG] Uploading file ${file.file.name} for job: ${selectedJobData.jobId}, order: ${selectedJobData.orderNumber}`);
         await performActualUpload(file, selectedJobData.jobId, selectedJobData.orderNumber);
       }
       
-      console.log('All uploads completed for job:', selectedJobData.id);
-      
-      // Reset form after successful upload
       setTimeout(() => {
         setUploadFiles([]);
         setUploadNotes("");
@@ -227,39 +199,39 @@ export default function EditorUploads() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div className="p-6 bg-rpp-grey-pale min-h-screen">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
+          <div className="h-10 bg-rpp-grey-lighter rounded-xl w-1/3"></div>
+          <div className="h-48 bg-rpp-grey-lighter rounded-2xl"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 bg-rpp-grey-pale min-h-screen">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Upload Completed Work</h1>
-        <p className="text-gray-600">Submit your finished editing work back to the job owner</p>
+        <h1 className="text-2xl font-semibold text-rpp-grey-darkest">Upload Completed Work</h1>
+        <p className="text-rpp-grey">Submit your finished editing work back to the job owner</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upload Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Job Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Job</CardTitle>
+          <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-rpp-grey-darkest">Select Job</CardTitle>
             </CardHeader>
             <CardContent>
               <Select value={selectedJob} onValueChange={setSelectedJob}>
-                <SelectTrigger data-testid="select-job">
+                <SelectTrigger className="rounded-xl border-rpp-grey-lighter focus:border-rpp-orange" data-testid="select-job">
                   <SelectValue placeholder="Choose a completed job to upload results..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {sortedJobs.map((job) => (
-                    <SelectItem key={job.id} value={job.id}>
+                    <SelectItem key={job.id} value={job.id} className="rounded-lg">
                       {job.customerName} - {job.services?.[0]?.name || 'Unknown Service'} (Job {job.jobId})
                     </SelectItem>
                   ))}
@@ -267,23 +239,23 @@ export default function EditorUploads() {
               </Select>
               
               {selectedJobData && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border">
+                <div className="mt-4 p-4 bg-rpp-orange-subtle rounded-xl border border-rpp-orange/20">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium text-blue-900">Customer:</span>
-                      <p className="text-blue-800">{selectedJobData.customerName}</p>
+                      <span className="font-medium text-rpp-orange">Customer:</span>
+                      <p className="text-rpp-grey-darkest">{selectedJobData.customerName}</p>
                     </div>
                     <div>
-                      <span className="font-medium text-blue-900">Service:</span>
-                      <p className="text-blue-800">{selectedJobData.services?.[0]?.name || 'Unknown Service'}</p>
+                      <span className="font-medium text-rpp-orange">Service:</span>
+                      <p className="text-rpp-grey-darkest">{selectedJobData.services?.[0]?.name || 'Unknown Service'}</p>
                     </div>
                     <div>
-                      <span className="font-medium text-blue-900">Original Files:</span>
-                      <p className="text-blue-800">{selectedJobData.originalFiles?.length || 0}</p>
+                      <span className="font-medium text-rpp-orange">Original Files:</span>
+                      <p className="text-rpp-grey-darkest">{selectedJobData.originalFiles?.length || 0}</p>
                     </div>
                     <div>
-                      <span className="font-medium text-blue-900">Expected Deliverables:</span>
-                      <p className="text-blue-800">{selectedJobData.services?.[0]?.quantity || 'N/A'}</p>
+                      <span className="font-medium text-rpp-orange">Expected Deliverables:</span>
+                      <p className="text-rpp-grey-darkest">{selectedJobData.services?.[0]?.quantity || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -292,27 +264,31 @@ export default function EditorUploads() {
           </Card>
 
           {/* Folder Options */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Options</CardTitle>
+          <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-rpp-grey-darkest flex items-center gap-2">
+                <FolderOpen className="w-5 h-5 text-rpp-orange" />
+                Organization Options
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                   <Checkbox
                     id="use-folder-uploads"
                     checked={useFolder}
                     onCheckedChange={(checked) => setUseFolder(checked as boolean)}
+                    className="border-rpp-grey-lighter data-[state=checked]:bg-rpp-orange data-[state=checked]:border-rpp-orange"
                     data-testid="checkbox-use-folder-uploads"
                   />
-                  <label htmlFor="use-folder-uploads" className="text-sm font-medium">
+                  <label htmlFor="use-folder-uploads" className="text-sm font-medium text-rpp-grey-darkest">
                     Organize files in a folder
                   </label>
                 </div>
                 
                 {useFolder && (
-                  <div className="space-y-2 pl-6">
-                    <label htmlFor="folder-name-uploads" className="text-sm font-medium">
+                  <div className="space-y-2 pl-7">
+                    <label htmlFor="folder-name-uploads" className="text-sm font-medium text-rpp-grey-darkest">
                       Folder Name
                     </label>
                     <Input
@@ -320,10 +296,10 @@ export default function EditorUploads() {
                       placeholder="Enter folder name (e.g., 'High Resolution', 'Web Ready')"
                       value={folderName}
                       onChange={(e) => setFolderName(e.target.value)}
-                      className="text-sm"
+                      className="text-sm rounded-xl border-rpp-grey-lighter focus:border-rpp-orange"
                       data-testid="input-folder-name-uploads"
                     />
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-rpp-grey">
                       Files will be organized in this folder for easier client browsing
                     </p>
                   </div>
@@ -333,21 +309,23 @@ export default function EditorUploads() {
           </Card>
 
           {/* File Upload */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload Files</CardTitle>
+          <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-rpp-grey-darkest">Upload Files</CardTitle>
             </CardHeader>
             <CardContent>
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+                className="border-2 border-dashed border-rpp-grey-lighter rounded-xl p-8 text-center hover:border-rpp-orange transition-colors bg-rpp-grey-lightest/50"
               >
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 font-medium mb-2">
+                <div className="w-16 h-16 bg-rpp-orange-subtle rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Upload className="w-8 h-8 text-rpp-orange" />
+                </div>
+                <p className="text-rpp-grey-darkest font-medium mb-2">
                   Drag and drop your edited files here, or click to browse
                 </p>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-rpp-grey mb-4">
                   Supported formats: JPG, PNG, TIFF, PSD, MP4, MOV (Max 500MB per file)
                 </p>
                 <input
@@ -360,7 +338,11 @@ export default function EditorUploads() {
                   disabled={isUploading}
                 />
                 <label htmlFor="file-upload-editor">
-                  <Button variant="outline" disabled={isUploading}>
+                  <Button 
+                    variant="outline" 
+                    disabled={isUploading}
+                    className="rounded-xl border-rpp-grey-lighter hover:border-rpp-orange hover:text-rpp-orange"
+                  >
                     Choose Files
                   </Button>
                 </label>
@@ -369,20 +351,20 @@ export default function EditorUploads() {
               {/* Upload Files List */}
               {hasFiles && (
                 <div className="mt-6">
-                  <h4 className="font-medium text-gray-900 mb-3">
+                  <h4 className="font-medium text-rpp-grey-darkest mb-3">
                     Files to Upload ({uploadFiles.length})
                   </h4>
                   <div className="space-y-3">
                     {uploadFiles.map((file) => (
                       <div
                         key={file.id}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                        className="flex items-center justify-between p-3 border border-rpp-grey-lighter rounded-xl bg-white"
                       >
                         <div className="flex items-center space-x-3">
                           {getFileIcon(file.type)}
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                            <p className="text-sm font-medium text-rpp-grey-darkest">{file.name}</p>
+                            <div className="flex items-center space-x-2 text-xs text-rpp-grey">
                               <span>{formatFileSize(file.size)}</span>
                               <span>•</span>
                               <span className="flex items-center space-x-1">
@@ -397,14 +379,16 @@ export default function EditorUploads() {
                               )}
                             </div>
                             {file.status === 'uploading' && (
-                              <Progress value={file.progress} className="mt-2 h-1" />
+                              <div className="mt-2 w-full">
+                                <Progress value={file.progress} className="h-1" />
+                              </div>
                             )}
                           </div>
                         </div>
                         {!isUploading && (
                           <button
                             onClick={() => removeFile(file.id)}
-                            className="text-gray-400 hover:text-red-500"
+                            className="text-rpp-grey-light hover:text-semantic-red transition-colors"
                             data-testid={`button-remove-${file.id}`}
                           >
                             <X className="w-4 h-4" />
@@ -419,16 +403,16 @@ export default function EditorUploads() {
           </Card>
 
           {/* Upload Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload Notes (Optional)</CardTitle>
+          <Card className="card-hover border border-rpp-grey-lighter rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-rpp-grey-darkest">Upload Notes (Optional)</CardTitle>
             </CardHeader>
             <CardContent>
               <Textarea
                 placeholder="Add any notes about the completed work, special considerations, or additional information for the client..."
                 value={uploadNotes}
                 onChange={(e) => setUploadNotes(e.target.value)}
-                className="min-h-[100px]"
+                className="min-h-[100px] rounded-xl border-rpp-grey-lighter focus:border-rpp-orange"
                 disabled={isUploading}
                 data-testid="textarea-upload-notes"
               />
@@ -438,32 +422,32 @@ export default function EditorUploads() {
 
         {/* Upload Summary Sidebar */}
         <div>
-          <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle>Upload Summary</CardTitle>
+          <Card className="sticky top-24 border border-rpp-grey-lighter rounded-2xl">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-rpp-grey-darkest">Upload Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2 text-sm">
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Selected Job:</span>
-                  <span className="text-gray-900">
+                  <span className="text-rpp-grey">Selected Job:</span>
+                  <span className="text-rpp-grey-darkest font-medium">
                     {selectedJobData ? selectedJobData.jobId : 'None'}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Files to Upload:</span>
-                  <span className="text-gray-900">{uploadFiles.length}</span>
+                  <span className="text-rpp-grey">Files to Upload:</span>
+                  <span className="text-rpp-grey-darkest font-medium">{uploadFiles.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Size:</span>
-                  <span className="text-gray-900">
+                  <span className="text-rpp-grey">Total Size:</span>
+                  <span className="text-rpp-grey-darkest font-medium">
                     {formatFileSize(uploadFiles.reduce((sum, file) => sum + file.size, 0))}
                   </span>
                 </div>
                 {isUploading && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Progress:</span>
-                    <span className="text-gray-900">
+                    <span className="text-rpp-grey">Progress:</span>
+                    <span className="text-rpp-grey-darkest font-medium">
                       {uploadFiles.filter(f => f.status === 'completed').length} / {uploadFiles.length}
                     </span>
                   </div>
@@ -474,24 +458,24 @@ export default function EditorUploads() {
                 {!allFilesCompleted ? (
                   <Button
                     onClick={handleStartUpload}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    disabled={!selectedJob || !hasFiles || isUploading}
+                    className="w-full btn-primary-gradient rounded-xl"
+                    disabled={!selectedJob || !hasFiles || isUploading || !useFolder || !folderName.trim()}
                     data-testid="button-start-upload"
                   >
                     {isUploading ? 'Uploading...' : 'Start Upload'}
                   </Button>
                 ) : (
-                  <div className="text-center">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Check className="w-6 h-6 text-green-600" />
+                  <div className="text-center py-4">
+                    <div className="w-14 h-14 bg-semantic-green-light rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Check className="w-7 h-7 text-semantic-green" />
                     </div>
-                    <p className="text-sm font-medium text-green-600">Upload Complete!</p>
-                    <p className="text-xs text-gray-500 mt-1">Files have been delivered to the client</p>
+                    <p className="text-sm font-semibold text-semantic-green">Upload Complete!</p>
+                    <p className="text-xs text-rpp-grey mt-1">Files have been delivered to the client</p>
                   </div>
                 )}
               </div>
 
-              <div className="pt-4 text-xs text-gray-500">
+              <div className="pt-4 text-xs text-rpp-grey">
                 <p>
                   Files will be delivered directly to the job owner and added to their project gallery.
                 </p>

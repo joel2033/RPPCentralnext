@@ -1,11 +1,24 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus, User } from "lucide-react";
 import { Link } from "wouter";
+import { auth } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { OrderDetailsModal, OrderDetails } from "@/components/modals/OrderDetailsModal";
+import { RequestRevisionModal, RevisionRequestData } from "@/components/modals/RequestRevisionModal";
 
 export default function Orders() {
   const [activeTab, setActiveTab] = useState("pending");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
+  
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/orders"],
@@ -32,6 +45,100 @@ export default function Orders() {
     if (!assignedToId) return 'Unassigned';
     const supplier = suppliers.find((s: any) => s.id === assignedToId);
     return supplier?.studioName || 'Unknown Editor';
+  };
+
+  const handleOrderClick = async (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setIsOrderDetailsOpen(true);
+    setIsLoadingDetails(true);
+    setOrderDetails(null);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/orders/${orderId}/details`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch order details");
+      }
+
+      const data = await response.json();
+      setOrderDetails(data);
+    } catch (error: any) {
+      console.error("Error fetching order details:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load order details",
+        variant: "destructive",
+      });
+      setIsOrderDetailsOpen(false);
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  };
+
+  const handleRequestRevision = () => {
+    setIsOrderDetailsOpen(false);
+    setIsRevisionModalOpen(true);
+  };
+
+  const handleRevisionSubmit = async (data: RevisionRequestData) => {
+    if (!selectedOrderId) return;
+    
+    setIsSubmittingRevision(true);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/orders/${selectedOrderId}/revisions/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit revision request");
+      }
+
+      toast({
+        title: "Revision Requested",
+        description: "Your revision request has been submitted successfully.",
+      });
+
+      // Refresh orders list
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      
+      setIsRevisionModalOpen(false);
+      setSelectedOrderId(null);
+      setOrderDetails(null);
+    } catch (error: any) {
+      console.error("Error submitting revision:", error);
+      throw error; // Re-throw so the modal can display the error
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
+
+  const handleCloseOrderDetails = () => {
+    setIsOrderDetailsOpen(false);
+    setSelectedOrderId(null);
+    setOrderDetails(null);
+  };
+
+  const handleCloseRevisionModal = () => {
+    setIsRevisionModalOpen(false);
   };
 
   const tabs = [
@@ -102,32 +209,41 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order: any) => (
-                <tr key={order.id} className="border-b border-rpp-grey-border hover:bg-gray-50">
-                  <td className="py-4 px-6 font-medium text-rpp-grey-dark">{order.orderNumber}</td>
-                  <td className="py-4 px-6 text-sm">
-                    {order.dateAccepted ? new Date(order.dateAccepted).toLocaleDateString() : 'N/A'}
-                  </td>
-                  <td className="py-4 px-6 text-sm">
-                    {getJobAddress(order.jobId)}
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-rpp-grey-light" />
-                      <span className="text-sm">{getEditorStudioName(order.assignedTo)}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 bg-support-green rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs">J</span>
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order: any) => (
+                  <tr key={order.id} className="border-b border-rpp-grey-border hover:bg-gray-50">
+                    <td className="py-4 px-6">
+                      <button
+                        onClick={() => handleOrderClick(order.id)}
+                        className="font-medium text-rpp-grey-dark hover:text-rpp-orange hover:underline cursor-pointer transition-colors"
+                      >
+                        {order.orderNumber}
+                      </button>
+                    </td>
+                    <td className="py-4 px-6 text-sm">
+                      {order.dateAccepted ? new Date(order.dateAccepted).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="py-4 px-6 text-sm">
+                      {getJobAddress(order.jobId)}
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-rpp-grey-light" />
+                        <span className="text-sm">{getEditorStudioName(order.assignedTo)}</span>
                       </div>
-                      <span className="text-sm">Admin</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-sm font-medium">${order.estimatedTotal}</td>
-                </tr>
-              )) || (
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 bg-support-green rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">J</span>
+                        </div>
+                        <span className="text-sm">Admin</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-sm font-medium">${order.estimatedTotal}</td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
                   <td colSpan={6} className="py-12 text-center">
                     <div className="text-rpp-grey-light">
@@ -142,6 +258,27 @@ export default function Orders() {
           </table>
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        isOpen={isOrderDetailsOpen}
+        onClose={handleCloseOrderDetails}
+        order={orderDetails}
+        onRequestRevision={handleRequestRevision}
+        isLoading={isLoadingDetails}
+      />
+
+      {/* Request Revision Modal */}
+      {orderDetails && (
+        <RequestRevisionModal
+          isOpen={isRevisionModalOpen}
+          onClose={handleCloseRevisionModal}
+          orderNumber={orderDetails.orderNumber}
+          services={orderDetails.services.map(s => ({ id: s.id, name: s.name }))}
+          onSubmit={handleRevisionSubmit}
+          isSubmitting={isSubmittingRevision}
+        />
+      )}
     </div>
   );
 }

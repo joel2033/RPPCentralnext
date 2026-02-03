@@ -112,6 +112,14 @@ export function BookingForm({ partnerId }: BookingFormProps) {
     company: "",
   });
 
+  // Service area validation state
+  const [isValidatingServiceArea, setIsValidatingServiceArea] = useState(false);
+  const [serviceAreaValidation, setServiceAreaValidation] = useState<{
+    isValid: boolean;
+    matchingAreas: { id: string; name: string; color: string }[];
+    message: string;
+  } | null>(null);
+
   // Google Places autocomplete state
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
@@ -184,11 +192,55 @@ export function BookingForm({ partnerId }: BookingFormProps) {
     });
   }, []);
 
+  // Validate address against service areas (only if restrictToServiceAreas is enabled)
+  const validateServiceArea = useCallback(async (latitude: number, longitude: number, address: string) => {
+    // Skip validation if service area restrictions are not enabled
+    if (!settings?.restrictToServiceAreas) {
+      setServiceAreaValidation(null);
+      return;
+    }
+    
+    setIsValidatingServiceArea(true);
+    setServiceAreaValidation(null);
+    
+    try {
+      const response = await fetch('/api/service-areas/validate-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partnerId,
+          latitude,
+          longitude,
+          address,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to validate service area');
+      }
+      
+      const result = await response.json();
+      setServiceAreaValidation(result);
+    } catch (error) {
+      console.error('Service area validation error:', error);
+      // On error, allow the booking to proceed (fail open)
+      setServiceAreaValidation({
+        isValid: true,
+        matchingAreas: [],
+        message: 'Unable to validate service area - please proceed',
+      });
+    } finally {
+      setIsValidatingServiceArea(false);
+    }
+  }, [partnerId, settings?.restrictToServiceAreas]);
+
   // Handle address selection from suggestions
   const handleAddressSelect = useCallback((prediction: any) => {
     updateFormData("address", prediction.description);
     setShowAddressSuggestions(false);
     setAddressSuggestions([]);
+    // Reset service area validation when address changes
+    setServiceAreaValidation(null);
 
     // Get place details for coordinates
     if (placesService.current && prediction.place_id) {
@@ -196,13 +248,17 @@ export function BookingForm({ partnerId }: BookingFormProps) {
         { placeId: prediction.place_id, fields: ['geometry'] },
         (place: any, status: any) => {
           if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
-            updateFormData("latitude", place.geometry.location.lat());
-            updateFormData("longitude", place.geometry.location.lng());
+            const lat = place.geometry.location.lat();
+            const lng = place.geometry.location.lng();
+            updateFormData("latitude", lat);
+            updateFormData("longitude", lng);
+            // Validate the address against service areas
+            validateServiceArea(lat, lng, prediction.description);
           }
         }
       );
     }
-  }, []);
+  }, [validateServiceArea]);
 
   // Form state
   const [formData, setFormData] = useState<BookingFormData>({
@@ -353,7 +409,15 @@ export function BookingForm({ partnerId }: BookingFormProps) {
         }
         return false;
       case 2:
-        return formData.address.length > 0;
+        // Address must be set
+        if (formData.address.length === 0) return false;
+        // If service area restrictions are enabled, check validation
+        if (settings?.restrictToServiceAreas) {
+          if (isValidatingServiceArea) return false;
+          // If service area validation has been done and it's invalid, block
+          if (serviceAreaValidation && !serviceAreaValidation.isValid) return false;
+        }
+        return true;
       case 3:
         return formData.selectedProducts.length > 0;
       case 4:
@@ -724,6 +788,47 @@ export function BookingForm({ partnerId }: BookingFormProps) {
             <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
               <CheckCircle2 className="w-3 h-3" />
               <span>Location verified</span>
+            </div>
+          )}
+          
+          {/* Service Area Validation - only shown when restrictToServiceAreas is enabled */}
+          {settings?.restrictToServiceAreas && isValidatingServiceArea && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Checking service area...</span>
+            </div>
+          )}
+          
+          {settings?.restrictToServiceAreas && serviceAreaValidation && !isValidatingServiceArea && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              serviceAreaValidation.isValid 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              <div className={`flex items-start gap-2 text-sm ${
+                serviceAreaValidation.isValid ? 'text-green-700' : 'text-red-700'
+              }`}>
+                {serviceAreaValidation.isValid ? (
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                )}
+                <div>
+                  <p className="font-medium">
+                    {serviceAreaValidation.isValid 
+                      ? serviceAreaValidation.matchingAreas.length > 0
+                        ? `Service Area: ${serviceAreaValidation.matchingAreas.map(a => a.name).join(', ')}`
+                        : 'Address accepted'
+                      : 'Outside Service Area'
+                    }
+                  </p>
+                  {!serviceAreaValidation.isValid && (
+                    <p className="text-xs mt-1 text-red-600">
+                      {serviceAreaValidation.message}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

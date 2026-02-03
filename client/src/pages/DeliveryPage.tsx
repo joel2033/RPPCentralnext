@@ -1020,26 +1020,59 @@ export default function DeliveryPage() {
   };
 
   const formatFolderDisplayName = (name: string, folderPath?: string) => {
-    // If name is provided and doesn't look like a path with tokens, use it
-    if (name && !name.includes('/')) {
+    // Helper to check if a string looks like a token (random alphanumeric, typically 10+ chars without spaces or meaningful words)
+    const looksLikeToken = (str: string) => {
+      if (!str) return false;
+      // Tokens are typically alphanumeric strings of 10+ chars with no spaces
+      // They don't contain common words and have mixed case or all lowercase
+      const isAlphanumericOnly = /^[a-zA-Z0-9_-]+$/.test(str);
+      const hasNoSpaces = !str.includes(' ');
+      const isLongEnough = str.length >= 10;
+      const hasNoCommonWords = !/photo|image|video|floor|plan|virtual|tour|edit|raw|file|folder/i.test(str);
+      return isAlphanumericOnly && hasNoSpaces && isLongEnough && hasNoCommonWords;
+    };
+
+    // If name is provided and doesn't look like a path or token, use it
+    if (name && !name.includes('/') && !looksLikeToken(name)) {
       return name;
+    }
+
+    // If name looks like a token, try to find a better name from the path
+    if (name && looksLikeToken(name) && folderPath) {
+      // Try to extract a meaningful segment from the path
+      const segments = folderPath.split('/').filter(s => s && !looksLikeToken(s));
+      if (segments.length > 0) {
+        return segments[segments.length - 1];
+      }
     }
 
     // If we have a folderPath, extract the last meaningful segment
     if (folderPath) {
       const segments = folderPath.split('/');
-      // Return the last segment (which should be the folder name or token)
-      // But only if it's not empty
-      const lastSegment = segments[segments.length - 1];
-      if (lastSegment && lastSegment.trim()) {
-        return lastSegment;
+      // Find the last segment that isn't a token
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const segment = segments[i];
+        if (segment && segment.trim() && !looksLikeToken(segment)) {
+          return segment;
+        }
+      }
+      // If all segments look like tokens, just return a generic name
+      return "Files";
+    }
+
+    // Fallback: if name has slashes, show only the last meaningful part
+    if (name && name.includes('/')) {
+      const parts = name.split('/');
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (parts[i] && !looksLikeToken(parts[i])) {
+          return parts[i];
+        }
       }
     }
 
-    // Fallback: if name has slashes, show only the last part
-    if (name && name.includes('/')) {
-      const parts = name.split('/');
-      return parts[parts.length - 1] || name;
+    // If name looks like a token, return generic name
+    if (name && looksLikeToken(name)) {
+      return "Files";
     }
 
     return name || "Files";

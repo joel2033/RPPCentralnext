@@ -8,7 +8,6 @@ import EditorLogin from "@/pages/EditorLogin";
 import EditorSignup from "@/pages/EditorSignup";
 import EditorDashboard from "@/pages/EditorDashboard";
 import EditorJobs from "@/pages/EditorJobs";
-import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
 import EditorJobHistory from "@/pages/EditorJobHistory";
@@ -52,14 +51,6 @@ function EditorRouter() {
         <EditorProtectedRoute>
           <EditorLayout>
             <TeamAssignments />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
-      
-      <Route path="/downloads">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorDownloads />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>

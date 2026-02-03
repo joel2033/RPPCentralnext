@@ -29,6 +29,7 @@ import TeamMembers from "@/pages/TeamMembers";
 import TeamAssignments from "@/pages/TeamAssignments";
 import Settings from "@/pages/Settings";
 import Messages from "@/pages/Messages";
+import JobReports from "@/pages/JobReports";
 import NotFound from "@/pages/not-found";
 
 // Public Pages (No Auth Required)
@@ -40,11 +41,12 @@ import EditorLogin from "@/pages/EditorLogin";
 import EditorSignup from "@/pages/EditorSignup";
 import EditorDashboard from "@/pages/EditorDashboard";
 import EditorJobs from "@/pages/EditorJobs";
-import EditorDownloads from "@/pages/EditorDownloads";
 import EditorUploads from "@/pages/EditorUploads";
 import EditorSettings from "@/pages/EditorSettings";
 import EditorInvitations from "@/pages/EditorInvitations";
 import EditorJobHistory from "@/pages/EditorJobHistory";
+import EditorRevisions from "@/pages/EditorRevisions";
+import EditorQC from "@/pages/EditorQC";
 import EditorProtectedRoute from "@/components/EditorProtectedRoute";
 import EditorLayout from "@/components/EditorLayout";
 import { EditorAuthProvider } from "@/contexts/EditorAuthContext";
@@ -91,13 +93,6 @@ function Router() {
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
-      <Route path="/editor/downloads">
-        <EditorProtectedRoute>
-          <EditorLayout>
-            <EditorDownloads />
-          </EditorLayout>
-        </EditorProtectedRoute>
-      </Route>
       <Route path="/editor/uploads">
         <EditorProtectedRoute>
           <EditorLayout>
@@ -130,6 +125,20 @@ function Router() {
         <EditorProtectedRoute>
           <EditorLayout>
             <EditorJobHistory />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/revisions">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorRevisions />
+          </EditorLayout>
+        </EditorProtectedRoute>
+      </Route>
+      <Route path="/editor/qc/:orderId">
+        <EditorProtectedRoute>
+          <EditorLayout>
+            <EditorQC />
           </EditorLayout>
         </EditorProtectedRoute>
       </Route>
@@ -279,6 +288,14 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/reports/jobs">
+        <ProtectedRoute route="/reports">
+          <Layout>
+            <JobReports />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+
       <Route path="/reports">
         <ProtectedRoute route="/reports">
           <Layout>

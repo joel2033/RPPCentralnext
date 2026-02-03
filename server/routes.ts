@@ -40,6 +40,18 @@ import {
   UserRole 
 } from "./firebase-admin";
 import { sendTeamInviteEmail, sendDeliveryEmail, sendPartnershipInviteEmail } from "./email-service";
+import {
+  getAuthUrl as getGoogleCalendarAuthUrl,
+  exchangeCodeForTokens,
+  getConnection as getGoogleCalendarConnection,
+  getValidConnection,
+  deleteConnection as deleteGoogleCalendarConnection,
+  updateConnectionSettings as updateGoogleCalendarSettings,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  listBusyBlocks,
+} from "./google-calendar";
 import { z } from "zod";
 import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
@@ -113,8 +125,8 @@ const requireAuth = async (req: any, res: any, next: any) => {
       email: userDoc.email,
       firstName: userDoc.firstName,
       lastName: userDoc.lastName,
-      studioName: userDoc.studioName,
-      partnerName: userDoc.partnerName
+      studioName: (userDoc as any).studioName || userDoc.businessName,
+      partnerName: (userDoc as any).partnerName || `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email
     };
 
     // Master role can view any business's data (read-only)
@@ -175,8 +187,8 @@ const requireAuthSSE = async (req: any, res: any, next: any) => {
       email: userDoc.email,
       firstName: userDoc.firstName,
       lastName: userDoc.lastName,
-      studioName: userDoc.studioName,
-      partnerName: userDoc.partnerName
+      studioName: (userDoc as any).studioName || userDoc.businessName,
+      partnerName: (userDoc as any).partnerName || `${userDoc.firstName || ''} ${userDoc.lastName || ''}`.trim() || userDoc.email
     };
 
     // Master role can view any business's data (read-only)
@@ -232,6 +244,235 @@ const optionalAuth = async (req: any, res: any, next: any) => {
     res.status(401).json({ error: "Invalid or expired token" });
   }
 };
+
+// Helper function to regenerate expired cover photo URLs
+async function regenerateCoverPhotoUrls(job: any, bucket: any): Promise<{ propertyImage?: string; propertyImageThumbnail?: string }> {
+  console.log(`[regenerateCoverPhotoUrls] Called for job ${job?.id || 'unknown'}, has propertyImage: ${!!job?.propertyImage}, has propertyImageThumbnail: ${!!job?.propertyImageThumbnail}, has bucket: ${!!bucket}`);
+  const result: { propertyImage?: string; propertyImageThumbnail?: string } = {};
+  
+  if (!bucket) {
+    console.log(`[regenerateCoverPhotoUrls] No bucket available for job ${job?.id || 'unknown'}`);
+    return result;
+  }
+  
+  // Helper function to extract storage path from Firebase URL
+  const extractStoragePath = (url: string): string | null => {
+    try {
+      if (!url || typeof url !== 'string') {
+        console.log(`[regenerateCoverPhotoUrls] Invalid URL: ${url}`);
+        return null;
+      }
+      
+      // Handle signed URLs: https://storage.googleapis.com/.../o/path?X-Goog-Algorithm=...
+      // Handle public URLs: https://storage.googleapis.com/.../o/path
+      let match = url.match(/\/o\/(.+?)(\?|$)/);
+      if (match && match[1]) {
+        const path = decodeURIComponent(match[1]);
+        console.log(`[regenerateCoverPhotoUrls] Extracted path from storage.googleapis.com URL: ${path}`);
+        return path;
+      }
+      
+      // Also handle firebasestorage.app URLs
+      match = url.match(/firebasestorage\.app\/o\/(.+?)(\?|$)/);
+      if (match && match[1]) {
+        const path = decodeURIComponent(match[1]);
+        console.log(`[regenerateCoverPhotoUrls] Extracted path from firebasestorage.app URL: ${path}`);
+        return path;
+      }
+      
+      // Try alternative pattern for URLs that might have different formats
+      match = url.match(/\/o\/([^?]+)/);
+      if (match && match[1]) {
+        const path = decodeURIComponent(match[1]);
+        console.log(`[regenerateCoverPhotoUrls] Extracted path using alternative pattern: ${path}`);
+        return path;
+      }
+      
+      console.log(`[regenerateCoverPhotoUrls] Could not extract path from URL: ${url.substring(0, 100)}...`);
+      return null;
+    } catch (error) {
+      console.error(`[regenerateCoverPhotoUrls] Error extracting path from URL: ${error}`);
+      return null;
+    }
+  };
+  
+  // Regenerate propertyImage if it exists
+  if (job.propertyImage) {
+    try {
+      console.log(`[regenerateCoverPhotoUrls] Processing propertyImage for job ${job.id}: ${job.propertyImage.substring(0, 100)}...`);
+      const storagePath = extractStoragePath(job.propertyImage);
+      if (storagePath) {
+        console.log(`[regenerateCoverPhotoUrls] Attempting to regenerate URL for path: ${storagePath}`);
+        const gcsFile = bucket.file(storagePath);
+        const [exists] = await gcsFile.exists();
+        
+        if (exists) {
+          console.log(`[regenerateCoverPhotoUrls] File exists, generating new signed URL`);
+          // Generate new signed URL (30 days expiration)
+          const [signedUrl] = await gcsFile.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+          });
+          
+          result.propertyImage = signedUrl;
+          console.log(`[regenerateCoverPhotoUrls] Generated new URL for propertyImage: ${signedUrl.substring(0, 100)}...`);
+          
+          // Update the database with the new URL
+          try {
+            await storage.updateJob(job.id, { propertyImage: signedUrl });
+            console.log(`[regenerateCoverPhotoUrls] Successfully cached regenerated propertyImage URL for job ${job.id}`);
+          } catch (updateError) {
+            console.error(`[regenerateCoverPhotoUrls] Failed to cache regenerated propertyImage URL for job ${job.id}:`, updateError);
+          }
+        } else {
+          console.warn(`[regenerateCoverPhotoUrls] File does not exist in storage: ${storagePath}`);
+        }
+      } else {
+        console.warn(`[regenerateCoverPhotoUrls] Could not extract storage path from propertyImage URL for job ${job.id}`);
+        // Try to look up the file in editor_uploads by matching the URL
+        try {
+          console.log(`[regenerateCoverPhotoUrls] Attempting to find file in editor_uploads for job ${job.id}`);
+          const uploads = await storage.getEditorUploads(job.id);
+          // Try to find a file with a matching downloadUrl (might be expired but we can use firebaseUrl)
+          const matchingFile = uploads.find((upload: any) => {
+            // Check if the downloadUrl matches (even if expired, the base URL should match)
+            if (upload.downloadUrl && job.propertyImage) {
+              // Extract base URL without query params for comparison
+              const uploadBase = upload.downloadUrl.split('?')[0];
+              const jobImageBase = job.propertyImage.split('?')[0];
+              return uploadBase === jobImageBase;
+            }
+            return false;
+          });
+          
+          if (matchingFile && matchingFile.firebaseUrl) {
+            console.log(`[regenerateCoverPhotoUrls] Found matching file in editor_uploads with firebaseUrl: ${matchingFile.firebaseUrl}`);
+            const gcsFile = bucket.file(matchingFile.firebaseUrl);
+            const [exists] = await gcsFile.exists();
+            
+            if (exists) {
+              const [signedUrl] = await gcsFile.getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+              });
+              
+              result.propertyImage = signedUrl;
+              console.log(`[regenerateCoverPhotoUrls] Generated new URL from editor_uploads firebaseUrl: ${signedUrl.substring(0, 100)}...`);
+              
+              // Update the database with the new URL
+              try {
+                await storage.updateJob(job.id, { propertyImage: signedUrl });
+                console.log(`[regenerateCoverPhotoUrls] Successfully cached regenerated propertyImage URL for job ${job.id}`);
+              } catch (updateError) {
+                console.error(`[regenerateCoverPhotoUrls] Failed to cache regenerated propertyImage URL for job ${job.id}:`, updateError);
+              }
+            } else {
+              console.warn(`[regenerateCoverPhotoUrls] File from editor_uploads does not exist in storage: ${matchingFile.firebaseUrl}`);
+            }
+          } else {
+            console.warn(`[regenerateCoverPhotoUrls] No matching file found in editor_uploads for job ${job.id}`);
+          }
+        } catch (lookupError) {
+          console.error(`[regenerateCoverPhotoUrls] Error looking up file in editor_uploads for job ${job.id}:`, lookupError);
+        }
+      }
+    } catch (urlError) {
+      console.error(`[regenerateCoverPhotoUrls] Error regenerating propertyImage URL for job ${job.id}:`, urlError);
+    }
+  } else {
+    console.log(`[regenerateCoverPhotoUrls] No propertyImage for job ${job.id}`);
+  }
+  
+  // Regenerate propertyImageThumbnail if it exists and is different from propertyImage
+  if (job.propertyImageThumbnail && job.propertyImageThumbnail !== job.propertyImage) {
+    try {
+      console.log(`[regenerateCoverPhotoUrls] Processing propertyImageThumbnail for job ${job.id}: ${job.propertyImageThumbnail.substring(0, 100)}...`);
+      const storagePath = extractStoragePath(job.propertyImageThumbnail);
+      if (storagePath) {
+        console.log(`[regenerateCoverPhotoUrls] Attempting to regenerate URL for thumbnail path: ${storagePath}`);
+        const gcsFile = bucket.file(storagePath);
+        const [exists] = await gcsFile.exists();
+        
+        if (exists) {
+          console.log(`[regenerateCoverPhotoUrls] Thumbnail file exists, generating new signed URL`);
+          // Generate new signed URL (30 days expiration)
+          const [signedUrl] = await gcsFile.getSignedUrl({
+            action: 'read',
+            expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+          });
+          
+          result.propertyImageThumbnail = signedUrl;
+          console.log(`[regenerateCoverPhotoUrls] Generated new URL for propertyImageThumbnail: ${signedUrl.substring(0, 100)}...`);
+          
+          // Update the database with the new URL
+          try {
+            await storage.updateJob(job.id, { propertyImageThumbnail: signedUrl });
+            console.log(`[regenerateCoverPhotoUrls] Successfully cached regenerated propertyImageThumbnail URL for job ${job.id}`);
+          } catch (updateError) {
+            console.error(`[regenerateCoverPhotoUrls] Failed to cache regenerated propertyImageThumbnail URL for job ${job.id}:`, updateError);
+          }
+        } else {
+          console.warn(`[regenerateCoverPhotoUrls] Thumbnail file does not exist in storage: ${storagePath}`);
+        }
+      } else {
+        console.warn(`[regenerateCoverPhotoUrls] Could not extract storage path from propertyImageThumbnail URL for job ${job.id}`);
+        // Try to look up the file in editor_uploads by matching the URL
+        try {
+          console.log(`[regenerateCoverPhotoUrls] Attempting to find thumbnail file in editor_uploads for job ${job.id}`);
+          const uploads = await storage.getEditorUploads(job.id);
+          // Try to find a file with a matching downloadUrl (might be expired but we can use firebaseUrl)
+          const matchingFile = uploads.find((upload: any) => {
+            // Check if the downloadUrl matches (even if expired, the base URL should match)
+            if (upload.downloadUrl && job.propertyImageThumbnail) {
+              // Extract base URL without query params for comparison
+              const uploadBase = upload.downloadUrl.split('?')[0];
+              const jobImageBase = job.propertyImageThumbnail.split('?')[0];
+              return uploadBase === jobImageBase;
+            }
+            return false;
+          });
+          
+          if (matchingFile && matchingFile.firebaseUrl) {
+            console.log(`[regenerateCoverPhotoUrls] Found matching thumbnail file in editor_uploads with firebaseUrl: ${matchingFile.firebaseUrl}`);
+            const gcsFile = bucket.file(matchingFile.firebaseUrl);
+            const [exists] = await gcsFile.exists();
+            
+            if (exists) {
+              const [signedUrl] = await gcsFile.getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+              });
+              
+              result.propertyImageThumbnail = signedUrl;
+              console.log(`[regenerateCoverPhotoUrls] Generated new thumbnail URL from editor_uploads firebaseUrl: ${signedUrl.substring(0, 100)}...`);
+              
+              // Update the database with the new URL
+              try {
+                await storage.updateJob(job.id, { propertyImageThumbnail: signedUrl });
+                console.log(`[regenerateCoverPhotoUrls] Successfully cached regenerated propertyImageThumbnail URL for job ${job.id}`);
+              } catch (updateError) {
+                console.error(`[regenerateCoverPhotoUrls] Failed to cache regenerated propertyImageThumbnail URL for job ${job.id}:`, updateError);
+              }
+            } else {
+              console.warn(`[regenerateCoverPhotoUrls] Thumbnail file from editor_uploads does not exist in storage: ${matchingFile.firebaseUrl}`);
+            }
+          } else {
+            console.warn(`[regenerateCoverPhotoUrls] No matching thumbnail file found in editor_uploads for job ${job.id}`);
+          }
+        } catch (lookupError) {
+          console.error(`[regenerateCoverPhotoUrls] Error looking up thumbnail file in editor_uploads for job ${job.id}:`, lookupError);
+        }
+      }
+    } catch (urlError) {
+      console.error(`[regenerateCoverPhotoUrls] Error regenerating propertyImageThumbnail URL for job ${job.id}:`, urlError);
+    }
+  } else if (job.propertyImageThumbnail === job.propertyImage) {
+    // If thumbnail is same as main image, use the regenerated main image URL
+    result.propertyImageThumbnail = result.propertyImage;
+  }
+  
+  return result;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Customers - SECURED with authentication and tenant isolation
@@ -396,6 +637,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Product creation moved to line 1103 with better error handling
 
+  // Search endpoint - searches across jobs, customers, products, and orders
+  app.get("/api/search", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const query = (req.query.q as string) || "";
+      const partnerId = req.user?.partnerId;
+
+      if (!query || query.trim().length === 0) {
+        return res.json({
+          jobs: [],
+          customers: [],
+          products: [],
+          orders: []
+        });
+      }
+
+      const searchTerm = query.toLowerCase().trim();
+
+      // Fetch all data for the partner
+      const [jobs, customers, products, orders] = await Promise.all([
+        storage.getJobs(partnerId || ""),
+        storage.getCustomers(partnerId || ""),
+        storage.getProducts(partnerId || ""),
+        storage.getOrders(partnerId || "")
+      ]);
+
+      // Search jobs by address, jobId, jobName, or customer name
+      const jobResults = jobs.filter((job: any) => {
+        const addressMatch = job.address?.toLowerCase().includes(searchTerm);
+        const jobIdMatch = job.jobId?.toLowerCase().includes(searchTerm);
+        const jobNameMatch = job.jobName?.toLowerCase().includes(searchTerm);
+        const notesMatch = job.notes?.toLowerCase().includes(searchTerm);
+        
+        // Get customer name if customerId exists
+        let customerNameMatch = false;
+        if (job.customerId) {
+          const customer = customers.find((c: any) => c.id === job.customerId);
+          if (customer) {
+            const fullName = `${customer.firstName || ""} ${customer.lastName || ""}`.toLowerCase();
+            customerNameMatch = fullName.includes(searchTerm) || 
+                               customer.email?.toLowerCase().includes(searchTerm) ||
+                               customer.company?.toLowerCase().includes(searchTerm);
+          }
+        }
+        
+        return addressMatch || jobIdMatch || jobNameMatch || notesMatch || customerNameMatch;
+      });
+
+      // Search customers by name, email, company, or phone
+      const customerResults = customers.filter((customer: any) => {
+        const firstNameMatch = customer.firstName?.toLowerCase().includes(searchTerm);
+        const lastNameMatch = customer.lastName?.toLowerCase().includes(searchTerm);
+        const fullNameMatch = `${customer.firstName || ""} ${customer.lastName || ""}`.toLowerCase().includes(searchTerm);
+        const emailMatch = customer.email?.toLowerCase().includes(searchTerm);
+        const companyMatch = customer.company?.toLowerCase().includes(searchTerm);
+        const phoneMatch = customer.phone?.toLowerCase().includes(searchTerm);
+        const notesMatch = customer.notes?.toLowerCase().includes(searchTerm);
+        return firstNameMatch || lastNameMatch || fullNameMatch || emailMatch || companyMatch || phoneMatch || notesMatch;
+      });
+
+      // Search products by title, description, or category
+      const productResults = products.filter((product: any) => {
+        const titleMatch = product.title?.toLowerCase().includes(searchTerm);
+        const descriptionMatch = product.description?.toLowerCase().includes(searchTerm);
+        const categoryMatch = product.category?.toLowerCase().includes(searchTerm);
+        const typeMatch = product.type?.toLowerCase().includes(searchTerm);
+        return titleMatch || descriptionMatch || categoryMatch || typeMatch;
+      });
+
+      // Search orders by orderNumber, job address, or customer name
+      const orderResults = orders.filter((order: any) => {
+        const orderNumberMatch = order.orderNumber?.toLowerCase().includes(searchTerm);
+        
+        // Get job address if jobId exists
+        let jobAddressMatch = false;
+        if (order.jobId) {
+          const job = jobs.find((j: any) => j.id === order.jobId || j.jobId === order.jobId);
+          if (job) {
+            jobAddressMatch = job.address?.toLowerCase().includes(searchTerm);
+          }
+        }
+        
+        // Get customer name if customerId exists
+        let customerNameMatch = false;
+        if (order.customerId) {
+          const customer = customers.find((c: any) => c.id === order.customerId);
+          if (customer) {
+            const fullName = `${customer.firstName || ""} ${customer.lastName || ""}`.toLowerCase();
+            customerNameMatch = fullName.includes(searchTerm) || 
+                               customer.email?.toLowerCase().includes(searchTerm);
+          }
+        }
+        
+        return orderNumberMatch || jobAddressMatch || customerNameMatch;
+      }).map((order: any) => {
+        // Enrich order with job address for display
+        if (order.jobId) {
+          const job = jobs.find((j: any) => j.id === order.jobId || j.jobId === order.jobId);
+          return {
+            ...order,
+            jobAddress: job?.address || null
+          };
+        }
+        return order;
+      });
+
+      res.json({
+        jobs: jobResults.slice(0, 20), // Limit to 20 results per category
+        customers: customerResults.slice(0, 20),
+        products: productResults.slice(0, 20),
+        orders: orderResults.slice(0, 20)
+      });
+    } catch (error: any) {
+      console.error("Error performing search:", error);
+      res.status(500).json({ error: "Failed to perform search", details: error.message });
+    }
+  });
+
   app.patch("/api/products/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       // First verify the product exists and belongs to this tenant
@@ -416,10 +774,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Jobs - SECURED with authentication and tenant isolation
   app.get("/api/jobs", requireAuth, async (req: AuthenticatedRequest, res) => {
+    console.log(`[GET /api/jobs] ========== ENDPOINT CALLED ==========`);
     try {
+      console.log(`[GET /api/jobs] Fetching jobs for partnerId: ${req.user?.partnerId}`);
       const jobs = await storage.getJobs(req.user?.partnerId);
-      res.json(jobs);
+      console.log(`[GET /api/jobs] Found ${jobs.length} jobs`);
+      
+      // Check how many jobs have cover images
+      const jobsWithImages = jobs.filter((j: any) => j.propertyImage || j.propertyImageThumbnail);
+      console.log(`[GET /api/jobs] Jobs with cover images: ${jobsWithImages.length}`);
+      if (jobsWithImages.length > 0) {
+        console.log(`[GET /api/jobs] Sample job with image:`, {
+          id: jobsWithImages[0].id,
+          propertyImage: jobsWithImages[0].propertyImage?.substring(0, 100),
+          propertyImageThumbnail: jobsWithImages[0].propertyImageThumbnail?.substring(0, 100)
+        });
+      }
+      
+      // Get Firebase Storage bucket for regenerating expired cover photo URLs
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      console.log(`[GET /api/jobs] Bucket name: ${bucketName || 'NOT SET'}`);
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+      console.log(`[GET /api/jobs] Bucket initialized: ${!!bucket}`);
+      
+      // Regenerate expired cover photo URLs for all jobs
+      console.log(`[GET /api/jobs] Starting URL regeneration for ${jobs.length} jobs...`);
+      const jobsWithRegeneratedUrls = await Promise.all(
+        jobs.map(async (job: any) => {
+          const regeneratedUrls = await regenerateCoverPhotoUrls(job, bucket);
+          return {
+            ...job,
+            propertyImage: regeneratedUrls.propertyImage || job.propertyImage,
+            propertyImageThumbnail: regeneratedUrls.propertyImageThumbnail || job.propertyImageThumbnail
+          };
+        })
+      );
+      
+      console.log(`[GET /api/jobs] Completed URL regeneration, returning ${jobsWithRegeneratedUrls.length} jobs`);
+      res.json(jobsWithRegeneratedUrls);
     } catch (error) {
+      console.error("Error fetching jobs:", error);
       res.status(500).json({ error: "Failed to fetch jobs" });
     }
   });
@@ -453,10 +847,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Remove appointmentDate from job data - will be stored in appointments table
       const { appointmentDate, ...jobDataWithoutAppointment } = data;
-      const job = await storage.createJob(jobDataWithoutAppointment);
 
-      // Extract products from request body if provided
+      // Extract products from request body if provided (before createJob so we can build billingItems)
       const products = (req.body as any).products || (req.body as any).selectedProducts;
+
+      // Build billing items from selected products so they appear in the billing section
+      if (products && Array.isArray(products) && products.length > 0) {
+        try {
+          const allProducts = await storage.getProducts(req.user.partnerId);
+          const billingItems: any[] = [];
+
+          for (const selected of products) {
+            const product = allProducts.find((p: any) => p.id === selected.id);
+            if (!product) continue;
+
+            let name = selected.title || selected.name || product.title;
+            let unitPrice = 0;
+            const taxRate = product.taxRate ? parseFloat(product.taxRate.toString()) : 10;
+
+            if (selected.variationName && product.variations) {
+              const variations = typeof product.variations === "string"
+                ? JSON.parse(product.variations)
+                : product.variations;
+              if (Array.isArray(variations)) {
+                const variation = variations.find((v: any) => v.name === selected.variationName);
+                if (variation) {
+                  name = `${product.title} - ${variation.name}`;
+                  unitPrice = variation.noCharge ? 0 : parseFloat((variation.price ?? 0).toString());
+                }
+              }
+            }
+            if (unitPrice === 0 && !selected.variationName) {
+              unitPrice = parseFloat((product.price || "0").toString());
+            }
+
+            const quantity = selected.quantity || 1;
+            const amount = unitPrice * quantity;
+
+            billingItems.push({
+              id: nanoid(),
+              productId: product.id,
+              name,
+              quantity,
+              unitPrice,
+              taxRate,
+              amount,
+            });
+          }
+
+          if (billingItems.length > 0) {
+            jobDataWithoutAppointment.billingItems = JSON.stringify(billingItems);
+          }
+        } catch (billingErr) {
+          console.error("Error building billing items from selected products:", billingErr);
+        }
+      }
+
+      // Do not persist products on the job document (they live on appointment or in billingItems)
+      delete jobDataWithoutAppointment.products;
+      delete jobDataWithoutAppointment.selectedProducts;
+
+      const job = await storage.createJob(jobDataWithoutAppointment);
 
       // Create appointment if appointmentDate is provided
       let appointment = null;
@@ -495,6 +946,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: data.notes || undefined,
             status: 'scheduled',
           });
+          if (appointment && req.user.partnerId) {
+            try {
+              const extras = await buildCalendarEventExtras(job, appointment);
+              const eventId = await createCalendarEvent(req.user.partnerId, {
+                appointment: { ...appointment, id: appointment.id },
+                jobAddress: job.address,
+                ...extras,
+              });
+              if (eventId) {
+                await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+              }
+            } catch (syncErr) {
+              console.error("Google Calendar sync after job create:", syncErr);
+            }
+          }
         } catch (appointmentError) {
           console.error("Failed to create appointment:", appointmentError);
           // Don't fail the job creation if appointment creation fails
@@ -560,8 +1026,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (job.partnerId !== req.user?.partnerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      res.json(job);
+      
+      // Regenerate expired cover photo URLs
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+      const regeneratedUrls = await regenerateCoverPhotoUrls(job, bucket);
+      
+      res.json({
+        ...job,
+        propertyImage: regeneratedUrls.propertyImage || job.propertyImage,
+        propertyImageThumbnail: regeneratedUrls.propertyImageThumbnail || job.propertyImageThumbnail
+      });
     } catch (error) {
+      console.error("Error fetching job:", error);
       res.status(500).json({ error: "Failed to fetch job" });
     }
   });
@@ -726,6 +1203,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes,
         status: 'scheduled',
       });
+
+      if (appointment && req.user.partnerId) {
+        try {
+          const extras = await buildCalendarEventExtras(job, appointment);
+          const eventId = await createCalendarEvent(req.user.partnerId, {
+            appointment: { ...appointment, id: appointment.id },
+            jobAddress: job.address,
+            ...extras,
+          });
+          if (eventId) {
+            await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+          }
+        } catch (syncErr) {
+          console.error("Google Calendar sync after appointment create:", syncErr);
+        }
+      }
 
       // Add products from appointment to job billing items if they don't already exist
       if (products && Array.isArray(products) && products.length > 0) {
@@ -902,6 +1395,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Appointment not found" });
       }
 
+      if (req.user?.partnerId) {
+        try {
+          const job = await storage.getJob(updated.jobId);
+          const jobAddress = job?.address;
+          const extras = await buildCalendarEventExtras(job, updated);
+          if ((updated as any).googleCalendarEventId) {
+            await updateCalendarEvent(req.user.partnerId, (updated as any).googleCalendarEventId, {
+              appointment: { ...updated, id: updated.id },
+              jobAddress,
+              ...extras,
+            });
+          } else {
+            const eventId = await createCalendarEvent(req.user.partnerId, {
+              appointment: { ...updated, id: updated.id },
+              jobAddress,
+              ...extras,
+            });
+            if (eventId) {
+              await storage.updateAppointment(documentId, { googleCalendarEventId: eventId });
+            }
+          }
+        } catch (syncErr) {
+          console.error("Google Calendar sync after appointment update:", syncErr);
+        }
+      }
+
       // Log activity
       try {
         const job = await storage.getJob(appointment.jobId);
@@ -950,6 +1469,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Appointment not found" });
       }
 
+      if (req.user?.partnerId && (appointment as any).googleCalendarEventId) {
+        try {
+          await deleteCalendarEvent(req.user.partnerId, (appointment as any).googleCalendarEventId);
+        } catch (syncErr) {
+          console.error("Google Calendar sync on appointment delete:", syncErr);
+        }
+      }
+
       // Use the document ID for deletion (not appointmentId)
       const documentId = appointment.id;
       await storage.deleteAppointment(documentId);
@@ -983,6 +1510,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting appointment:", error);
       res.status(500).json({ error: "Failed to delete appointment", details: error.message });
+    }
+  });
+
+  // ----- Google Calendar integration -----
+  app.get("/api/calendar/google/auth-url", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const envBase = process.env.BASE_URL?.replace(/^["']|["']$/g, "").trim();
+      const host = req.get("host");
+      const protocol = req.protocol === "https" || req.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const baseUrl = envBase || (host ? `${protocol}://${host}` : null) || "http://localhost:5001";
+      const authUrl = getGoogleCalendarAuthUrl(req.user.partnerId, baseUrl);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("[Google Calendar] auth-url error:", error);
+      const msg = error?.message || "Failed to get auth URL";
+      if (msg === "GOOGLE_CALENDAR_NOT_CONFIGURED") {
+        return res.status(503).json({
+          error: "Google Calendar is not configured",
+          code: "GOOGLE_CALENDAR_NOT_CONFIGURED",
+          detail: "Set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET in server environment.",
+        });
+      }
+      if (msg === "GOOGLE_CALENDAR_BASE_URL_REQUIRED") {
+        return res.status(503).json({
+          error: "Base URL required for Google Calendar",
+          code: "GOOGLE_CALENDAR_BASE_URL_REQUIRED",
+          detail: "Set BASE_URL in server environment or ensure request Host header is correct.",
+        });
+      }
+      res.status(500).json({ error: msg, detail: error?.stack || undefined });
+    }
+  });
+
+  /** Build customer name, products description, and job link for Google Calendar event. */
+  async function buildCalendarEventExtras(
+    job: any,
+    appointment: any
+  ): Promise<{ customerName?: string; productsDescription?: string; jobLink?: string }> {
+    let customerName: string | undefined;
+    if (job?.customerId) {
+      try {
+        const customer = await storage.getCustomer(job.customerId);
+        if (customer) {
+          const name = `${(customer as any).firstName ?? ""} ${(customer as any).lastName ?? ""}`.trim();
+          customerName = (customer as any).company ? `${name} (${(customer as any).company})` : name || undefined;
+        }
+      } catch (_) {}
+    }
+    let productsDescription: string | undefined;
+    if (appointment?.products) {
+      try {
+        const products = typeof appointment.products === "string" ? JSON.parse(appointment.products) : appointment.products;
+        if (Array.isArray(products)) {
+          productsDescription = products
+            .map((p: any) => {
+              const qty = p.quantity ?? 1;
+              const name = p.name ?? p.title ?? "Product";
+              const variation = p.variationName ? ` [${p.variationName}]` : "";
+              return `(${qty}) ${name}${variation}`;
+            })
+            .join("\n");
+        }
+      } catch (_) {}
+    }
+    const appUrl = (process.env.APP_URL ?? process.env.BASE_URL ?? "").replace(/^["']|["']$/g, "").trim();
+    const jobLink = appUrl && job?.jobId ? `${appUrl.replace(/\/$/, "")}/jobs/${job.jobId}` : undefined;
+    return { customerName, productsDescription, jobLink };
+  }
+
+  /** Sync all existing appointments (without googleCalendarEventId) to Google Calendar after (re)connect. Runs in background. */
+  async function syncAllAppointmentsToGoogleAfterConnect(partnerId: string) {
+    try {
+      const conn = await getGoogleCalendarConnection(partnerId);
+      if (!conn) return;
+      const snapshot = await adminDb.collection("appointments").where("partnerId", "==", partnerId).get();
+      const jobs = await storage.getJobs(partnerId);
+      const jobsById = new Map(jobs.map((j: any) => [j.id, j]));
+      let synced = 0;
+      let failed = 0;
+      for (const doc of snapshot.docs) {
+        const apt = doc.data();
+        if (apt.status === "cancelled") continue;
+        if (apt.googleCalendarEventId) continue;
+        let appointmentDate: Date;
+        if (apt.appointmentDate?.toDate) {
+          appointmentDate = apt.appointmentDate.toDate();
+        } else if (apt.appointmentDate instanceof Date) {
+          appointmentDate = apt.appointmentDate;
+        } else {
+          appointmentDate = new Date(apt.appointmentDate);
+        }
+        const job = jobsById.get(apt.jobId);
+        const appointment = {
+          id: doc.id,
+          appointmentId: apt.appointmentId,
+          jobId: apt.jobId,
+          partnerId: apt.partnerId,
+          appointmentDate,
+          estimatedDuration: apt.estimatedDuration,
+          notes: apt.notes,
+          status: apt.status,
+          products: apt.products,
+        };
+        const extras = await buildCalendarEventExtras(job, appointment);
+        const eventId = await createCalendarEvent(partnerId, {
+          appointment,
+          jobAddress: job?.address,
+          ...extras,
+        });
+        if (eventId) {
+          await storage.updateAppointment(doc.id, { googleCalendarEventId: eventId });
+          synced++;
+        } else {
+          failed++;
+        }
+      }
+      if (synced > 0 || failed > 0) {
+        console.log(`[Google Calendar] Post-connect sync for ${partnerId}: ${synced} synced, ${failed} failed`);
+      }
+    } catch (err: any) {
+      console.error("[Google Calendar] syncAllAppointmentsToGoogleAfterConnect error:", err);
+    }
+  }
+
+  app.get("/api/auth/google-calendar/callback", async (req, res) => {
+    try {
+      const { code, state, error } = req.query;
+      if (error) {
+        const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+        return res.redirect(`${baseUrl}/settings#booking&calendar_error=${encodeURIComponent(String(error))}`);
+      }
+      if (!code || !state || typeof code !== "string" || typeof state !== "string") {
+        const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+        return res.redirect(`${baseUrl}/settings#booking&calendar_error=missing_code_or_state`);
+      }
+      const result = await exchangeCodeForTokens(code, state);
+      if ("error" in result) {
+        const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+        return res.redirect(`${baseUrl}/settings#booking&calendar_error=${encodeURIComponent(result.error)}`);
+      }
+      const partnerId = result.partnerId;
+      setImmediate(() => {
+        syncAllAppointmentsToGoogleAfterConnect(partnerId).catch((err) =>
+          console.error("[Google Calendar] Background sync error:", err)
+        );
+      });
+      const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+      res.redirect(`${baseUrl}/settings#booking&calendar_connected=1`);
+    } catch (err: any) {
+      console.error("[Google Calendar] callback error:", err);
+      const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+      res.redirect(`${baseUrl}/settings#booking&calendar_error=callback_failed`);
+    }
+  });
+
+  app.get("/api/calendar/google/status", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const conn = await getGoogleCalendarConnection(req.user.partnerId);
+      res.json({
+        connected: !!conn,
+        twoWaySyncEnabled: conn?.twoWaySyncEnabled ?? false,
+      });
+    } catch (error: any) {
+      console.error("[Google Calendar] status error:", error);
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  app.put("/api/calendar/google/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const { twoWaySyncEnabled } = req.body;
+      const updated = await updateGoogleCalendarSettings(req.user.partnerId, {
+        twoWaySyncEnabled: typeof twoWaySyncEnabled === "boolean" ? twoWaySyncEnabled : undefined,
+      });
+      if (!updated) {
+        return res.status(404).json({ error: "Google Calendar not connected" });
+      }
+      res.json({ twoWaySyncEnabled: updated.twoWaySyncEnabled });
+    } catch (error: any) {
+      console.error("[Google Calendar] settings error:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  app.delete("/api/calendar/google/disconnect", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      await deleteGoogleCalendarConnection(req.user.partnerId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Google Calendar] disconnect error:", error);
+      res.status(500).json({ error: "Failed to disconnect" });
+    }
+  });
+
+  app.get("/api/calendar/google/busy", async (req, res) => {
+    try {
+      const { partnerId: queryPartnerId, start, end } = req.query;
+      let partnerId: string | null = (req as AuthenticatedRequest).user?.partnerId ?? null;
+      if (!partnerId && typeof queryPartnerId === "string") partnerId = queryPartnerId;
+      if (!partnerId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+          try {
+            const idToken = authHeader.replace("Bearer ", "");
+            const decodedToken = await adminAuth.verifyIdToken(idToken);
+            const userDoc = await getUserDocument(decodedToken.uid);
+            if (userDoc?.partnerId) partnerId = userDoc.partnerId;
+          } catch (_) {}
+        }
+      }
+      if (!partnerId || !start || !end || typeof start !== "string" || typeof end !== "string") {
+        return res.status(400).json({ error: "partnerId, start, and end required" });
+      }
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({ error: "Invalid start or end date" });
+      }
+      const blocks = await listBusyBlocks(partnerId, startDate, endDate);
+      res.json(blocks);
+    } catch (error: any) {
+      console.error("[Google Calendar] busy error:", error);
+      res.status(500).json({ error: "Failed to fetch busy blocks" });
     }
   });
 
@@ -1090,18 +1852,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filteredOrders = await storage.getOrders(req.user.partnerId);
 
       // Enrich orders with job address for display in dropdowns
+      // Transform human_check status to processing for partner-facing view
       const ordersWithJobData = await Promise.all(
         filteredOrders.map(async (order) => {
+          // Transform human_check to processing for partner view (human_check is editor-only workflow)
+          const displayStatus = order.status === 'human_check' ? 'processing' : order.status;
+          
           if (order.jobId) {
             // order.jobId might be a Job id or a job.jobId (external). Try both.
             const job = (await storage.getJob(order.jobId)) || (await storage.getJobByJobId(order.jobId));
             return {
               ...order,
+              status: displayStatus,
               jobAddress: job?.address || "Unknown Address",
             };
           }
           return {
             ...order,
+            status: displayStatus,
             jobAddress: "No Job Assigned",
           };
         })
@@ -1119,9 +1887,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
 
+      let customerId = req.body.customerId;
+      const jobId = req.body.jobId;
+      if ((customerId == null || customerId === "") && jobId) {
+        const job = await storage.getJob(jobId).catch(() => null) || await storage.getJobByJobId(jobId).catch(() => null);
+        if (job?.customerId) customerId = job.customerId;
+      }
+
       const orderData = {
         ...req.body,
-        partnerId: req.user.partnerId
+        partnerId: req.user.partnerId,
+        ...(customerId != null && customerId !== "" ? { customerId } : {})
       };
 
       const validatedData = insertOrderSchema.parse(orderData);
@@ -1237,6 +2013,416 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get complete order details with services and files
+  app.get("/api/orders/:orderId/details", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Get the order - first try by ID, then by orderNumber
+      let order = await storage.getOrder(orderId);
+      if (!order) {
+        // Try looking up by orderNumber (e.g., "00058")
+        order = await storage.getOrderByNumber(orderId, req.user.partnerId);
+      }
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Security: Verify order belongs to user's partner
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      // Get job details - try by document ID first, then by jobId field
+      let job = null;
+      if (order.jobId) {
+        job = await storage.getJob(order.jobId);
+        if (!job) {
+          // Try looking up by human-readable jobId field
+          job = await storage.getJobByJobId(order.jobId);
+        }
+      }
+      
+      // Get customer details
+      const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
+
+      // Get order services
+      const orderServices = await storage.getOrderServices(order.id, order.partnerId);
+      
+      // Get order files
+      const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
+
+      // Get editor/supplier details
+      let supplier = null;
+      if (order.assignedTo) {
+        try {
+          const editorDoc = await adminDb.collection('users').doc(order.assignedTo).get();
+          if (editorDoc.exists) {
+            const editorData = editorDoc.data();
+            supplier = {
+              id: order.assignedTo,
+              studioName: editorData?.studioName || editorData?.email || 'Unknown Editor',
+              email: editorData?.email
+            };
+          }
+        } catch (err) {
+          console.warn("Failed to fetch editor details:", err);
+        }
+      }
+
+      // Get creator details
+      let createdBy = null;
+      if (order.createdBy) {
+        try {
+          const creatorDoc = await adminDb.collection('users').doc(order.createdBy).get();
+          if (creatorDoc.exists) {
+            const creatorData = creatorDoc.data();
+            createdBy = {
+              id: order.createdBy,
+              name: creatorData?.firstName 
+                ? `${creatorData.firstName} ${creatorData.lastName || ''}`.trim()
+                : creatorData?.email || 'Unknown',
+              email: creatorData?.email
+            };
+          }
+        } catch (err) {
+          console.warn("Failed to fetch creator details:", err);
+        }
+      }
+
+      // Get editor services for pricing info
+      let editorServicesMap = new Map<string, any>();
+      if (order.assignedTo) {
+        try {
+          const editorServices = await storage.getEditorServices(order.assignedTo);
+          editorServices.forEach(service => {
+            editorServicesMap.set(service.id, service);
+          });
+        } catch (err) {
+          console.warn("Failed to fetch editor services:", err);
+        }
+      }
+
+      // Build services array with pricing
+      const services = orderServices.map((service) => {
+        const editorService = service.serviceId ? editorServicesMap.get(service.serviceId) : null;
+        const unitPrice = editorService ? parseFloat(editorService.basePrice) || 0 : 0;
+        const quantity = service.quantity || 1;
+        
+        return {
+          id: service.id,
+          serviceId: service.serviceId,
+          name: editorService?.name || 'Unknown Service',
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: unitPrice * quantity,
+          instructions: service.instructions,
+          exportTypes: service.exportTypes,
+          addedBySupplier: false, // Could be enhanced to track this
+        };
+      });
+
+      // Calculate totals
+      const subtotal = services.reduce((sum, s) => sum + s.total, 0);
+      const serviceFee = parseFloat(order.estimatedTotal) - subtotal > 0 
+        ? parseFloat(order.estimatedTotal) - subtotal 
+        : 0;
+      const total = parseFloat(order.estimatedTotal) || subtotal;
+
+      // Get revision status
+      const revisionStatus = await storage.getOrderRevisionStatus(order.id);
+
+      // Build response
+      // Transform human_check status to processing for partner-facing view (human_check is editor-only workflow)
+      const displayStatus = order.status === 'human_check' ? 'processing' : order.status;
+      
+      const orderDetails = {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: displayStatus,
+        createdAt: order.createdAt,
+        jobId: order.jobId,
+        jobAddress: job?.address || 'No address',
+        supplier,
+        createdBy,
+        services,
+        files: orderFiles.map(file => ({
+          id: file.id,
+          fileName: file.fileName,
+          originalName: file.originalName,
+          downloadUrl: file.downloadUrl,
+          fileSize: file.fileSize
+        })),
+        serviceFee,
+        subtotal,
+        total,
+        revisionStatus: revisionStatus || undefined
+      };
+
+      res.json(orderDetails);
+    } catch (error: any) {
+      console.error("Error fetching order details:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch order details", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Download order original files as ZIP (for partners)
+  app.get("/api/orders/:orderId/files/download", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Get the order - first try by ID, then by orderNumber
+      let order = await storage.getOrder(orderId);
+      if (!order) {
+        order = await storage.getOrderByNumber(orderId, req.user.partnerId);
+      }
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Security: Verify order belongs to user's partner
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      // Get order files
+      const orderFiles = await storage.getOrderFiles(order.id, order.partnerId);
+
+      if (!orderFiles || orderFiles.length === 0) {
+        return res.status(404).json({ error: "No files found for this order" });
+      }
+
+      console.log(`[ORDER FILES DOWNLOAD] Found ${orderFiles.length} files for order ${order.orderNumber}`);
+
+      // Create ZIP file
+      const zip = new JSZip();
+      const folderName = `order_${order.orderNumber.replace('#', '')}`;
+
+      // Add files to ZIP
+      for (const file of orderFiles) {
+        try {
+          // Validate URL is from Firebase Storage to prevent SSRF
+          if (!file.downloadUrl.includes('googleapis.com') && !file.downloadUrl.includes('firebasestorage.app')) {
+            console.warn(`Skipping file with invalid URL: ${file.fileName}`);
+            continue;
+          }
+
+          const response = await fetch(file.downloadUrl);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            zip.file(file.originalName, buffer);
+            console.log(`[ORDER FILES DOWNLOAD] Added ${file.originalName} to zip`);
+          } else {
+            console.error(`Failed to download file ${file.originalName} with status: ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`Error processing file ${file.originalName}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Generate ZIP
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      console.log(`[ORDER FILES DOWNLOAD] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send ZIP file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${folderName}_files.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+    } catch (error: any) {
+      console.error("Error downloading order files:", error);
+      res.status(500).json({ 
+        error: "Failed to download order files", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Request revision for an order (authenticated users)
+  app.post("/api/orders/:orderId/revisions/request", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const { serviceId, reason, requestText } = req.body;
+      
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Validate request
+      if (!reason || !requestText) {
+        return res.status(400).json({ error: "Reason and request text are required" });
+      }
+
+      // Get the order - first try by ID, then by orderNumber
+      let order = await storage.getOrder(orderId);
+      if (!order) {
+        // Try looking up by orderNumber (e.g., "00059")
+        order = await storage.getOrderByNumber(orderId, req.user.partnerId);
+      }
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Security: Verify order belongs to user's partner
+      if (order.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied to this order" });
+      }
+
+      // Partners/photographers have unlimited revisions - no limit check here
+
+      // Get service name for the notes
+      let serviceName = "All Services";
+      if (serviceId && serviceId !== "all") {
+        const orderServices = await storage.getOrderServices(order.id, order.partnerId);
+        const targetService = orderServices.find(s => s.id === serviceId);
+        if (targetService && order.assignedTo) {
+          const editorServices = await storage.getEditorServices(order.assignedTo);
+          const editorService = editorServices.find(es => es.id === targetService.serviceId);
+          if (editorService) {
+            serviceName = editorService.name;
+          }
+        }
+      }
+
+      // Build revision notes
+      const reasonLabels: Record<string, string> = {
+        quality_issues: "Quality Issues",
+        missing_requirements: "Missing Requirements",
+        incorrect_format: "Incorrect Format",
+        color_correction: "Color Correction Needed",
+        cropping_issues: "Cropping/Framing Issues",
+        object_removal: "Object Removal Incomplete",
+        other: "Other"
+      };
+      
+      const revisionNotes = `Service: ${serviceName}\nReason: ${reasonLabels[reason] || reason}\n\n${requestText}`;
+
+      // Update order status and revision info
+      const usedRounds = (order as any).usedRevisionRounds || 0;
+      const updatedOrder = await storage.updateOrder(order.id, {
+        status: 'in_revision',
+        revisionNotes,
+        usedRevisionRounds: usedRounds + 1
+      });
+
+      if (!updatedOrder) {
+        return res.status(500).json({ error: "Failed to update order" });
+      }
+
+      // Get job details for notifications
+      const job = order.jobId ? await storage.getJob(order.jobId) : null;
+      
+      // Create activity log
+      try {
+        await storage.createActivity({
+          partnerId: req.user.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: req.user.uid,
+          userEmail: req.user.email,
+          userName: req.user.email,
+          action: "revision_requested",
+          category: "order",
+          title: "Revision Requested",
+          description: `Revision requested for Order #${order.orderNumber}`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            serviceId,
+            serviceName,
+            reason,
+            requestText,
+            revisionRound: usedRounds + 1
+          }),
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (activityError) {
+        console.error("Failed to log revision request activity:", activityError);
+      }
+
+      // Create in-app notification for editor
+      if (order.assignedTo) {
+        try {
+          const notification = insertNotificationSchema.parse({
+            partnerId: order.partnerId,
+            recipientId: order.assignedTo,
+            type: 'revision_request',
+            title: 'Revision Requested',
+            body: `A revision has been requested for Order #${order.orderNumber}${job ? ` (${job.address})` : ''}`,
+            orderId: order.id,
+            jobId: order.jobId,
+          });
+          await firestoreStorage.createNotifications([notification]);
+        } catch (notifyError) {
+          console.error("Failed to create notification:", notifyError);
+        }
+      }
+
+      // Send email notification to editor (will be handled by email service)
+      if (order.assignedTo) {
+        try {
+          const editorDoc = await adminDb.collection('users').doc(order.assignedTo).get();
+          if (editorDoc.exists) {
+            const editorData = editorDoc.data();
+            const editorEmail = editorData?.email;
+            const editorName = editorData?.studioName || editorData?.email || 'Editor';
+            
+            // Get customer name
+            const customer = order.customerId ? await storage.getCustomer(order.customerId) : null;
+            const customerName = customer 
+              ? `${customer.firstName} ${customer.lastName}`.trim()
+              : 'Customer';
+
+            if (editorEmail) {
+              // Import and call email service
+              const { sendRevisionRequestEmail } = await import('./email-service');
+              const baseUrl = `${req.protocol}://${req.get('host')}`;
+              
+              await sendRevisionRequestEmail(
+                editorEmail,
+                editorName,
+                order.orderNumber,
+                revisionNotes,
+                customerName,
+                job?.address || 'No address',
+                [serviceName],
+                `${baseUrl}/editor/dashboard`
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error("Failed to send revision email:", emailError);
+          // Don't fail the request if email fails
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        order: updatedOrder,
+        message: "Revision request submitted successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error requesting revision:", error);
+      res.status(500).json({ 
+        error: "Failed to request revision", 
+        details: error.message 
+      });
+    }
+  });
+
   // Submit order with services and files
   app.post("/api/orders/submit", requireAuth, async (req, res) => {
     try {
@@ -1278,6 +2464,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderNumber = await storage.generateOrderNumber();
       }
 
+      // Derive customerId from job when not provided (so editors get customer editing preferences)
+      let resolvedCustomerId = customerId;
+      if ((resolvedCustomerId == null || resolvedCustomerId === "") && jobId) {
+        const job = await storage.getJob(jobId).catch(() => null) || await storage.getJobByJobId(jobId).catch(() => null);
+        if (job?.customerId) resolvedCustomerId = job.customerId;
+      }
+
       // Calculate 14 days from now for file expiry
       const filesExpiryDate = new Date();
       filesExpiryDate.setDate(filesExpiryDate.getDate() + 14);
@@ -1286,7 +2479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = await storage.createOrder({
         partnerId,
         jobId: jobId || null,
-        customerId: customerId || null,
+        customerId: resolvedCustomerId || null,
         assignedTo: assignedTo || null,
         status: "pending", // Always start as pending - editors must accept before processing
         createdBy: createdBy || null,
@@ -1551,69 +2744,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard stats - SECURED with authentication and tenant isolation
+  // All stats reset at the start of each month (current month only)
   app.get("/api/dashboard/stats", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const jobs = await storage.getJobs(req.user?.partnerId);
       const orders = await storage.getOrders(req.user?.partnerId);
       const customers = await storage.getCustomers(req.user?.partnerId);
 
-      const totalJobs = jobs.length;
-      const totalOrders = orders.length;
-      
-      // Calculate revenue from billingItems of delivered jobs in the current month only
-      // This automatically resets at the start of each new month
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
-      
+      const startOfMonth = new Date(currentYear, currentMonth, 1);
+
+      const isInCurrentMonth = (d: Date | string | null | undefined) => {
+        if (!d) return false;
+        const dt = new Date(d);
+        return dt >= startOfMonth && dt.getMonth() === currentMonth && dt.getFullYear() === currentYear;
+      };
+
+      // Jobs: count only those created this month
+      const jobsThisMonth = jobs.filter((j) => isInCurrentMonth(j.createdAt));
+      const totalJobs = jobsThisMonth.length;
+
+      // Orders: count only those created this month
+      const ordersThisMonth = orders.filter((o) => isInCurrentMonth(o.createdAt));
+      const totalOrders = ordersThisMonth.length;
+
+      // Revenue: delivered jobs this month only (resets each month)
       const totalSalesExGst = jobs.reduce((sum, job) => {
-        // Only include delivered jobs (completed and billable)
         if (job.status?.toLowerCase() !== 'delivered') return sum;
-        
-        // Filter by current month: only include jobs delivered this month
-        const deliveredDate = job.deliveredAt 
-          ? new Date(job.deliveredAt) 
-          : (job.createdAt ? new Date(job.createdAt) : null); // Fallback to createdAt for backward compatibility
-        
-        if (deliveredDate) {
-          const deliveredMonth = deliveredDate.getMonth();
-          const deliveredYear = deliveredDate.getFullYear();
-          
-          // Only include jobs delivered in the current month
-          if (deliveredMonth !== currentMonth || deliveredYear !== currentYear) {
-            return sum;
-          }
-        } else {
-          // If no date available, exclude from monthly revenue
-          return sum;
-        }
-        
-        if (!job.billingItems) return sum; // Exclude delivered jobs without billing items
-        
+        const deliveredDate = job.deliveredAt
+          ? new Date(job.deliveredAt)
+          : (job.createdAt ? new Date(job.createdAt) : null);
+        if (!deliveredDate || !isInCurrentMonth(deliveredDate)) return sum;
+        if (!job.billingItems) return sum;
         try {
-          const billingItems = typeof job.billingItems === 'string' 
-            ? JSON.parse(job.billingItems) 
+          const billingItems = typeof job.billingItems === 'string'
+            ? JSON.parse(job.billingItems)
             : job.billingItems;
-          
           if (!Array.isArray(billingItems) || billingItems.length === 0) return sum;
-          
-          // Sum all amounts (already GST-exclusive: unitPrice * quantity)
           const jobRevenue = billingItems.reduce((itemSum: number, item: any) => {
             return itemSum + (parseFloat(item.amount?.toString() || "0"));
           }, 0);
-          
           return sum + jobRevenue;
         } catch (e) {
           console.error(`Error parsing billingItems for job ${job.id}:`, e);
-          return sum; // Exclude jobs with invalid billingItems
+          return sum;
         }
       }, 0);
+
+      // Active clients this month: distinct customers with job or order in current month
+      const customerIdsThisMonth = new Set<string>();
+      for (const j of jobsThisMonth) {
+        if (j.customerId) customerIdsThisMonth.add(j.customerId);
+      }
+      for (const o of ordersThisMonth) {
+        if (o.customerId) customerIdsThisMonth.add(o.customerId);
+      }
+      const activeClientsThisMonth = customerIdsThisMonth.size;
 
       res.json({
         jobs: totalJobs,
         orders: totalOrders,
         sales: totalSalesExGst.toFixed(2),
-        customers: customers.length
+        customers: customers.length,
+        activeClientsThisMonth,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
@@ -1690,6 +2885,667 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch attention items" });
     }
   });
+
+  // ============================================
+  // JOB REPORTS ENDPOINTS
+  // ============================================
+
+  // Helper function to parse date range
+  const parseDateRange = (dateRange: string, startDate?: string, endDate?: string): { start: Date | null; end: Date | null } => {
+    const now = new Date();
+    switch (dateRange) {
+      case 'today':
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        return { start: todayStart, end: now };
+      case 'yesterday':
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        const yesterdayEnd = new Date(yesterday);
+        yesterdayEnd.setHours(23, 59, 59, 999);
+        return { start: yesterday, end: yesterdayEnd };
+      case 'last_7_days':
+        const last7Days = new Date(now);
+        last7Days.setDate(last7Days.getDate() - 7);
+        return { start: last7Days, end: now };
+      case 'last_30_days':
+        const last30Days = new Date(now);
+        last30Days.setDate(last30Days.getDate() - 30);
+        return { start: last30Days, end: now };
+      case 'this_month':
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        return { start: thisMonthStart, end: thisMonthEnd };
+      case 'last_month':
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        return { start: lastMonthStart, end: lastMonthEnd };
+      case 'this_quarter':
+        const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+        const thisQuarterStart = new Date(now.getFullYear(), quarterMonth, 1);
+        const thisQuarterEnd = new Date(now.getFullYear(), quarterMonth + 3, 0, 23, 59, 59, 999);
+        return { start: thisQuarterStart, end: thisQuarterEnd };
+      case 'this_year':
+        const thisYearStart = new Date(now.getFullYear(), 0, 1);
+        const thisYearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        return { start: thisYearStart, end: thisYearEnd };
+      case 'custom':
+        return {
+          start: startDate ? new Date(startDate) : null,
+          end: endDate ? new Date(endDate) : null
+        };
+      case 'all_time':
+      default:
+        return { start: null, end: null };
+    }
+  };
+
+  // Helper function to get previous period for comparison
+  const getPreviousPeriod = (start: Date | null, end: Date | null): { start: Date | null; end: Date | null } => {
+    if (!start || !end) return { start: null, end: null };
+    const duration = end.getTime() - start.getTime();
+    const prevEnd = new Date(start.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - duration);
+    return { start: prevStart, end: prevEnd };
+  };
+
+  // Helper function to filter jobs by date range
+  const filterByDateRange = <T extends { createdAt?: Date | string | null }>(
+    items: T[],
+    start: Date | null,
+    end: Date | null
+  ): T[] => {
+    if (!start && !end) return items;
+    return items.filter(item => {
+      if (!item.createdAt) return false;
+      const itemDate = new Date(item.createdAt);
+      if (start && itemDate < start) return false;
+      if (end && itemDate > end) return false;
+      return true;
+    });
+  };
+
+  // Helper function to extract keywords from revision notes
+  const analyzeRevisionNotes = (orders: any[]): Array<{ reason: string; count: number; percentage: number }> => {
+    const keywords: Record<string, number> = {};
+    const commonKeywords = [
+      'color', 'colours', 'brightness', 'exposure', 'contrast', 'saturation',
+      'crop', 'cropping', 'straighten', 'align', 'alignment',
+      'remove', 'object removal', 'clone', 'erase',
+      'sky', 'sky replacement', 'clouds',
+      'grass', 'lawn', 'green',
+      'white balance', 'temperature', 'warmth',
+      'sharpen', 'blur', 'noise', 'grain',
+      'shadows', 'highlights', 'blacks', 'whites',
+      'perspective', 'distortion', 'lens correction',
+      'hdr', 'bracket', 'merge',
+      'twilight', 'dusk', 'sunset',
+      'virtual staging', 'furniture', 'declutter',
+      'window', 'tv', 'screen', 'fire'
+    ];
+    
+    let totalMatches = 0;
+    
+    orders.forEach(order => {
+      if (!order.revisionNotes) return;
+      const notes = order.revisionNotes.toLowerCase();
+      
+      commonKeywords.forEach(keyword => {
+        if (notes.includes(keyword.toLowerCase())) {
+          keywords[keyword] = (keywords[keyword] || 0) + 1;
+          totalMatches++;
+        }
+      });
+    });
+    
+    return Object.entries(keywords)
+      .map(([reason, count]) => ({
+        reason: reason.charAt(0).toUpperCase() + reason.slice(1),
+        count,
+        percentage: totalMatches > 0 ? (count / totalMatches) * 100 : 0
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20);
+  };
+
+  // Helper function to parse job revenue from billingItems
+  const getJobRevenue = (job: any): number => {
+    if (!job.billingItems) return parseFloat(job.totalValue?.toString() || '0');
+    try {
+      const billingItems = typeof job.billingItems === 'string'
+        ? JSON.parse(job.billingItems)
+        : job.billingItems;
+      if (!Array.isArray(billingItems)) return parseFloat(job.totalValue?.toString() || '0');
+      return billingItems.reduce((sum: number, item: any) => {
+        return sum + parseFloat(item.amount?.toString() || '0');
+      }, 0);
+    } catch {
+      return parseFloat(job.totalValue?.toString() || '0');
+    }
+  };
+
+  // GET /api/jobs/reports/stats - Get aggregated statistics
+  app.get("/api/jobs/reports/stats", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dateRange = 'this_month', startDate, endDate, status, customerId, photographerId, invoiceStatus, orderStatus } = req.query;
+      const partnerId = req.user?.partnerId;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      // Get all jobs and orders
+      const allJobs = await storage.getJobs(partnerId);
+      const allOrders = await storage.getOrders(partnerId);
+      const customers = await storage.getCustomers(partnerId);
+
+      // Parse date range
+      const { start, end } = parseDateRange(
+        dateRange as string,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      // Get previous period for comparison
+      const prevPeriod = getPreviousPeriod(start, end);
+
+      // Filter jobs
+      let jobs = filterByDateRange(allJobs, start, end);
+      if (status && status !== 'all') {
+        jobs = jobs.filter(j => j.status === status);
+      }
+      if (customerId && customerId !== 'all') {
+        jobs = jobs.filter(j => j.customerId === customerId);
+      }
+      if (photographerId && photographerId !== 'all') {
+        jobs = jobs.filter(j => j.assignedTo === photographerId);
+      }
+      if (invoiceStatus && invoiceStatus !== 'all') {
+        jobs = jobs.filter(j => j.invoiceStatus === invoiceStatus);
+      }
+
+      // Filter orders
+      let orders = filterByDateRange(allOrders, start, end);
+      if (orderStatus && orderStatus !== 'all') {
+        orders = orders.filter(o => o.status === orderStatus);
+      }
+
+      // Previous period jobs and orders
+      let prevJobs = filterByDateRange(allJobs, prevPeriod.start, prevPeriod.end);
+      let prevOrders = filterByDateRange(allOrders, prevPeriod.start, prevPeriod.end);
+
+      // Calculate job metrics
+      const totalJobs = jobs.length;
+      const totalRevenue = jobs.reduce((sum, job) => sum + getJobRevenue(job), 0);
+      const averageJobValue = totalJobs > 0 ? totalRevenue / totalJobs : 0;
+      
+      const jobsByStatus: Record<string, number> = {};
+      jobs.forEach(job => {
+        const s = job.status || 'unknown';
+        jobsByStatus[s] = (jobsByStatus[s] || 0) + 1;
+      });
+
+      const invoiceStatusBreakdown: Record<string, number> = {};
+      jobs.forEach(job => {
+        const s = job.invoiceStatus || 'draft';
+        invoiceStatusBreakdown[s] = (invoiceStatusBreakdown[s] || 0) + 1;
+      });
+
+      const deliveredJobs = jobs.filter(j => j.status === 'delivered').length;
+      const completionRate = totalJobs > 0 ? (deliveredJobs / totalJobs) * 100 : 0;
+
+      // Calculate order metrics
+      const totalOrders = orders.length;
+      const ordersByStatus: Record<string, number> = {};
+      orders.forEach(order => {
+        const s = order.status || 'unknown';
+        ordersByStatus[s] = (ordersByStatus[s] || 0) + 1;
+      });
+
+      const totalRevisions = orders.reduce((sum, o) => sum + ((o as any).usedRevisionRounds || 0), 0);
+      const averageRevisionsPerOrder = totalOrders > 0 ? totalRevisions / totalOrders : 0;
+      
+      const ordersWithRevisions = orders.filter(o => ((o as any).usedRevisionRounds || 0) > 0).length;
+      const revisionRate = totalOrders > 0 ? (ordersWithRevisions / totalOrders) * 100 : 0;
+      const ordersCompletedWithoutRevisions = totalOrders - ordersWithRevisions;
+
+      // Previous period metrics
+      const prevTotalJobs = prevJobs.length;
+      const prevTotalRevenue = prevJobs.reduce((sum, job) => sum + getJobRevenue(job), 0);
+      const prevTotalOrders = prevOrders.length;
+      const prevOrdersWithRevisions = prevOrders.filter(o => ((o as any).usedRevisionRounds || 0) > 0).length;
+      const prevRevisionRate = prevTotalOrders > 0 ? (prevOrdersWithRevisions / prevTotalOrders) * 100 : 0;
+
+      res.json({
+        // Job metrics
+        totalJobs,
+        totalRevenue,
+        averageJobValue,
+        jobsByStatus,
+        invoiceStatusBreakdown,
+        completionRate,
+        
+        // Order metrics
+        totalOrders,
+        ordersByStatus,
+        averageRevisionsPerOrder,
+        revisionRate,
+        ordersRequiringRevisions: ordersWithRevisions,
+        ordersCompletedWithoutRevisions,
+        
+        // Period comparison
+        periodComparison: {
+          previousPeriod: {
+            totalJobs: prevTotalJobs,
+            totalRevenue: prevTotalRevenue,
+            totalOrders: prevTotalOrders,
+            revisionRate: prevRevisionRate
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching job reports stats:", error);
+      res.status(500).json({ error: "Failed to fetch job reports stats" });
+    }
+  });
+
+  // GET /api/jobs/reports/timeline - Get time-series data for charts
+  app.get("/api/jobs/reports/timeline", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dateRange = 'this_month', startDate, endDate, groupBy = 'day' } = req.query;
+      const partnerId = req.user?.partnerId;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const allJobs = await storage.getJobs(partnerId);
+      const allOrders = await storage.getOrders(partnerId);
+
+      const { start, end } = parseDateRange(
+        dateRange as string,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      const jobs = filterByDateRange(allJobs, start, end);
+      const orders = filterByDateRange(allOrders, start, end);
+
+      // Group data by date
+      const getDateKey = (date: Date): string => {
+        if (groupBy === 'month') {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+        } else if (groupBy === 'week') {
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay());
+          return weekStart.toISOString().split('T')[0];
+        }
+        return date.toISOString().split('T')[0];
+      };
+
+      // Jobs over time
+      const jobsByDate: Record<string, number> = {};
+      const revenueByDate: Record<string, number> = {};
+      jobs.forEach(job => {
+        if (!job.createdAt) return;
+        const key = getDateKey(new Date(job.createdAt));
+        jobsByDate[key] = (jobsByDate[key] || 0) + 1;
+        revenueByDate[key] = (revenueByDate[key] || 0) + getJobRevenue(job);
+      });
+
+      // Orders over time
+      const ordersByDate: Record<string, number> = {};
+      const revisionsByDate: Record<string, number> = {};
+      orders.forEach(order => {
+        if (!order.createdAt) return;
+        const key = getDateKey(new Date(order.createdAt));
+        ordersByDate[key] = (ordersByDate[key] || 0) + 1;
+        revisionsByDate[key] = (revisionsByDate[key] || 0) + ((order as any).usedRevisionRounds || 0);
+      });
+
+      // Get all unique dates and sort
+      const allDates = [...new Set([
+        ...Object.keys(jobsByDate),
+        ...Object.keys(ordersByDate)
+      ])].sort();
+
+      // Build timeline arrays
+      const jobsOverTime = allDates.map(date => ({ date, count: jobsByDate[date] || 0 }));
+      const revenueOverTime = allDates.map(date => ({ date, revenue: revenueByDate[date] || 0 }));
+      const ordersOverTime = allDates.map(date => ({ date, count: ordersByDate[date] || 0 }));
+      const revisionsOverTime = allDates.map(date => ({ date, count: revisionsByDate[date] || 0 }));
+      
+      // Revision rate over time
+      const revisionRateOverTime = allDates.map(date => {
+        const orderCount = ordersByDate[date] || 0;
+        const revisionCount = revisionsByDate[date] || 0;
+        return {
+          date,
+          rate: orderCount > 0 ? (revisionCount / orderCount) * 100 : 0
+        };
+      });
+
+      res.json({
+        jobsOverTime,
+        revenueOverTime,
+        ordersOverTime,
+        revisionsOverTime,
+        revisionRateOverTime
+      });
+    } catch (error) {
+      console.error("Error fetching job reports timeline:", error);
+      res.status(500).json({ error: "Failed to fetch job reports timeline" });
+    }
+  });
+
+  // GET /api/jobs/reports/breakdowns - Get breakdown data
+  app.get("/api/jobs/reports/breakdowns", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dateRange = 'this_month', startDate, endDate, status, customerId, photographerId } = req.query;
+      const partnerId = req.user?.partnerId;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const allJobs = await storage.getJobs(partnerId);
+      const allOrders = await storage.getOrders(partnerId);
+      const customers = await storage.getCustomers(partnerId);
+      const users = await storage.getUsers(partnerId);
+
+      const { start, end } = parseDateRange(
+        dateRange as string,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      let jobs = filterByDateRange(allJobs, start, end);
+      let orders = filterByDateRange(allOrders, start, end);
+
+      // Apply filters
+      if (status && status !== 'all') {
+        jobs = jobs.filter(j => j.status === status);
+      }
+      if (customerId && customerId !== 'all') {
+        jobs = jobs.filter(j => j.customerId === customerId);
+      }
+      if (photographerId && photographerId !== 'all') {
+        jobs = jobs.filter(j => j.assignedTo === photographerId);
+      }
+
+      // Top Customers
+      const customerStats: Record<string, { jobCount: number; totalRevenue: number }> = {};
+      jobs.forEach(job => {
+        if (!job.customerId) return;
+        if (!customerStats[job.customerId]) {
+          customerStats[job.customerId] = { jobCount: 0, totalRevenue: 0 };
+        }
+        customerStats[job.customerId].jobCount++;
+        customerStats[job.customerId].totalRevenue += getJobRevenue(job);
+      });
+
+      const customerMap = new Map(customers.map(c => [c.id, c]));
+      const topCustomers = Object.entries(customerStats)
+        .map(([customerId, stats]) => {
+          const customer = customerMap.get(customerId);
+          return {
+            customerId,
+            customerName: customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown',
+            ...stats
+          };
+        })
+        .sort((a, b) => b.totalRevenue - a.totalRevenue)
+        .slice(0, 20);
+
+      // Top Photographers
+      const photographerStats: Record<string, { jobCount: number; totalRevenue: number }> = {};
+      jobs.forEach(job => {
+        if (!job.assignedTo) return;
+        if (!photographerStats[job.assignedTo]) {
+          photographerStats[job.assignedTo] = { jobCount: 0, totalRevenue: 0 };
+        }
+        photographerStats[job.assignedTo].jobCount++;
+        photographerStats[job.assignedTo].totalRevenue += getJobRevenue(job);
+      });
+
+      const userMap = new Map(users.map(u => [u.id, u]));
+      const topPhotographers = Object.entries(photographerStats)
+        .map(([userId, stats]) => {
+          const user = userMap.get(userId);
+          return {
+            userId,
+            userName: user ? `${user.firstName} ${user.lastName}` : 'Unknown',
+            ...stats
+          };
+        })
+        .sort((a, b) => b.jobCount - a.jobCount)
+        .slice(0, 20);
+
+      // Most Common Revision Reasons
+      const mostCommonRevisionReasons = analyzeRevisionNotes(orders);
+
+      // Most Common Edit Requests (from order services instructions)
+      // For now, return empty array - would need to join with orderServices
+      const mostCommonEditRequests: Array<{ request: string; count: number; percentage: number }> = [];
+
+      // Orders by Editor
+      const editorStats: Record<string, { orderCount: number; revisionCount: number }> = {};
+      orders.forEach(order => {
+        if (!order.assignedTo) return;
+        if (!editorStats[order.assignedTo]) {
+          editorStats[order.assignedTo] = { orderCount: 0, revisionCount: 0 };
+        }
+        editorStats[order.assignedTo].orderCount++;
+        editorStats[order.assignedTo].revisionCount += (order as any).usedRevisionRounds || 0;
+      });
+
+      const ordersByEditor = Object.entries(editorStats)
+        .map(([editorId, stats]) => ({
+          editorId,
+          editorName: editorId.substring(0, 8) + '...',
+          orderCount: stats.orderCount,
+          revisionCount: stats.revisionCount,
+          revisionRate: stats.orderCount > 0 ? (stats.revisionCount / stats.orderCount) * 100 : 0
+        }))
+        .sort((a, b) => b.orderCount - a.orderCount)
+        .slice(0, 20);
+
+      // Revision Frequency Distribution
+      const revisionCounts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+      orders.forEach(order => {
+        const revisions = (order as any).usedRevisionRounds || 0;
+        if (revisions >= 3) {
+          revisionCounts[3] = (revisionCounts[3] || 0) + 1;
+        } else {
+          revisionCounts[revisions] = (revisionCounts[revisions] || 0) + 1;
+        }
+      });
+
+      const totalOrders = orders.length;
+      const revisionFrequencyDistribution = Object.entries(revisionCounts)
+        .map(([count, orderCount]) => ({
+          revisionCount: parseInt(count),
+          orderCount,
+          percentage: totalOrders > 0 ? (orderCount / totalOrders) * 100 : 0
+        }))
+        .sort((a, b) => a.revisionCount - b.revisionCount);
+
+      // Orders by Status
+      const orderStatusCounts: Record<string, number> = {};
+      orders.forEach(order => {
+        const s = order.status || 'unknown';
+        orderStatusCounts[s] = (orderStatusCounts[s] || 0) + 1;
+      });
+
+      const ordersByStatus = Object.entries(orderStatusCounts)
+        .map(([status, count]) => ({
+          status,
+          count,
+          percentage: totalOrders > 0 ? (count / totalOrders) * 100 : 0
+        }));
+
+      res.json({
+        topCustomers,
+        topPhotographers,
+        mostCommonRevisionReasons,
+        mostCommonEditRequests,
+        ordersByEditor,
+        revisionFrequencyDistribution,
+        ordersByStatus
+      });
+    } catch (error) {
+      console.error("Error fetching job reports breakdowns:", error);
+      res.status(500).json({ error: "Failed to fetch job reports breakdowns" });
+    }
+  });
+
+  // GET /api/jobs/reports/performance - Get performance metrics
+  app.get("/api/jobs/reports/performance", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dateRange = 'this_month', startDate, endDate } = req.query;
+      const partnerId = req.user?.partnerId;
+      
+      if (!partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      const allJobs = await storage.getJobs(partnerId);
+      const allOrders = await storage.getOrders(partnerId);
+      const customers = await storage.getCustomers(partnerId);
+      const users = await storage.getUsers(partnerId);
+
+      const { start, end } = parseDateRange(
+        dateRange as string,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      const jobs = filterByDateRange(allJobs, start, end);
+      const orders = filterByDateRange(allOrders, start, end);
+
+      // Average Turnaround Time (job creation to delivery)
+      const deliveredJobs = jobs.filter(j => j.status === 'delivered' && j.deliveredAt && j.createdAt);
+      const turnaroundTimes = deliveredJobs.map(job => {
+        const created = new Date(job.createdAt!);
+        const delivered = new Date(job.deliveredAt!);
+        return (delivered.getTime() - created.getTime()) / (1000 * 60 * 60 * 24); // days
+      });
+      const averageTurnaroundTime = turnaroundTimes.length > 0
+        ? turnaroundTimes.reduce((a, b) => a + b, 0) / turnaroundTimes.length
+        : 0;
+
+      // On-Time Delivery Rate
+      const jobsWithDueDate = jobs.filter(j => j.status === 'delivered' && j.dueDate && j.deliveredAt);
+      const onTimeDeliveries = jobsWithDueDate.filter(job => {
+        const dueDate = new Date(job.dueDate!);
+        const deliveredAt = new Date(job.deliveredAt!);
+        return deliveredAt <= dueDate;
+      });
+      const onTimeDeliveryRate = jobsWithDueDate.length > 0
+        ? (onTimeDeliveries.length / jobsWithDueDate.length) * 100
+        : 100; // Default to 100% if no due dates
+
+      // Revenue per Customer
+      const totalRevenue = jobs.reduce((sum, job) => sum + getJobRevenue(job), 0);
+      const uniqueCustomers = new Set(jobs.map(j => j.customerId).filter(Boolean));
+      const revenuePerCustomer = uniqueCustomers.size > 0 ? totalRevenue / uniqueCustomers.size : 0;
+
+      // Jobs per Photographer
+      const uniquePhotographers = new Set(jobs.map(j => j.assignedTo).filter(Boolean));
+      const jobsPerPhotographer = uniquePhotographers.size > 0 ? jobs.length / uniquePhotographers.size : 0;
+
+      // Average Order Processing Time
+      const completedOrders = orders.filter(o => o.status === 'completed' && o.approvedAt && o.createdAt);
+      const processingTimes = completedOrders.map(order => {
+        const created = new Date(order.createdAt!);
+        const approved = new Date(order.approvedAt!);
+        return (approved.getTime() - created.getTime()) / (1000 * 60 * 60 * 24); // days
+      });
+      const averageOrderProcessingTime = processingTimes.length > 0
+        ? processingTimes.reduce((a, b) => a + b, 0) / processingTimes.length
+        : 0;
+
+      // Orders Completed on First Try Rate
+      const ordersWithoutRevisions = orders.filter(o => ((o as any).usedRevisionRounds || 0) === 0);
+      const ordersCompletedOnFirstTryRate = orders.length > 0
+        ? (ordersWithoutRevisions.length / orders.length) * 100
+        : 100;
+
+      // Editor Performance
+      const editorStats: Record<string, { ordersCompleted: number; revisions: number; processingTimes: number[] }> = {};
+      completedOrders.forEach(order => {
+        if (!order.assignedTo) return;
+        if (!editorStats[order.assignedTo]) {
+          editorStats[order.assignedTo] = { ordersCompleted: 0, revisions: 0, processingTimes: [] };
+        }
+        editorStats[order.assignedTo].ordersCompleted++;
+        editorStats[order.assignedTo].revisions += (order as any).usedRevisionRounds || 0;
+        if (order.approvedAt && order.createdAt) {
+          const days = (new Date(order.approvedAt).getTime() - new Date(order.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          editorStats[order.assignedTo].processingTimes.push(days);
+        }
+      });
+
+      const editorPerformance = Object.entries(editorStats)
+        .map(([editorId, stats]) => ({
+          editorId,
+          editorName: editorId.substring(0, 8) + '...',
+          ordersCompleted: stats.ordersCompleted,
+          revisionRate: stats.ordersCompleted > 0 ? (stats.revisions / stats.ordersCompleted) * 100 : 0,
+          averageProcessingTime: stats.processingTimes.length > 0
+            ? stats.processingTimes.reduce((a, b) => a + b, 0) / stats.processingTimes.length
+            : 0
+        }))
+        .sort((a, b) => b.ordersCompleted - a.ordersCompleted)
+        .slice(0, 20);
+
+      // Peak Days
+      const dayOfWeekCounts: Record<string, number> = {
+        'Sunday': 0, 'Monday': 0, 'Tuesday': 0, 'Wednesday': 0,
+        'Thursday': 0, 'Friday': 0, 'Saturday': 0
+      };
+      jobs.forEach(job => {
+        if (!job.createdAt) return;
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const day = dayNames[new Date(job.createdAt).getDay()];
+        dayOfWeekCounts[day]++;
+      });
+      const peakDays = Object.entries(dayOfWeekCounts)
+        .map(([day, count]) => ({ day, count }))
+        .sort((a, b) => b.count - a.count);
+
+      // Peak Times (hours)
+      const hourCounts: Record<number, number> = {};
+      jobs.forEach(job => {
+        if (!job.createdAt) return;
+        const hour = new Date(job.createdAt).getHours();
+        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+      });
+      const peakTimes = Object.entries(hourCounts)
+        .map(([hour, count]) => ({ hour: parseInt(hour), count }))
+        .sort((a, b) => b.count - a.count);
+
+      res.json({
+        averageTurnaroundTime,
+        onTimeDeliveryRate,
+        revenuePerCustomer,
+        jobsPerPhotographer,
+        averageOrderProcessingTime,
+        ordersCompletedOnFirstTryRate,
+        editorPerformance,
+        peakDays,
+        peakTimes
+      });
+    } catch (error) {
+      console.error("Error fetching job reports performance:", error);
+      res.status(500).json({ error: "Failed to fetch job reports performance" });
+    }
+  });
+
+  // ============================================
+  // END JOB REPORTS ENDPOINTS
+  // ============================================
 
   // Firebase Auth - Public Signup endpoint (always creates partner)
   const publicSignupSchema = z.object({
@@ -2144,18 +4000,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filteredOrders = await storage.getOrders(req.user.partnerId);
 
       // Enrich orders with job address for display in dropdowns
+      // Transform human_check status to processing for partner-facing view
       const ordersWithJobData = await Promise.all(
         filteredOrders.map(async (order) => {
+          // Transform human_check to processing for partner view (human_check is editor-only workflow)
+          const displayStatus = order.status === 'human_check' ? 'processing' : order.status;
+          
           if (order.jobId) {
             // order.jobId may be the Job internal id or external job.jobId
             const job = (await storage.getJob(order.jobId)) || (await storage.getJobByJobId(order.jobId));
             return {
               ...order,
+              status: displayStatus,
               jobAddress: job?.address || "Unknown Address"
             };
           }
           return {
             ...order,
+            status: displayStatus,
             jobAddress: "No Job Assigned"
           };
         })
@@ -2251,6 +4113,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
       res.status(500).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Delete all notifications endpoint
+  app.delete("/api/notifications/delete-all", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Only delete notifications for the authenticated user with proper tenant scoping
+      await firestoreStorage.deleteAllNotifications(req.user.uid, req.user.partnerId || '');
+
+      res.json({ message: "All notifications deleted" });
+    } catch (error) {
+      console.error("Failed to delete all notifications:", error);
+      res.status(500).json({ error: "Failed to delete all notifications" });
     }
   });
 
@@ -3281,6 +5160,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Found ${orderFiles.length} files for order ${orderNumber}`);
 
+      // Resolve job (order.jobId may be document id or human-readable jobId) for customer editing preferences
+      let job = order.jobId ? await storage.getJob(order.jobId).catch(() => null) : null;
+      if (!job && order.jobId) {
+        job = await storage.getJobByJobId(order.jobId).catch(() => null) ?? null;
+      }
+      const customerId = order.customerId || job?.customerId;
+      let editingPreferencesText = '';
+      if (customerId && order.partnerId) {
+        try {
+          const [options, preferences] = await Promise.all([
+            storage.getEditingOptions(order.partnerId),
+            storage.getCustomerEditingPreferences(customerId)
+          ]);
+          const enabled = options.map((option: any) => {
+            const pref = preferences.find((p: any) => p.editingOptionId === option.id);
+            return { name: option.name, description: option.description, isEnabled: pref?.isEnabled ?? false, notes: pref?.notes };
+          }).filter((p: any) => p.isEnabled);
+          if (enabled.length > 0) {
+            editingPreferencesText += `CUSTOMER EDITING PREFERENCES\n`;
+            editingPreferencesText += `${'='.repeat(40)}\n\n`;
+            enabled.forEach((p: any) => {
+              editingPreferencesText += `• ${p.name}\n`;
+              if (p.description) editingPreferencesText += `  ${String(p.description).replace(/\n/g, '\n  ')}\n`;
+              if (p.notes) editingPreferencesText += `  Notes: ${String(p.notes).replace(/\n/g, '\n  ')}\n`;
+              editingPreferencesText += '\n';
+            });
+          }
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for download:", prefErr);
+        }
+      }
+
       // Create zip file
       const zip = new JSZip();
       const folderName = orderNumber.replace('#', ''); // Remove # from folder name
@@ -3338,11 +5249,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .trim();
       };
 
-      // Add instructions if any (as plain text file)
+      // Build INSTRUCTIONS.txt (order + services + customer editing preferences)
+      let instructionsContent = `ORDER: ${orderNumber}\n`;
+      instructionsContent += `========================================\n\n`;
+
       if (orderServices && orderServices.length > 0) {
-        let instructionsContent = `ORDER: ${orderNumber}\n`;
-        instructionsContent += `========================================\n\n`;
-        
         orderServices.forEach((service, index) => {
           instructionsContent += `SERVICE ${index + 1}: ${service.serviceName || 'General Editing'}\n`;
           instructionsContent += `${'='.repeat(40)}\n\n`;
@@ -3418,9 +5329,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           instructionsContent += '\n';
         });
-
-        zip.file(`${folderName}/INSTRUCTIONS.txt`, instructionsContent);
       }
+
+      // Append customer editing preferences (from customer profile in partner dashboard)
+      if (editingPreferencesText) {
+        instructionsContent += editingPreferencesText;
+      }
+
+      zip.file(`${folderName}/INSTRUCTIONS.txt`, instructionsContent);
 
       // Generate zip
       const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
@@ -3455,6 +5371,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (activityError) {
         console.error("Failed to log download activity:", activityError);
         // Don't fail the download if activity logging fails
+      }
+
+      // Update order status from pending to processing when files are downloaded
+      if (order.status === 'pending') {
+        try {
+          await storage.updateOrder(order.id, { status: 'processing' });
+          console.log(`[DOWNLOAD] Updated order ${order.orderNumber} status from pending to processing`);
+        } catch (statusError) {
+          console.error("Failed to update order status:", statusError);
+          // Don't fail the download if status update fails
+        }
       }
 
       // Send the zip file
@@ -3511,6 +5438,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "No files found for this job" });
       }
 
+      // Customer editing preferences for INSTRUCTIONS.txt
+      const customerIdLegacy = order.customerId || job.customerId;
+      let editingPreferencesTextLegacy = '';
+      if (customerIdLegacy && order.partnerId) {
+        try {
+          const [optionsLegacy, preferencesLegacy] = await Promise.all([
+            storage.getEditingOptions(order.partnerId),
+            storage.getCustomerEditingPreferences(customerIdLegacy)
+          ]);
+          const enabledLegacy = optionsLegacy.map((option: any) => {
+            const pref = preferencesLegacy.find((p: any) => p.editingOptionId === option.id);
+            return { name: option.name, description: option.description, isEnabled: pref?.isEnabled ?? false, notes: pref?.notes };
+          }).filter((p: any) => p.isEnabled);
+          if (enabledLegacy.length > 0) {
+            editingPreferencesTextLegacy += `CUSTOMER EDITING PREFERENCES\n`;
+            editingPreferencesTextLegacy += `${'='.repeat(40)}\n\n`;
+            enabledLegacy.forEach((p: any) => {
+              editingPreferencesTextLegacy += `• ${p.name}\n`;
+              if (p.description) editingPreferencesTextLegacy += `  ${String(p.description).replace(/\n/g, '\n  ')}\n`;
+              if (p.notes) editingPreferencesTextLegacy += `  Notes: ${String(p.notes).replace(/\n/g, '\n  ')}\n`;
+              editingPreferencesTextLegacy += '\n';
+            });
+          }
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for job download:", prefErr);
+        }
+      }
+
       // Create zip file
       const zip = new JSZip();
       let zipGenerationFailed = false;
@@ -3534,14 +5489,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .trim();
       };
 
-      // Add instructions file if any (as plain text)
+      // Build INSTRUCTIONS.txt (order + services + customer editing preferences)
+      let instructionsContentLegacy = `ORDER: ${order.orderNumber}\n`;
+      instructionsContentLegacy += `========================================\n\n`;
+
       if (orderServices.length > 0) {
-        let instructionsContent = `ORDER: ${order.orderNumber}\n`;
-        instructionsContent += `========================================\n\n`;
-        
         orderServices.forEach((service, index) => {
-          instructionsContent += `SERVICE ${index + 1}: ${service.serviceName || 'General Editing'}\n`;
-          instructionsContent += `${'='.repeat(40)}\n\n`;
+          instructionsContentLegacy += `SERVICE ${index + 1}: ${service.serviceName || 'General Editing'}\n`;
+          instructionsContentLegacy += `${'='.repeat(40)}\n\n`;
           
           if (service.instructions) {
             try {
@@ -3559,23 +5514,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (Array.isArray(instructions)) {
                 instructions.forEach((inst, instIndex) => {
-                  instructionsContent += `File ${instIndex + 1}: ${inst.fileName || 'N/A'}\n`;
+                  instructionsContentLegacy += `File ${instIndex + 1}: ${inst.fileName || 'N/A'}\n`;
                   if (inst.detail) {
                     const cleanDetail = stripHtml(inst.detail);
-                    instructionsContent += `  Instructions: ${cleanDetail}\n`;
+                    instructionsContentLegacy += `  Instructions: ${cleanDetail}\n`;
                   }
-                  instructionsContent += '\n';
+                  instructionsContentLegacy += '\n';
                 });
               } else if (typeof instructions === 'string') {
                 const cleanInstructions = stripHtml(instructions);
-                instructionsContent += `${cleanInstructions}\n\n`;
+                instructionsContentLegacy += `${cleanInstructions}\n\n`;
               } else {
-                instructionsContent += `${JSON.stringify(instructions, null, 2)}\n\n`;
+                instructionsContentLegacy += `${JSON.stringify(instructions, null, 2)}\n\n`;
               }
             } catch (e) {
               // If parsing fails, try to strip HTML from raw string
               const cleanInstructions = stripHtml(String(service.instructions));
-              instructionsContent += `${cleanInstructions}\n\n`;
+              instructionsContentLegacy += `${cleanInstructions}\n\n`;
             }
           }
           
@@ -3590,31 +5545,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
               
-              instructionsContent += `Export Types:\n`;
+              instructionsContentLegacy += `Export Types:\n`;
               if (Array.isArray(exportTypes)) {
                 exportTypes.forEach(exp => {
-                  instructionsContent += `  • ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
+                  instructionsContentLegacy += `  • ${exp.type || 'N/A'}: ${exp.description || 'N/A'}\n`;
                 });
               } else {
-                instructionsContent += `  ${JSON.stringify(exportTypes)}\n`;
+                instructionsContentLegacy += `  ${JSON.stringify(exportTypes)}\n`;
               }
-              instructionsContent += '\n';
+              instructionsContentLegacy += '\n';
             } catch (e) {
-              instructionsContent += `Export Types: ${service.exportTypes}\n\n`;
+              instructionsContentLegacy += `Export Types: ${service.exportTypes}\n\n`;
             }
           }
           
           // Add notes if any
           if (service.notes) {
             const cleanNotes = stripHtml(String(service.notes));
-            instructionsContent += `Notes:\n${cleanNotes}\n\n`;
+            instructionsContentLegacy += `Notes:\n${cleanNotes}\n\n`;
           }
           
-          instructionsContent += '\n';
+          instructionsContentLegacy += '\n';
         });
-
-        zip.file('INSTRUCTIONS.txt', instructionsContent);
       }
+
+      if (editingPreferencesTextLegacy) {
+        instructionsContentLegacy += editingPreferencesTextLegacy;
+      }
+
+      zip.file('INSTRUCTIONS.txt', instructionsContentLegacy);
 
       // Download each file and add to zip
       let successfulFiles = 0; // Track number of successfully downloaded files
@@ -4074,7 +6033,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           firebaseUrl: upload.firebaseUrl,
           downloadUrl: upload.downloadUrl,
           notes: notes || null,
-          expiresAt: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // 30 days from now
+          expiresAt: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)), // 30 days from now
+          status: 'completed' // Editor deliverables are completed files
         };
         return storage.createEditorUpload(uploadData);
       });
@@ -4107,8 +6067,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[ACTIVITY] Failed to log editor upload:", activityError);
       }
 
-      // Note: Order status is NOT automatically changed on upload
-      // Editors must manually click "Mark Complete" button when job is finished
+      // Update order status to human_check when editor uploads completed work
+      // This moves the order to the Human Check stage for QC review
+      if (order.status === 'processing' || order.status === 'in_revision') {
+        try {
+          await storage.updateOrder(order.id, { status: 'human_check' });
+          console.log(`[UPLOAD] Updated order ${order.orderNumber} status from ${order.status} to human_check`);
+        } catch (statusError) {
+          console.error("Failed to update order status:", statusError);
+          // Don't fail the upload if status update fails
+        }
+      }
 
       res.status(201).json({
         success: true,
@@ -4119,6 +6088,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error uploading deliverables:", error);
       res.status(500).json({ 
         error: "Failed to upload deliverables", 
+        details: error.message 
+      });
+    }
+  });
+
+  // ===== EDITOR FOLDER MANAGEMENT ENDPOINTS =====
+
+  // Get folders for a job (editor version - validates editor assignment)
+  app.get("/api/editor/jobs/:jobId/folders", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can access folders" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify editor is assigned to this job through an order
+      const editorOrders = await storage.getOrdersForEditor(uid);
+      const assignedOrder = editorOrders.find(o => o.jobId === job.id || o.jobId === job.jobId);
+      if (!assignedOrder) {
+        return res.status(403).json({ error: "You are not assigned to this job" });
+      }
+
+      // Get folders for this job
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      console.log(`[EDITOR FOLDERS] Found ${allFolders.length} total folders for job ${jobId}. Assigned order: ${assignedOrder.id} (${assignedOrder.orderNumber})`);
+      allFolders.forEach(f => {
+        console.log(`[EDITOR FOLDERS] Folder: ${f.partnerFolderName || f.editorFolderName}, orderId: ${f.orderId}, matches: ${f.orderId === assignedOrder.id}, noOrderId: ${!f.orderId}`);
+      });
+
+      // Filter folders to only show those associated with this editor's assigned order
+      // Folders can be associated with an order via orderId field
+      const filteredFolders = allFolders.filter(folder => {
+        // Include folder if it belongs to this order OR has no orderId (legacy folders)
+        // Handle both null and undefined as "no orderId"
+        const hasNoOrderId = folder.orderId === null || folder.orderId === undefined;
+        return folder.orderId === assignedOrder.id || hasNoOrderId;
+      });
+
+      console.log(`[EDITOR FOLDERS] Returning ${filteredFolders.length} of ${allFolders.length} folders for job ${jobId}, order ${assignedOrder.orderNumber} to editor ${uid}`);
+
+      // Return folders with actual Firebase download URLs
+      const foldersWithDownloadUrls = filteredFolders.map(folder => ({
+        ...folder,
+        files: folder.files.map(file => ({
+          ...file,
+          downloadUrl: file.downloadUrl
+        }))
+      }));
+
+      res.json(foldersWithDownloadUrls);
+    } catch (error: any) {
+      console.error("Error fetching editor folders:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch folders", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Create folder for a job (editor version - validates editor assignment)
+  app.post("/api/editor/jobs/:jobId/folders", async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      const { editorFolderName, folderPath, parentFolderPath } = req.body;
+
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can create folders" });
+      }
+
+      if (!editorFolderName) {
+        return res.status(400).json({ error: "editorFolderName is required" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify editor is assigned to this job through an order
+      const editorOrders = await storage.getOrdersForEditor(uid);
+      const assignedOrder = editorOrders.find(o => o.jobId === job.id || o.jobId === job.jobId);
+      if (!assignedOrder) {
+        return res.status(403).json({ error: "You are not assigned to this job" });
+      }
+
+      // Generate unique standalone token for this folder
+      const folderToken = nanoid(10);
+
+      console.log(`[EDITOR CREATE FOLDER] Name: ${editorFolderName}, Parent: ${parentFolderPath || 'root'}, Token: ${folderToken}, JobId: ${job.id}, OrderId: ${assignedOrder.id}`);
+
+      // Create the folder in storage
+      // Use folderPath if provided, otherwise use editorFolderName
+      const finalFolderPath = folderPath || (parentFolderPath ? `${parentFolderPath}/${editorFolderName}` : editorFolderName);
+      const createdFolder = await storage.createFolder(job.id, editorFolderName, parentFolderPath, assignedOrder.id, folderToken);
+
+      // Create a Firebase placeholder to establish the folder in Firebase Storage
+      const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
+      if (!bucketName) {
+        throw new Error('FIREBASE_STORAGE_BUCKET environment variable not set');
+      }
+
+      const bucket = getStorage().bucket(bucketName);
+
+      // Build Firebase Storage path
+      let firebaseFolderPath: string;
+      if (parentFolderPath) {
+        firebaseFolderPath = `completed/${jobId}/${parentFolderPath}/${folderToken}/.placeholder`;
+      } else {
+        firebaseFolderPath = `completed/${jobId}/${folderToken}/.placeholder`;
+      }
+
+      // Create a placeholder file in the folder to establish it
+      const placeholderFile = bucket.file(firebaseFolderPath);
+      await placeholderFile.save('', {
+        metadata: {
+          contentType: 'text/plain',
+          metadata: {
+            isPlaceholder: 'true',
+            folderToken: folderToken,
+            editorFolderName: editorFolderName,
+            createdBy: uid,
+            createdAt: new Date().toISOString()
+          }
+        }
+      });
+
+      res.json({
+        success: true,
+        folder: {
+          ...createdFolder,
+          folderToken
+        },
+        message: `Folder "${editorFolderName}" created successfully`
+      });
+    } catch (error: any) {
+      console.error("Error creating editor folder:", error);
+      res.status(500).json({ 
+        error: "Failed to create folder", 
         details: error.message 
       });
     }
@@ -4227,6 +6360,648 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating job status:", error);
       res.status(500).json({ 
         error: "Failed to update job status", 
+        details: error.message 
+      });
+    }
+  });
+
+  // ===== QC (Quality Control) ENDPOINTS =====
+
+  // Mark order as complete - move to human_check for QC review
+  app.post("/api/editor/orders/:orderId/mark-complete", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can mark orders as complete" });
+      }
+
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Verify the order is assigned to this editor
+      if (order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+
+      // Verify order is in processing or in_revision status
+      if (order.status !== 'processing' && order.status !== 'in_revision') {
+        return res.status(400).json({ error: `Order cannot be marked complete from ${order.status} status` });
+      }
+
+      // Update order to human_check status for QC review
+      const updatedOrder = await storage.updateOrder(orderId, {
+        status: 'human_check'
+      });
+
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: order.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: uid,
+          userEmail: currentUser.email,
+          userName: currentUser.studioName || currentUser.email,
+          action: "mark_complete",
+          category: "order",
+          title: "Order Marked Complete",
+          description: `Order #${order.orderNumber} marked complete and sent for QC review`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            previousStatus: order.status,
+            newStatus: 'human_check',
+            markedBy: uid,
+            markedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log mark complete:", activityError);
+      }
+
+      res.json({
+        success: true,
+        order: updatedOrder,
+        message: "Order marked complete and sent for QC review"
+      });
+    } catch (error: any) {
+      console.error("Error marking order complete:", error);
+      res.status(500).json({ 
+        error: "Failed to mark order complete", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get QC files and data for an order
+  app.get("/api/editor/orders/:orderId/qc/files", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can access QC" });
+      }
+
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Verify the order is assigned to this editor
+      if (order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+
+      // Verify order is in human_check status
+      if (order.status !== 'human_check') {
+        return res.status(400).json({ error: `Order is not in QC stage (current: ${order.status})` });
+      }
+
+      // Get job info (order.jobId may be document id or human-readable jobId)
+      let job = order.jobId ? await storage.getJob(order.jobId).catch(() => null) : null;
+      if (!job && order.jobId) {
+        job = await storage.getJobByJobId(order.jobId).catch(() => null) ?? null;
+      }
+
+      // Get uploaded files for this order
+      const uploads = await storage.getEditorUploadsForOrder(orderId);
+
+      // Get file comments
+      const comments = await storage.getFileCommentsForOrder(orderId);
+
+      // Get folder metadata from folders collection to get proper display names
+      // This is needed because editorUploads may not have the folder name, but folders collection does
+      let folderNameMap = new Map<string, string>();
+      if (job?.id) {
+        try {
+          const { adminDb } = await import('./firebase-admin');
+          
+          // Query by jobId
+          const foldersSnapshot = await adminDb.collection("folders")
+            .where("jobId", "==", job.id)
+            .get();
+          
+          console.log('[QC FILES] Found', foldersSnapshot.docs.length, 'folders for jobId:', job.id);
+          
+          foldersSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const folderPath = data.folderPath;
+            const displayName = data.editorFolderName || data.partnerFolderName;
+            
+            console.log('[QC FILES] Folder doc:', {
+              docId: doc.id,
+              folderPath,
+              folderToken: data.folderToken,
+              editorFolderName: data.editorFolderName,
+              partnerFolderName: data.partnerFolderName,
+              displayName
+            });
+            
+            if (displayName) {
+              // Map all possible keys that might be used
+              if (folderPath) {
+                folderNameMap.set(folderPath, displayName);
+              }
+              if (data.folderToken) {
+                // Map the token directly
+                folderNameMap.set(data.folderToken, displayName);
+                // Map with folders/ prefix
+                folderNameMap.set(`folders/${data.folderToken}`, displayName);
+                // Also try without any prefix in case folderPath in uploads is just the token
+              }
+            }
+          });
+          
+          // Also query by orderId in case folders are linked to order, not job
+          const orderFoldersSnapshot = await adminDb.collection("folders")
+            .where("orderId", "==", orderId)
+            .get();
+          
+          console.log('[QC FILES] Found', orderFoldersSnapshot.docs.length, 'folders for orderId:', orderId);
+          
+          orderFoldersSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const folderPath = data.folderPath;
+            const displayName = data.editorFolderName || data.partnerFolderName;
+            
+            if (displayName) {
+              if (folderPath) {
+                folderNameMap.set(folderPath, displayName);
+              }
+              if (data.folderToken) {
+                folderNameMap.set(data.folderToken, displayName);
+                folderNameMap.set(`folders/${data.folderToken}`, displayName);
+              }
+            }
+          });
+          
+          console.log('[QC FILES] Final folder name map keys:', Array.from(folderNameMap.keys()));
+          
+          // If no folders found in folders collection, try to extract names from placeholder files
+          // Older folders might not have entries in folders collection but have placeholder files
+          if (folderNameMap.size === 0) {
+            console.log('[QC FILES] No folders found in folders collection, checking for placeholder files...');
+            const placeholderSnapshot = await adminDb.collection("editorUploads")
+              .where("jobId", "==", job.id)
+              .where("fileName", "==", ".folder_placeholder")
+              .get();
+            
+            console.log('[QC FILES] Found', placeholderSnapshot.docs.length, 'placeholder files');
+            
+            placeholderSnapshot.docs.forEach(doc => {
+              const data = doc.data();
+              const displayName = data.editorFolderName || data.partnerFolderName;
+              if (displayName && data.folderPath) {
+                folderNameMap.set(data.folderPath, displayName);
+              }
+              if (displayName && data.folderToken) {
+                folderNameMap.set(data.folderToken, displayName);
+                folderNameMap.set(`folders/${data.folderToken}`, displayName);
+              }
+            });
+          }
+        } catch (folderLookupErr) {
+          console.error('[QC FILES] Error looking up folder names:', folderLookupErr);
+        }
+      }
+
+      // Get order services with instructions for QC verification
+      const orderServices = await storage.getOrderServices(orderId, order.partnerId);
+      
+      // Enrich services with editor service details (name, description)
+      const enrichedServices = await Promise.all(
+        orderServices.map(async (service) => {
+          const editorService = await storage.getEditorService(service.serviceId);
+          return {
+            id: service.id,
+            serviceId: service.serviceId,
+            serviceName: editorService?.name || 'Unknown Service',
+            serviceDescription: editorService?.description || null,
+            quantity: service.quantity,
+            instructions: service.instructions, // JSON string of instruction pairs
+            exportTypes: service.exportTypes, // JSON string of export types
+            createdAt: service.createdAt,
+          };
+        })
+      );
+
+      // Helper to check if a string looks like a random token (nanoid-style)
+      const looksLikeToken = (str: string): boolean => {
+        if (!str || str.length < 8 || str.length > 25) return false;
+        // Tokens are purely alphanumeric with no spaces or common patterns
+        if (!/^[a-zA-Z0-9_-]+$/.test(str)) return false;
+        // Check for common folder name keywords - if present, it's likely a real name
+        if (/photo|image|video|floor|plan|virtual|tour|edit|raw|file|folder|high|low|res|final|draft|web|print|social|hdr|mls|deliver|complet/i.test(str)) {
+          return false;
+        }
+        // Check vowel ratio - real words have 15-50% vowels, random strings often don't
+        const vowelCount = (str.match(/[aeiouAEIOU]/g) || []).length;
+        const vowelRatio = vowelCount / str.length;
+        if (vowelRatio >= 0.15 && vowelRatio <= 0.5) return false;
+        // Check for camelCase or PascalCase (indicates real naming)
+        if (/[a-z][A-Z]/.test(str)) return false;
+        return true;
+      };
+
+      // Helper to extract a display-friendly folder name
+      const extractFolderDisplayName = (editorName: string | null | undefined, partnerName: string | null | undefined, path: string, folderToken?: string | null): string => {
+        // Priority 0: Look up in folder name map (most reliable source)
+        if (path && folderNameMap.has(path)) {
+          return folderNameMap.get(path)!;
+        }
+        if (folderToken && folderNameMap.has(folderToken)) {
+          return folderNameMap.get(folderToken)!;
+        }
+        if (folderToken && folderNameMap.has(`folders/${folderToken}`)) {
+          return folderNameMap.get(`folders/${folderToken}`)!;
+        }
+        
+        // Priority 1: Use editorFolderName if it's a real name (not a path, not a token)
+        if (editorName && !editorName.includes('/') && !looksLikeToken(editorName)) {
+          return editorName;
+        }
+        // Priority 2: Use partnerFolderName if it's a real name
+        if (partnerName && !partnerName.includes('/') && !looksLikeToken(partnerName)) {
+          return partnerName;
+        }
+        // Priority 3: If editorFolderName is a path, extract meaningful segments
+        if (editorName && editorName.includes('/')) {
+          const segments = editorName.split('/').filter(s => s && !looksLikeToken(s) && s !== 'folders');
+          if (segments.length > 0) {
+            return segments[segments.length - 1];
+          }
+        }
+        // Priority 4: Extract meaningful segment from folderPath (skip tokens and 'folders' prefix)
+        if (path && path !== 'Root') {
+          const segments = path.split('/').filter(s => s && !looksLikeToken(s) && s !== 'folders');
+          if (segments.length > 0) {
+            return segments[segments.length - 1];
+          }
+        }
+        // Fallback: return "Files" if we couldn't find a good name
+        return 'Files';
+      };
+
+      // Organize uploads into folder hierarchy for QC display
+      const folderHierarchy = uploads.reduce((acc, upload) => {
+        const folderPath = upload.folderPath || 'Root';
+        const folderName = extractFolderDisplayName(
+          upload.editorFolderName, 
+          upload.partnerFolderName, 
+          folderPath, 
+          upload.folderToken
+        );
+        
+        // Debug logging for folder name resolution
+        console.log('[QC FILES] Upload folder resolution:', {
+          uploadId: upload.id,
+          folderPath,
+          folderToken: upload.folderToken,
+          editorFolderName: upload.editorFolderName,
+          partnerFolderName: upload.partnerFolderName,
+          resolvedName: folderName,
+          mapHasPath: folderNameMap.has(folderPath),
+          mapHasToken: upload.folderToken ? folderNameMap.has(upload.folderToken) : false
+        });
+        
+        if (!acc[folderPath]) {
+          acc[folderPath] = {
+            folderPath,
+            folderName,
+            files: []
+          };
+        }
+        acc[folderPath].files.push(upload);
+        return acc;
+      }, {} as Record<string, { folderPath: string; folderName: string; files: typeof uploads }>);
+      
+      const folders = Object.values(folderHierarchy).sort((a, b) => 
+        a.folderPath.localeCompare(b.folderPath)
+      );
+
+      // Customer editing preferences (from customer profile in partner dashboard)
+      let editingPreferences: any[] = [];
+      const customerId = order.customerId || job?.customerId;
+      if (customerId && order.partnerId) {
+        try {
+          const [options, preferences] = await Promise.all([
+            storage.getEditingOptions(order.partnerId),
+            storage.getCustomerEditingPreferences(customerId)
+          ]);
+          editingPreferences = options.map((option: any) => {
+            const pref = preferences.find((p: any) => p.editingOptionId === option.id);
+            return {
+              id: option.id,
+              name: option.name,
+              description: option.description ?? undefined,
+              isEnabled: pref?.isEnabled ?? false,
+              notes: pref?.notes ?? undefined
+            };
+          });
+        } catch (prefErr) {
+          console.error("Error fetching customer editing preferences for QC order:", orderId, prefErr);
+        }
+      }
+
+      res.json({
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          partnerId: order.partnerId,
+          jobId: order.jobId,
+          customerId: order.customerId,
+          assignedTo: order.assignedTo,
+          createdAt: order.createdAt,
+          revisionNotes: (order as any).revisionNotes || null,
+          usedRevisionRounds: (order as any).usedRevisionRounds || 0,
+          maxRevisionRounds: (order as any).maxRevisionRounds || 2,
+        },
+        job: job ? {
+          id: job.id,
+          jobId: job.jobId,
+          address: job.address,
+          customerName: job.customerName,
+        } : null,
+        uploads: uploads || [],
+        folders: folders, // Files organized by folder
+        services: enrichedServices, // Order services with instructions
+        comments: comments || [],
+        editingPreferences,
+      });
+    } catch (error: any) {
+      console.error("Error getting QC files:", error);
+      res.status(500).json({ 
+        error: "Failed to get QC files", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Pass QC - approve order and mark as complete
+  app.post("/api/editor/orders/:orderId/qc/pass", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser) {
+        return res.status(403).json({ error: "User not found" });
+      }
+
+      // Allow editors, admins, and partners to pass QC
+      const allowedRoles = ['editor', 'admin', 'partner'];
+      if (!allowedRoles.includes(currentUser.role)) {
+        return res.status(403).json({ error: "Only editors, admins, and partners can pass QC" });
+      }
+
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // For editors, verify the order is assigned to them (editors can only QC their own work)
+      // For admins/partners, allow them to QC any order in their tenant
+      if (currentUser.role === 'editor' && order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+
+      // Verify tenant access for admins/partners
+      if ((currentUser.role === 'admin' || currentUser.role === 'partner') && order.partnerId !== currentUser.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Verify order is in human_check status
+      if (order.status !== 'human_check') {
+        return res.status(400).json({ error: `Order is not in QC stage (current: ${order.status})` });
+      }
+
+      // Update order to completed status
+      console.log(`[QC PASS] Updating order ${order.orderNumber} (${orderId}) from ${order.status} to completed`);
+      const updatedOrder = await storage.updateOrder(orderId, {
+        status: 'completed',
+        approvedBy: uid,
+        approvedAt: new Date(),
+      });
+
+      if (!updatedOrder) {
+        console.error(`[QC PASS] Failed to update order ${order.orderNumber} - updateOrder returned undefined`);
+        return res.status(500).json({ error: "Failed to update order status" });
+      }
+
+      console.log(`[QC PASS] Successfully updated order ${order.orderNumber} to status: ${updatedOrder.status}`);
+
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: order.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: uid,
+          userEmail: currentUser.email,
+          userName: currentUser.studioName || currentUser.email,
+          action: "qc_pass",
+          category: "order",
+          title: "QC Passed",
+          description: `Order #${order.orderNumber} passed quality control`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            approvedBy: uid,
+            approvedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log QC pass:", activityError);
+      }
+
+      res.json({
+        success: true,
+        order: updatedOrder,
+        message: "Order passed QC and marked as complete"
+      });
+    } catch (error: any) {
+      console.error("Error passing QC:", error);
+      res.status(500).json({ 
+        error: "Failed to pass QC", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Request revision - send order back for revision
+  app.post("/api/editor/orders/:orderId/qc/revision", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { revisionNotes } = req.body;
+
+      if (!revisionNotes || typeof revisionNotes !== 'string' || !revisionNotes.trim()) {
+        return res.status(400).json({ error: "Revision notes are required" });
+      }
+
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can request revisions" });
+      }
+
+      // Get the order
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Verify the order is assigned to this editor
+      if (order.assignedTo !== uid) {
+        return res.status(403).json({ error: "This order is not assigned to you" });
+      }
+
+      // Verify order is in human_check status
+      if (order.status !== 'human_check') {
+        return res.status(400).json({ error: `Order is not in QC stage (current: ${order.status})` });
+      }
+
+      // Increment revision count
+      const currentRevisions = (order as any).usedRevisionRounds || 0;
+
+      // Update order to in_revision status
+      const updatedOrder = await storage.updateOrder(orderId, {
+        status: 'in_revision',
+        revisionNotes: revisionNotes.trim(),
+        usedRevisionRounds: currentRevisions + 1,
+      });
+
+      // Log activity
+      try {
+        await storage.createActivity({
+          partnerId: order.partnerId,
+          orderId: order.id,
+          jobId: order.jobId,
+          userId: uid,
+          userEmail: currentUser.email,
+          userName: currentUser.studioName || currentUser.email,
+          action: "qc_revision",
+          category: "order",
+          title: "Revision Requested",
+          description: `Order #${order.orderNumber} sent back for revision`,
+          metadata: JSON.stringify({
+            orderNumber: order.orderNumber,
+            revisionNotes: revisionNotes.trim(),
+            revisionRound: currentRevisions + 1,
+            requestedBy: uid,
+            requestedAt: new Date().toISOString()
+          }),
+          ipAddress: req.ip || req.socket.remoteAddress || '',
+          userAgent: req.headers['user-agent'] || ''
+        });
+      } catch (activityError) {
+        console.error("[ACTIVITY] Failed to log revision request:", activityError);
+      }
+
+      res.json({
+        success: true,
+        order: updatedOrder,
+        message: "Order sent back for revision"
+      });
+    } catch (error: any) {
+      console.error("Error requesting revision:", error);
+      res.status(500).json({ 
+        error: "Failed to request revision", 
+        details: error.message 
+      });
+    }
+  });
+
+  // Add/update comment on a file
+  app.post("/api/editor/files/:fileId/comments", async (req, res) => {
+    try {
+      const { fileId } = req.params;
+      const { content } = req.body;
+
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header required" });
+      }
+
+      const idToken = authHeader.replace('Bearer ', '');
+      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      const currentUser = await getUserDocument(uid);
+      if (!currentUser || currentUser.role !== 'editor') {
+        return res.status(403).json({ error: "Only editors can add comments" });
+      }
+
+      // Get the file to verify access
+      const file = await storage.getEditorUpload(fileId);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // Verify the file's order is assigned to this editor
+      if (file.orderId) {
+        const order = await storage.getOrder(file.orderId);
+        if (order && order.assignedTo !== uid) {
+          return res.status(403).json({ error: "You don't have access to this file" });
+        }
+      }
+
+      // Create or update comment
+      const comment = await storage.createFileComment({
+        fileId,
+        orderId: file.orderId,
+        jobId: file.jobId,
+        authorId: uid,
+        authorName: currentUser.studioName || currentUser.displayName || currentUser.email || 'Editor',
+        authorRole: 'editor',
+        content: content || '',
+      });
+
+      res.json({
+        success: true,
+        comment,
+        message: "Comment saved"
+      });
+    } catch (error: any) {
+      console.error("Error saving comment:", error);
+      res.status(500).json({ 
+        error: "Failed to save comment", 
         details: error.message 
       });
     }
@@ -4610,8 +7385,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folderPath: folderPath || null,
         editorFolderName: folderPath || null, // Set editorFolderName for standalone folders
         folderToken: folderToken || null,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-        status: uploadType === 'client' ? 'completed' : 'uploaded',
+        expiresAt: new Date(Date.now() + (uploadType === 'client' ? 14 : 30) * 24 * 60 * 60 * 1000), // 14 days for orders folder, 30 days for completed
+        status: uploadType === 'client' ? 'for_editing' : 'completed', // 'for_editing' for orders folder, 'completed' for deliverables
         notes: `Uploaded with role-based validation - Role: ${user.role}, Access: ${hasUploadAccess}, Upload Valid: ${uploadValidation.valid}, Upload Type: ${uploadType || 'not specified'}${folderToken ? `, Folder Token: ${folderToken}` : ''}`
       };
 
@@ -4686,7 +7461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: `File too large. Maximum size: ${maxFileSize / 1024 / 1024}MB` });
       }
 
-      const { jobId, orderNumber, folderPath, editorFolderName } = req.body;
+      const { jobId, orderNumber, folderPath, editorFolderName, folderToken } = req.body;
 
       // Validate that completed files require folder organization
       if (!folderPath || !editorFolderName) {
@@ -4769,7 +7544,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Additional validation: Ensure order is in a state that allows uploads
-      if (!['processing', 'in_progress'].includes(orderEntity.status || 'pending')) {
+      // Include 'in_revision' to allow editors to upload revised work
+      if (!['processing', 'in_progress', 'in_revision'].includes(orderEntity.status || 'pending')) {
         return res.status(400).json({ error: `Cannot upload to order with status: ${orderEntity.status}` });
       }
 
@@ -4780,6 +7556,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const bucket = getStorage().bucket(bucketName);
+
+      // Check for existing file with same name in same folder (for replacement)
+      const existingUploads = await storage.getEditorUploads(job.id);
+      const duplicateFile = existingUploads.find(f => 
+        f.folderPath === folderPath && 
+        f.originalName === req.file!.originalname &&
+        f.status === 'completed'
+      );
+
+      if (duplicateFile) {
+        console.log(`[UPLOAD] Found duplicate file to replace: ${duplicateFile.originalName} in folder ${folderPath}`);
+        
+        // Delete old file from Firebase Storage
+        try {
+          const oldFile = bucket.file(duplicateFile.firebaseUrl);
+          await oldFile.delete();
+          console.log(`[UPLOAD] Deleted old file from Firebase Storage: ${duplicateFile.firebaseUrl}`);
+        } catch (deleteError: any) {
+          // Log but continue - file may already be deleted
+          console.log(`[UPLOAD] Note: Could not delete old file from Firebase (may already be deleted): ${deleteError.message}`);
+        }
+        
+        // Delete old database record
+        await storage.deleteEditorUpload(duplicateFile.id);
+        console.log(`[UPLOAD] Deleted old database record: ${duplicateFile.id}`);
+        console.log(`[UPLOAD] Replaced existing file: ${duplicateFile.originalName}`);
+      }
 
       // Create file path with folder structure for completed files
       const timestamp = Date.now();
@@ -4841,6 +7644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         folderPath: folderPath || null,
         editorFolderName: editorFolderName || null,
         partnerFolderName: null, // Partners can rename later
+        folderToken: folderToken || null, // Associate with existing folder if token provided
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
         status: 'completed',
         notes: 'Completed deliverable uploaded by editor'
@@ -4914,28 +7718,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, typeof completedFiles>);
 
-      // Get order information for each group and use proxy URLs
+      // Get Firebase Storage bucket for regenerating expired URLs
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+
+      // Get order information for each group and regenerate expired URLs
       const enrichedFiles = await Promise.all(
         Object.entries(filesByOrder).map(async ([orderId, files]) => {
           const order = await storage.getOrder(orderId);
 
-          // Use actual Firebase download URLs
-          const filesWithDownloadUrls = files.map((file) => {
-            console.log(`[DEBUG completed-files] File ${file.id} (${file.fileName}):`, {
-              downloadUrl: file.downloadUrl,
-              firebaseUrl: file.firebaseUrl
-            });
-            return {
-              id: file.id,
-              fileName: file.fileName,
-              originalName: file.originalName,
-              fileSize: file.fileSize,
-              mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl, // Use actual Firebase download URL
-              uploadedAt: file.uploadedAt,
-              notes: file.notes
-            };
-          });
+          // Regenerate signed URLs for files (check if expired and regenerate)
+          const filesWithDownloadUrls = await Promise.all(
+            files.map(async (file) => {
+              let downloadUrl = file.downloadUrl;
+              
+              // Always regenerate signed URLs to ensure they're fresh and not expired
+              // Signed URLs expire after 30 days, so we regenerate them on each request
+              // This ensures images always load, even if the stored URL has expired
+              if (file.firebaseUrl && bucket) {
+                try {
+                  const gcsFile = bucket.file(file.firebaseUrl);
+                  const [exists] = await gcsFile.exists();
+                  
+                  if (exists) {
+                    // Generate new signed URL (30 days expiration)
+                    const [signedUrl] = await gcsFile.getSignedUrl({
+                      action: 'read',
+                      expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+                    });
+                    
+                    downloadUrl = signedUrl;
+                    
+                    // Update the database with the new URL to cache it for future requests
+                    // This reduces regeneration overhead on subsequent requests
+                    try {
+                      await storage.updateEditorUpload(file.id, {
+                        downloadUrl: signedUrl
+                      });
+                    } catch (updateError) {
+                      // Log but don't fail - we still have the fresh URL to return
+                      console.error(`[completed-files] Failed to cache regenerated URL for file ${file.id}:`, updateError);
+                    }
+                  } else {
+                    console.warn(`[completed-files] File not found in storage: ${file.firebaseUrl}`);
+                  }
+                } catch (urlError) {
+                  console.error(`[completed-files] Error regenerating URL for file ${file.id}:`, urlError);
+                  // Fall back to existing URL if regeneration fails
+                }
+              }
+
+              return {
+                id: file.id,
+                fileName: file.fileName,
+                originalName: file.originalName,
+                fileSize: file.fileSize,
+                mimeType: file.mimeType,
+                downloadUrl: downloadUrl, // Use regenerated or existing URL
+                uploadedAt: file.uploadedAt,
+                notes: file.notes
+              };
+            })
+          );
 
           return {
             orderId,
@@ -5202,14 +8046,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { jobId } = req.params;
-      const { folderPath } = req.body;
+      const { folderPath, folderToken } = req.body;
 
       if (!req.user?.partnerId) {
         return res.status(400).json({ error: "User must have a partnerId" });
       }
 
-      if (!folderPath) {
-        return res.status(400).json({ error: "folderPath is required" });
+      if (!folderPath && !folderToken) {
+        return res.status(400).json({ error: "folderPath or folderToken is required" });
       }
 
       // Find the job
@@ -5224,29 +8068,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      console.log(`[DELETE] Starting deletion for folder: ${folderPath}`);
+      console.log(`[DELETE] Starting deletion for folder: ${folderPath || 'N/A'}, token: ${folderToken || 'N/A'}`);
 
       // Get all uploads for this folder from Firestore
       const folderUploads = await storage.getEditorUploads(job.id);
-      const uploadsInFolder = folderUploads.filter(upload => upload.folderPath === folderPath);
+      
+      // If folderToken is provided, also filter by folderToken
+      let uploadsInFolder = folderUploads.filter(upload => {
+        if (folderToken && upload.folderToken === folderToken) {
+          return true;
+        }
+        if (folderPath && upload.folderPath === folderPath) {
+          return true;
+        }
+        return false;
+      });
 
       console.log(`[DELETE] Found ${uploadsInFolder.length} uploads in folder`);
       uploadsInFolder.forEach(upload => {
-        console.log(`[DELETE]   - File: ${upload.fileName}, Firebase path: ${upload.firebaseUrl}`);
+        console.log(`[DELETE]   - File: ${upload.fileName}, Firebase path: ${upload.firebaseUrl}, folderPath: ${upload.folderPath}, folderToken: ${upload.folderToken}`);
       });
 
       // Also check if this folder exists in the folders collection
-      const foldersSnapshot = await (storage as any).db.collection("folders")
-        .where("jobId", "==", job.id)
-        .where("folderPath", "==", folderPath)
-        .get();
+      // Try folderPath first, then folderToken if folderPath doesn't work
+      let foldersSnapshot;
+      if (folderPath) {
+        foldersSnapshot = await (storage as any).db.collection("folders")
+          .where("jobId", "==", job.id)
+          .where("folderPath", "==", folderPath)
+          .get();
+      }
+      
+      // If no folder found by folderPath and folderToken is provided, try folderToken
+      if ((!foldersSnapshot || foldersSnapshot.empty) && folderToken) {
+        foldersSnapshot = await (storage as any).db.collection("folders")
+          .where("jobId", "==", job.id)
+          .where("folderToken", "==", folderToken)
+          .get();
+      }
 
-      const folderDoc = foldersSnapshot.docs[0];
-      const folderToken = folderDoc?.data()?.folderToken;
+      const folderDoc = foldersSnapshot?.docs[0];
+      const resolvedFolderToken = folderDoc?.data()?.folderToken || folderToken;
       const folderData = folderDoc?.data();
+      
+      // If we found a folder doc but didn't have folderPath, use the folderPath from the doc
+      const resolvedFolderPath = folderDoc?.data()?.folderPath || folderPath;
 
       console.log(`[DELETE] Folder document found:`, folderDoc ? 'Yes' : 'No');
-      console.log(`[DELETE] Folder token:`, folderToken);
+      console.log(`[DELETE] Folder token:`, resolvedFolderToken);
+      console.log(`[DELETE] Resolved folder path:`, resolvedFolderPath);
       console.log(`[DELETE] Folder full data:`, folderData);
 
       // If no uploads and no folder document, folder doesn't exist
@@ -5277,8 +8147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // If we have a folderToken, also delete the .keep file and any other files in the folder
-          if (folderToken) {
-            const folderPrefix = `completed/${job.jobId || job.id}/folders/${folderToken}/`;
+          if (resolvedFolderToken) {
+            const folderPrefix = `completed/${job.jobId || job.id}/folders/${resolvedFolderToken}/`;
             console.log(`[DELETE] Checking Firebase folder: ${folderPrefix}`);
             const [prefixFiles] = await bucket.getFiles({ prefix: folderPrefix });
             prefixFiles.forEach(file => {
@@ -5331,9 +8201,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           title: "Folder Deleted",
           description: `Folder deleted with ${uploadsInFolder.length} file(s)`,
           metadata: JSON.stringify({
-            folderPath,
+            folderPath: resolvedFolderPath,
             deletedFileCount: uploadsInFolder.length,
-            folderToken: folderToken || null
+            folderToken: resolvedFolderToken || null
           }),
           ipAddress: req.ip,
           userAgent: req.get('User-Agent')
@@ -5822,6 +8692,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download multiple files as zip by file IDs
+  app.post("/api/jobs/:jobId/files/download", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      const { fileIds } = req.body;
+
+      console.log(`[FILES DOWNLOAD] Request for jobId: ${jobId}, fileIds count: ${fileIds?.length}`);
+
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "User must have a partnerId" });
+      }
+
+      if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+        return res.status(400).json({ error: "fileIds array is required and must not be empty" });
+      }
+
+      // Find the job
+      const job = await storage.getJobByJobId(jobId);
+
+      if (!job) {
+        return res.status(404).json({ error: "Job not found" });
+      }
+
+      // Verify job belongs to user's organization
+      if (job.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
+      }
+
+      // Get all folders for this job to find the files
+      const allFolders = await storage.getUploadFolders(job.id);
+
+      // Collect all files from all folders
+      const allFilesMap = new Map<string, any>();
+      allFolders.forEach(folder => {
+        folder.files.forEach(file => {
+          if (!file.fileName.startsWith('.') && file.downloadUrl) {
+            allFilesMap.set(file.id, file);
+          }
+        });
+      });
+
+      // Find requested files
+      const filesToDownload: any[] = [];
+      const missingFileIds: string[] = [];
+
+      for (const fileId of fileIds) {
+        const file = allFilesMap.get(fileId);
+        if (file) {
+          filesToDownload.push(file);
+        } else {
+          missingFileIds.push(fileId);
+        }
+      }
+
+      if (missingFileIds.length > 0) {
+        console.warn(`[FILES DOWNLOAD] Some files not found: ${missingFileIds.join(', ')}`);
+      }
+
+      if (filesToDownload.length === 0) {
+        return res.status(404).json({ error: "No valid files found for the provided IDs" });
+      }
+
+      console.log(`[FILES DOWNLOAD] Found ${filesToDownload.length} files to download`);
+
+      // Create zip file
+      const zip = new JSZip();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const zipFileName = `selected-files-${timestamp}`;
+
+      // Add all files to zip
+      for (const file of filesToDownload) {
+        try {
+          console.log(`[FILES DOWNLOAD] Fetching file: ${file.originalName} from ${file.downloadUrl}`);
+
+          const response = await fetch(file.downloadUrl);
+          if (!response.ok) {
+            console.error(`[FILES DOWNLOAD] Failed to fetch ${file.originalName}: ${response.status}`);
+            continue;
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          const fileBuffer = Buffer.from(arrayBuffer);
+
+          zip.file(file.originalName, fileBuffer);
+          console.log(`[FILES DOWNLOAD] Added ${file.originalName} to zip (${fileBuffer.length} bytes)`);
+        } catch (error) {
+          console.error(`[FILES DOWNLOAD] Error processing file ${file.originalName}:`, error);
+          // Continue with other files even if one fails
+        }
+      }
+
+      // Generate zip
+      console.log(`[FILES DOWNLOAD] Generating zip file...`);
+      const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      console.log(`[FILES DOWNLOAD] Zip generated (${zipBuffer.length} bytes)`);
+
+      // Send zip file
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}.zip"`);
+      res.setHeader('Content-Length', zipBuffer.length.toString());
+      res.send(zipBuffer);
+
+      console.log(`[FILES DOWNLOAD] Download complete for ${zipFileName}.zip`);
+    } catch (error: any) {
+      console.error("[FILES DOWNLOAD] Error occurred:");
+      console.error("[FILES DOWNLOAD] Error message:", error.message);
+      console.error("[FILES DOWNLOAD] Error stack:", error.stack);
+      res.status(500).json({
+        error: "Failed to create files download",
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  });
+
   // Update job cover photo
   app.patch("/api/jobs/:jobId/cover-photo", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -6120,26 +9105,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, typeof completedFiles>);
 
-      // Get order information for each group
-      const enrichedFiles = await Promise.all(
-        Object.entries(filesByOrder).map(async ([orderId, files]) => {
-          const order = await storage.getOrder(orderId);
-          return {
-            orderId,
-            orderNumber: order?.orderNumber || 'Unknown',
-            files: files.map(file => ({
-              id: file.id,
-              fileName: file.fileName,
-              originalName: file.originalName,
-              fileSize: file.fileSize,
-              mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl, // This should be the file path for the proxy
-              uploadedAt: file.uploadedAt,
-              notes: file.notes
-            }))
-          };
-        })
+      // Get order information for each group - only include files where order status is 'completed'
+      // This ensures files don't appear until QC (human check) passes
+      const enrichedFilesWithNulls = await Promise.all(
+        Object.entries(filesByOrder)
+          .filter(([orderId]) => orderId && orderId !== 'null' && orderId !== 'undefined') // Filter out null/undefined orderIds
+          .map(async ([orderId, files]) => {
+            const order = await storage.getOrder(orderId);
+            // Only include if order exists and status is completed (QC passed)
+            if (!order || order.status !== 'completed') {
+              return null;
+            }
+            return {
+              orderId,
+              orderNumber: order.orderNumber || 'Unknown',
+              files: files.map(file => ({
+                id: file.id,
+                fileName: file.fileName,
+                originalName: file.originalName,
+                fileSize: file.fileSize,
+                mimeType: file.mimeType,
+                downloadUrl: file.downloadUrl, // This should be the file path for the proxy
+                uploadedAt: file.uploadedAt,
+                notes: file.notes
+              }))
+            };
+          })
       );
+      // Filter out null entries (orders that haven't passed QC)
+      const enrichedFiles = enrichedFilesWithNulls.filter(item => item !== null);
 
       // Get folder structure with files
       const folders = await storage.getUploadFolders(job.id);
@@ -6188,6 +9182,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       }));
 
+      // Regenerate expired cover photo URLs
+      console.log(`[GET /api/delivery/:token] Job ${job.id} has propertyImage: ${!!job.propertyImage}, propertyImageThumbnail: ${!!job.propertyImageThumbnail}`);
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      console.log(`[GET /api/delivery/:token] Bucket name: ${bucketName || 'NOT SET'}`);
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+      console.log(`[GET /api/delivery/:token] Bucket initialized: ${!!bucket}, calling regenerateCoverPhotoUrls...`);
+      const regeneratedUrls = await regenerateCoverPhotoUrls(job, bucket);
+      console.log(`[GET /api/delivery/:token] Regenerated URLs result:`, {
+        hasPropertyImage: !!regeneratedUrls.propertyImage,
+        hasPropertyImageThumbnail: !!regeneratedUrls.propertyImageThumbnail
+      });
+
       // Log activity: Customer viewed delivery page
       try {
         await storage.createActivity({
@@ -6221,7 +9227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           address: job.address,
           status: job.status,
           appointmentDate: job.appointmentDate,
-          propertyImage: job.propertyImage,
+          propertyImage: regeneratedUrls.propertyImage || job.propertyImage,
           customer: customer ? {
             firstName: customer.firstName,
             lastName: customer.lastName,
@@ -6619,25 +9625,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, typeof completedFiles>);
 
-      const enrichedFiles = await Promise.all(
-        Object.entries(filesByOrder).map(async ([orderId, files]) => {
-          const order = await storage.getOrder(orderId);
-          return {
-            orderId,
-            orderNumber: order?.orderNumber || 'Unknown',
-            files: files.map(file => ({
-              id: file.id,
-              fileName: file.fileName,
-              originalName: file.originalName,
-              fileSize: file.fileSize,
-              mimeType: file.mimeType,
-              downloadUrl: file.downloadUrl, // This should be the file path for the proxy
-              uploadedAt: file.uploadedAt,
-              notes: file.notes
-            }))
-          };
-        })
+      // Only include files where order status is 'completed' (QC passed)
+      // This ensures files don't appear until human check passes
+      const enrichedFilesWithNulls = await Promise.all(
+        Object.entries(filesByOrder)
+          .filter(([orderId]) => orderId && orderId !== 'null' && orderId !== 'undefined') // Filter out null/undefined orderIds
+          .map(async ([orderId, files]) => {
+            const order = await storage.getOrder(orderId);
+            // Only include if order exists and status is completed (QC passed)
+            if (!order || order.status !== 'completed') {
+              return null;
+            }
+            return {
+              orderId,
+              orderNumber: order.orderNumber || 'Unknown',
+              files: files.map(file => ({
+                id: file.id,
+                fileName: file.fileName,
+                originalName: file.originalName,
+                fileSize: file.fileSize,
+                mimeType: file.mimeType,
+                downloadUrl: file.downloadUrl, // This should be the file path for the proxy
+                uploadedAt: file.uploadedAt,
+                notes: file.notes
+              }))
+            };
+          })
       );
+      // Filter out null entries (orders that haven't passed QC)
+      const enrichedFiles = enrichedFilesWithNulls.filter(item => item !== null);
 
       // Get folder structure with files
       const folders = await storage.getUploadFolders(job.id);
@@ -6686,6 +9702,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       }));
 
+      // Regenerate expired cover photo URLs
+      console.log(`[GET /api/jobs/:jobId/preview] Job ${job.id} has propertyImage: ${!!job.propertyImage}, propertyImageThumbnail: ${!!job.propertyImageThumbnail}`);
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      console.log(`[GET /api/jobs/:jobId/preview] Bucket name: ${bucketName || 'NOT SET'}`);
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+      console.log(`[GET /api/jobs/:jobId/preview] Bucket initialized: ${!!bucket}, calling regenerateCoverPhotoUrls...`);
+      const regeneratedUrls = await regenerateCoverPhotoUrls(job, bucket);
+      console.log(`[GET /api/jobs/:jobId/preview] Regenerated URLs result:`, {
+        hasPropertyImage: !!regeneratedUrls.propertyImage,
+        hasPropertyImageThumbnail: !!regeneratedUrls.propertyImageThumbnail
+      });
+
       // Return same format as public delivery endpoint with branding
       res.json({
         job: {
@@ -6694,7 +9722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           address: job.address,
           status: job.status,
           appointmentDate: job.appointmentDate,
-          propertyImage: job.propertyImage,
+          propertyImage: regeneratedUrls.propertyImage || job.propertyImage,
           customer: customer ? {
             firstName: customer.firstName,
             lastName: customer.lastName,
@@ -7745,13 +10773,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Some files do not belong to this job" });
       }
 
-      // Check revision limits
-      const revisionStatus = await storage.getOrderRevisionStatus(orderId);
-      if (revisionStatus && revisionStatus.remainingRounds <= 0) {
-        return res.status(400).json({ 
-          error: "No revision rounds remaining",
-          revisionStatus 
-        });
+      // Check revision limits - only for end clients after job delivery
+      // First check if job/order is delivered
+      const isDelivered = job.status === 'delivered' || order.status === 'delivered' || order.status === 'completed';
+      
+      if (isDelivered) {
+        // Get customer to check for override
+        const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
+        const customerOverride = customer?.revisionLimitOverride;
+        
+        // Determine if we should check limits
+        let shouldCheckLimit = false;
+        let maxRevisionRounds = 2; // Default
+        
+        if (customerOverride === 'unlimited') {
+          // Customer has unlimited revisions - no limit check
+          shouldCheckLimit = false;
+        } else if (customerOverride && !isNaN(parseInt(customerOverride))) {
+          // Customer has custom limit
+          shouldCheckLimit = true;
+          maxRevisionRounds = parseInt(customerOverride);
+        } else {
+          // No customer override - check partner settings
+          const partnerSettings = await storage.getPartnerSettings(job.partnerId);
+          if (partnerSettings?.enableClientRevisionLimit) {
+            shouldCheckLimit = true;
+            maxRevisionRounds = partnerSettings.clientRevisionRoundLimit || 2;
+          }
+        }
+        
+        if (shouldCheckLimit) {
+          const usedRounds = order.usedRevisionRounds || 0;
+          const remainingRounds = maxRevisionRounds - usedRounds;
+          
+          if (remainingRounds <= 0) {
+            return res.status(400).json({ 
+              error: "No revision rounds remaining",
+              revisionStatus: {
+                maxRounds: maxRevisionRounds,
+                usedRounds,
+                remainingRounds
+              }
+            });
+          }
+        }
       }
 
       // Increment revision round for the order
@@ -7841,12 +10906,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Order not found for this job" });
       }
 
-      const status = await storage.getOrderRevisionStatus(orderId);
-      if (!status) {
-        return res.status(404).json({ error: "Revision status not found" });
+      // Check if job/order is delivered
+      const isDelivered = job.status === 'delivered' || order.status === 'delivered' || order.status === 'completed';
+      const usedRounds = order.usedRevisionRounds || 0;
+      
+      if (!isDelivered) {
+        // Not delivered yet - unlimited revisions
+        return res.json({
+          maxRounds: null,
+          usedRounds,
+          remainingRounds: null,
+          unlimited: true
+        });
       }
 
-      res.json(status);
+      // Get customer to check for override
+      const customer = job.customerId ? await storage.getCustomer(job.customerId) : null;
+      const customerOverride = customer?.revisionLimitOverride;
+      
+      if (customerOverride === 'unlimited') {
+        // Customer has unlimited revisions
+        return res.json({
+          maxRounds: null,
+          usedRounds,
+          remainingRounds: null,
+          unlimited: true
+        });
+      } else if (customerOverride && !isNaN(parseInt(customerOverride))) {
+        // Customer has custom limit
+        const maxRounds = parseInt(customerOverride);
+        return res.json({
+          maxRounds,
+          usedRounds,
+          remainingRounds: maxRounds - usedRounds,
+          unlimited: false
+        });
+      } else {
+        // No customer override - check partner settings
+        const partnerSettings = await storage.getPartnerSettings(job.partnerId);
+        if (partnerSettings?.enableClientRevisionLimit) {
+          const maxRounds = partnerSettings.clientRevisionRoundLimit || 2;
+          return res.json({
+            maxRounds,
+            usedRounds,
+            remainingRounds: maxRounds - usedRounds,
+            unlimited: false
+          });
+        } else {
+          // Partner has not enabled limits - unlimited
+          return res.json({
+            maxRounds: null,
+            usedRounds,
+            remainingRounds: null,
+            unlimited: true
+          });
+        }
+      }
     } catch (error: any) {
       console.error("Error fetching revision status:", error);
       res.status(500).json({ 
@@ -8024,17 +11139,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { orderId } = req.params;
 
-      // Verify order exists and belongs to user's partner
-      const order = await storage.getOrder(orderId);
+      // Get the order - first try by ID, then by orderNumber
+      let order = await storage.getOrder(orderId);
+      if (!order) {
+        // Try looking up by orderNumber (e.g., "00059")
+        order = await storage.getOrderByNumber(orderId, req.user.partnerId);
+      }
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      // Verify order belongs to user's partner
       if (order.partnerId !== req.user.partnerId) {
         return res.status(403).json({ error: "Access denied to this order" });
       }
 
-      const activities = await storage.getOrderActivities(orderId, req.user.partnerId);
+      const activities = await storage.getOrderActivities(order.id, req.user.partnerId);
       res.json(activities);
     } catch (error: any) {
       console.error("Error getting order activities:", error);
@@ -8125,8 +11245,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const jobReview = await storage.getJobReview(job.id);
       console.log('[DELIVERY ENDPOINT] Review found:', !!jobReview, jobReview ? { id: jobReview.id, rating: jobReview.rating } : null);
 
+      // Regenerate expired cover photo URLs
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET?.replace(/['"]/g, '').trim();
+      const bucket = bucketName ? getStorage().bucket(bucketName) : null;
+      const regeneratedUrls = await regenerateCoverPhotoUrls(job, bucket);
+
       res.json({
         ...job,
+        propertyImage: regeneratedUrls.propertyImage || job.propertyImage,
+        propertyImageThumbnail: regeneratedUrls.propertyImageThumbnail || job.propertyImageThumbnail,
         customer,
         activities,
         jobReview
@@ -8717,7 +11844,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessProfile: null, // Photographers don't need business profile
           personalProfile,
           businessHours,
-          defaultMaxRevisionRounds: settings?.defaultMaxRevisionRounds ?? 2,
+          enableClientRevisionLimit: settings?.enableClientRevisionLimit ?? false,
+          clientRevisionRoundLimit: settings?.clientRevisionRoundLimit ?? 2,
           editorDisplayNames,
           teamMemberColors
         });
@@ -8731,7 +11859,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessProfile: null,
           personalProfile: { profileImage },
           businessHours: null,
-          defaultMaxRevisionRounds: 2,
+          enableClientRevisionLimit: false,
+          clientRevisionRoundLimit: 2,
           editorDisplayNames: {},
           teamMemberColors: {}
         });
@@ -8747,7 +11876,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         businessProfile: settings.businessProfile ? JSON.parse(settings.businessProfile) : null,
         personalProfile,
         businessHours: settings.businessHours ? JSON.parse(settings.businessHours) : null,
-        defaultMaxRevisionRounds: settings.defaultMaxRevisionRounds ?? 2,
+        enableClientRevisionLimit: settings.enableClientRevisionLimit ?? false,
+        clientRevisionRoundLimit: settings.clientRevisionRoundLimit ?? 2,
         editorDisplayNames,
         teamMemberColors
       });
@@ -8764,7 +11894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const { businessProfile, personalProfile, businessHours, defaultMaxRevisionRounds, editorDisplayNames, teamMemberColors } = req.body;
+      const { businessProfile, personalProfile, businessHours, enableClientRevisionLimit, clientRevisionRoundLimit, editorDisplayNames, teamMemberColors } = req.body;
 
       // For photographers, save personal profile to their user document instead of partner settings
       if (req.user.role === 'photographer') {
@@ -8796,13 +11926,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Photographers can still update business hours (shared across team)
-        if (businessHours !== undefined || defaultMaxRevisionRounds !== undefined || teamMemberColors !== undefined) {
+        if (businessHours !== undefined || enableClientRevisionLimit !== undefined || clientRevisionRoundLimit !== undefined || teamMemberColors !== undefined) {
           const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
             partnerId: req.user.partnerId,
             businessProfile: null, // Photographers don't update business profile
             personalProfile: null, // Photographers don't update partner personal profile
             businessHours: businessHours ? JSON.stringify(businessHours) : null,
-            defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2,
+            enableClientRevisionLimit: enableClientRevisionLimit !== undefined ? enableClientRevisionLimit : false,
+            clientRevisionRoundLimit: clientRevisionRoundLimit !== undefined ? clientRevisionRoundLimit : 2,
             editorDisplayNames: undefined,
             teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : undefined
           });
@@ -8826,7 +11957,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         businessProfile: businessProfile ? JSON.stringify(businessProfile) : null,
         personalProfile: personalProfile ? JSON.stringify(personalProfile) : null,
         businessHours: businessHours ? JSON.stringify(businessHours) : null,
-        defaultMaxRevisionRounds: defaultMaxRevisionRounds !== undefined ? defaultMaxRevisionRounds : 2,
+        enableClientRevisionLimit: enableClientRevisionLimit !== undefined ? enableClientRevisionLimit : false,
+        clientRevisionRoundLimit: clientRevisionRoundLimit !== undefined ? clientRevisionRoundLimit : 2,
         editorDisplayNames: editorDisplayNames ? JSON.stringify(editorDisplayNames) : null,
         teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : null
       });
@@ -8839,6 +11971,288 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error saving settings:", error);
       res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
+  // ============================================================================
+  // SERVICE AREAS ENDPOINTS
+  // ============================================================================
+
+  // Point-in-polygon helper function (Ray Casting Algorithm)
+  function isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
+    const [x, y] = point; // [lng, lat]
+    let inside = false;
+    
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+      
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      
+      if (intersect) inside = !inside;
+    }
+    
+    return inside;
+  }
+
+  // Get all service areas for partner
+  app.get("/api/service-areas", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      const serviceAreas = await storage.getServiceAreas(req.user.partnerId);
+      
+      // Parse polygon JSON for each service area and include assigned operator details
+      const users = await storage.getUsers(req.user.partnerId);
+      
+      const areasWithDetails = serviceAreas.map(area => {
+        let polygon = null;
+        try {
+          polygon = area.polygon ? JSON.parse(area.polygon) : null;
+        } catch (e) {
+          console.error(`Failed to parse polygon for service area ${area.id}:`, e);
+        }
+        
+        let assignedOperators: any[] = [];
+        if (area.assignedOperatorIds) {
+          try {
+            const operatorIds = JSON.parse(area.assignedOperatorIds) as string[];
+            assignedOperators = operatorIds.map(id => {
+              const user = users.find(u => u.id === id);
+              return user ? {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                profileImage: user.profileImage
+              } : { id, firstName: 'Unknown', lastName: '', email: '' };
+            });
+          } catch (e) {
+            console.error(`Failed to parse assignedOperatorIds for service area ${area.id}:`, e);
+          }
+        }
+        
+        return {
+          ...area,
+          polygon,
+          assignedOperators
+        };
+      });
+
+      res.json(areasWithDetails);
+    } catch (error: any) {
+      console.error("Error fetching service areas:", error);
+      res.status(500).json({ error: "Failed to fetch service areas" });
+    }
+  });
+
+  // Create a new service area
+  app.post("/api/service-areas", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Check for master read-only mode
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Read-only access - cannot create service areas while viewing another business" });
+      }
+
+      const { name, polygon, color, assignedOperatorIds } = req.body;
+
+      if (!name || !polygon) {
+        return res.status(400).json({ error: "Name and polygon are required" });
+      }
+
+      // Validate polygon format (GeoJSON)
+      if (!polygon.type || polygon.type !== 'Polygon' || !Array.isArray(polygon.coordinates)) {
+        return res.status(400).json({ error: "Invalid polygon format. Expected GeoJSON Polygon." });
+      }
+
+      const serviceArea = await storage.createServiceArea({
+        partnerId: req.user.partnerId,
+        name,
+        polygon: JSON.stringify(polygon),
+        color: color || '#3B82F6',
+        assignedOperatorIds: assignedOperatorIds ? JSON.stringify(assignedOperatorIds) : null,
+        isActive: true
+      });
+
+      res.status(201).json({
+        ...serviceArea,
+        polygon,
+        assignedOperators: []
+      });
+    } catch (error: any) {
+      console.error("Error creating service area:", error);
+      res.status(500).json({ error: "Failed to create service area" });
+    }
+  });
+
+  // Update a service area
+  app.patch("/api/service-areas/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Check for master read-only mode
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Read-only access - cannot update service areas while viewing another business" });
+      }
+
+      const { id } = req.params;
+      const { name, polygon, color, assignedOperatorIds, isActive } = req.body;
+
+      // Verify service area belongs to partner
+      const existing = await storage.getServiceArea(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Service area not found" });
+      }
+      if (existing.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (polygon !== undefined) {
+        // Validate polygon format
+        if (!polygon.type || polygon.type !== 'Polygon' || !Array.isArray(polygon.coordinates)) {
+          return res.status(400).json({ error: "Invalid polygon format. Expected GeoJSON Polygon." });
+        }
+        updates.polygon = JSON.stringify(polygon);
+      }
+      if (color !== undefined) updates.color = color;
+      if (assignedOperatorIds !== undefined) {
+        updates.assignedOperatorIds = assignedOperatorIds ? JSON.stringify(assignedOperatorIds) : null;
+      }
+      if (isActive !== undefined) updates.isActive = isActive;
+
+      const updated = await storage.updateServiceArea(id, updates);
+
+      // Get assigned operator details
+      const users = await storage.getUsers(req.user.partnerId);
+      let assignedOperators: any[] = [];
+      const operatorIds = assignedOperatorIds || (updated?.assignedOperatorIds ? JSON.parse(updated.assignedOperatorIds) : []);
+      if (Array.isArray(operatorIds)) {
+        assignedOperators = operatorIds.map((opId: string) => {
+          const user = users.find(u => u.id === opId);
+          return user ? {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            profileImage: user.profileImage
+          } : { id: opId, firstName: 'Unknown', lastName: '', email: '' };
+        });
+      }
+
+      res.json({
+        ...updated,
+        polygon: polygon || (updated?.polygon ? JSON.parse(updated.polygon) : null),
+        assignedOperators
+      });
+    } catch (error: any) {
+      console.error("Error updating service area:", error);
+      res.status(500).json({ error: "Failed to update service area" });
+    }
+  });
+
+  // Delete a service area
+  app.delete("/api/service-areas/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+
+      // Check for master read-only mode
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Read-only access - cannot delete service areas while viewing another business" });
+      }
+
+      const { id } = req.params;
+
+      // Verify service area belongs to partner
+      const existing = await storage.getServiceArea(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Service area not found" });
+      }
+      if (existing.partnerId !== req.user.partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await storage.deleteServiceArea(id);
+      res.json({ success: true, message: "Service area deleted" });
+    } catch (error: any) {
+      console.error("Error deleting service area:", error);
+      res.status(500).json({ error: "Failed to delete service area" });
+    }
+  });
+
+  // Validate if an address/coordinates are within any service area
+  // Public endpoint for booking form validation
+  app.post("/api/service-areas/validate-address", async (req, res) => {
+    try {
+      const { partnerId, latitude, longitude, address } = req.body;
+
+      if (!partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ error: "Latitude and longitude are required" });
+      }
+
+      const serviceAreas = await storage.getServiceAreas(partnerId);
+      
+      if (serviceAreas.length === 0) {
+        // No service areas defined - allow all addresses
+        return res.json({ 
+          isValid: true, 
+          matchingAreas: [],
+          message: "No service areas defined - all addresses accepted"
+        });
+      }
+
+      const point: [number, number] = [longitude, latitude]; // GeoJSON uses [lng, lat]
+      const matchingAreas: any[] = [];
+
+      for (const area of serviceAreas) {
+        if (!area.polygon || !area.isActive) continue;
+        
+        try {
+          const polygon = JSON.parse(area.polygon);
+          if (polygon.type === 'Polygon' && polygon.coordinates?.[0]) {
+            const coordinates = polygon.coordinates[0] as [number, number][];
+            
+            if (isPointInPolygon(point, coordinates)) {
+              matchingAreas.push({
+                id: area.id,
+                name: area.name,
+                color: area.color
+              });
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to parse polygon for service area ${area.id}:`, e);
+        }
+      }
+
+      const isValid = matchingAreas.length > 0;
+      
+      res.json({
+        isValid,
+        matchingAreas,
+        message: isValid 
+          ? `Address is within ${matchingAreas.length} service area(s)` 
+          : "This address is outside our service areas. Please contact us for bookings in this location."
+      });
+    } catch (error: any) {
+      console.error("Error validating address:", error);
+      res.status(500).json({ error: "Failed to validate address" });
     }
   });
 
@@ -9353,6 +12767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bufferMinutes: 15,
         timeSlotInterval: 30,
         allowTeamSelection: false,
+        restrictToServiceAreas: false,
         customQuestions: [],
         paymentMode: 'invoice',
         depositPercentage: 0
@@ -9434,6 +12849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           minimumBookingHours: 24,
           maximumDriveDistanceKm: 50,
           allowTeamMemberSelection: true,
+          restrictToServiceAreas: false,
           customQuestions: [],
           paymentMode: 'invoice',
           depositPercentage: 0,
@@ -9455,6 +12871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bufferMinutes: 15,
         timeSlotInterval: 30,
         allowTeamSelection: false,
+        restrictToServiceAreas: false,
         customQuestions: [],
         paymentMode: 'invoice',
         depositPercentage: 0
@@ -10351,9 +13768,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           appointmentDate: appointmentDateTime,
           estimatedDuration,
           assignedTo: assignedTo || undefined,
-          products: products ? JSON.stringify(products.map((p: any) => ({ 
-            id: p.id, 
-            name: p.name, 
+          products: products ? JSON.stringify(products.map((p: any) => ({
+            id: p.id,
+            name: p.name,
             quantity: p.quantity,
             variationName: p.variationName,
             price: p.price,
@@ -10362,6 +13779,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: [notes, specialInstructions].filter(Boolean).join('\n\n') || null,
           status: 'scheduled',
         });
+
+        if (appointment && partnerId) {
+          try {
+            const extras = await buildCalendarEventExtras(job, appointment);
+            const eventId = await createCalendarEvent(partnerId, {
+              appointment: { ...appointment, id: appointment.id },
+              jobAddress: job.address,
+              ...extras,
+            });
+            if (eventId) {
+              await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+            }
+          } catch (syncErr) {
+            console.error("Google Calendar sync after booking create:", syncErr);
+          }
+        }
         
         // Verify the appointment was created with correct assignment
         console.log('[BOOKING CREATE] Appointment created:', {
