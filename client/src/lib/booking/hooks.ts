@@ -282,7 +282,9 @@ export interface GoogleCalendarBusyBlock {
 
 export function useGoogleCalendarBusy(
   partnerId: string,
-  date: Date | null
+  date: Date | null,
+  /** When set (e.g. selected photographer on booking form), fetches that team member's calendar busy blocks. */
+  teamMemberId?: string
 ) {
   const dayStart = date
     ? new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -291,7 +293,7 @@ export function useGoogleCalendarBusy(
     ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
     : null;
   return useQuery<GoogleCalendarBusyBlock[]>({
-    queryKey: ['/api/calendar/google/busy', partnerId, dayStart?.toISOString(), dayEnd?.toISOString()],
+    queryKey: ['/api/calendar/google/busy', partnerId, dayStart?.toISOString(), dayEnd?.toISOString(), teamMemberId ?? null],
     enabled: !!partnerId && !!date,
     queryFn: async () => {
       if (!partnerId || !dayStart || !dayEnd) return [];
@@ -300,6 +302,7 @@ export function useGoogleCalendarBusy(
         start: dayStart.toISOString(),
         end: dayEnd.toISOString(),
       });
+      if (teamMemberId) params.set('userId', teamMemberId);
       const res = await fetch(`/api/calendar/google/busy?${params}`);
       if (!res.ok) return [];
       return res.json();
@@ -828,7 +831,7 @@ export function useAvailableTimeSlots(
     end: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
   } : undefined);
   const { data: settings } = usePublicBookingConfig(partnerId);
-  const { data: googleBusyBlocks = [] } = useGoogleCalendarBusy(partnerId, date);
+  const { data: googleBusyBlocks = [] } = useGoogleCalendarBusy(partnerId, date, teamMemberId);
   
   // Pre-fetch drive times from Google Maps API
   const { data: driveTimesMap, isLoading: driveTimesLoading } = useDriveTimes(newLocation, appointments);

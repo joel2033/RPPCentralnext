@@ -18,6 +18,7 @@ import SendDeliveryEmailModal from "@/components/modals/SendDeliveryEmailModal";
 import CreateAppointmentModal from "@/components/modals/CreateAppointmentModal";
 import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal";
 import BillingSection, { BillingItem } from "@/components/BillingSection";
+import { InvoiceDetailsModal } from "@/components/modals/InvoiceDetailsModal";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useMasterView } from "@/contexts/MasterViewContext";
@@ -44,6 +45,8 @@ interface JobCardData {
   notes?: string;
   billingItems?: string; // JSON string of BillingItem[]
   invoiceStatus?: string;
+  xeroInvoiceId?: string | null;
+  xeroInvoiceNumber?: string | null;
   createdAt: string;
   customer?: {
     id: string;
@@ -78,6 +81,7 @@ export default function JobCard() {
   const [editNameValue, setEditNameValue] = useState("");
   const [expandedSections, setExpandedSections] = useState<Record<string, { products: boolean; notes: boolean }>>({});
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const { isReadOnly } = useMasterView();
   
   // Billing state
@@ -87,6 +91,43 @@ export default function JobCard() {
   const { data: jobData, isLoading, error } = useQuery<JobCardData>({
     queryKey: ['/api/jobs/card', jobId],
     enabled: !!jobId,
+  });
+
+  const { data: xeroStatus } = useQuery<{ connected: boolean }>({
+    queryKey: ["/api/auth/xero/status"],
+    enabled: !!jobId,
+  });
+
+  const raiseInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/jobs/${jobId}/raise-invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || data.message || res.statusText;
+        const detail = data.detail ? ` ${data.detail}` : "";
+        throw new Error(`${typeof msg === "string" ? msg : JSON.stringify(msg)}${detail}`);
+      }
+      return data;
+    },
+    onSuccess: (data: { invoiceNumber?: string }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/jobs/card', jobId] });
+      toast({
+        title: "Invoice raised",
+        description: data.invoiceNumber ? `Invoice ${data.invoiceNumber} created in Xero.` : "Invoice created in Xero.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to raise invoice",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   // Fetch appointments for this job
@@ -742,9 +783,9 @@ export default function JobCard() {
                     }
 
                     return (
-                      <div 
-                        key={appointment.id} 
-                        className="p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer group relative"
+                      <div
+                        key={appointment.id}
+                        className="p-4 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer group relative"
                         onClick={(e) => {
                           // Don't open modal if clicking on action buttons
                           if ((e.target as HTMLElement).closest('.appointment-actions')) {
@@ -753,11 +794,11 @@ export default function JobCard() {
                           setSelectedAppointment(appointment);
                         }}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">Scheduled Shoot</span>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-gray-800">Scheduled Shoot</span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline">
-                              {appointment.status === 'scheduled' ? 'Upcoming' : 
+                            <Badge variant="outline" className="text-xs">
+                              {appointment.status === 'scheduled' ? 'Upcoming' :
                                appointment.status === 'completed' ? 'Completed' :
                                appointment.status === 'cancelled' ? 'Cancelled' : 'Upcoming'}
                             </Badge>
@@ -773,7 +814,7 @@ export default function JobCard() {
                                   }}
                                   title="Edit appointment"
                                 >
-                                  <Edit className="h-3 w-3" />
+                                  <Edit className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -813,21 +854,23 @@ export default function JobCard() {
                                   }}
                                   title="Delete appointment"
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
                             )}
                           </div>
                         </div>
-                        <p className="text-sm text-gray-600">
-                          {format(new Date(appointment.appointmentDate), 'MMM dd, yyyy')}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {format(new Date(appointment.appointmentDate), 'h:mm a')}
-                        </p>
+                        <div className="flex items-baseline gap-3">
+                          <p className="text-sm font-medium text-gray-800">
+                            {format(new Date(appointment.appointmentDate), 'MMM dd, yyyy')}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {format(new Date(appointment.appointmentDate), 'h:mm a')}
+                          </p>
+                        </div>
                         {appointment.estimatedDuration && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Duration: {appointment.estimatedDuration} minutes
+                          <p className="text-xs text-gray-500 mt-1.5">
+                            Duration: {appointment.estimatedDuration} min
                           </p>
                         )}
                         {appointmentProducts.length > 0 && (
@@ -846,23 +889,23 @@ export default function JobCard() {
                               }}
                               className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity"
                             >
-                              <p className="text-xs font-medium text-gray-700">Products:</p>
+                              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Products</p>
                               {expandedSections[appointment.id]?.products ? (
-                                <ChevronUp className="h-3 w-3 text-gray-500" />
+                                <ChevronUp className="h-3.5 w-3.5 text-gray-500" />
                               ) : (
-                                <ChevronDown className="h-3 w-3 text-gray-500" />
+                                <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
                               )}
                             </button>
                             {expandedSections[appointment.id]?.products && (
-                              <div className="space-y-1 mt-1">
+                              <div className="space-y-1.5 mt-2">
                                 {appointmentProducts.map((product: any, index: number) => {
                                   const productName = product.name || product.title || product.id;
                                   const shouldAppendVariation = !product.name && product.variationName;
                                   return (
-                                    <p key={index} className="text-xs text-gray-600">
+                                    <p key={index} className="text-sm text-gray-700">
                                       {productName}
                                       {shouldAppendVariation && ` - ${product.variationName}`}
-                                      {product.quantity && product.quantity > 1 && ` (x${product.quantity})`}
+                                      {product.quantity && product.quantity > 1 && <span className="text-gray-500 ml-1">(x{product.quantity})</span>}
                                     </p>
                                   );
                                 })}
@@ -871,7 +914,7 @@ export default function JobCard() {
                           </div>
                         )}
                         {appointment.notes && (
-                          <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="mt-3 pt-3 border-t border-blue-200">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -886,15 +929,15 @@ export default function JobCard() {
                               }}
                               className="flex items-center justify-between w-full text-left hover:opacity-80 transition-opacity"
                             >
-                              <p className="text-xs font-medium text-gray-700">Notes:</p>
+                              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Notes</p>
                               {expandedSections[appointment.id]?.notes ? (
-                                <ChevronUp className="h-3 w-3 text-gray-500" />
+                                <ChevronUp className="h-3.5 w-3.5 text-gray-500" />
                               ) : (
-                                <ChevronDown className="h-3 w-3 text-gray-500" />
+                                <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
                               )}
                             </button>
                             {expandedSections[appointment.id]?.notes && (
-                              <p className="text-xs text-gray-600 mt-1">{appointment.notes}</p>
+                              <p className="text-sm text-gray-700 mt-2">{appointment.notes}</p>
                             )}
                           </div>
                         )}
@@ -903,17 +946,19 @@ export default function JobCard() {
                   })
                 ) : jobData?.appointmentDate ? (
                   // Fallback: Show old appointmentDate if no appointments found
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Scheduled Shoot</span>
-                      <Badge variant="outline">Upcoming</Badge>
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-gray-800">Scheduled Shoot</span>
+                      <Badge variant="outline" className="text-xs">Upcoming</Badge>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {format(new Date(jobData.appointmentDate), 'MMM dd, yyyy')}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {format(new Date(jobData.appointmentDate), 'h:mm a')}
-                    </p>
+                    <div className="flex items-baseline gap-3">
+                      <p className="text-sm font-medium text-gray-800">
+                        {format(new Date(jobData.appointmentDate), 'MMM dd, yyyy')}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {format(new Date(jobData.appointmentDate), 'h:mm a')}
+                      </p>
+                    </div>
                   </div>
                 ) : null}
                 <Button
@@ -941,6 +986,12 @@ export default function JobCard() {
             isReadOnly={isReadOnly}
             isCollapsed={!expandedCards.billing}
             onToggleCollapse={() => setExpandedCards(prev => ({ ...prev, billing: !prev.billing }))}
+            xeroConnected={xeroStatus?.connected ?? false}
+            xeroInvoiceId={jobData.xeroInvoiceId}
+            xeroInvoiceNumber={jobData.xeroInvoiceNumber}
+            onRaiseInvoice={jobData.xeroInvoiceId ? undefined : () => raiseInvoiceMutation.mutate()}
+            isRaisingInvoice={raiseInvoiceMutation.isPending}
+            onViewInvoice={() => setShowInvoiceModal(true)}
           />
 
           {/* Client Review */}
@@ -1051,6 +1102,18 @@ export default function JobCard() {
           }}
         />
       )}
+
+      {/* Invoice Details Modal */}
+      <InvoiceDetailsModal
+        open={showInvoiceModal}
+        onClose={() => setShowInvoiceModal(false)}
+        job={jobData ? { address: jobData.address, jobName: jobData.jobName, customer: jobData.customer } : null}
+        billingItems={billingItems}
+        invoiceStatus={invoiceStatus}
+        xeroInvoiceId={jobData?.xeroInvoiceId}
+        xeroInvoiceNumber={jobData?.xeroInvoiceNumber}
+        dueDate={jobData?.dueDate ? new Date(jobData.dueDate).toISOString().slice(0, 10) : undefined}
+      />
     </div>
   );
 }

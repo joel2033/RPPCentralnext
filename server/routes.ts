@@ -27,6 +27,7 @@ import {
   updateInviteStatus,
   getUserDocument,
   getUserByPartnerId,
+  getPartnerOwnerUid,
   updateUserPartnerId,
   createPartnershipInvite,
   getPartnershipInvite,
@@ -44,6 +45,7 @@ import {
   getAuthUrl as getGoogleCalendarAuthUrl,
   exchangeCodeForTokens,
   getConnection as getGoogleCalendarConnection,
+  getConnectionByPartnerId as getGoogleCalendarConnectionByPartnerId,
   getValidConnection,
   deleteConnection as deleteGoogleCalendarConnection,
   updateConnectionSettings as updateGoogleCalendarSettings,
@@ -52,6 +54,21 @@ import {
   deleteCalendarEvent,
   listBusyBlocks,
 } from "./google-calendar";
+import {
+  getAuthUrl as getXeroAuthUrl,
+  exchangeCodeForTokens as xeroExchangeCodeForTokens,
+  getConnection as getXeroConnection,
+  deleteConnection as deleteXeroConnection,
+  listContacts as xeroListContacts,
+  listAccounts as xeroListAccounts,
+  listTaxRates as xeroListTaxRates,
+  createInvoice as xeroCreateInvoice,
+  getInvoicePdf as xeroGetInvoicePdf,
+  getProfitAndLoss as xeroGetProfitAndLoss,
+  getProfitAndLossMonthly as xeroGetProfitAndLossMonthly,
+  getExecutiveSummary as xeroGetExecutiveSummary,
+  getInvoiceCount as xeroGetInvoiceCount,
+} from "./xero";
 import { z } from "zod";
 import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
@@ -948,14 +965,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           if (appointment && req.user.partnerId) {
             try {
-              const extras = await buildCalendarEventExtras(job, appointment);
-              const eventId = await createCalendarEvent(req.user.partnerId, {
-                appointment: { ...appointment, id: appointment.id },
-                jobAddress: job.address,
-                ...extras,
-              });
-              if (eventId) {
-                await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+              const target = await getCalendarTargetForAppointment(req.user.partnerId, appointment, job);
+              if (target) {
+                const extras = await buildCalendarEventExtras(job, appointment);
+                const eventId = await createCalendarEvent(target.userId, {
+                  appointment: { ...appointment, id: appointment.id },
+                  jobAddress: job.address,
+                  ...extras,
+                }, { byPartnerId: target.byPartnerId });
+                if (eventId) {
+                  await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+                }
               }
             } catch (syncErr) {
               console.error("Google Calendar sync after job create:", syncErr);
@@ -1206,14 +1226,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (appointment && req.user.partnerId) {
         try {
-          const extras = await buildCalendarEventExtras(job, appointment);
-          const eventId = await createCalendarEvent(req.user.partnerId, {
-            appointment: { ...appointment, id: appointment.id },
-            jobAddress: job.address,
-            ...extras,
-          });
-          if (eventId) {
-            await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+          const target = await getCalendarTargetForAppointment(req.user.partnerId, appointment, job);
+          if (target) {
+            const extras = await buildCalendarEventExtras(job, appointment);
+            const eventId = await createCalendarEvent(target.userId, {
+              appointment: { ...appointment, id: appointment.id },
+              jobAddress: job.address,
+              ...extras,
+            }, { byPartnerId: target.byPartnerId });
+            if (eventId) {
+              await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+            }
           }
         } catch (syncErr) {
           console.error("Google Calendar sync after appointment create:", syncErr);
@@ -1399,21 +1422,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           const job = await storage.getJob(updated.jobId);
           const jobAddress = job?.address;
-          const extras = await buildCalendarEventExtras(job, updated);
-          if ((updated as any).googleCalendarEventId) {
-            await updateCalendarEvent(req.user.partnerId, (updated as any).googleCalendarEventId, {
-              appointment: { ...updated, id: updated.id },
-              jobAddress,
-              ...extras,
-            });
-          } else {
-            const eventId = await createCalendarEvent(req.user.partnerId, {
-              appointment: { ...updated, id: updated.id },
-              jobAddress,
-              ...extras,
-            });
-            if (eventId) {
-              await storage.updateAppointment(documentId, { googleCalendarEventId: eventId });
+          const target = await getCalendarTargetForAppointment(req.user.partnerId, updated, job);
+          if (target) {
+            const extras = await buildCalendarEventExtras(job, updated);
+            if ((updated as any).googleCalendarEventId) {
+              await updateCalendarEvent(target.userId, (updated as any).googleCalendarEventId, {
+                appointment: { ...updated, id: updated.id },
+                jobAddress,
+                ...extras,
+              }, { byPartnerId: target.byPartnerId });
+            } else {
+              const eventId = await createCalendarEvent(target.userId, {
+                appointment: { ...updated, id: updated.id },
+                jobAddress,
+                ...extras,
+              }, { byPartnerId: target.byPartnerId });
+              if (eventId) {
+                await storage.updateAppointment(documentId, { googleCalendarEventId: eventId });
+              }
             }
           }
         } catch (syncErr) {
@@ -1471,7 +1497,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.user?.partnerId && (appointment as any).googleCalendarEventId) {
         try {
-          await deleteCalendarEvent(req.user.partnerId, (appointment as any).googleCalendarEventId);
+          const job = await storage.getJob(appointment.jobId);
+          const target = await getCalendarTargetForAppointment(req.user.partnerId, appointment, job ?? undefined);
+          if (target) {
+            await deleteCalendarEvent(target.userId, (appointment as any).googleCalendarEventId, { byPartnerId: target.byPartnerId });
+          }
         } catch (syncErr) {
           console.error("Google Calendar sync on appointment delete:", syncErr);
         }
@@ -1516,14 +1546,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ----- Google Calendar integration -----
   app.get("/api/calendar/google/auth-url", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      if (!req.user?.partnerId) {
-        return res.status(400).json({ error: "Partner ID required" });
+      if (!req.user?.partnerId || !req.user?.uid) {
+        return res.status(400).json({ error: "Partner ID and user ID required" });
       }
       const envBase = process.env.BASE_URL?.replace(/^["']|["']$/g, "").trim();
       const host = req.get("host");
       const protocol = req.protocol === "https" || req.get("x-forwarded-proto") === "https" ? "https" : "http";
       const baseUrl = envBase || (host ? `${protocol}://${host}` : null) || "http://localhost:5001";
-      const authUrl = getGoogleCalendarAuthUrl(req.user.partnerId, baseUrl);
+      const authUrl = getGoogleCalendarAuthUrl(req.user.uid, req.user.partnerId, baseUrl);
       res.json({ authUrl });
     } catch (error: any) {
       console.error("[Google Calendar] auth-url error:", error);
@@ -1582,10 +1612,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return { customerName, productsDescription, jobLink };
   }
 
-  /** Sync all existing appointments (without googleCalendarEventId) to Google Calendar after (re)connect. Runs in background. */
-  async function syncAllAppointmentsToGoogleAfterConnect(partnerId: string) {
+  /** Resolve which user's calendar to use for an appointment (assigned user or partner owner, or legacy partner connection). */
+  async function getCalendarTargetForAppointment(
+    partnerId: string,
+    appointment: { assignedTo?: string | null },
+    job?: { assignedTo?: string | null } | null
+  ): Promise<{ userId: string; byPartnerId: boolean } | null> {
+    const assignedTo = appointment?.assignedTo ?? job?.assignedTo;
+    if (assignedTo) {
+      const conn = await getGoogleCalendarConnection(assignedTo);
+      if (conn) return { userId: assignedTo, byPartnerId: false };
+    }
+    const ownerUid = await getPartnerOwnerUid(partnerId);
+    if (ownerUid) {
+      const conn = await getGoogleCalendarConnection(ownerUid);
+      if (conn) return { userId: ownerUid, byPartnerId: false };
+    }
+    const legacyConn = await getGoogleCalendarConnectionByPartnerId(partnerId);
+    if (legacyConn) return { userId: partnerId, byPartnerId: true };
+    return null;
+  }
+
+  /** Sync existing appointments assigned to this user to their Google Calendar after connect. Runs in background. */
+  async function syncAllAppointmentsToGoogleAfterConnect(userId: string, partnerId: string) {
     try {
-      const conn = await getGoogleCalendarConnection(partnerId);
+      const conn = await getGoogleCalendarConnection(userId);
       if (!conn) return;
       const snapshot = await adminDb.collection("appointments").where("partnerId", "==", partnerId).get();
       const jobs = await storage.getJobs(partnerId);
@@ -1596,6 +1647,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const apt = doc.data();
         if (apt.status === "cancelled") continue;
         if (apt.googleCalendarEventId) continue;
+        if (apt.assignedTo && apt.assignedTo !== userId) continue;
+        if (!apt.assignedTo) {
+          const job = jobsById.get(apt.jobId);
+          const jobAssignedTo = job?.assignedTo;
+          if (jobAssignedTo && jobAssignedTo !== userId) continue;
+        }
         let appointmentDate: Date;
         if (apt.appointmentDate?.toDate) {
           appointmentDate = apt.appointmentDate.toDate();
@@ -1617,7 +1674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           products: apt.products,
         };
         const extras = await buildCalendarEventExtras(job, appointment);
-        const eventId = await createCalendarEvent(partnerId, {
+        const eventId = await createCalendarEvent(userId, {
           appointment,
           jobAddress: job?.address,
           ...extras,
@@ -1630,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       if (synced > 0 || failed > 0) {
-        console.log(`[Google Calendar] Post-connect sync for ${partnerId}: ${synced} synced, ${failed} failed`);
+        console.log(`[Google Calendar] Post-connect sync for user ${userId}: ${synced} synced, ${failed} failed`);
       }
     } catch (err: any) {
       console.error("[Google Calendar] syncAllAppointmentsToGoogleAfterConnect error:", err);
@@ -1642,38 +1699,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { code, state, error } = req.query;
       if (error) {
         const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
-        return res.redirect(`${baseUrl}/settings#booking&calendar_error=${encodeURIComponent(String(error))}`);
+        return res.redirect(`${baseUrl}/settings#integrations&calendar_error=${encodeURIComponent(String(error))}`);
       }
       if (!code || !state || typeof code !== "string" || typeof state !== "string") {
         const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
-        return res.redirect(`${baseUrl}/settings#booking&calendar_error=missing_code_or_state`);
+        return res.redirect(`${baseUrl}/settings#integrations&calendar_error=missing_code_or_state`);
       }
       const result = await exchangeCodeForTokens(code, state);
       if ("error" in result) {
         const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
-        return res.redirect(`${baseUrl}/settings#booking&calendar_error=${encodeURIComponent(result.error)}`);
+        return res.redirect(`${baseUrl}/settings#integrations&calendar_error=${encodeURIComponent(result.error)}`);
       }
-      const partnerId = result.partnerId;
+      const { userId, partnerId } = result;
       setImmediate(() => {
-        syncAllAppointmentsToGoogleAfterConnect(partnerId).catch((err) =>
+        syncAllAppointmentsToGoogleAfterConnect(userId, partnerId).catch((err) =>
           console.error("[Google Calendar] Background sync error:", err)
         );
       });
       const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
-      res.redirect(`${baseUrl}/settings#booking&calendar_connected=1`);
+      res.redirect(`${baseUrl}/settings#integrations&calendar_connected=1`);
     } catch (err: any) {
       console.error("[Google Calendar] callback error:", err);
       const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
-      res.redirect(`${baseUrl}/settings#booking&calendar_error=callback_failed`);
+      res.redirect(`${baseUrl}/settings#integrations&calendar_error=callback_failed`);
     }
   });
 
   app.get("/api/calendar/google/status", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      if (!req.user?.partnerId) {
-        return res.status(400).json({ error: "Partner ID required" });
+      if (!req.user?.partnerId || !req.user?.uid) {
+        return res.status(400).json({ error: "Partner ID and user ID required" });
       }
-      const conn = await getGoogleCalendarConnection(req.user.partnerId);
+      const conn = await getGoogleCalendarConnection(req.user.uid)
+        ?? (req.user.role === "partner" ? await getGoogleCalendarConnectionByPartnerId(req.user.partnerId) : null);
       res.json({
         connected: !!conn,
         twoWaySyncEnabled: conn?.twoWaySyncEnabled ?? false,
@@ -1686,11 +1744,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/calendar/google/settings", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      if (!req.user?.partnerId) {
-        return res.status(400).json({ error: "Partner ID required" });
+      if (!req.user?.partnerId || !req.user?.uid) {
+        return res.status(400).json({ error: "Partner ID and user ID required" });
       }
       const { twoWaySyncEnabled } = req.body;
-      const updated = await updateGoogleCalendarSettings(req.user.partnerId, {
+      const updated = await updateGoogleCalendarSettings(req.user.uid, {
         twoWaySyncEnabled: typeof twoWaySyncEnabled === "boolean" ? twoWaySyncEnabled : undefined,
       });
       if (!updated) {
@@ -1705,10 +1763,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/calendar/google/disconnect", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      if (!req.user?.partnerId) {
-        return res.status(400).json({ error: "Partner ID required" });
+      if (!req.user?.partnerId || !req.user?.uid) {
+        return res.status(400).json({ error: "Partner ID and user ID required" });
       }
-      await deleteGoogleCalendarConnection(req.user.partnerId);
+      const conn = await getGoogleCalendarConnection(req.user.uid)
+        ?? (req.user.role === "partner" ? await getGoogleCalendarConnectionByPartnerId(req.user.partnerId) : null);
+      if (conn) {
+        await adminDb.collection("googleCalendarConnections").doc(conn.id).delete();
+      }
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Google Calendar] disconnect error:", error);
@@ -1716,9 +1778,370 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ----- Xero integration -----
+  app.get("/api/auth/xero/auth-url", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const envBase = process.env.BASE_URL?.replace(/^["']|["']$/g, "").trim();
+      const host = req.get("host");
+      const protocol = req.protocol === "https" || req.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const baseUrl = envBase || (host ? `${protocol}://${host}` : null) || "http://localhost:5001";
+      const authUrl = getXeroAuthUrl(req.user.partnerId, baseUrl);
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error("[Xero] auth-url error:", error);
+      const msg = error?.message || "Failed to get auth URL";
+      if (msg === "XERO_NOT_CONFIGURED") {
+        return res.status(503).json({
+          error: "Xero is not configured",
+          code: "XERO_NOT_CONFIGURED",
+          detail: "Set XERO_CLIENT_ID and XERO_CLIENT_SECRET in server environment.",
+        });
+      }
+      if (msg === "XERO_BASE_URL_REQUIRED") {
+        return res.status(503).json({
+          error: "Base URL required for Xero",
+          code: "XERO_BASE_URL_REQUIRED",
+          detail: "Set BASE_URL in server environment or ensure request Host header is correct.",
+        });
+      }
+      res.status(500).json({ error: msg, detail: error?.stack || undefined });
+    }
+  });
+
+  app.get("/api/auth/xero/callback", async (req, res) => {
+    try {
+      const { code, state, error } = req.query;
+      const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+      const redirectBase = `${baseUrl}/settings#integrations`;
+      if (error) {
+        return res.redirect(`${redirectBase}&xero_error=${encodeURIComponent(String(error))}`);
+      }
+      if (!code || !state || typeof code !== "string" || typeof state !== "string") {
+        return res.redirect(`${redirectBase}&xero_error=missing_code_or_state`);
+      }
+      const result = await xeroExchangeCodeForTokens(code, state);
+      if ("error" in result) {
+        return res.redirect(`${redirectBase}&xero_error=${encodeURIComponent(result.error)}`);
+      }
+      res.redirect(`${redirectBase}&xero_connected=1`);
+    } catch (err: any) {
+      console.error("[Xero] callback error:", err);
+      const baseUrl = process.env.BASE_URL?.trim() || "http://localhost:5000";
+      res.redirect(`${baseUrl}/settings#integrations&xero_error=callback_failed`);
+    }
+  });
+
+  app.get("/api/auth/xero/status", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      const conn = await getXeroConnection(req.user.partnerId);
+      res.json({
+        connected: !!conn,
+        tenantName: conn?.tenantName ?? undefined,
+      });
+    } catch (error: any) {
+      console.error("[Xero] status error:", error);
+      res.status(500).json({ error: "Failed to get status" });
+    }
+  });
+
+  app.delete("/api/auth/xero/disconnect", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(400).json({ error: "Partner ID required" });
+      }
+      await deleteXeroConnection(req.user.partnerId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[Xero] disconnect error:", error);
+      res.status(500).json({ error: "Failed to disconnect" });
+    }
+  });
+
+  // Xero config and data API — use partnerId as doc id so one config per partner, no query order ambiguity
+  const XERO_CONFIG_COLLECTION = "xeroConfig";
+
+  function xeroConfigRef(partnerId: string) {
+    return adminDb.collection(XERO_CONFIG_COLLECTION).doc(partnerId);
+  }
+
+  async function getXeroConfig(partnerId: string): Promise<any> {
+    const ref = xeroConfigRef(partnerId);
+    const doc = await ref.get();
+    if (doc.exists) return doc.data();
+    // Migrate from old query-based docs (one-time): copy first matching doc to doc(partnerId)
+    const legacy = await adminDb.collection(XERO_CONFIG_COLLECTION).where("partnerId", "==", partnerId).limit(1).get();
+    if (!legacy.empty) {
+      const data = legacy.docs[0].data();
+      await ref.set({ ...data, updatedAt: new Date() }, { merge: true });
+      return data;
+    }
+    return null;
+  }
+
+  async function saveXeroConfig(partnerId: string, data: any): Promise<any> {
+    const existing = await getXeroConfig(partnerId);
+    const customerMappings =
+      data.customerMappings && typeof data.customerMappings === "object"
+        ? data.customerMappings
+        : (existing?.customerMappings && typeof existing.customerMappings === "object" ? existing.customerMappings : {});
+    const productMappings =
+      data.productMappings && typeof data.productMappings === "object"
+        ? data.productMappings
+        : (existing?.productMappings && typeof existing.productMappings === "object" ? existing.productMappings : {});
+    const payload = {
+      partnerId,
+      invoiceTrigger: data.invoiceTrigger ?? existing?.invoiceTrigger ?? "manual_only",
+      invoiceStatus: data.invoiceStatus ?? existing?.invoiceStatus ?? "DRAFT",
+      customerMappings,
+      productMappings,
+      updatedAt: new Date(),
+    };
+    await xeroConfigRef(partnerId).set(payload, { merge: true });
+    return payload;
+  }
+
+  app.get("/api/xero/config", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const config = await getXeroConfig(req.user.partnerId);
+      res.json(config ?? { invoiceTrigger: "manual_only", invoiceStatus: "DRAFT", customerMappings: {}, productMappings: {} });
+    } catch (error: any) {
+      console.error("[Xero] config GET error:", error);
+      res.status(500).json({ error: "Failed to get config" });
+    }
+  });
+
+  app.put("/api/xero/config", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const body = req.body || {};
+      const invoiceTrigger = body.invoiceTrigger ?? "manual_only";
+      const invoiceStatus = body.invoiceStatus ?? "DRAFT";
+      const customerMappings = typeof body.customerMappings === "object" && body.customerMappings !== null ? body.customerMappings : undefined;
+      const productMappings = typeof body.productMappings === "object" && body.productMappings !== null ? body.productMappings : undefined;
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[Xero] config PUT body keys:", Object.keys(body), "customerMappings keys:", customerMappings ? Object.keys(customerMappings) : "none", "productMappings keys:", productMappings ? Object.keys(productMappings) : "none");
+      }
+      const config = await saveXeroConfig(req.user.partnerId, {
+        invoiceTrigger,
+        invoiceStatus,
+        customerMappings,
+        productMappings,
+      });
+      res.json(config);
+    } catch (error: any) {
+      console.error("[Xero] config PUT error:", error);
+      res.status(500).json({ error: "Failed to save config" });
+    }
+  });
+
+  app.get("/api/xero/contacts", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const contacts = await xeroListContacts(req.user.partnerId);
+      res.json(contacts);
+    } catch (error: any) {
+      console.error("[Xero] contacts error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch contacts" });
+    }
+  });
+
+  app.get("/api/xero/accounts", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const accounts = await xeroListAccounts(req.user.partnerId);
+      res.json(accounts);
+    } catch (error: any) {
+      console.error("[Xero] accounts error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch accounts" });
+    }
+  });
+
+  app.get("/api/xero/tax-rates", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const taxRates = await xeroListTaxRates(req.user.partnerId);
+      res.json(taxRates);
+    } catch (error: any) {
+      console.error("[Xero] tax-rates error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch tax rates" });
+    }
+  });
+
+  app.get("/api/xero/invoices/:invoiceId/pdf", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const { invoiceId } = req.params;
+      if (!invoiceId) return res.status(400).json({ error: "Invoice ID required" });
+      const pdfBuffer = await xeroGetInvoicePdf(req.user.partnerId, invoiceId);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", "inline; filename=invoice.pdf");
+      res.send(Buffer.from(pdfBuffer));
+    } catch (error: any) {
+      console.error("[Xero] invoice PDF error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch invoice PDF" });
+    }
+  });
+
+  app.get("/api/xero/reports/profit-and-loss", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const { fromDate, toDate, periods, timeframe } = req.query;
+      if (typeof fromDate !== "string" || typeof toDate !== "string") {
+        return res.status(400).json({ error: "fromDate and toDate query params required (YYYY-MM-DD)" });
+      }
+      const options: { periods?: number; timeframe?: string; standardLayout?: boolean } = { standardLayout: true };
+      if (periods != null) options.periods = Number(periods);
+      if (typeof timeframe === "string") options.timeframe = timeframe;
+      const summary = await xeroGetProfitAndLoss(req.user.partnerId, fromDate, toDate, options);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Xero] profit-and-loss error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected", code: "XERO_NOT_CONNECTED" });
+      }
+      res.status(500).json({ error: error?.message ?? "Failed to fetch profit and loss" });
+    }
+  });
+
+  app.get("/api/xero/reports/executive-summary", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) return res.status(400).json({ error: "Partner ID required" });
+      const date = typeof req.query.date === "string" ? req.query.date : undefined;
+      const summary = await xeroGetExecutiveSummary(req.user.partnerId, date);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("[Xero] executive-summary error:", error);
+      if (error?.message === "XERO_NOT_CONNECTED") {
+        return res.status(503).json({ error: "Xero not connected", code: "XERO_NOT_CONNECTED" });
+      }
+      res.status(500).json({ error: error?.message ?? "Failed to fetch executive summary" });
+    }
+  });
+
+  app.post("/api/jobs/:jobId/raise-invoice", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Read-only mode" });
+      }
+      const { jobId } = req.params;
+      const partnerId = req.user?.partnerId;
+      if (!partnerId) return res.status(400).json({ error: "Partner ID required" });
+
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      if ((job as any).partnerId !== partnerId) return res.status(403).json({ error: "Unauthorized" });
+
+      const conn = await getXeroConnection(partnerId);
+      if (!conn) return res.status(503).json({ error: "Xero not connected" });
+
+      const xeroConfig = await getXeroConfig(partnerId) ?? {};
+      const status = xeroConfig.invoiceStatus ?? "DRAFT";
+      const productMappings = xeroConfig.productMappings ?? {};
+      const customerMappings = xeroConfig.customerMappings ?? {};
+
+      const billingItems = (() => {
+        try {
+          const raw = (job as any).billingItems;
+          if (!raw) return [];
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
+
+      if (billingItems.length === 0) {
+        return res.status(400).json({ error: "No billing items on job" });
+      }
+
+      let contactId: string | null = null;
+      const customerId = (job as any).customerId;
+      if (customerId) {
+        const customer = await storage.getCustomer(customerId);
+        if (customer) {
+          contactId = (customer as any).accountingContactId ?? customerMappings[customerId] ?? null;
+          if (!contactId) {
+            return res.status(400).json({
+              error: "Customer not mapped to Xero contact",
+              detail: "Map this customer to a Xero contact in Settings > Integrations > Xero configuration.",
+            });
+          }
+        }
+      }
+      if (!contactId) {
+        return res.status(400).json({
+          error: "Job has no customer or customer not mapped",
+          detail: "Assign a customer to the job and map them to a Xero contact in Settings > Integrations.",
+        });
+      }
+
+      const lineItems = billingItems.map((item: any) => {
+        const mapping = productMappings[item.productId] ?? {};
+        const accountCode = mapping.accountCode || "200";
+        const taxType = mapping.taxType || "OUTPUT";
+        return {
+          description: item.name ?? "Item",
+          quantity: item.quantity ?? 1,
+          unitAmount: item.unitPrice ?? item.amount ?? 0,
+          accountCode,
+          taxType,
+        };
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const reference = (job as any).jobName?.trim() || (job as any).address?.trim() || (job as any).jobId || undefined;
+      const result = await xeroCreateInvoice(partnerId, {
+        contactId,
+        lineItems,
+        date: today,
+        dueDate,
+        status: status as "DRAFT" | "AUTHORISED",
+        reference,
+      });
+
+      await storage.updateJob(job.id, {
+        xeroInvoiceId: result.invoiceId,
+        xeroInvoiceNumber: result.invoiceNumber,
+      } as any);
+
+      res.json({
+        success: true,
+        invoiceId: result.invoiceId,
+        invoiceNumber: result.invoiceNumber,
+        viewUrl: `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${result.invoiceId}`,
+      });
+    } catch (error: any) {
+      console.error("[Xero] raise-invoice error:", error);
+      res.status(500).json({
+        error: error?.message ?? "Failed to raise invoice",
+      });
+    }
+  });
+
   app.get("/api/calendar/google/busy", async (req, res) => {
     try {
-      const { partnerId: queryPartnerId, start, end } = req.query;
+      const { partnerId: queryPartnerId, start, end, userId: queryUserId } = req.query;
       let partnerId: string | null = (req as AuthenticatedRequest).user?.partnerId ?? null;
       if (!partnerId && typeof queryPartnerId === "string") partnerId = queryPartnerId;
       if (!partnerId) {
@@ -1740,7 +2163,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         return res.status(400).json({ error: "Invalid start or end date" });
       }
-      const blocks = await listBusyBlocks(partnerId, startDate, endDate);
+      let targetUserId: string;
+      let usePartnerIdLegacy = false;
+      if (typeof queryUserId === "string" && queryUserId) {
+        const userDoc = await getUserDocument(queryUserId);
+        if (!userDoc || userDoc.partnerId !== partnerId) {
+          return res.status(403).json({ error: "User does not belong to this partner" });
+        }
+        targetUserId = queryUserId;
+      } else if ((req as AuthenticatedRequest).user?.uid) {
+        targetUserId = (req as AuthenticatedRequest).user!.uid;
+        const connByUid = await getGoogleCalendarConnection(targetUserId);
+        if (!connByUid && req.user?.role === "partner") {
+          const legacyConn = await getGoogleCalendarConnectionByPartnerId(partnerId);
+          if (legacyConn) usePartnerIdLegacy = true;
+        }
+      } else {
+        const ownerUid = await getPartnerOwnerUid(partnerId);
+        targetUserId = ownerUid ?? "";
+        if (!ownerUid) usePartnerIdLegacy = true;
+      }
+      const blocks = usePartnerIdLegacy
+        ? await listBusyBlocks(partnerId, startDate, endDate, { byPartnerId: true })
+        : await listBusyBlocks(targetUserId, startDate, endDate);
       res.json(blocks);
     } catch (error: any) {
       console.error("[Google Calendar] busy error:", error);
@@ -2815,6 +3260,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard revenue chart - Xero P&L monthly data for Revenue Overview card
+  app.get("/api/dashboard/revenue-chart", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const partnerId = req.user?.partnerId;
+      if (!partnerId) return res.status(400).json({ error: "User must have a partnerId" });
+      const debug = req.query.debug === "1" || req.query.debug === "true";
+      const data = await xeroGetProfitAndLossMonthly(partnerId, { debug });
+      res.json({ ...data, connected: true });
+    } catch (e: any) {
+      if (e?.message === "XERO_NOT_CONNECTED") {
+        return res.json({ monthlyData: [], thisMonth: 0, connected: false });
+      }
+      console.error("[Dashboard revenue-chart] Xero error:", e);
+      res.status(500).json({ error: "Failed to fetch revenue data" });
+    }
+  });
+
   // Dashboard attention items - SECURED with authentication and tenant isolation
   app.get("/api/dashboard/attention-items", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
@@ -3540,6 +4002,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching job reports performance:", error);
       res.status(500).json({ error: "Failed to fetch job reports performance" });
+    }
+  });
+
+  // GET /api/reports/revenue/overview - Revenue overview (Xero P&L + internal metrics + invoice breakdown)
+  app.get("/api/reports/revenue/overview", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { dateRange = "this_month", startDate, endDate } = req.query;
+      const partnerId = req.user?.partnerId;
+      if (!partnerId) return res.status(400).json({ error: "User must have a partnerId" });
+
+      const { start, end } = parseDateRange(
+        dateRange as string,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      const allJobs = await storage.getJobs(partnerId);
+      const allOrders = await storage.getOrders(partnerId);
+      let jobs = filterByDateRange(allJobs, start, end);
+      let orders = filterByDateRange(allOrders, start, end);
+      orders = orders.filter((o: any) => o.status !== "cancelled");
+
+      const jobRevenue = jobs.reduce((sum: number, job: any) => sum + getJobRevenue(job), 0);
+      const totalEditingSpend = orders.reduce((sum: number, o: any) => sum + parseFloat(o.estimatedTotal || "0"), 0);
+      const grossMargin = jobRevenue - totalEditingSpend;
+
+      const invoiceStatusBreakdown: Record<string, number> = {};
+      let noInvoiceCount = 0;
+      jobs.forEach((job: any) => {
+        if (!(job as any).xeroInvoiceId) {
+          noInvoiceCount++;
+        } else {
+          const s = job.invoiceStatus || "draft";
+          invoiceStatusBreakdown[s] = (invoiceStatusBreakdown[s] || 0) + 1;
+        }
+      });
+      if (noInvoiceCount > 0) invoiceStatusBreakdown.no_invoice = noInvoiceCount;
+
+      const fromStr = start ? start.toISOString().slice(0, 10) : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+      const toStr = end ? end.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+      let xero: {
+        totalIncome: number;
+        totalExpenses: number;
+        operatingExpenses: number;
+        netProfit: number;
+        averageOrder: number;
+        fromDate: string;
+        toDate: string;
+      } | null = null;
+      try {
+        const pl = await xeroGetProfitAndLoss(partnerId, fromStr, toStr, { standardLayout: true });
+        let invoiceCount = 0;
+        try {
+          invoiceCount = await xeroGetInvoiceCount(partnerId, fromStr, toStr);
+        } catch (e) {
+          // non-fatal; average order will be 0
+        }
+        const averageOrder = invoiceCount > 0 ? pl.totalIncome / invoiceCount : 0;
+        xero = {
+          totalIncome: pl.totalIncome,
+          totalExpenses: pl.totalExpenses,
+          operatingExpenses: pl.operatingExpenses,
+          netProfit: pl.netProfit,
+          averageOrder,
+          fromDate: pl.fromDate,
+          toDate: pl.toDate,
+        };
+      } catch (e: any) {
+        if (e?.message !== "XERO_NOT_CONNECTED") console.error("[Revenue overview] Xero P&L error:", e);
+      }
+
+      res.json({
+        xero,
+        jobRevenue,
+        totalEditingSpend,
+        grossMargin,
+        invoiceStatusBreakdown,
+        jobCount: jobs.length,
+        orderCount: orders.length,
+        fromDate: fromStr,
+        toDate: toStr,
+      });
+    } catch (error) {
+      console.error("Error fetching revenue overview:", error);
+      res.status(500).json({ error: "Failed to fetch revenue overview" });
+    }
+  });
+
+  // GET /api/reports/revenue/jobs-by-invoice - List jobs filterable by invoice status
+  app.get("/api/reports/revenue/jobs-by-invoice", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { startDate, endDate, invoiceStatus = "all", limit = "100" } = req.query;
+      const partnerId = req.user?.partnerId;
+      if (!partnerId) return res.status(400).json({ error: "User must have a partnerId" });
+
+      const start = startDate && typeof startDate === "string" ? new Date(startDate) : null;
+      const end = endDate && typeof endDate === "string" ? new Date(endDate) : null;
+      const lim = Math.min(parseInt(String(limit), 10) || 100, 200);
+
+      const allJobs = await storage.getJobs(partnerId);
+      let jobs = start || end ? filterByDateRange(allJobs, start, end) : allJobs;
+
+      const statusFilter = typeof invoiceStatus === "string" ? invoiceStatus : "all";
+      if (statusFilter === "no_invoice") {
+        jobs = jobs.filter((j: any) => !(j as any).xeroInvoiceId);
+      } else if (statusFilter !== "all") {
+        jobs = jobs.filter((j: any) => (j.invoiceStatus || "draft") === statusFilter);
+      }
+
+      const customers = await storage.getCustomers(partnerId);
+      const customerMap = new Map(customers.map((c: any) => [c.id, c]));
+
+      const list = jobs.slice(0, lim).map((job: any) => {
+        const customer = job.customerId ? customerMap.get(job.customerId) : null;
+        const customerName = customer
+          ? [customer.firstName, customer.lastName].filter(Boolean).join(" ") || (customer as any).company || "—"
+          : "—";
+        return {
+          id: job.id,
+          jobId: job.jobId,
+          jobName: job.jobName,
+          address: job.address,
+          customerId: job.customerId,
+          customerName,
+          status: job.status,
+          invoiceStatus: job.xeroInvoiceId ? (job.invoiceStatus || "draft") : "no_invoice",
+          xeroInvoiceId: job.xeroInvoiceId ?? null,
+          totalValue: job.totalValue,
+          revenue: getJobRevenue(job),
+          deliveredAt: job.deliveredAt,
+          createdAt: job.createdAt,
+          appointmentDate: job.appointmentDate,
+        };
+      });
+
+      res.json({ jobs: list, total: jobs.length });
+    } catch (error) {
+      console.error("Error fetching jobs by invoice:", error);
+      res.status(500).json({ error: "Failed to fetch jobs by invoice status" });
     }
   });
 
@@ -13782,14 +14383,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (appointment && partnerId) {
           try {
-            const extras = await buildCalendarEventExtras(job, appointment);
-            const eventId = await createCalendarEvent(partnerId, {
-              appointment: { ...appointment, id: appointment.id },
-              jobAddress: job.address,
-              ...extras,
-            });
-            if (eventId) {
-              await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+            const target = await getCalendarTargetForAppointment(partnerId, appointment, job);
+            if (target) {
+              const extras = await buildCalendarEventExtras(job, appointment);
+              const eventId = await createCalendarEvent(target.userId, {
+                appointment: { ...appointment, id: appointment.id },
+                jobAddress: job.address,
+                ...extras,
+              }, { byPartnerId: target.byPartnerId });
+              if (eventId) {
+                await storage.updateAppointment(appointment.id, { googleCalendarEventId: eventId });
+              }
             }
           } catch (syncErr) {
             console.error("Google Calendar sync after booking create:", syncErr);

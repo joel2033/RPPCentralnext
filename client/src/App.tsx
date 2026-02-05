@@ -30,6 +30,7 @@ import TeamAssignments from "@/pages/TeamAssignments";
 import Settings from "@/pages/Settings";
 import Messages from "@/pages/Messages";
 import JobReports from "@/pages/JobReports";
+import RevenueOverview from "@/pages/RevenueOverview";
 import NotFound from "@/pages/not-found";
 
 // Public Pages (No Auth Required)
@@ -292,6 +293,14 @@ function Router() {
         <ProtectedRoute route="/reports">
           <Layout>
             <JobReports />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/reports/revenue">
+        <ProtectedRoute route="/reports">
+          <Layout>
+            <RevenueOverview />
           </Layout>
         </ProtectedRoute>
       </Route>

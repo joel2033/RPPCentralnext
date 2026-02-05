@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import EditingOptionsManager from "@/components/EditingOptionsManager";
 import BookingFormSettings from "@/components/booking/BookingFormSettings";
 import ServiceAreasManager from "@/components/ServiceAreasManager";
+import { IntegrationsSection } from "@/components/IntegrationsSection";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Building2,
@@ -36,6 +37,7 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarDays,
+  Link2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -93,11 +95,13 @@ export default function Settings() {
   const isPhotographer = userData?.role === 'photographer';
   
   // Get initial tab from URL hash, or default based on role
+  const validTabs = ['company', 'team', 'services', 'booking', 'account', 'availability', 'integrations', 'advanced'];
   const getInitialTab = () => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '');
-      if (hash && ['company', 'team', 'services', 'booking', 'account', 'availability', 'advanced'].includes(hash)) {
-        return hash;
+      const tabPart = hash.split('&')[0] || '';
+      if (tabPart && validTabs.includes(tabPart)) {
+        return tabPart;
       }
     }
     return isPhotographer ? "account" : "company";
@@ -105,6 +109,7 @@ export default function Settings() {
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
   const [bookingSaveHandler, setBookingSaveHandler] = useState<(() => void) | null>(null);
+  const [xeroSaveHandler, setXeroSaveHandler] = useState<(() => void) | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [businessHours, setBusinessHours] = useState({
@@ -175,8 +180,9 @@ export default function Settings() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      if (hash && ['company', 'team', 'services', 'booking', 'account', 'availability', 'advanced'].includes(hash)) {
-        setActiveTab(hash);
+      const tabPart = hash.split('&')[0] || '';
+      if (tabPart && validTabs.includes(tabPart)) {
+        setActiveTab(tabPart);
       }
     };
     
@@ -195,7 +201,7 @@ export default function Settings() {
     const isPhotographerRole = userData.role === 'photographer';
     // Only override if no hash is set
     if (!window.location.hash) {
-      if (isPhotographerRole && activeTab !== 'account' && activeTab !== 'availability' && activeTab !== 'advanced') {
+      if (isPhotographerRole && activeTab !== 'account' && activeTab !== 'availability' && activeTab !== 'integrations' && activeTab !== 'advanced') {
         setActiveTab('account');
       } else if (!isPhotographerRole && activeTab === 'availability') {
         setActiveTab('company');
@@ -594,7 +600,10 @@ export default function Settings() {
         ) : (
           <Button 
             className="bg-[#f2572c] hover:bg-[#d94820] text-white"
-            onClick={handleSaveSettings}
+            onClick={() => {
+              handleSaveSettings();
+              if (activeTab === 'integrations') xeroSaveHandler?.();
+            }}
             disabled={saveSettingsMutation.isPending}
             data-testid="button-save-settings"
           >
@@ -606,7 +615,7 @@ export default function Settings() {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full ${isPhotographer ? 'grid-cols-3' : 'grid-cols-6'}`}>
+        <TabsList className={`grid w-full ${isPhotographer ? 'grid-cols-5' : 'grid-cols-7'}`}>
           {!isPhotographer && (
             <>
               <TabsTrigger value="company" className="flex items-center gap-2">
@@ -637,6 +646,10 @@ export default function Settings() {
               <span>Availability hours</span>
             </TabsTrigger>
           )}
+          <TabsTrigger value="integrations" className="flex items-center gap-2">
+            <Link2 className="w-4 h-4" />
+            <span>Integrations</span>
+          </TabsTrigger>
           <TabsTrigger value="advanced" className="flex items-center gap-2">
             <Cog className="w-4 h-4" />
             <span>Advanced</span>
@@ -1463,6 +1476,11 @@ export default function Settings() {
           />
         </TabsContent>
 
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="space-y-6">
+          <IntegrationsSection onRegisterXeroSave={(handler) => setXeroSaveHandler(handler != null ? () => handler() : null)} />
+        </TabsContent>
+
         {/* Advanced Tab */}
         <TabsContent value="advanced" className="space-y-6">
           <Card>
@@ -1486,14 +1504,6 @@ export default function Settings() {
                   <h3 className="font-medium mb-2">Policies</h3>
                   <p className="text-sm text-gray-600 mb-4">
                     Set cancellation, rescheduling, and refund policies
-                  </p>
-                  <Badge variant="secondary">Coming Soon</Badge>
-                </div>
-
-                <div className="p-6 border rounded-lg">
-                  <h3 className="font-medium mb-2">Integrations</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Connect with third-party services and accounting software
                   </p>
                   <Badge variant="secondary">Coming Soon</Badge>
                 </div>

@@ -1,6 +1,7 @@
 /**
  * Google Calendar integration: OAuth, token storage, and Calendar API (create/update/delete events, list busy).
- * Connections are stored in Firestore collection googleCalendarConnections keyed by partnerId.
+ * Connections are stored in Firestore collection googleCalendarConnections keyed by userId (Firebase UID).
+ * Each user (partner, admin, photographer) can connect their own calendar.
  */
 
 import { randomBytes } from "node:crypto";
@@ -17,6 +18,7 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface GoogleCalendarConnection {
   id: string;
+  userId: string; // Firebase UID - each user has their own connection
   partnerId: string;
   refreshToken: string;
   accessToken: string;
@@ -29,7 +31,7 @@ export interface GoogleCalendarConnection {
 
 const stateStore = new Map<
   string,
-  { partnerId: string; expiresAt: number }
+  { userId: string; partnerId: string; expiresAt: number }
 >();
 
 function getOAuth2Client(baseUrl?: string) {
@@ -55,6 +57,7 @@ function docToConnection(
   if (!data) return null;
   return {
     id: doc.id,
+    userId: data.userId ?? "",
     partnerId: data.partnerId,
     refreshToken: data.refreshToken,
     accessToken: data.accessToken,
@@ -66,7 +69,21 @@ function docToConnection(
   };
 }
 
+/** Get connection for a specific user (Firebase UID). */
 export async function getConnection(
+  userId: string
+): Promise<GoogleCalendarConnection | null> {
+  const snapshot = await adminDb
+    .collection(COLLECTION)
+    .where("userId", "==", userId)
+    .limit(1)
+    .get();
+  if (snapshot.empty) return null;
+  return docToConnection(snapshot.docs[0]);
+}
+
+/** Legacy: get connection keyed only by partnerId (for existing docs before user-scoped connections). */
+export async function getConnectionByPartnerId(
   partnerId: string
 ): Promise<GoogleCalendarConnection | null> {
   const snapshot = await adminDb
@@ -75,10 +92,14 @@ export async function getConnection(
     .limit(1)
     .get();
   if (snapshot.empty) return null;
-  return docToConnection(snapshot.docs[0]);
+  const conn = docToConnection(snapshot.docs[0]);
+  if (!conn) return null;
+  if (conn.userId) return conn;
+  return { ...conn, userId: "" };
 }
 
 export async function saveConnection(
+  userId: string,
   partnerId: string,
   data: {
     refreshToken: string;
@@ -88,9 +109,10 @@ export async function saveConnection(
     twoWaySyncEnabled?: boolean;
   }
 ): Promise<GoogleCalendarConnection> {
-  const existing = await getConnection(partnerId);
+  const existing = await getConnection(userId);
   const now = new Date();
   const payload = {
+    userId,
     partnerId,
     refreshToken: data.refreshToken,
     accessToken: data.accessToken,
@@ -109,32 +131,33 @@ export async function saveConnection(
   return docToConnection(doc)!;
 }
 
-export async function deleteConnection(partnerId: string): Promise<boolean> {
-  const existing = await getConnection(partnerId);
+export async function deleteConnection(userId: string): Promise<boolean> {
+  const existing = await getConnection(userId);
   if (!existing) return false;
   await adminDb.collection(COLLECTION).doc(existing.id).delete();
   return true;
 }
 
 export async function updateConnectionSettings(
-  partnerId: string,
+  userId: string,
   settings: { twoWaySyncEnabled?: boolean }
 ): Promise<GoogleCalendarConnection | null> {
-  const existing = await getConnection(partnerId);
+  const existing = await getConnection(userId);
   if (!existing) return null;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof settings.twoWaySyncEnabled === "boolean") {
     updates.twoWaySyncEnabled = settings.twoWaySyncEnabled;
   }
   await adminDb.collection(COLLECTION).doc(existing.id).update(updates);
-  return getConnection(partnerId);
+  return getConnection(userId);
 }
 
 /** Generate OAuth URL and store state for callback. baseUrl can be derived from request when env BASE_URL is not set. */
-export function getAuthUrl(partnerId: string, baseUrl?: string): string {
+export function getAuthUrl(userId: string, partnerId: string, baseUrl?: string): string {
   const oauth2 = getOAuth2Client(baseUrl);
   const state = randomBytes(24).toString("hex");
   stateStore.set(state, {
+    userId,
     partnerId,
     expiresAt: Date.now() + STATE_TTL_MS,
   });
@@ -146,11 +169,11 @@ export function getAuthUrl(partnerId: string, baseUrl?: string): string {
   });
 }
 
-/** Exchange code for tokens and save connection. Returns partnerId. */
+/** Exchange code for tokens and save connection. Returns userId and partnerId. */
 export async function exchangeCodeForTokens(
   code: string,
   state: string
-): Promise<{ partnerId: string } | { error: string }> {
+): Promise<{ userId: string; partnerId: string } | { error: string }> {
   const stored = stateStore.get(state);
   stateStore.delete(state);
   if (!stored || Date.now() > stored.expiresAt) {
@@ -162,21 +185,36 @@ export async function exchangeCodeForTokens(
     return { error: "No refresh token received" };
   }
   const expiry = tokens.expiry_date ?? Date.now() + 3600 * 1000;
-  await saveConnection(stored.partnerId, {
+  await saveConnection(stored.userId, stored.partnerId, {
     refreshToken: tokens.refresh_token,
     accessToken: tokens.access_token!,
     accessTokenExpiry: expiry,
     twoWaySyncEnabled: false,
   });
-  return { partnerId: stored.partnerId };
+  return { userId: stored.userId, partnerId: stored.partnerId };
 }
 
 /** Get valid connection with refreshed access token if needed. */
 export async function getValidConnection(
+  userId: string
+): Promise<GoogleCalendarConnection | null> {
+  const conn = await getConnection(userId);
+  if (!conn) return null;
+  return refreshConnectionIfNeeded(conn);
+}
+
+/** Legacy: get valid connection by partnerId (for docs stored before user-scoped connections). */
+export async function getValidConnectionByPartnerId(
   partnerId: string
 ): Promise<GoogleCalendarConnection | null> {
-  const conn = await getConnection(partnerId);
+  const conn = await getConnectionByPartnerId(partnerId);
   if (!conn) return null;
+  return refreshConnectionIfNeeded(conn);
+}
+
+async function refreshConnectionIfNeeded(
+  conn: GoogleCalendarConnection
+): Promise<GoogleCalendarConnection> {
   const now = Date.now();
   if (conn.accessTokenExpiry > now + 60 * 1000) return conn;
   const oauth2 = getOAuth2Client();
@@ -193,7 +231,7 @@ export async function getValidConnection(
       accessTokenExpiry: newExpiry,
       updatedAt: new Date(),
     });
-  return getConnection(partnerId);
+  return (conn.userId ? getConnection(conn.userId) : getConnectionByPartnerId(conn.partnerId))!;
 }
 
 const calendarIdDefault = "primary";
@@ -236,10 +274,13 @@ function buildEventDescription(payload: SyncAppointmentPayload): string {
 
 /** Create a Google Calendar event for an appointment. Returns event id or null on failure. */
 export async function createCalendarEvent(
-  partnerId: string,
-  payload: SyncAppointmentPayload
+  userIdOrPartnerId: string,
+  payload: SyncAppointmentPayload,
+  options?: { byPartnerId?: boolean }
 ): Promise<string | null> {
-  const conn = await getValidConnection(partnerId);
+  const conn = options?.byPartnerId
+    ? await getValidConnectionByPartnerId(userIdOrPartnerId)
+    : await getValidConnection(userIdOrPartnerId);
   if (!conn) return null;
   const cal = getCalendar(conn);
   const calId = conn.calendarId || calendarIdDefault;
@@ -272,11 +313,14 @@ export async function createCalendarEvent(
 
 /** Update an existing Google Calendar event. */
 export async function updateCalendarEvent(
-  partnerId: string,
+  userIdOrPartnerId: string,
   googleCalendarEventId: string,
-  payload: SyncAppointmentPayload
+  payload: SyncAppointmentPayload,
+  options?: { byPartnerId?: boolean }
 ): Promise<boolean> {
-  const conn = await getValidConnection(partnerId);
+  const conn = options?.byPartnerId
+    ? await getValidConnectionByPartnerId(userIdOrPartnerId)
+    : await getValidConnection(userIdOrPartnerId);
   if (!conn) return false;
   const cal = getCalendar(conn);
   const calId = conn.calendarId || calendarIdDefault;
@@ -310,10 +354,13 @@ export async function updateCalendarEvent(
 
 /** Delete a Google Calendar event. */
 export async function deleteCalendarEvent(
-  partnerId: string,
-  googleCalendarEventId: string
+  userIdOrPartnerId: string,
+  googleCalendarEventId: string,
+  options?: { byPartnerId?: boolean }
 ): Promise<boolean> {
-  const conn = await getValidConnection(partnerId);
+  const conn = options?.byPartnerId
+    ? await getValidConnectionByPartnerId(userIdOrPartnerId)
+    : await getValidConnection(userIdOrPartnerId);
   if (!conn) return false;
   const cal = getCalendar(conn);
   const calId = conn.calendarId || calendarIdDefault;
@@ -334,11 +381,14 @@ export interface BusyBlock {
 
 /** List events in range for two-way sync (busy blocks with optional titles). */
 export async function listBusyBlocks(
-  partnerId: string,
+  userIdOrPartnerId: string,
   start: Date,
-  end: Date
+  end: Date,
+  options?: { byPartnerId?: boolean }
 ): Promise<BusyBlock[]> {
-  const conn = await getValidConnection(partnerId);
+  const conn = options?.byPartnerId
+    ? await getValidConnectionByPartnerId(userIdOrPartnerId)
+    : await getValidConnection(userIdOrPartnerId);
   if (!conn || !conn.twoWaySyncEnabled) return [];
   const cal = getCalendar(conn);
   const calId = conn.calendarId || calendarIdDefault;

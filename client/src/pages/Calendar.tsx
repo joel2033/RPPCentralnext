@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Link } from "wouter";
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -19,7 +20,8 @@ import {
   MoreHorizontal,
   Clock,
   MapPin,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import CreateJobModal from "@/components/modals/CreateJobModal";
 import CreateEventModal from "@/components/modals/CreateEventModal";
@@ -27,6 +29,8 @@ import AppointmentDetailsModal from "@/components/modals/AppointmentDetailsModal
 import { useMasterView } from "@/contexts/MasterViewContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeAppointments } from "@/hooks/useFirestoreRealtime";
+import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
 
 interface User {
   id: string;
@@ -73,7 +77,9 @@ export default function Calendar() {
   const [miniCalDate, setMiniCalDate] = useState<Date>(new Date());
   const { isReadOnly } = useMasterView();
   const { userData } = useAuth();
+  const { toast } = useToast();
   const partnerId = userData?.partnerId || null;
+  const [reconnectingCalendar, setReconnectingCalendar] = useState(false);
   
   const [eventTypes, setEventTypes] = useState<EventType[]>([
     { id: 'job', label: 'Job', color: 'text-blue-600', bgColor: 'bg-blue-100', checked: true },
@@ -462,6 +468,42 @@ export default function Calendar() {
     setMiniCalDate(now);
   };
 
+  const handleReconnectGoogleCalendar = async () => {
+    setReconnectingCalendar(true);
+    try {
+      const res = await fetch("/api/calendar/google/auth-url", {
+        method: "GET",
+        headers: auth.currentUser
+          ? { Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }
+          : {},
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 503 && (data.code === "GOOGLE_CALENDAR_NOT_CONFIGURED" || data.code === "GOOGLE_CALENDAR_BASE_URL_REQUIRED")) {
+          toast({
+            title: "Google Calendar not configured",
+            description: data.detail || "Add GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET (and BASE_URL if needed) to the server environment.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const errMsg = data.error || data.detail || `Request failed (${res.status})`;
+        toast({
+          title: "Failed to connect",
+          description: typeof errMsg === "string" ? errMsg : String(data.error || res.status),
+          variant: "destructive",
+        });
+        return;
+      }
+      if (data.authUrl) window.location.href = data.authUrl;
+    } catch (e) {
+      toast({ title: "Failed to connect", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setReconnectingCalendar(false);
+    }
+  };
+
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDayOfMonth = getFirstDayOfMonth(currentDate);
   const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -799,19 +841,24 @@ export default function Calendar() {
               Clear
             </Button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {users.map((user) => (
-              <label key={user.id} className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors" data-testid={`team-member-${user.id}`}>
-                <input type="radio" name="team" className="w-4 h-4" />
+              <label key={user.id} className="flex items-center gap-2.5 py-1.5 cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors" data-testid={`team-member-${user.id}`}>
+                <input type="radio" name="team" className="w-4 h-4 flex-shrink-0" />
                 <div
-                  className={`w-8 h-8 rounded-full ${teamMemberColors[user.id] ? '' : getAvatarColor(user.firstName || user.email)} text-white flex items-center justify-center text-sm font-medium`}
+                  className={`w-7 h-7 flex-shrink-0 rounded-full ${teamMemberColors[user.id] ? '' : getAvatarColor(user.firstName || user.email)} text-white flex items-center justify-center text-xs font-semibold`}
                   style={teamMemberColors[user.id] ? { backgroundColor: teamMemberColors[user.id] } : undefined}
                 >
                   {getInitials(user.firstName, user.lastName) || user.email?.substring(0, 2).toUpperCase()}
                 </div>
-                <span className="text-sm text-gray-700">
-                  {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-gray-800 font-medium truncate">
+                    {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email?.split('@')[0]}
+                  </p>
+                  {user.firstName && user.lastName && (
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  )}
+                </div>
               </label>
             ))}
           </div>
@@ -880,8 +927,25 @@ export default function Calendar() {
             {/* Right summary and actions */}
             <div className="flex items-center gap-3 text-sm text-gray-600">
               <span>{getTotalAppointments()} Appointments</span>
-              <Button variant="outline" size="sm" disabled title="Coming soon">
-                Google Calendar
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/settings#integrations" className="gap-2 no-underline">
+                  <CalendarIcon className="w-4 h-4" />
+                  Google Calendar
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReconnectGoogleCalendar}
+                disabled={reconnectingCalendar}
+                className="gap-2"
+              >
+                {reconnectingCalendar ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Reconnect
               </Button>
               {!isReadOnly && (
                 <DropdownMenu>

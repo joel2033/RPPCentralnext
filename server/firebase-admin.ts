@@ -234,6 +234,22 @@ export const getUserByPartnerId = async (partnerId: string): Promise<UserData | 
   }
 };
 
+// Get the Firebase UID of the partner owner (for calendar and other per-user lookups)
+export const getPartnerOwnerUid = async (partnerId: string): Promise<string | null> => {
+  try {
+    const usersSnapshot = await adminDb.collection('users')
+      .where('partnerId', '==', partnerId)
+      .where('role', '==', 'partner')
+      .limit(1)
+      .get();
+    if (usersSnapshot.empty) return null;
+    return usersSnapshot.docs[0].id; // doc id is the Firebase UID
+  } catch (error) {
+    console.error('Error getting partner owner uid:', error);
+    return null;
+  }
+};
+
 // Update user document with partnerId (for editors who get assigned to partners)
 export const updateUserPartnerId = async (uid: string, partnerId: string): Promise<void> => {
   try {

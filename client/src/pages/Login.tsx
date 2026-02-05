@@ -145,7 +145,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors"
+                className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors"
                 data-testid="input-email"
               />
             </div>
@@ -161,7 +161,7 @@ export default function Login() {
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
-                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors"
+                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors"
                   data-testid="input-business-name"
                 />
               </div>
@@ -188,7 +188,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors pr-10"
+                  className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors pr-10"
                   data-testid="input-password"
                 />
                 <button
@@ -214,7 +214,7 @@ export default function Login() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 transition-colors pr-10"
+                    className="h-11 rounded-xl bg-input border-border/50 focus:border-primary/50 focus-visible:ring-0 focus-visible:ring-offset-0 transition-colors pr-10"
                     data-testid="input-confirm-password"
                   />
                   <button
@@ -250,7 +250,7 @@ export default function Login() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 rounded-xl"
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 rounded-[25px]"
               data-testid={isSignUp ? "button-signup" : "button-signin"}
             >
               {loading ? (isSignUp ? "Creating account..." : "Signing in...") : (isSignUp ? "Create account" : "Sign in")}
@@ -297,7 +297,7 @@ export default function Login() {
             
             {/* Hero Heading */}
             <div className="space-y-4">
-              <h2 className="text-4xl font-bold leading-tight">
+              <h2 className="text-4xl font-bold leading-tight text-white">
                 Professional Real Estate Media Management
               </h2>
               <p className="text-lg text-white/80">
@@ -312,7 +312,7 @@ export default function Login() {
                 <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
                   <Camera className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-1">Photography</h3>
+                <h3 className="font-semibold mb-1 text-white">Photography</h3>
                 <p className="text-sm text-white/70">Professional photo management</p>
               </div>
 
@@ -321,7 +321,7 @@ export default function Login() {
                 <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
                   <Video className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-1">Video</h3>
+                <h3 className="font-semibold mb-1 text-white">Video</h3>
                 <p className="text-sm text-white/70">Cinematic video solutions</p>
               </div>
 
@@ -330,7 +330,7 @@ export default function Login() {
                 <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
                   <Layout className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-1">Floor Plans</h3>
+                <h3 className="font-semibold mb-1 text-white">Floor Plans</h3>
                 <p className="text-sm text-white/70">2D & 3D floor plans</p>
               </div>
 
@@ -339,7 +339,7 @@ export default function Login() {
                 <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center mb-3">
                   <Home className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-1">Virtual Tours</h3>
+                <h3 className="font-semibold mb-1 text-white">Virtual Tours</h3>
                 <p className="text-sm text-white/70">360° virtual experiences</p>
               </div>
             </div>

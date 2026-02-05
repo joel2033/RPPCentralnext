@@ -39,6 +39,13 @@ interface BillingSectionProps {
   isReadOnly?: boolean;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  xeroConnected?: boolean;
+  xeroInvoiceId?: string | null;
+  xeroInvoiceNumber?: string | null;
+  onRaiseInvoice?: () => void;
+  isRaisingInvoice?: boolean;
+  /** When set, "View Invoice" opens this modal instead of linking to Xero */
+  onViewInvoice?: () => void;
 }
 
 export function BillingSection({
@@ -50,6 +57,12 @@ export function BillingSection({
   isReadOnly = false,
   isCollapsed = false,
   onToggleCollapse,
+  xeroConnected = false,
+  xeroInvoiceId,
+  xeroInvoiceNumber,
+  onRaiseInvoice,
+  isRaisingInvoice = false,
+  onViewInvoice,
 }: BillingSectionProps) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   // Track which price input is being edited to allow free-form typing
@@ -343,12 +356,46 @@ export function BillingSection({
         <CardContent className="px-4 pb-4 space-y-3">
         {/* Status & Actions Row */}
         <div className="flex items-center justify-between">
-          <Badge className={`text-[10px] px-2 py-0.5 font-medium ${getStatusBadgeClass(invoiceStatus)}`}>
+          <Badge className={`text-xs px-2.5 py-0.5 font-medium ${getStatusBadgeClass(invoiceStatus)}`}>
             {getStatusLabel(invoiceStatus)}
           </Badge>
-          <Button variant="outline" size="sm" className="text-xs h-8 px-3">
-            View Invoice
-          </Button>
+          {xeroInvoiceId ? (
+            onViewInvoice ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-sm h-8 px-3"
+                onClick={onViewInvoice}
+              >
+                View Invoice{xeroInvoiceNumber ? ` (${xeroInvoiceNumber})` : ""}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-sm h-8 px-3"
+                asChild
+              >
+                <a
+                  href={`https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${xeroInvoiceId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Invoice{xeroInvoiceNumber ? ` (${xeroInvoiceNumber})` : ""}
+                </a>
+              </Button>
+            )
+          ) : xeroConnected && billingItems.length > 0 && onRaiseInvoice ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-sm h-8 px-3"
+              onClick={onRaiseInvoice}
+              disabled={isRaisingInvoice}
+            >
+              {isRaisingInvoice ? "Raising…" : "Raise Invoice to Xero"}
+            </Button>
+          ) : null}
         </div>
 
         {/* Product Selector */}
@@ -401,28 +448,28 @@ export function BillingSection({
           {billingItems.length > 0 ? (
             <div className="divide-y divide-gray-200">
               {billingItems.map((item) => (
-                <div key={item.id} className="p-2 bg-white">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                <div key={item.id} className="p-3 bg-white">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
                       {!isReadOnly && (
                         <button
                           onClick={() => handleRemoveItem(item.id)}
                           className="text-red-400 hover:text-red-600 mt-0.5 flex-shrink-0"
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-4 w-4" />
                         </button>
                       )}
-                      <span className="text-xs font-medium text-gray-900 leading-tight" title={item.name}>
+                      <span className="text-sm font-medium text-gray-900 leading-snug" title={item.name}>
                         {item.name}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold text-gray-900 flex-shrink-0">
+                    <span className="text-sm font-semibold text-gray-900 flex-shrink-0">
                       ${item.amount.toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 mt-2 ml-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">Qty:</span>
+                  <div className="flex items-center gap-4 mt-2 ml-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Qty</span>
                       <Input
                         type="number"
                         min="1"
@@ -430,12 +477,13 @@ export function BillingSection({
                         onChange={(e) =>
                           handleQuantityChange(item.id, parseInt(e.target.value) || 1)
                         }
-                        className="h-7 w-14 text-xs text-center px-2"
+                        className="h-7 w-14 text-sm text-center px-2"
                         disabled={isReadOnly}
                       />
                     </div>
+                    <span className="text-gray-300">×</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">@</span>
+                      <span className="text-xs text-gray-400">$</span>
                       <Input
                         type="text"
                         inputMode="decimal"
@@ -443,7 +491,7 @@ export function BillingSection({
                         onChange={(e) => handlePriceInputChange(item.id, e.target.value)}
                         onFocus={() => handlePriceInputFocus(item.id, item.unitPrice)}
                         onBlur={() => handlePriceInputBlur(item.id)}
-                        className="h-7 w-20 text-xs text-right px-2"
+                        className="h-7 w-20 text-sm text-right px-2"
                         disabled={isReadOnly}
                         placeholder="0.00"
                       />
@@ -453,7 +501,7 @@ export function BillingSection({
               ))}
             </div>
           ) : (
-            <div className="text-center py-4 text-gray-400 text-xs">
+            <div className="text-center py-5 text-gray-400 text-sm">
               No items added yet
             </div>
           )}
@@ -461,16 +509,16 @@ export function BillingSection({
 
         {/* Totals */}
         {billingItems.length > 0 && (
-          <div className="space-y-1 pt-1">
-            <div className="flex justify-between text-[11px]">
+          <div className="space-y-1.5 pt-2">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
               <span className="text-gray-700">${subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-[11px]">
+            <div className="flex justify-between text-sm">
               <span className="text-gray-500">GST</span>
               <span className="text-gray-700">${taxTotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-xs font-semibold pt-1 border-t border-gray-200">
+            <div className="flex justify-between text-sm font-semibold pt-2 border-t border-gray-200">
               <span className="text-gray-900">Total</span>
               <span className="text-gray-900">${total.toFixed(2)}</span>
             </div>
@@ -480,7 +528,7 @@ export function BillingSection({
         {/* Payments */}
         {billingItems.length > 0 && (
           <div className="pt-2 border-t border-gray-100">
-            <p className="text-[10px] text-gray-400 text-center">
+            <p className="text-xs text-gray-400 text-center">
               No payments received
             </p>
           </div>
