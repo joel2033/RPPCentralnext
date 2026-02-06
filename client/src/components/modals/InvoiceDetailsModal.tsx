@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import type { BillingItem } from "@/components/BillingSection";
 
@@ -49,6 +49,11 @@ interface InvoiceDetailsModalProps {
   xeroInvoiceId?: string | null;
   xeroInvoiceNumber?: string | null;
   dueDate?: string; // ISO date string
+  /** When set, show "Update invoice" to sync Xero with current job billing items (e.g. after adding products). */
+  onUpdateInvoice?: () => Promise<void>;
+  isUpdatingInvoice?: boolean;
+  /** Increment to refetch the invoice PDF (e.g. after updating the invoice). */
+  invoiceRefreshKey?: number;
 }
 
 export function InvoiceDetailsModal({
@@ -60,6 +65,9 @@ export function InvoiceDetailsModal({
   xeroInvoiceId,
   xeroInvoiceNumber,
   dueDate: dueDateProp,
+  onUpdateInvoice,
+  isUpdatingInvoice = false,
+  invoiceRefreshKey = 0,
 }: InvoiceDetailsModalProps) {
   const { data: settings } = useQuery<{ businessProfile?: BusinessProfile | null }>({
     queryKey: ["/api/settings"],
@@ -115,7 +123,7 @@ export function InvoiceDetailsModal({
       }
       setPdfUrl(null);
     };
-  }, [open, xeroInvoiceId]);
+  }, [open, xeroInvoiceId, invoiceRefreshKey]);
   const dueDate = dueDateProp
     ? new Date(dueDateProp)
     : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
@@ -337,6 +345,25 @@ export function InvoiceDetailsModal({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
+          {onUpdateInvoice && xeroInvoiceId && (
+            <Button
+              variant="secondary"
+              onClick={() => onUpdateInvoice()}
+              disabled={isUpdatingInvoice}
+            >
+              {isUpdatingInvoice ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Update invoice
+                </>
+              )}
+            </Button>
+          )}
           {xeroInvoiceId ? (
             <Button asChild>
               <a

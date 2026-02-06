@@ -879,7 +879,10 @@ export default function Messages() {
                               : "bg-rpp-grey-lightest text-rpp-grey-darkest rounded-bl-md"
                           )}
                         >
-                          <p className="whitespace-pre-wrap break-words text-[15px]">
+                          <p className={cn(
+                              "whitespace-pre-wrap break-words text-[15px]",
+                              isCurrentUser && "text-white"
+                            )}>
                             {message.content}
                           </p>
                           <p

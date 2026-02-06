@@ -97,8 +97,11 @@ export const getCurrentUserData = async (user: User): Promise<UserData | null> =
   if (!user) return null;
   
   try {
-    // Try to get user data from Firestore via backend API
-    const response = await fetch(`/api/auth/user/${user.uid}`);
+    // Try to get user data from Firestore via backend API (with auth token)
+    const token = await user.getIdToken();
+    const response = await fetch(`/api/auth/user/${user.uid}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (response.ok) {
       const firestoreUserData = await response.json();
       console.log('Loaded user data from Firestore:', firestoreUserData);

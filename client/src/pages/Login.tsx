@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { signInUser, signUpUser } from '@/lib/firebaseAuth';
+import { auth } from '@/lib/firebase';
 import { Eye, EyeOff, Camera, Video, Layout, Home } from 'lucide-react';
 import rppLogo from '@assets/RPP Logo_2020_1761124400304.png';
 
@@ -76,8 +77,12 @@ export default function Login() {
         // Sign in existing user
         const user = await signInUser(email, password);
 
-        // Get user data to determine role and redirect accordingly
-        const response = await fetch(`/api/auth/user/${user.uid}`);
+        // Get user data to determine role and redirect accordingly (with auth token)
+        const currentUser = auth.currentUser;
+        const token = currentUser ? await currentUser.getIdToken() : null;
+        const response = await fetch(`/api/auth/user/${user.uid}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (response.ok) {
           const userData = await response.json();
           if (userData.role === 'editor') {

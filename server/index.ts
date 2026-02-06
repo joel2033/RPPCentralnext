@@ -4,6 +4,7 @@ dotenv.config({ path: ".env.local" });
 dotenv.config();
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import { registerRoutes } from "./routes";
 import { registerFirebaseUploadRoute } from "./upload-firebase-route";
@@ -15,6 +16,34 @@ app.use(cors());
 // Increase payload size limit for image uploads (base64 encoding makes images ~33% larger)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Rate limiting: general API, stricter for auth and upload
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: "Too many requests" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  message: { error: "Too many auth attempts" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: "Too many uploads" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use("/api", apiLimiter);
+app.use("/api/auth", authLimiter);
+app.use("/api/upload-firebase", uploadLimiter);
+app.use("/api/team/invite", rateLimit({ windowMs: 60 * 60 * 1000, max: 30, message: { error: "Too many invites" }, standardHeaders: true, legacyHeaders: false }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -57,8 +86,8 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
+    const message = process.env.NODE_ENV === "production" ? (status >= 500 ? "Internal Server Error" : (err.message || "Error")) : (err.message || "Internal Server Error");
+    console.error("[global error]", err);
     res.status(status).json({ message });
     throw err;
   });
@@ -103,8 +132,10 @@ app.use((req, res, next) => {
         try {
           log('[CRON] Starting scheduled cleanup of expired order files', 'cleanup');
 
+          const cleanupSecret = process.env.CLEANUP_SECRET;
           const response = await fetch(`http://localhost:${portToUse}/api/cleanup/expired-orders-files`, {
             method: 'DELETE',
+            headers: cleanupSecret ? { 'X-Cleanup-Secret': cleanupSecret } : {},
           });
 
           const result = await response.json();

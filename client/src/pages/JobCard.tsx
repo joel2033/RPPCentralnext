@@ -82,8 +82,9 @@ export default function JobCard() {
   const [expandedSections, setExpandedSections] = useState<Record<string, { products: boolean; notes: boolean }>>({});
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
   const { isReadOnly } = useMasterView();
-  
+
   // Billing state
   const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
   const [invoiceStatus, setInvoiceStatus] = useState<string>("draft");
@@ -124,6 +125,39 @@ export default function JobCard() {
     onError: (error: Error) => {
       toast({
         title: "Failed to raise invoice",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch(`/api/jobs/${jobId}/update-invoice`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || data.message || res.statusText;
+        const detail = data.detail ? ` ${data.detail}` : "";
+        throw new Error(`${typeof msg === "string" ? msg : JSON.stringify(msg)}${detail}`);
+      }
+      return data;
+    },
+    onSuccess: (data: { invoiceNumber?: string }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/jobs/card", jobId] });
+      setInvoiceRefreshKey((k) => k + 1);
+      toast({
+        title: "Invoice updated",
+        description: data.invoiceNumber ? `Invoice ${data.invoiceNumber} synced with current job products.` : "Invoice synced with current job products.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update invoice",
         description: error.message,
         variant: "destructive",
       });
@@ -196,8 +230,8 @@ export default function JobCard() {
         body: JSON.stringify({
           billingItems: JSON.stringify(items),
           invoiceStatus: status,
-          // Also update totalValue to match billing total (including tax)
-          totalValue: items.reduce((sum, item) => sum + item.amount + (item.amount * item.taxRate / 100), 0).toFixed(2),
+          // Also update totalValue to match billing total (including tax) — send number for PATCH schema
+          totalValue: parseFloat(items.reduce((sum, item) => sum + item.amount + (item.amount * item.taxRate / 100), 0).toFixed(2)),
         }),
       });
       if (!response.ok) {
@@ -1113,6 +1147,9 @@ export default function JobCard() {
         xeroInvoiceId={jobData?.xeroInvoiceId}
         xeroInvoiceNumber={jobData?.xeroInvoiceNumber}
         dueDate={jobData?.dueDate ? new Date(jobData.dueDate).toISOString().slice(0, 10) : undefined}
+        onUpdateInvoice={jobData?.xeroInvoiceId ? () => updateInvoiceMutation.mutateAsync() : undefined}
+        isUpdatingInvoice={updateInvoiceMutation.isPending}
+        invoiceRefreshKey={invoiceRefreshKey}
       />
     </div>
   );

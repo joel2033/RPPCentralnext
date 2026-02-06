@@ -320,6 +320,18 @@ async function xeroApiPost(
   return res.json();
 }
 
+/** Get a single invoice as JSON from Xero (for reading/updating). */
+export async function getInvoice(
+  partnerId: string,
+  invoiceId: string
+): Promise<any> {
+  const data = await xeroApiGet(partnerId, `/Invoices/${encodeURIComponent(invoiceId)}`);
+  const invoices = data.Invoices ?? [];
+  const invoice = invoices[0];
+  if (!invoice) throw new Error("Invoice not found");
+  return invoice;
+}
+
 /** Get a single invoice as PDF from Xero. Returns the raw PDF buffer. */
 export async function getInvoicePdf(
   partnerId: string,
@@ -760,6 +772,49 @@ export async function createInvoice(
   if (!invoice || !invoice.InvoiceID) {
     const errs = data.Elements?.[0]?.ValidationErrors ?? [];
     throw new Error(errs.length ? errs.map((e: any) => e.Message).join("; ") : "Failed to create invoice");
+  }
+  return {
+    invoiceId: invoice.InvoiceID,
+    invoiceNumber: invoice.InvoiceNumber ?? invoice.InvoiceID,
+  };
+}
+
+/** Update an existing Xero invoice with new line items (replaces all line items). Only DRAFT/SUBMITTED can be fully edited; AUTHORISED/PAID allow LineItems updates. */
+export async function updateInvoice(
+  partnerId: string,
+  invoiceId: string,
+  lineItems: CreateInvoiceLineItem[]
+): Promise<{ invoiceId: string; invoiceNumber: string }> {
+  const existing = await getInvoice(partnerId, invoiceId);
+  const status = existing.Status ?? "DRAFT";
+  if (status === "DELETED" || status === "VOIDED") {
+    throw new Error("Cannot update a deleted or voided invoice");
+  }
+  const newLineItems = lineItems.map((item) => ({
+    Description: item.description,
+    Quantity: item.quantity,
+    UnitAmount: item.unitAmount,
+    AccountCode: item.accountCode,
+    TaxType: item.taxType,
+  }));
+  const body = {
+    InvoiceID: invoiceId,
+    Contact: existing.Contact,
+    DateString: existing.DateString,
+    DueDateString: existing.DueDateString,
+    Status: status,
+    LineAmountTypes: existing.LineAmountTypes ?? "Exclusive",
+    LineItems: newLineItems,
+    ...(existing.Reference != null && { Reference: existing.Reference }),
+  };
+  const data = await xeroApiPost(partnerId, `/Invoices/${encodeURIComponent(invoiceId)}`, {
+    Invoices: [body],
+  });
+  const invoices = data.Invoices ?? [];
+  const invoice = invoices[0];
+  if (!invoice || !invoice.InvoiceID) {
+    const errs = invoice?.ValidationErrors ?? data.Elements?.[0]?.ValidationErrors ?? [];
+    throw new Error(errs.length ? errs.map((e: any) => e.Message).join("; ") : "Failed to update invoice");
   }
   return {
     invoiceId: invoice.InvoiceID,

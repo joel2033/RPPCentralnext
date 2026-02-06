@@ -229,6 +229,8 @@ export interface IStorage {
   // Delivery Emails
   getDeliveryEmails(jobId: string): Promise<DeliveryEmail[]>;
   createDeliveryEmail(email: InsertDeliveryEmail): Promise<DeliveryEmail>;
+  updateDeliveryEmail(id: string, data: { sendgridMessageId?: string }): Promise<DeliveryEmail | undefined>;
+  getDeliveryEmailBySendgridMessageId(sendgridMessageId: string): Promise<DeliveryEmail | undefined>;
 
   // Revision Management
   incrementRevisionRound(orderId: string): Promise<Order | undefined>;
@@ -2531,6 +2533,7 @@ export class MemStorage implements IStorage {
       editorDisplayNames: settings.editorDisplayNames || null,
       teamMemberColors: settings.teamMemberColors || null,
       bookingSettings: (settings as any).bookingSettings || null,
+      emailSettings: (settings as any).emailSettings ?? null,
       createdAt: existing?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -2619,6 +2622,19 @@ export class MemStorage implements IStorage {
     this.deliveryEmails.set(id, newEmail);
     this.saveToFile();
     return newEmail;
+  }
+
+  async updateDeliveryEmail(id: string, data: { sendgridMessageId?: string }): Promise<DeliveryEmail | undefined> {
+    const existing = this.deliveryEmails.get(id);
+    if (!existing) return undefined;
+    const updated: DeliveryEmail = { ...existing, ...data };
+    this.deliveryEmails.set(id, updated);
+    this.saveToFile();
+    return updated;
+  }
+
+  async getDeliveryEmailBySendgridMessageId(sendgridMessageId: string): Promise<DeliveryEmail | undefined> {
+    return Array.from(this.deliveryEmails.values()).find(e => e.sendgridMessageId === sendgridMessageId);
   }
 
   // Revision Management Implementation

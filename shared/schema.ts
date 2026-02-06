@@ -283,6 +283,8 @@ export const partnerSettings = pgTable("partner_settings", {
   teamMemberColors: text("team_member_colors"), // JSON: {userId: colorHex} - Custom colors for team members
   // Booking form settings
   bookingSettings: text("booking_settings"), // JSON: booking form configuration
+  // Default email configurations (e.g. delivery email subject/message templates)
+  emailSettings: text("email_settings"), // JSON: { deliveryEmail: { subjectTemplate, messageTemplate } }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -325,6 +327,7 @@ export const deliveryEmails = pgTable("delivery_emails", {
   deliveryLink: text("delivery_link").notNull(), // URL to delivery page
   sentBy: text("sent_by").notNull(), // Firebase UID of sender
   sentAt: timestamp("sent_at").defaultNow(),
+  sendgridMessageId: text("sendgrid_message_id"), // For correlating bounce/block webhook events
 });
 
 // Conversations (message threads between partners and editors)

@@ -63,6 +63,7 @@ import {
   listAccounts as xeroListAccounts,
   listTaxRates as xeroListTaxRates,
   createInvoice as xeroCreateInvoice,
+  updateInvoice as xeroUpdateInvoice,
   getInvoicePdf as xeroGetInvoicePdf,
   getProfitAndLoss as xeroGetProfitAndLoss,
   getProfitAndLossMonthly as xeroGetProfitAndLossMonthly,
@@ -70,6 +71,7 @@ import {
   getInvoiceCount as xeroGetInvoiceCount,
 } from "./xero";
 import { z } from "zod";
+import { sendSafeError } from "./safeError";
 import multer from "multer";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
@@ -224,6 +226,78 @@ const requireAuthSSE = async (req: any, res: any, next: any) => {
     res.status(401).json({ error: "Invalid or expired token" });
   }
 };
+
+// Strict PATCH schemas: only allow intended fields (reject extra keys)
+const patchCustomerSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  company: z.string().optional(),
+  category: z.string().optional(),
+  notes: z.string().optional(),
+  billingEmail: z.string().optional(),
+  billingAddress: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  postcode: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  taxId: z.string().optional(),
+  revisionLimitOverride: z.string().nullable().optional(),
+}).strict();
+
+const patchJobSchema = z.object({
+  appointmentDate: z.union([z.string(), z.date()]).optional(),
+  assignedTo: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  status: z.string().optional(),
+  jobName: z.string().optional(),
+  address: z.string().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  totalValue: z.number().nullable().optional(),
+  estimatedDuration: z.number().nullable().optional(),
+  billingItems: z.any().optional(),
+  invoiceStatus: z.string().optional(),
+}).strict();
+
+const patchAppointmentSchema = z.object({
+  appointmentDate: z.union([z.string(), z.date()]).optional(),
+  estimatedDuration: z.number().nullable().optional(),
+  assignedTo: z.string().nullable().optional(),
+  status: z.string().optional(),
+  products: z.any().optional(),
+  notes: z.string().nullable().optional(),
+}).strict();
+
+const patchOrderSchema = z.object({
+  status: z.string().optional(),
+  notes: z.string().optional(),
+}).strict();
+
+const patchProductSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().nullable().optional(),
+  type: z.string().optional(),
+  category: z.string().nullable().optional(),
+  price: z.number().optional(),
+  taxRate: z.number().optional(),
+  hasVariations: z.boolean().optional(),
+  variants: z.number().optional(),
+  variations: z.any().optional(),
+  noCharge: z.boolean().optional(),
+  productType: z.string().optional(),
+  requiresAppointment: z.boolean().optional(),
+  appointmentDuration: z.number().optional(),
+  exclusivityType: z.string().optional(),
+  exclusiveCustomerIds: z.any().optional(),
+  assignedTeamMemberIds: z.any().optional(),
+  includedProducts: z.any().optional(),
+  availableAddons: z.any().optional(),
+  isActive: z.boolean().optional(),
+  isLive: z.boolean().optional(),
+  image: z.string().nullable().optional(),
+}).strict();
 
 // Optional auth middleware - adds user if authenticated but allows unauthenticated requests
 // SECURITY: If Authorization header is present but invalid, returns 401 to prevent security bypass
@@ -556,7 +630,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/customers/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      // First verify the customer exists and belongs to this tenant
+      const parsed = patchCustomerSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid customer data", details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten() });
+      }
       const existingCustomer = await storage.getCustomer(req.params.id);
       if (!existingCustomer) {
         return res.status(404).json({ error: "Customer not found" });
@@ -564,11 +641,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingCustomer.partnerId !== req.user?.partnerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
-      const customer = await storage.updateCustomer(req.params.id, req.body);
+      const customer = await storage.updateCustomer(req.params.id, parsed.data);
       res.json(customer);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update customer" });
+      sendSafeError(res, 500, "Failed to update customer", error);
     }
   });
 
@@ -620,7 +696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ imageUrl });
     } catch (error: any) {
       console.error("Error uploading profile image:", error);
-      res.status(500).json({ error: "Failed to upload profile image", details: error.message });
+      sendSafeError(res, 500, "Failed to upload profile image", error);
     }
   });
 
@@ -648,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(product);
     } catch (error) {
       console.error("Error fetching product:", error);
-      res.status(500).json({ error: "Failed to fetch product", details: error instanceof Error ? error.message : String(error) });
+      sendSafeError(res, 500, "Failed to fetch product", error);
     }
   });
 
@@ -767,13 +843,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error performing search:", error);
-      res.status(500).json({ error: "Failed to perform search", details: error.message });
+      sendSafeError(res, 500, "Failed to perform search", error);
     }
   });
 
   app.patch("/api/products/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
-      // First verify the product exists and belongs to this tenant
+      const parsed = patchProductSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid product data", details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten() });
+      }
       const existingProduct = await storage.getProduct(req.params.id);
       if (!existingProduct) {
         return res.status(404).json({ error: "Product not found" });
@@ -781,11 +860,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingProduct.partnerId !== req.user?.partnerId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
-      const product = await storage.updateProduct(req.params.id, req.body);
+      const product = await storage.updateProduct(req.params.id, parsed.data);
       res.json(product);
     } catch (error) {
-      res.status(500).json({ error: "Failed to update product" });
+      sendSafeError(res, 500, "Failed to update product", error);
     }
   });
 
@@ -1083,49 +1161,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied: Job belongs to different organization" });
       }
 
-      // Extract allowed fields for update
-      const { appointmentDate, assignedTo, notes, status, jobName, address, latitude, longitude, totalValue, estimatedDuration, billingItems, invoiceStatus } = req.body;
-      
+      const parsed = patchJobSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid job data", details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten() });
+      }
+      const body = parsed.data;
       const updateData: any = {};
-      
-      if (appointmentDate !== undefined) {
-        updateData.appointmentDate = appointmentDate;
-      }
-      if (assignedTo !== undefined) {
-        updateData.assignedTo = assignedTo;
-      }
-      if (notes !== undefined) {
-        updateData.notes = notes;
-      }
-      if (status !== undefined) {
-        updateData.status = status;
-      }
-      if (jobName !== undefined) {
-        updateData.jobName = jobName;
-      }
-      if (address !== undefined) {
-        updateData.address = address;
-      }
-      if (latitude !== undefined) {
-        updateData.latitude = latitude;
-      }
-      if (longitude !== undefined) {
-        updateData.longitude = longitude;
-      }
-      if (totalValue !== undefined) {
-        updateData.totalValue = totalValue;
-      }
-      if (estimatedDuration !== undefined) {
-        updateData.estimatedDuration = estimatedDuration;
-      }
-      if (billingItems !== undefined) {
-        updateData.billingItems = billingItems;
-      }
-      if (invoiceStatus !== undefined) {
-        updateData.invoiceStatus = invoiceStatus;
-      }
+      if (body.appointmentDate !== undefined) updateData.appointmentDate = body.appointmentDate instanceof Date ? body.appointmentDate : new Date(body.appointmentDate);
+      if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
+      if (body.notes !== undefined) updateData.notes = body.notes;
+      if (body.status !== undefined) updateData.status = body.status;
+      if (body.jobName !== undefined) updateData.jobName = body.jobName;
+      if (body.address !== undefined) updateData.address = body.address;
+      if (body.latitude !== undefined) updateData.latitude = body.latitude;
+      if (body.longitude !== undefined) updateData.longitude = body.longitude;
+      if (body.totalValue !== undefined) updateData.totalValue = body.totalValue;
+      if (body.estimatedDuration !== undefined) updateData.estimatedDuration = body.estimatedDuration;
+      if (body.billingItems !== undefined) updateData.billingItems = body.billingItems;
+      if (body.invoiceStatus !== undefined) updateData.invoiceStatus = body.invoiceStatus;
 
-      // Update the job
       const updatedJob = await storage.updateJob(id, updateData);
       if (!updatedJob) {
         return res.status(404).json({ error: "Job not found" });
@@ -1194,7 +1248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[APPOINTMENTS API] Error fetching appointments:", error);
       console.error("[APPOINTMENTS API] Error stack:", error.stack);
-      res.status(500).json({ error: "Failed to fetch appointments", details: error.message });
+      sendSafeError(res, 500, "Failed to fetch appointments", error);
     }
   });
 
@@ -1350,7 +1404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(appointment);
     } catch (error: any) {
       console.error("Error creating appointment:", error);
-      res.status(500).json({ error: "Failed to create appointment", details: error.message });
+      sendSafeError(res, 500, "Failed to create appointment", error);
     }
   });
 
@@ -1371,7 +1425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(appointment);
     } catch (error: any) {
       console.error("Error fetching appointment:", error);
-      res.status(500).json({ error: "Failed to fetch appointment", details: error.message });
+      sendSafeError(res, 500, "Failed to fetch appointment", error);
     }
   });
 
@@ -1393,25 +1447,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use the document ID for updates (not appointmentId)
       const documentId = appointment.id;
 
+      const parsed = patchAppointmentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid appointment data", details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten() });
+      }
+      const body = parsed.data;
       const updates: any = {};
-      if (req.body.appointmentDate !== undefined) {
-        updates.appointmentDate = new Date(req.body.appointmentDate);
-      }
-      if (req.body.estimatedDuration !== undefined) {
-        updates.estimatedDuration = req.body.estimatedDuration;
-      }
-      if (req.body.assignedTo !== undefined) {
-        updates.assignedTo = req.body.assignedTo;
-      }
-      if (req.body.status !== undefined) {
-        updates.status = req.body.status;
-      }
-      if (req.body.products !== undefined) {
-        updates.products = JSON.stringify(req.body.products);
-      }
-      if (req.body.notes !== undefined) {
-        updates.notes = req.body.notes;
-      }
+      if (body.appointmentDate !== undefined) updates.appointmentDate = body.appointmentDate instanceof Date ? body.appointmentDate : new Date(body.appointmentDate);
+      if (body.estimatedDuration !== undefined) updates.estimatedDuration = body.estimatedDuration;
+      if (body.assignedTo !== undefined) updates.assignedTo = body.assignedTo;
+      if (body.status !== undefined) updates.status = body.status;
+      if (body.products !== undefined) updates.products = typeof body.products === "string" ? body.products : JSON.stringify(body.products);
+      if (body.notes !== undefined) updates.notes = body.notes;
 
       const updated = await storage.updateAppointment(documentId, updates);
       if (!updated) {
@@ -1476,7 +1523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updated);
     } catch (error: any) {
       console.error("Error updating appointment:", error);
-      res.status(500).json({ error: "Failed to update appointment", details: error.message });
+      sendSafeError(res, 500, "Failed to update appointment", error);
     }
   });
 
@@ -1539,7 +1586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error deleting appointment:", error);
-      res.status(500).json({ error: "Failed to delete appointment", details: error.message });
+      sendSafeError(res, 500, "Failed to delete appointment", error);
     }
   });
 
@@ -2139,6 +2186,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/jobs/:jobId/update-invoice", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (isMasterReadOnly(req.user)) {
+        return res.status(403).json({ error: "Read-only mode" });
+      }
+      const { jobId } = req.params;
+      const partnerId = req.user?.partnerId;
+      if (!partnerId) return res.status(400).json({ error: "Partner ID required" });
+
+      const job = await storage.getJobByJobId(jobId);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      if ((job as any).partnerId !== partnerId) return res.status(403).json({ error: "Unauthorized" });
+
+      const xeroInvoiceId = (job as any).xeroInvoiceId;
+      if (!xeroInvoiceId) {
+        return res.status(400).json({
+          error: "No invoice linked",
+          detail: "Raise an invoice first, then you can update it when job products change.",
+        });
+      }
+
+      const conn = await getXeroConnection(partnerId);
+      if (!conn) return res.status(503).json({ error: "Xero not connected" });
+
+      const xeroConfig = await getXeroConfig(partnerId) ?? {};
+      const productMappings = xeroConfig.productMappings ?? {};
+
+      const billingItems = (() => {
+        try {
+          const raw = (job as any).billingItems;
+          if (!raw) return [];
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
+
+      if (billingItems.length === 0) {
+        return res.status(400).json({ error: "No billing items on job" });
+      }
+
+      const lineItems = billingItems.map((item: any) => {
+        const mapping = productMappings[item.productId] ?? {};
+        const accountCode = mapping.accountCode || "200";
+        const taxType = mapping.taxType || "OUTPUT";
+        return {
+          description: item.name ?? "Item",
+          quantity: item.quantity ?? 1,
+          unitAmount: item.unitPrice ?? item.amount ?? 0,
+          accountCode,
+          taxType,
+        };
+      });
+
+      const result = await xeroUpdateInvoice(partnerId, xeroInvoiceId, lineItems);
+
+      res.json({
+        success: true,
+        invoiceId: result.invoiceId,
+        invoiceNumber: result.invoiceNumber,
+        viewUrl: `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${result.invoiceId}`,
+      });
+    } catch (error: any) {
+      console.error("[Xero] update-invoice error:", error);
+      res.status(500).json({
+        error: error?.message ?? "Failed to update invoice",
+      });
+    }
+  });
+
   app.get("/api/calendar/google/busy", async (req, res) => {
     try {
       const { partnerId: queryPartnerId, start, end, userId: queryUserId } = req.query;
@@ -2409,16 +2527,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied to this order" });
       }
 
-      // Store original values for change tracking
+      const parsed = patchOrderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid order data", details: process.env.NODE_ENV === "production" ? undefined : parsed.error.flatten() });
+      }
       const originalStatus = existingOrder.status;
 
-      const order = await storage.updateOrder(id, req.body);
+      const order = await storage.updateOrder(id, parsed.data);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
 
-      // Log activity for status changes (critical for audit trail)
-      if (req.body.status && req.body.status !== originalStatus) {
+      if (parsed.data.status && parsed.data.status !== originalStatus) {
         try {
           await storage.createActivity({
             partnerId: req.user.partnerId,
@@ -2430,14 +2550,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             action: "status_change",
             category: "order",
             title: "Order Status Updated",
-            description: `Order #${order.orderNumber} status changed from ${originalStatus} to ${req.body.status}`,
+            description: `Order #${order.orderNumber} status changed from ${originalStatus} to ${parsed.data.status}`,
             metadata: JSON.stringify({
               orderNumber: order.orderNumber,
               previousStatus: originalStatus,
-              newStatus: req.body.status,
+              newStatus: parsed.data.status,
               changedBy: req.user.email,
               changedAt: new Date().toISOString(),
-              updatedFields: Object.keys(req.body)
+              updatedFields: Object.keys(parsed.data)
             }),
             ipAddress: req.ip,
             userAgent: req.get('User-Agent')
@@ -2451,10 +2571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(order);
     } catch (error: any) {
       console.error("Error updating order:", error);
-      res.status(500).json({ 
-        error: "Failed to update order", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update order", error);
     }
   });
 
@@ -2611,10 +2728,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(orderDetails);
     } catch (error: any) {
       console.error("Error fetching order details:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch order details", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch order details", error);
     }
   });
 
@@ -2689,10 +2803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error downloading order files:", error);
-      res.status(500).json({ 
-        error: "Failed to download order files", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to download order files", error);
     }
   });
 
@@ -2861,10 +2972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error requesting revision:", error);
-      res.status(500).json({ 
-        error: "Failed to request revision", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to request revision", error);
     }
   });
 
@@ -4172,10 +4280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating partner account:", error);
-      res.status(500).json({ 
-        error: "Failed to create partner account", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create partner account", error);
     }
   });
 
@@ -4219,10 +4324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating team member account:", error);
-      res.status(500).json({ 
-        error: "Failed to create team member account", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create team member account", error);
     }
   });
 
@@ -4267,10 +4369,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error completing invite signup:", error);
-      res.status(500).json({ 
-        error: "Failed to complete invite signup", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to complete invite signup", error);
     }
   });
 
@@ -4311,17 +4410,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating editor account:", error);
-      res.status(500).json({ 
-        error: "Failed to create editor account", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create editor account", error);
     }
   });
 
-  // Firebase Auth - Get User Data endpoint
-  app.get("/api/auth/user/:uid", async (req, res) => {
+  // Firebase Auth - Get User Data endpoint (authenticated; same user only)
+  app.get("/api/auth/user/:uid", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { uid } = req.params;
+
+      // Only allow users to fetch their own document (prevent IDOR)
+      if (req.user?.uid !== uid) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       const userData = await getUserDocument(uid);
       if (!userData) {
@@ -4331,10 +4432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(userData);
     } catch (error: any) {
       console.error("Error getting user data:", error);
-      res.status(500).json({ 
-        error: "Failed to get user data", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get user data", error);
     }
   });
 
@@ -4400,10 +4498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid or expired token" });
       }
       
-      res.status(500).json({ 
-        error: "Failed to create team invite", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create team invite", error);
     }
   });
 
@@ -4425,19 +4520,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error getting invite info:", error);
-      res.status(500).json({ 
-        error: "Failed to get invite info", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get invite info", error);
     }
   });
 
-  // Get pending invites for a partner
-  app.get("/api/team/invites/:partnerId", async (req, res) => {
+  // Get pending invites for a partner (authenticated; own tenant only)
+  app.get("/api/team/invites/:partnerId", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { partnerId } = req.params;
 
-      // Get pending invites for this partner
+      // Only allow access to own partner's invites (tenant isolation)
+      if (req.user?.partnerId !== partnerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       const invitesSnapshot = await adminDb.collection('pendingInvites')
         .where('partnerId', '==', partnerId)
         .get();
@@ -4450,10 +4546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(invites);
     } catch (error: any) {
       console.error("Error getting team invites:", error);
-      res.status(500).json({ 
-        error: "Failed to get team invites", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get team invites", error);
     }
   });
 
@@ -4505,21 +4598,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: error.errors 
         });
       } else {
-        res.status(500).json({ 
-          error: "Failed to create product", 
-          details: error.message 
-        });
+        sendSafeError(res, 500, "Failed to create product", error);
       }
     }
   });
 
-  // Product image upload endpoint
-  app.post("/api/products/upload-image", async (req, res) => {
+  // Product image upload endpoint (authenticated; partner-scoped)
+  app.post("/api/products/upload-image", requireAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { imageData, fileName } = req.body;
 
       if (!imageData || !fileName) {
         return res.status(400).json({ error: "Missing imageData or fileName" });
+      }
+
+      if (!req.user?.partnerId) {
+        return res.status(403).json({ error: "Partner context required to upload product images" });
       }
 
       console.log("[PRODUCT IMAGE] Starting upload for:", fileName);
@@ -4538,8 +4632,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[PRODUCT IMAGE] Image buffer size:", imageBuffer.length);
 
-      // Upload original image
-      const originalPath = `product-images/${fileName}`;
+      // Upload original image (scoped by partnerId for tenant isolation)
+      const originalPath = `product-images/${req.user.partnerId}/${fileName}`;
       const originalFile = bucket.file(originalPath);
       
       await originalFile.save(imageBuffer, {
@@ -4562,7 +4656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .jpeg({ quality: 80 })
         .toBuffer();
 
-      const thumbnailPath = `product-images/thumbnails/${fileName}`;
+      const thumbnailPath = `product-images/thumbnails/${req.user.partnerId}/${fileName}`;
       const thumbnailFile = bucket.file(thumbnailPath);
       
       await thumbnailFile.save(thumbnailBuffer, {
@@ -4583,10 +4677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Product image upload error:", error);
-      res.status(500).json({ 
-        error: "Failed to upload product image", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to upload product image", error);
     }
   });
 
@@ -4627,10 +4718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ordersWithJobData);
     } catch (error: any) {
       console.error("Error getting orders:", error);
-      res.status(500).json({ 
-        error: "Failed to get orders", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get orders", error);
     }
   });
 
@@ -4801,10 +4889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating partnership invite:", error);
-      res.status(500).json({ 
-        error: "Failed to create partnership invite", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create partnership invite", error);
     }
   });
 
@@ -4874,10 +4959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error accepting partnership:", error);
-      res.status(500).json({ 
-        error: "Failed to accept partnership", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to accept partnership", error);
     }
   });
 
@@ -4903,10 +4985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(pendingInvites);
     } catch (error: any) {
       console.error("Error getting pending invites:", error);
-      res.status(500).json({ 
-        error: "Failed to get pending invites", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get pending invites", error);
     }
   });
 
@@ -4931,10 +5010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(partnerships);
     } catch (error: any) {
       console.error("Error getting partner partnerships:", error);
-      res.status(500).json({ 
-        error: "Failed to get partnerships", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get partnerships", error);
     }
   });
 
@@ -4959,10 +5035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(partnerships);
     } catch (error: any) {
       console.error("Error getting editor partnerships:", error);
-      res.status(500).json({ 
-        error: "Failed to get partnerships", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get partnerships", error);
     }
   });
 
@@ -5015,10 +5088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(suppliers);
     } catch (error: any) {
       console.error("Error getting partner suppliers:", error);
-      res.status(500).json({ 
-        error: "Failed to get suppliers", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get suppliers", error);
     }
   });
 
@@ -5070,10 +5140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enrichedOrders);
     } catch (error: any) {
       console.error("Error getting pending orders:", error);
-      res.status(500).json({ 
-        error: "Failed to get pending orders", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get pending orders", error);
     }
   });
 
@@ -5114,10 +5181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(teamEditors);
     } catch (error: any) {
       console.error("Error getting team editors:", error);
-      res.status(500).json({ 
-        error: "Failed to get team editors", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get team editors", error);
     }
   });
 
@@ -5237,10 +5301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: error.errors 
         });
       } else {
-        res.status(500).json({ 
-          error: "Failed to assign order", 
-          details: error.message 
-        });
+        sendSafeError(res, 500, "Failed to assign order", error);
       }
     }
   });
@@ -5334,10 +5395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error accepting order:", error);
-      res.status(500).json({ 
-        error: "Failed to accept order", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to accept order", error);
     }
   });
 
@@ -5431,10 +5489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error declining order:", error);
-      res.status(500).json({ 
-        error: "Failed to decline order", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to decline order", error);
     }
   });
 
@@ -5458,10 +5513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(jobs);
     } catch (error: any) {
       console.error("Error getting editor jobs:", error);
-      res.status(500).json({ 
-        error: "Failed to get editor jobs", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get editor jobs", error);
     }
   });
 
@@ -5506,10 +5558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enrichedOrders);
     } catch (error: any) {
       console.error("Error getting editor orders:", error);
-      res.status(500).json({ 
-        error: "Failed to get editor orders", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get editor orders", error);
     }
   });
 
@@ -5718,10 +5767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enrichedHistory);
     } catch (error: any) {
       console.error("Error getting job history:", error);
-      res.status(500).json({ 
-        error: "Failed to get job history", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get job history", error);
     }
   });
 
@@ -5993,10 +6039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error downloading order files:", error);
-      res.status(500).json({ 
-        error: "Failed to download order files", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to download order files", error);
     }
   });
 
@@ -6258,10 +6301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(zipBuffer);
     } catch (error: any) {
       console.error("Error downloading job files:", error);
-      res.status(500).json({ 
-        error: "Failed to download job files", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to download job files", error);
     }
   });
 
@@ -6285,10 +6325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(categories);
     } catch (error: any) {
       console.error("Error getting service categories:", error);
-      res.status(500).json({ 
-        error: "Failed to get service categories", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get service categories", error);
     }
   });
 
@@ -6313,10 +6350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(categories);
     } catch (error: any) {
       console.error("Error getting editor service categories:", error);
-      res.status(500).json({ 
-        error: "Failed to get editor service categories", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get editor service categories", error);
     }
   });
 
@@ -6345,10 +6379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(category);
     } catch (error: any) {
       console.error("Error creating service category:", error);
-      res.status(500).json({ 
-        error: "Failed to create service category", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create service category", error);
     }
   });
 
@@ -6373,10 +6404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(category);
     } catch (error: any) {
       console.error("Error updating service category:", error);
-      res.status(500).json({ 
-        error: "Failed to update service category", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update service category", error);
     }
   });
 
@@ -6401,10 +6429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       console.error("Error deleting service category:", error);
-      res.status(500).json({ 
-        error: "Failed to delete service category", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to delete service category", error);
     }
   });
 
@@ -6428,10 +6453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(services);
     } catch (error: any) {
       console.error("Error getting editor services:", error);
-      res.status(500).json({ 
-        error: "Failed to get editor services", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get editor services", error);
     }
   });
 
@@ -6456,10 +6478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(services);
     } catch (error: any) {
       console.error("Error getting editor services:", error);
-      res.status(500).json({ 
-        error: "Failed to get editor services", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get editor services", error);
     }
   });
 
@@ -6488,10 +6507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(service);
     } catch (error: any) {
       console.error("Error creating editor service:", error);
-      res.status(500).json({ 
-        error: "Failed to create editor service", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create editor service", error);
     }
   });
 
@@ -6516,10 +6532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(service);
     } catch (error: any) {
       console.error("Error updating editor service:", error);
-      res.status(500).json({ 
-        error: "Failed to update editor service", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update editor service", error);
     }
   });
 
@@ -6544,10 +6557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       console.error("Error deleting editor service:", error);
-      res.status(500).json({ 
-        error: "Failed to delete editor service", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to delete editor service", error);
     }
   });
 
@@ -6567,10 +6577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(jobs);
     } catch (error: any) {
       console.error("Error getting jobs ready for upload:", error);
-      res.status(500).json({ 
-        error: "Failed to get jobs ready for upload", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get jobs ready for upload", error);
     }
   });
 
@@ -6687,10 +6694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error uploading deliverables:", error);
-      res.status(500).json({ 
-        error: "Failed to upload deliverables", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to upload deliverables", error);
     }
   });
 
@@ -6757,10 +6761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(foldersWithDownloadUrls);
     } catch (error: any) {
       console.error("Error fetching editor folders:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch folders", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch folders", error);
     }
   });
 
@@ -6851,10 +6852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating editor folder:", error);
-      res.status(500).json({ 
-        error: "Failed to create folder", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create folder", error);
     }
   });
 
@@ -6959,10 +6957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error updating job status:", error);
-      res.status(500).json({ 
-        error: "Failed to update job status", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update job status", error);
     }
   });
 
@@ -7040,10 +7035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error marking order complete:", error);
-      res.status(500).json({ 
-        error: "Failed to mark order complete", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to mark order complete", error);
     }
   });
 
@@ -7354,10 +7346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error getting QC files:", error);
-      res.status(500).json({ 
-        error: "Failed to get QC files", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get QC files", error);
     }
   });
 
@@ -7453,10 +7442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error passing QC:", error);
-      res.status(500).json({ 
-        error: "Failed to pass QC", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to pass QC", error);
     }
   });
 
@@ -7543,10 +7529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error requesting revision:", error);
-      res.status(500).json({ 
-        error: "Failed to request revision", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to request revision", error);
     }
   });
 
@@ -7601,10 +7584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error saving comment:", error);
-      res.status(500).json({ 
-        error: "Failed to save comment", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to save comment", error);
     }
   });
 
@@ -7671,10 +7651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error reserving order number:", error);
-      res.status(500).json({ 
-        error: "Failed to reserve order number", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to reserve order number", error);
     }
   });
 
@@ -7696,10 +7673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error getting reservation:", error);
-      res.status(500).json({ 
-        error: "Failed to get reservation", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get reservation", error);
     }
   });
 
@@ -7719,10 +7693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, orderNumber });
     } catch (error: any) {
       console.error("Error confirming reservation:", error);
-      res.status(500).json({ 
-        error: "Failed to confirm reservation", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to confirm reservation", error);
     }
   });
 
@@ -7745,15 +7716,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               details: "Maximum file size is 100MB"
             });
           }
-          return res.status(400).json({
-            error: "Upload error",
-            details: err.message
-          });
+          sendSafeError(res, 400, "Upload error", err);
+          return;
         }
-        return res.status(500).json({
-          error: "Upload failed",
-          details: err.message
-        });
+        sendSafeError(res, 500, "Upload failed", err);
+        return;
       }
       next();
     });
@@ -8030,11 +7997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.status(500).json({
-        error: "Failed to upload file to Firebase",
-        details: error.message,
-        hint: "Check server logs for detailed error information"
-      });
+      sendSafeError(res, 500, "Failed to upload file to Firebase", error);
     }
   });
 
@@ -8273,10 +8236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.status(500).json({ 
-        error: "Failed to upload completed file to Firebase", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to upload completed file to Firebase", error);
     }
   });
 
@@ -8394,10 +8354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ completedFiles: enrichedFiles });
     } catch (error: any) {
       console.error("Error fetching completed files:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch completed files", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch completed files", error);
     }
   });
 
@@ -8469,10 +8426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error deleting file:", error);
-      res.status(500).json({ 
-        error: "Failed to delete file", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to delete file", error);
     }
   });
 
@@ -8520,10 +8474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(foldersWithDownloadUrls);
     } catch (error: any) {
       console.error("Error fetching upload folders:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch upload folders", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch upload folders", error);
     }
   });
 
@@ -8631,10 +8582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error creating folder template:", error);
-      res.status(500).json({ 
-        error: "Failed to create folder template", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to create folder template", error);
     }
   });
 
@@ -8820,10 +8768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error deleting folder:", error);
-      res.status(500).json({ 
-        error: "Failed to delete folder", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to delete folder", error);
     }
   });
 
@@ -8882,10 +8827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Folder renamed successfully" });
     } catch (error: any) {
       console.error("Error renaming folder:", error);
-      res.status(500).json({ 
-        error: "Failed to rename folder", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to rename folder", error);
     }
   });
 
@@ -8931,10 +8873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Error updating folder order:", error);
-      res.status(500).json({ 
-        error: "Failed to update folder order", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update folder order", error);
     }
   });
 
@@ -9002,10 +8941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error updating folder visibility:", error);
-      res.status(500).json({
-        error: "Failed to update folder visibility",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to update folder visibility", error);
     }
   });
 
@@ -9285,11 +9221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("[FOLDER DOWNLOAD] Error message:", error.message);
       console.error("[FOLDER DOWNLOAD] Error stack:", error.stack);
       console.error("[FOLDER DOWNLOAD] Full error:", error);
-      res.status(500).json({
-        error: "Failed to create folder download",
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
+      sendSafeError(res, 500, "Failed to create folder download", error);
     }
   });
 
@@ -9400,11 +9332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("[FILES DOWNLOAD] Error occurred:");
       console.error("[FILES DOWNLOAD] Error message:", error.message);
       console.error("[FILES DOWNLOAD] Error stack:", error.stack);
-      res.status(500).json({
-        error: "Failed to create files download",
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
+      sendSafeError(res, 500, "Failed to create files download", error);
     }
   });
 
@@ -9486,10 +9414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Cover photo updated successfully" });
     } catch (error: any) {
       console.error("Error updating cover photo:", error);
-      res.status(500).json({
-        error: "Failed to update cover photo",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to update cover photo", error);
     }
   });
 
@@ -9564,10 +9489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Job name updated successfully", jobName });
     } catch (error: any) {
       console.error("Error updating job name:", error);
-      res.status(500).json({
-        error: "Failed to update job name",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to update job name", error);
     }
   });
 
@@ -9635,6 +9557,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("[JOB STATUS] Error updating related orders:", orderUpdateError);
           // Don't fail the request if order update fails - job status is still updated
         }
+
+        // Auto-create Xero invoice when "Raise invoice when job status is Delivered" is enabled
+        try {
+          const partnerId = req.user?.partnerId!;
+          const xeroConfig = await getXeroConfig(partnerId) ?? {};
+          if (xeroConfig.invoiceTrigger === "on_delivered" && !(updatedJob as any).xeroInvoiceId) {
+            const conn = await getXeroConnection(partnerId);
+            if (conn) {
+              const billingItems = (() => {
+                try {
+                  const raw = (updatedJob as any).billingItems;
+                  if (!raw) return [];
+                  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                  return [];
+                }
+              })();
+              if (billingItems.length > 0) {
+                const productMappings = xeroConfig.productMappings ?? {};
+                const customerMappings = xeroConfig.customerMappings ?? {};
+                let contactId: string | null = null;
+                const customerId = (updatedJob as any).customerId;
+                if (customerId) {
+                  const customer = await storage.getCustomer(customerId);
+                  if (customer) {
+                    contactId = (customer as any).accountingContactId ?? customerMappings[customerId] ?? null;
+                  }
+                }
+                if (contactId) {
+                  const lineItems = billingItems.map((item: any) => {
+                    const mapping = productMappings[item.productId] ?? {};
+                    return {
+                      description: item.name ?? "Item",
+                      quantity: item.quantity ?? 1,
+                      unitAmount: item.unitPrice ?? item.amount ?? 0,
+                      accountCode: mapping.accountCode || "200",
+                      taxType: mapping.taxType || "OUTPUT",
+                    };
+                  });
+                  const today = new Date().toISOString().slice(0, 10);
+                  const dueDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+                  const reference = (updatedJob as any).jobName?.trim() || (updatedJob as any).address?.trim() || (updatedJob as any).jobId || undefined;
+                  const result = await xeroCreateInvoice(partnerId, {
+                    contactId,
+                    lineItems,
+                    date: today,
+                    dueDate,
+                    status: (xeroConfig.invoiceStatus ?? "DRAFT") as "DRAFT" | "AUTHORISED",
+                    reference,
+                  });
+                  await storage.updateJob(updatedJob.id, {
+                    xeroInvoiceId: result.invoiceId,
+                    xeroInvoiceNumber: result.invoiceNumber,
+                  } as any);
+                  console.log(`[JOB STATUS] Auto-created Xero invoice ${result.invoiceNumber} for job ${updatedJob.jobId || updatedJob.id}`);
+                } else {
+                  console.warn(`[JOB STATUS] Skipped auto-invoice: job has no customer or customer not mapped to Xero (job ${updatedJob.jobId || updatedJob.id})`);
+                }
+              } else {
+                console.warn(`[JOB STATUS] Skipped auto-invoice: job has no billing items (job ${updatedJob.jobId || updatedJob.id})`);
+              }
+            }
+          }
+        } catch (autoInvoiceError: any) {
+          console.error("[JOB STATUS] Auto-invoice on delivery failed:", autoInvoiceError);
+          // Don't fail the status update; job is still delivered
+        }
       }
 
       // Log activity: Job status updated
@@ -9664,10 +9654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, job: updatedJob });
     } catch (error: any) {
       console.error("Error updating job status:", error);
-      res.status(500).json({
-        error: "Failed to update job status",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to update job status", error);
     }
   });
 
@@ -9846,10 +9833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching delivery data:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch delivery data", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch delivery data", error);
     }
   });
 
@@ -10106,10 +10090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[DELIVERY FOLDER DOWNLOAD] Download complete for ${folderName}.zip`);
     } catch (error: any) {
       console.error("[DELIVERY FOLDER DOWNLOAD] Error occurred:", error);
-      res.status(500).json({
-        error: "Failed to create folder download",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to create folder download", error);
     }
   });
 
@@ -10179,10 +10160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[DELIVERY DOWNLOAD ALL] Download complete for ${jobName}-all-files.zip`);
     } catch (error: any) {
       console.error("[DELIVERY DOWNLOAD ALL] Error occurred:", error);
-      res.status(500).json({
-        error: "Failed to create download",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to create download", error);
     }
   });
 
@@ -10341,10 +10319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching job preview:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch job preview", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch job preview", error);
     }
   });
 
@@ -10449,10 +10424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[PREVIEW FOLDER DOWNLOAD] Download complete for ${folderName}.zip`);
     } catch (error: any) {
       console.error("[PREVIEW FOLDER DOWNLOAD] Error occurred:", error);
-      res.status(500).json({
-        error: "Failed to create folder download",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to create folder download", error);
     }
   });
 
@@ -10516,10 +10488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[PREVIEW DOWNLOAD ALL] Download complete for ${jobName}-all-files.zip`);
     } catch (error: any) {
       console.error("[PREVIEW DOWNLOAD ALL] Error occurred:", error);
-      res.status(500).json({
-        error: "Failed to create download",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to create download", error);
     }
   });
 
@@ -10553,10 +10522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(comments);
     } catch (error: any) {
       console.error("Error fetching file comments:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch file comments", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch file comments", error);
     }
   });
 
@@ -10629,10 +10595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(comment);
     } catch (error: any) {
       console.error("Error creating file comment:", error);
-      res.status(400).json({
-        error: "Failed to create file comment",
-        details: error.message
-      });
+      sendSafeError(res, 400, "Failed to create file comment", error);
     }
   });
 
@@ -10779,10 +10742,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newReview);
     } catch (error: any) {
       console.error("Error creating job review:", error);
-      res.status(400).json({ 
-        error: "Failed to create job review", 
-        details: error.message 
-      });
+      sendSafeError(res, 400, "Failed to create job review", error);
     }
   });
 
@@ -10868,10 +10828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(comments);
     } catch (error: any) {
       console.error("Error fetching file comments:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch file comments", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch file comments", error);
     }
   });
 
@@ -10941,10 +10898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(comment);
     } catch (error: any) {
       console.error("Error creating file comment:", error);
-      res.status(400).json({
-        error: "Failed to create file comment",
-        details: error.message
-      });
+      sendSafeError(res, 400, "Failed to create file comment", error);
     }
   });
 
@@ -10978,10 +10932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedComment);
     } catch (error: any) {
       console.error("Error updating comment status:", error);
-      res.status(500).json({ 
-        error: "Failed to update comment status", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to update comment status", error);
     }
   });
 
@@ -11122,10 +11073,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(newReview);
     } catch (error: any) {
       console.error("Error creating job review:", error);
-      res.status(400).json({
-        error: "Failed to create job review",
-        details: error.message
-      });
+      sendSafeError(res, 400, "Failed to create job review", error);
     }
   });
 
@@ -11153,10 +11101,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ token, deliveryLink });
     } catch (error: any) {
       console.error("Error generating delivery token:", error);
-      res.status(500).json({ 
-        error: "Failed to generate delivery token", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to generate delivery token", error);
+    }
+  });
+
+  // SendGrid Event Webhook: bounce/block/drop so we can log to activity (no auth; verify secret)
+  app.post("/api/webhooks/sendgrid", async (req, res) => {
+    try {
+      const secret = (process.env.SENDGRID_WEBHOOK_SECRET || "").trim();
+      if (secret) {
+        const provided = req.query.secret || req.get("x-webhook-secret") || "";
+        if (provided !== secret) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+      }
+
+      const events = Array.isArray(req.body) ? req.body : [];
+      const failureEvents = ["bounce", "dropped", "blocked"];
+
+      for (const ev of events) {
+        const eventType = ev?.event;
+        if (!eventType || !failureEvents.includes(eventType)) continue;
+
+        const sgMessageId = ev.sg_message_id ?? ev["smtp-id"];
+        if (!sgMessageId) continue;
+
+        const messageIdStr = typeof sgMessageId === "string" ? sgMessageId.replace(/^<|>$/g, "").trim() : "";
+        if (!messageIdStr) continue;
+
+        let delivery = await storage.getDeliveryEmailBySendgridMessageId(messageIdStr);
+        if (!delivery) delivery = await storage.getDeliveryEmailBySendgridMessageId(sgMessageId);
+        if (!delivery) continue;
+
+        const job = await storage.getJob(delivery.jobId);
+        const jobAddress = job?.address || delivery.jobId;
+        const reason = ev.reason || ev.status || eventType;
+        const title = eventType === "bounce"
+          ? "Delivery Email Bounced"
+          : eventType === "blocked"
+            ? "Delivery Email Blocked"
+            : "Delivery Email Dropped";
+
+        try {
+          await storage.createActivity({
+            partnerId: delivery.partnerId,
+            jobId: job?.jobId ?? delivery.jobId,
+            userId: "system",
+            userEmail: "system",
+            userName: "SendGrid",
+            action: "notification",
+            category: "job",
+            title,
+            description: `Delivery email to ${delivery.recipientEmail} (${jobAddress}) was ${eventType}: ${reason}`,
+            metadata: JSON.stringify({
+              recipientEmail: delivery.recipientEmail,
+              event: eventType,
+              reason,
+              sendgridMessageId: messageIdStr,
+            }),
+            ipAddress: req.ip,
+            userAgent: req.get("User-Agent"),
+          });
+        } catch (activityError) {
+          console.error("[ACTIVITY] SendGrid webhook activity log failed:", activityError);
+        }
+      }
+
+      res.status(200).send();
+    } catch (error: any) {
+      console.error("SendGrid webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
     }
   });
 
@@ -11211,12 +11225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deliveryLink
       );
 
-      if (!emailResult.success) {
-        console.error(`Failed to send delivery email to ${recipientEmail}:`, emailResult.error);
-        // Don't fail the request if email fails - delivery email record is still created
-      }
-
-      // Log activity: Delivery link sent
+      // Log activity for both success and failure so it's always tracked
       try {
         await storage.createActivity({
           partnerId: job.partnerId,
@@ -11226,13 +11235,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userName: req.user?.email || 'System',
           action: "notification",
           category: "job",
-          title: "Delivery Link Sent",
-          description: `Delivery link sent to ${recipientEmail}`,
+          title: emailResult.success ? "Delivery Link Sent" : "Delivery Email Failed",
+          description: emailResult.success
+            ? `Delivery link sent to ${recipientEmail}`
+            : `Delivery email to ${recipientEmail} failed: ${emailResult.error || "Unknown error"}`,
           metadata: JSON.stringify({
             recipientEmail,
             subject,
             hasDeliveryLink: !!deliveryLink,
-            emailSent: emailResult.success
+            emailSent: emailResult.success,
+            ...(emailResult.success ? {} : { emailError: emailResult.error || "Email delivery failed" }),
           }),
           ipAddress: req.ip,
           userAgent: req.get('User-Agent')
@@ -11241,16 +11253,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("[ACTIVITY] Failed to log delivery email:", activityError);
       }
 
+      if (!emailResult.success) {
+        console.error(`Failed to send delivery email to ${recipientEmail}:`, emailResult.error);
+        // Return 503 so client can show error; delivery email record and activity are already created
+        return res.status(503).json({
+          ...email,
+          emailSent: false,
+          emailError: emailResult.error || "Email delivery failed",
+        });
+      }
+
+      // Store SendGrid message ID so we can correlate bounce/block events from the webhook
+      if (emailResult.messageId) {
+        try {
+          await storage.updateDeliveryEmail(email.id, { sendgridMessageId: emailResult.messageId });
+        } catch (updateErr) {
+          console.warn("[DELIVERY EMAIL] Failed to store sendgrid message id:", updateErr);
+        }
+      }
+
       res.status(201).json({
         ...email,
-        emailSent: emailResult.success
+        emailSent: true,
       });
     } catch (error: any) {
       console.error("Error sending delivery email:", error);
-      res.status(400).json({ 
-        error: "Failed to send delivery email", 
-        details: error.message 
-      });
+      sendSafeError(res, 400, "Failed to send delivery email", error);
     }
   });
 
@@ -11335,10 +11363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(email);
     } catch (error: any) {
       console.error("Error sending delivery email:", error);
-      res.status(400).json({ 
-        error: "Failed to send delivery email", 
-        details: error.message 
-      });
+      sendSafeError(res, 400, "Failed to send delivery email", error);
     }
   });
 
@@ -11482,10 +11507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error requesting revisions:", error);
-      res.status(500).json({ 
-        error: "Failed to request revisions", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to request revisions", error);
     }
   });
 
@@ -11565,10 +11587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error: any) {
       console.error("Error fetching revision status:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch revision status", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch revision status", error);
     }
   });
 
@@ -11597,10 +11616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error deleting file from Firebase:", error);
-      res.status(500).json({ 
-        error: "Failed to delete file from Firebase", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to delete file from Firebase", error);
     }
   });
 
@@ -11649,10 +11665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: error.errors 
         });
       } else {
-        res.status(500).json({ 
-          error: "Failed to create activity", 
-          details: error.message 
-        });
+        sendSafeError(res, 500, "Failed to create activity", error);
       }
     }
   });
@@ -11691,10 +11704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: error.errors 
         });
       } else {
-        res.status(500).json({ 
-          error: "Failed to get activities", 
-          details: error.message 
-        });
+        sendSafeError(res, 500, "Failed to get activities", error);
       }
     }
   });
@@ -11724,10 +11734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error getting job activities:", error);
-      res.status(500).json({ 
-        error: "Failed to get job activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get job activities", error);
     }
   });
 
@@ -11759,10 +11766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error getting order activities:", error);
-      res.status(500).json({ 
-        error: "Failed to get order activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get order activities", error);
     }
   });
 
@@ -11778,10 +11782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error getting user activities:", error);
-      res.status(500).json({ 
-        error: "Failed to get user activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get user activities", error);
     }
   });
 
@@ -11806,10 +11807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(analytics);
     } catch (error: any) {
       console.error("Error fetching activity analytics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch activity analytics", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch activity analytics", error);
     }
   });
 
@@ -11861,10 +11859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error getting job card data:", error);
-      res.status(500).json({ 
-        error: "Failed to get job card data", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to get job card data", error);
     }
   });
 
@@ -11918,10 +11913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching activities:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch activities", error);
     }
   });
 
@@ -11948,10 +11940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error fetching job activities:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch job activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch job activities", error);
     }
   });
 
@@ -11978,10 +11967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error fetching order activities:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch order activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch order activities", error);
     }
   });
 
@@ -11998,10 +11984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error: any) {
       console.error("Error fetching user activities:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch user activities", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch user activities", error);
     }
   });
 
@@ -12026,10 +12009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(analytics);
     } catch (error: any) {
       console.error("Error fetching activity analytics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch activity analytics", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to fetch activity analytics", error);
     }
   });
 
@@ -12055,10 +12035,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(activity);
     } catch (error: any) {
       console.error("Error creating activity:", error);
-      res.status(400).json({ 
-        error: "Invalid activity data", 
-        details: error.message 
-      });
+      sendSafeError(res, 400, "Invalid activity data", error);
     }
   });
 
@@ -12077,10 +12054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Health check failed:", error);
-      res.status(500).json({ 
-        error: "Health check failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Health check failed", error);
     }
   });
 
@@ -12113,10 +12087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Job validation failed:", error);
-      res.status(500).json({ 
-        error: "Job validation failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Job validation failed", error);
     }
   });
 
@@ -12149,10 +12120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Order validation failed:", error);
-      res.status(500).json({ 
-        error: "Order validation failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Order validation failed", error);
     }
   });
 
@@ -12174,10 +12142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Editor access validation failed:", error);
-      res.status(500).json({ 
-        error: "Editor access validation failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Editor access validation failed", error);
     }
   });
 
@@ -12230,10 +12195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Repair operation failed:", error);
-      res.status(500).json({ 
-        error: "Repair operation failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Repair operation failed", error);
     }
   });
 
@@ -12259,10 +12221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Upload validation failed:", error);
-      res.status(500).json({ 
-        error: "Upload validation failed", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Upload validation failed", error);
     }
   });
 
@@ -12448,7 +12407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           enableClientRevisionLimit: settings?.enableClientRevisionLimit ?? false,
           clientRevisionRoundLimit: settings?.clientRevisionRoundLimit ?? 2,
           editorDisplayNames,
-          teamMemberColors
+          teamMemberColors,
+          emailSettings: settings?.emailSettings ? JSON.parse(settings.emailSettings) : null
         });
       }
 
@@ -12463,7 +12423,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           enableClientRevisionLimit: false,
           clientRevisionRoundLimit: 2,
           editorDisplayNames: {},
-          teamMemberColors: {}
+          teamMemberColors: {},
+          emailSettings: null
         });
       }
 
@@ -12480,7 +12441,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enableClientRevisionLimit: settings.enableClientRevisionLimit ?? false,
         clientRevisionRoundLimit: settings.clientRevisionRoundLimit ?? 2,
         editorDisplayNames,
-        teamMemberColors
+        teamMemberColors,
+        emailSettings: settings.emailSettings ? JSON.parse(settings.emailSettings) : null
       });
     } catch (error: any) {
       console.error("Error fetching settings:", error);
@@ -12495,7 +12457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Partner ID required" });
       }
 
-      const { businessProfile, personalProfile, businessHours, enableClientRevisionLimit, clientRevisionRoundLimit, editorDisplayNames, teamMemberColors } = req.body;
+      const { businessProfile, personalProfile, businessHours, enableClientRevisionLimit, clientRevisionRoundLimit, editorDisplayNames, teamMemberColors, emailSettings } = req.body;
 
       // For photographers, save personal profile to their user document instead of partner settings
       if (req.user.role === 'photographer') {
@@ -12526,8 +12488,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await userRef.update(updateData);
         }
 
-        // Photographers can still update business hours (shared across team)
-        if (businessHours !== undefined || enableClientRevisionLimit !== undefined || clientRevisionRoundLimit !== undefined || teamMemberColors !== undefined) {
+        // Photographers can still update business hours and email settings (shared across team)
+        if (businessHours !== undefined || enableClientRevisionLimit !== undefined || clientRevisionRoundLimit !== undefined || teamMemberColors !== undefined || emailSettings !== undefined) {
           const savedSettings = await storage.savePartnerSettings(req.user.partnerId, {
             partnerId: req.user.partnerId,
             businessProfile: null, // Photographers don't update business profile
@@ -12536,7 +12498,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             enableClientRevisionLimit: enableClientRevisionLimit !== undefined ? enableClientRevisionLimit : false,
             clientRevisionRoundLimit: clientRevisionRoundLimit !== undefined ? clientRevisionRoundLimit : 2,
             editorDisplayNames: undefined,
-            teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : undefined
+            teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : undefined,
+            emailSettings: emailSettings != null ? JSON.stringify(emailSettings) : undefined
           });
 
           return res.json({ 
@@ -12561,7 +12524,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enableClientRevisionLimit: enableClientRevisionLimit !== undefined ? enableClientRevisionLimit : false,
         clientRevisionRoundLimit: clientRevisionRoundLimit !== undefined ? clientRevisionRoundLimit : 2,
         editorDisplayNames: editorDisplayNames ? JSON.stringify(editorDisplayNames) : null,
-        teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : null
+        teamMemberColors: teamMemberColors ? JSON.stringify(teamMemberColors) : null,
+        emailSettings: emailSettings != null ? JSON.stringify(emailSettings) : null
       });
 
       res.json({ 
@@ -12572,6 +12536,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error saving settings:", error);
       res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
+  // Save only email settings (merge with existing) so email defaults always persist
+  app.put("/api/settings/email", requireAuth, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user?.partnerId) {
+        return res.status(401).json({ error: "Partner ID required" });
+      }
+      const { emailSettings } = req.body;
+      if (emailSettings == null || typeof emailSettings !== "object") {
+        return res.status(400).json({ error: "emailSettings object required" });
+      }
+      const existing = await storage.getPartnerSettings(req.user.partnerId);
+      const payload: any = {
+        partnerId: req.user.partnerId,
+        businessProfile: existing?.businessProfile ?? null,
+        personalProfile: existing?.personalProfile ?? null,
+        businessHours: existing?.businessHours ?? null,
+        enableClientRevisionLimit: existing?.enableClientRevisionLimit ?? false,
+        clientRevisionRoundLimit: existing?.clientRevisionRoundLimit ?? 2,
+        editorDisplayNames: existing?.editorDisplayNames ?? null,
+        teamMemberColors: existing?.teamMemberColors ?? null,
+        bookingSettings: (existing as any)?.bookingSettings ?? null,
+        emailSettings: JSON.stringify(emailSettings),
+      };
+      await storage.savePartnerSettings(req.user.partnerId, payload);
+      return res.json({ success: true, message: "Email settings saved" });
+    } catch (error: any) {
+      console.error("Error saving email settings:", error);
+      res.status(500).json({ error: "Failed to save email settings" });
     }
   });
 
@@ -13192,7 +13187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error migrating to signed URLs:", error);
-      res.status(500).json({ error: "Failed to migrate to signed URLs", details: error.message });
+      sendSafeError(res, 500, "Failed to migrate to signed URLs", error);
     }
   });
 
@@ -13269,15 +13264,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("[BACKFILL] Error in job partnerId backfill:", error);
-      res.status(500).json({ 
-        error: "Failed to backfill job partnerIds", 
-        details: error.message 
-      });
+      sendSafeError(res, 500, "Failed to backfill job partnerIds", error);
     }
   });
 
-  // Cleanup endpoint for expired order files
-  app.delete('/api/cleanup/expired-orders-files', async (req, res) => {
+  // Cleanup endpoint for expired order files (internal/cron only)
+  app.delete('/api/cleanup/expired-orders-files', (req, res, next) => {
+    const secret = process.env.CLEANUP_SECRET;
+    const header = req.headers['x-cleanup-secret'] || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+    if (!secret || header !== secret) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    next();
+  }, async (req, res) => {
     try {
       console.log('[CLEANUP] Starting expired order files cleanup...');
 
@@ -13337,10 +13336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[CLEANUP] Cleanup completed: ${deletedCount} deleted, ${errorCount} errors`);
     } catch (error: any) {
       console.error("[CLEANUP] Error in expired files cleanup:", error);
-      res.status(500).json({
-        error: "Failed to cleanup expired files",
-        details: error.message
-      });
+      sendSafeError(res, 500, "Failed to cleanup expired files", error);
     }
   });
 
@@ -13916,7 +13912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(allAppointments);
     } catch (error: any) {
       console.error("Error fetching appointments:", error);
-      res.status(500).json({ error: "Failed to fetch appointments", details: error.message });
+      sendSafeError(res, 500, "Failed to fetch appointments", error);
     }
   });
 

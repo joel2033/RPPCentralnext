@@ -2,6 +2,7 @@ import type { Express } from "express";
 import multer from "multer";
 import { getStorage } from "firebase-admin/storage";
 import { firestoreStorage } from "./firestore-storage";
+import { adminAuth, getUserDocument } from "./firebase-admin";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -93,6 +94,59 @@ export function registerFirebaseUploadRoute(app: Express) {
         return res.status(400).json({ error: "upload_failed", detail: "jobId is required" });
       }
 
+      // Authentication: require valid Firebase ID token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "upload_failed", detail: "Authorization required" });
+      }
+      let user: { uid: string; partnerId?: string; role: string };
+      try {
+        const idToken = authHeader.replace(/^Bearer\s+/i, "").trim();
+        const decodedToken = await adminAuth.verifyIdToken(idToken);
+        const userDoc = await getUserDocument(decodedToken.uid);
+        if (!userDoc) {
+          return res.status(401).json({ error: "upload_failed", detail: "User not found" });
+        }
+        user = { uid: userDoc.uid, partnerId: userDoc.partnerId, role: userDoc.role };
+      } catch (authErr: any) {
+        return res.status(401).json({ error: "upload_failed", detail: "Invalid or expired token" });
+      }
+
+      // Resolve job for authorization
+      const job = await firestoreStorage.getJobByJobId(jobId);
+      if (!job?.id) {
+        return res.status(404).json({ error: "upload_failed", detail: "Job not found" });
+      }
+
+      const resolvedUploadType = (uploadType as string) || "completed";
+      const resolvedOrderNumber = (orderNumber != null ? String(orderNumber).trim().replace(/^#/, "") : "") || "";
+
+      // Authorization: tenant (partner) or assigned editor only
+      if (resolvedUploadType === "client") {
+        // Partner uploading source files for editors: must own the job
+        if (!user.partnerId || user.partnerId !== job.partnerId) {
+          return res.status(403).json({ error: "upload_failed", detail: "Access denied to this job" });
+        }
+        if (!["partner", "admin", "photographer"].includes(user.role)) {
+          return res.status(403).json({ error: "upload_failed", detail: "Only partners and team can upload source files" });
+        }
+      } else {
+        // Editor uploading completed work: must be assigned to this job/order
+        if (user.role !== "editor") {
+          return res.status(403).json({ error: "upload_failed", detail: "Only editors can upload completed files" });
+        }
+        const editorOrders = await firestoreStorage.getOrdersForEditor(user.uid);
+        const hasAccess = editorOrders.some((o: any) => {
+          const jobMatch = o.jobId === job.id || o.jobId === job.jobId;
+          if (!resolvedOrderNumber) return jobMatch;
+          const orderNumNorm = (o.orderNumber || "").replace(/^#/, "").trim();
+          return jobMatch && orderNumNorm === resolvedOrderNumber;
+        });
+        if (!hasAccess) {
+          return res.status(403).json({ error: "upload_failed", detail: "Order not assigned to you" });
+        }
+      }
+
       const bucketName = (process.env.FIREBASE_STORAGE_BUCKET || '').replace(/['"]/g, '').trim();
       if (!bucketName) {
         console.error("[upload-firebase] ERROR: FIREBASE_STORAGE_BUCKET not set");
@@ -158,14 +212,20 @@ export function registerFirebaseUploadRoute(app: Express) {
         }
       }
 
-      const safeName = file.originalname.replace(/\s+/g, '_');
+      // Prevent path traversal: reject folderPath with ".." or absolute segments
+      if (resolvedFolderPath && (resolvedFolderPath.includes('..') || resolvedFolderPath.startsWith('/'))) {
+        return res.status(400).json({ error: "upload_failed", detail: "Invalid folder path" });
+      }
+      // Sanitize filename: remove path segments and dangerous chars; keep extension
+      const baseName = path.basename(file.originalname || 'file');
+      const safeName = baseName.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '_') || `file_${Date.now()}`;
       const ts = Date.now();
-      const cleanOrder = (orderNumber || '').trim().replace(/^#/, '');
+      const cleanOrder = resolvedOrderNumber;
 
       console.log('[upload-firebase] PROCESSED VALUES', {
         userId,
         jobId,
-        uploadType,
+        uploadType: resolvedUploadType,
         rawFolderPath,
         normalizedFolderPath: folderPath,
         orderNumber: cleanOrder,
@@ -179,10 +239,10 @@ export function registerFirebaseUploadRoute(app: Express) {
       let expirationDays: number;
       let fileStatus: string;
 
-      if (uploadType === 'client') {
+      if (resolvedUploadType === 'client') {
         // Partner uploading files FOR editors to edit
-        // Structure: orders/userId/jobId/orderNumber/[folderPath/]files/filename
-        const userPath = userId ? `orders/${userId}` : 'orders';
+        // Structure: orders/userId/jobId/orderNumber/[folderPath/]files/filename (use authenticated uid only)
+        const userPath = user.uid ? `orders/${user.uid}` : 'orders';
         const basePath = cleanOrder ? `${userPath}/${jobId}/${cleanOrder}` : `${userPath}/${jobId}`;
 
         if (resolvedFolderPath) {
@@ -455,20 +515,15 @@ export function registerFirebaseUploadRoute(app: Express) {
         return;
       }
       
-      // Return detailed error for debugging (in production, you might want to hide some details)
-      const errorDetail = err?.message || String(err);
-      const errorCode = err?.code;
-      
+      const isProduction = process.env.NODE_ENV === "production";
       try {
         return res.status(500).json({
           error: "upload_failed",
-          detail: errorDetail,
-          code: errorCode || undefined,
-          // Include file info if available for debugging
-          fileInfo: req.files?.[0] ? {
-            name: req.files[0].originalname,
-            size: req.files[0].size
-          } : undefined
+          ...(isProduction ? {} : {
+            detail: err?.message || String(err),
+            code: err?.code,
+            fileInfo: req.files?.[0] ? { name: req.files[0].originalname, size: req.files[0].size } : undefined,
+          }),
         });
       } catch (sendErr) {
         console.error("[upload-firebase] Failed to send error response:", sendErr);

@@ -24,6 +24,8 @@ const defaultFromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@rppcentral.
 interface EmailResult {
   success: boolean;
   error?: string;
+  /** SendGrid message ID (for correlating bounce/block webhook events) */
+  messageId?: string;
 }
 
 /**
@@ -49,9 +51,14 @@ async function sendEmail(
       html: htmlContent,
     };
 
-    await sgMail.send(msg);
+    const response = await sgMail.send(msg);
+    // SendGrid returns [HttpResponse]; capture x-message-id for webhook correlation
+    const raw = Array.isArray(response) ? response[0] : response;
+    const headers = (raw as any)?.headers || {};
+    const messageId = headers['x-message-id'] ?? headers['X-Message-Id'];
+    const messageIdStr = typeof messageId === 'string' ? messageId.trim() : undefined;
     console.log(`Email sent successfully to ${to}`);
-    return { success: true };
+    return { success: true, messageId: messageIdStr };
   } catch (error: any) {
     console.error('Error sending email:', error);
     if (error.response) {
@@ -149,6 +156,7 @@ export async function sendDeliveryEmail(
   message: string,
   deliveryLink: string
 ): Promise<EmailResult> {
+  // RPP brand: orange #F05A2A, greys, system font stack (match app index.css)
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -157,25 +165,25 @@ export async function sendDeliveryEmail(
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${subject}</title>
     </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #f8f9fa; padding: 30px; border-radius: 8px;">
-        <h1 style="color: #2563eb; margin-top: 0;">${subject}</h1>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1F2937; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #F3F4F6;">
+      <div style="background-color: #ffffff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);">
+        <h1 style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #F05A2A; margin-top: 0; font-size: 1.5rem; font-weight: 600; line-height: 1.4;">${subject}</h1>
         
-        <div style="white-space: pre-wrap; margin: 20px 0;">${message.replace(/\n/g, '<br>')}</div>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; white-space: pre-wrap; margin: 24px 0; color: #3F474F; font-size: 16px;">${message.replace(/\n/g, '<br>')}</div>
         
-        <div style="text-align: center; margin: 30px 0;">
+        <div style="text-align: center; margin: 32px 0;">
           <a href="${deliveryLink}" 
-             style="background-color: #2563eb; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+             style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F05A2A; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 600; font-size: 15px; box-shadow: 0 2px 4px rgba(240, 90, 42, 0.2);">
             View & Download Your Photos
           </a>
         </div>
         
-        <p style="color: #666; font-size: 14px; margin-top: 30px;">
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #6B7280; font-size: 14px; margin-top: 28px;">
           Or copy and paste this link into your browser:<br>
-          <a href="${deliveryLink}" style="color: #2563eb; word-break: break-all;">${deliveryLink}</a>
+          <a href="${deliveryLink}" style="color: #F05A2A; word-break: break-all; text-decoration: underline;">${deliveryLink}</a>
         </p>
         
-        <p style="color: #999; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+        <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #9CA3AF; font-size: 13px; margin-top: 28px; border-top: 1px solid #E5E7EB; padding-top: 20px;">
           This link will be available for 30 days. If you have any questions or need revisions, please don't hesitate to reach out.
         </p>
       </div>

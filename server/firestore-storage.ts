@@ -2018,6 +2018,7 @@ export class FirestoreStorage implements IStorage {
         editorDisplayNames: settings.editorDisplayNames || null,
         teamMemberColors: settings.teamMemberColors || null,
         bookingSettings: (settings as any).bookingSettings || null,
+        emailSettings: (settings as any).emailSettings ?? null,
         id,
         partnerId,
         createdAt: now,
@@ -2145,6 +2146,27 @@ export class FirestoreStorage implements IStorage {
     };
     await this.db.collection("deliveryEmails").doc(id).set(prepareForFirestore(newEmail));
     return newEmail;
+  }
+
+  async updateDeliveryEmail(id: string, data: { sendgridMessageId?: string }): Promise<DeliveryEmail | undefined> {
+    const ref = this.db.collection("deliveryEmails").doc(id);
+    const doc = await ref.get();
+    if (!doc.exists) return undefined;
+    const updates: Record<string, unknown> = {};
+    if (data.sendgridMessageId !== undefined) updates.sendgridMessageId = data.sendgridMessageId;
+    if (Object.keys(updates).length === 0) return docToObject<DeliveryEmail>(doc);
+    await ref.update(prepareForFirestore(updates));
+    const updated = await ref.get();
+    return updated.exists ? docToObject<DeliveryEmail>(updated) : undefined;
+  }
+
+  async getDeliveryEmailBySendgridMessageId(sendgridMessageId: string): Promise<DeliveryEmail | undefined> {
+    const snapshot = await this.db.collection("deliveryEmails")
+      .where("sendgridMessageId", "==", sendgridMessageId)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return undefined;
+    return docToObject<DeliveryEmail>(snapshot.docs[0]);
   }
 
   // Revision Management

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +80,15 @@ interface BusinessHours {
   };
 }
 
+export interface DeliveryEmailDefaults {
+  subjectTemplate?: string;
+  messageTemplate?: string;
+}
+
+export interface EmailSettings {
+  deliveryEmail?: DeliveryEmailDefaults;
+}
+
 interface SavedSettings {
   personalProfile?: PersonalProfile;
   businessProfile?: BusinessProfile;
@@ -88,6 +97,7 @@ interface SavedSettings {
   clientRevisionRoundLimit?: number;
   editorDisplayNames?: Record<string, string>; // {editorId: customName}
   teamMemberColors?: Record<string, string>; // {userId: colorHex}
+  emailSettings?: EmailSettings;
 }
 
 export default function Settings() {
@@ -157,6 +167,13 @@ export default function Settings() {
 
   // Team member colors (custom colors per user for identification)
   const [teamMemberColors, setTeamMemberColors] = useState<Record<string, string>>({});
+
+  // Default email configurations (e.g. delivery email templates)
+  const [deliveryEmailDefaults, setDeliveryEmailDefaults] = useState<DeliveryEmailDefaults>({
+    subjectTemplate: "",
+    messageTemplate: ""
+  });
+  const deliveryMessageTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Editor invitation form data
   const [editorFormData, setEditorFormData] = useState({
@@ -257,6 +274,12 @@ export default function Settings() {
       }
       if (savedSettings.teamMemberColors) {
         setTeamMemberColors(savedSettings.teamMemberColors);
+      }
+      if (savedSettings.emailSettings?.deliveryEmail) {
+        setDeliveryEmailDefaults({
+          subjectTemplate: savedSettings.emailSettings.deliveryEmail.subjectTemplate ?? "",
+          messageTemplate: savedSettings.emailSettings.deliveryEmail.messageTemplate ?? ""
+        });
       }
     } else if (userData?.email) {
       // For photographers, initialize from userData if available
@@ -385,7 +408,7 @@ export default function Settings() {
 
   // Save settings mutation
   const saveSettingsMutation = useMutation({
-    mutationFn: async (data: { businessProfile: any; personalProfile: any; businessHours: any; enableClientRevisionLimit: boolean; clientRevisionRoundLimit: number; editorDisplayNames?: Record<string, string> }) => {
+    mutationFn: async (data: { businessProfile?: any; personalProfile?: any; businessHours?: any; enableClientRevisionLimit?: boolean; clientRevisionRoundLimit?: number; editorDisplayNames?: Record<string, string>; teamMemberColors?: Record<string, string>; emailSettings?: EmailSettings }) => {
       return apiRequest("/api/settings", "PUT", data);
     },
     onSuccess: (_, variables) => {
@@ -475,7 +498,52 @@ export default function Settings() {
       enableClientRevisionLimit,
       clientRevisionRoundLimit,
       editorDisplayNames: Object.keys(editorDisplayNames).length > 0 ? editorDisplayNames : undefined,
-      teamMemberColors: Object.keys(teamMemberColors).length > 0 ? teamMemberColors : undefined
+      teamMemberColors: Object.keys(teamMemberColors).length > 0 ? teamMemberColors : undefined,
+      emailSettings: { deliveryEmail: deliveryEmailDefaults }
+    });
+  };
+
+  // Save only email defaults (dedicated endpoint so they always persist)
+  const saveEmailSettingsMutation = useMutation({
+    mutationFn: async (emailSettings: EmailSettings) => {
+      return apiRequest("/api/settings/email", "PUT", { emailSettings });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Email defaults saved",
+        description: "Your delivery email template has been saved.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to save email defaults",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveEmailDefaults = () => {
+    saveEmailSettingsMutation.mutate({ deliveryEmail: deliveryEmailDefaults });
+  };
+
+  const insertPlaceholderInMessage = (placeholder: string) => {
+    const el = deliveryMessageTextareaRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const current = deliveryEmailDefaults.messageTemplate ?? "";
+    const next = current.slice(0, start) + placeholder + current.slice(end);
+    const newLen = Math.min(next.length, 1000);
+    setDeliveryEmailDefaults((prev) => ({
+      ...prev,
+      messageTemplate: next.slice(0, 1000),
+    }));
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = Math.min(start + placeholder.length, newLen);
+      el.setSelectionRange(pos, pos);
     });
   };
 
@@ -491,7 +559,9 @@ export default function Settings() {
       businessHours,
       enableClientRevisionLimit,
       clientRevisionRoundLimit,
-      editorDisplayNames: updatedNames
+      editorDisplayNames: updatedNames,
+      teamMemberColors: Object.keys(teamMemberColors).length > 0 ? teamMemberColors : undefined,
+      emailSettings: { deliveryEmail: deliveryEmailDefaults }
     });
   };
 
@@ -1485,7 +1555,83 @@ export default function Settings() {
         <TabsContent value="advanced" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
+              <CardTitle>Default email configurations</CardTitle>
+              <p className="text-sm text-gray-600">
+                Set default subject and message templates for emails. When sending, these will pre-fill the form; you can still edit before sending.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="p-6 border rounded-lg space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Delivery email
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Default subject and message used when sending the &quot;photos ready&quot; delivery email to clients. Insert placeholders with the buttons below.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="delivery-email-subject">Subject template</Label>
+                    <Input
+                      id="delivery-email-subject"
+                      value={deliveryEmailDefaults.subjectTemplate}
+                      onChange={(e) => setDeliveryEmailDefaults(prev => ({ ...prev, subjectTemplate: e.target.value }))}
+                      placeholder="Your photos are ready for {address}"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="delivery-email-message">Message template</Label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <span className="text-xs text-muted-foreground self-center">Insert at cursor:</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertPlaceholderInMessage("[DELIVERY_LINK]")}
+                      >
+                        [DELIVERY_LINK]
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertPlaceholderInMessage("{customerFirstName}")}
+                      >
+                        {`{customerFirstName}`}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertPlaceholderInMessage("{address}")}
+                      >
+                        {`{address}`}
+                      </Button>
+                    </div>
+                    <Textarea
+                      ref={deliveryMessageTextareaRef}
+                      id="delivery-email-message"
+                      value={deliveryEmailDefaults.messageTemplate}
+                      onChange={(e) => setDeliveryEmailDefaults(prev => ({ ...prev, messageTemplate: e.target.value.slice(0, 1000) }))}
+                      placeholder={`Hi {customerFirstName},\n\nYour professional property photos for {address} are ready for download!\n\nClick the link below to view and download your high-resolution images:\n\n[DELIVERY_LINK]\n\n...`}
+                      rows={8}
+                      className="resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">{deliveryEmailDefaults.messageTemplate.length} / 1000</p>
+                  </div>
+                  <Button
+                    onClick={handleSaveEmailDefaults}
+                    disabled={saveEmailSettingsMutation.isPending}
+                  >
+                    {saveEmailSettingsMutation.isPending ? "Saving..." : "Save email defaults"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>More options</CardTitle>
               <p className="text-sm text-gray-600">
                 Additional configuration options (coming soon)
               </p>

@@ -15,6 +15,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, CheckCircle2, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
+import { useQuery } from "@tanstack/react-query";
+import type { EmailSettings } from "@/pages/Settings";
 
 interface SendDeliveryEmailModalProps {
   open: boolean;
@@ -53,6 +55,12 @@ export default function SendDeliveryEmailModal({
   const [tokenGenerationError, setTokenGenerationError] = useState<string | null>(null);
   const [retryTokenGeneration, setRetryTokenGeneration] = useState(0);
   const { toast } = useToast();
+
+  const { data: settings } = useQuery<{ emailSettings?: EmailSettings }>({
+    queryKey: ["/api/settings"],
+    enabled: open,
+  });
+  const deliveryDefaults = settings?.emailSettings?.deliveryEmail;
 
   // Generate delivery link from deliveryToken (required for security)
   useEffect(() => {
@@ -123,17 +131,21 @@ export default function SendDeliveryEmailModal({
     }
   }, [open, job.deliveryToken, job.jobId, job.id, isGeneratingToken, retryTokenGeneration, onJobUpdated, toast]);
 
-  // Pre-fill form when modal opens
+  // Pre-fill form when modal opens (use saved defaults if set)
   useEffect(() => {
     if (open) {
       setRecipientEmail(customer.email || "");
-      setSubject(`Your photos are ready for ${job.address}`);
-      setMessage(
-        `Hi ${customer.firstName},\n\nYour professional property photos for ${job.address} are ready for download!\n\nClick the link below to view and download your high-resolution images:\n\n[DELIVERY_LINK]\n\nYou can download individual files or the entire collection. The files will be available for 30 days.\n\nIf you have any questions or need revisions, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards`
-      );
+      const subjectTemplate = deliveryDefaults?.subjectTemplate?.trim() || "Your photos are ready for {address}";
+      const messageTemplate = deliveryDefaults?.messageTemplate?.trim() || `Hi {customerFirstName},\n\nYour professional property photos for {address} are ready for download!\n\nClick the link below to view and download your high-resolution images:\n\n[DELIVERY_LINK]\n\nYou can download individual files or the entire collection. The files will be available for 30 days.\n\nIf you have any questions or need revisions, please don't hesitate to reach out.\n\nThank you for your business!\n\nBest regards`;
+      const replacePlaceholders = (s: string) =>
+        s
+          .replace(/\{address\}/g, job.address || "")
+          .replace(/\{customerFirstName\}/g, customer.firstName || "");
+      setSubject(replacePlaceholders(subjectTemplate));
+      setMessage(replacePlaceholders(messageTemplate));
       setEmailSent(false);
     }
-  }, [open, customer, job.address]);
+  }, [open, customer, job.address, deliveryDefaults?.subjectTemplate, deliveryDefaults?.messageTemplate]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(deliveryLink);
@@ -199,7 +211,15 @@ export default function SendDeliveryEmailModal({
       ]);
 
       if (!emailResponse.ok) {
-        throw new Error("Failed to send email");
+        const errData = await emailResponse.json().catch(() => ({}));
+        throw new Error(errData.emailError || errData.error || "Failed to send email");
+      }
+
+      const result = await emailResponse.json();
+      if (result.emailSent === false) {
+        throw new Error(
+          result.emailError || "The email could not be delivered. Check your email settings (e.g. SendGrid) and try again."
+        );
       }
 
       setEmailSent(true);
@@ -215,9 +235,10 @@ export default function SendDeliveryEmailModal({
       }, 2000);
     } catch (error) {
       console.error("Error sending email:", error);
+      const message = error instanceof Error ? error.message : "Please try again or contact support";
       toast({
         title: "Failed to send email",
-        description: "Please try again or contact support",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -364,7 +385,7 @@ export default function SendDeliveryEmailModal({
               <Button
                 onClick={handleSendEmail}
                 disabled={isSending || isGeneratingToken || !deliveryLink || !recipientEmail || !subject || !message}
-                className="bg-gradient-to-r from-primary to-primary/90"
+                className="border-0 bg-[linear-gradient(30deg,rgba(242,87,44,1)_0%,rgba(245,126,97,0.5)_100%)] shadow-[0px_4px_12px_0px_rgba(0,0,0,0.15)]"
                 data-testid="button-send-email"
               >
                 {isSending ? (
